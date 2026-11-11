@@ -1,0 +1,63 @@
+<script setup lang="ts">
+// 一張牌：只有紅、黑兩色。點數與花色放左上角，疊起來時也看得清楚。
+import { computed } from 'vue'
+import { RANK_LABELS, isRed, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
+import SuitIcon from '@/ui/SuitIcon.vue'
+
+const props = defineProps<{ card: Card }>()
+const rank = computed(() => RANK_LABELS[rankOf(props.card)])
+const suit = computed(() => suitOf(props.card))
+</script>
+
+<template>
+  <div class="card" :class="{ red: isRed(card), wide: rank === '10' }">
+    <span class="rank font-display">{{ rank }}</span>
+    <SuitIcon :suit="suit" class="pip" />
+    <SuitIcon :suit="suit" class="big" />
+  </div>
+</template>
+
+<style scoped>
+.card {
+  --w: var(--cw, 3.9rem);
+  position: relative;
+  width: var(--w);
+  height: calc(var(--w) * 1.42);
+  flex-shrink: 0;
+  border: calc(var(--w) * 0.036) solid var(--color-ink);
+  border-radius: calc(var(--w) * 0.13) calc(var(--w) * 0.09) calc(var(--w) * 0.14) calc(var(--w) * 0.08);
+  background: var(--color-card);
+  color: var(--color-ink);
+}
+.card.red {
+  color: var(--color-red);
+}
+.rank {
+  position: absolute;
+  left: calc(var(--w) * 0.07);
+  top: calc(var(--w) * 0.02);
+  width: calc(var(--w) * 0.46);
+  text-align: center;
+  font-size: calc(var(--w) * 0.44);
+  line-height: 1.12;
+  -webkit-text-stroke: calc(var(--w) * 0.014) currentColor;
+}
+.wide .rank {
+  letter-spacing: -0.09em;
+  font-size: calc(var(--w) * 0.4);
+  line-height: 1.22;
+}
+.pip {
+  position: absolute;
+  left: calc(var(--w) * 0.14);
+  top: calc(var(--w) * 0.52);
+  width: calc(var(--w) * 0.3);
+}
+.big {
+  position: absolute;
+  right: calc(var(--w) * 0.09);
+  bottom: calc(var(--w) * 0.1);
+  width: calc(var(--w) * 0.5);
+  opacity: 0.9;
+}
+</style>
