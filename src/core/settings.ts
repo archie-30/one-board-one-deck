@@ -1,0 +1,41 @@
+// 設定與戰績（會自動存檔）
+import { reactive, watch } from 'vue'
+import type { Difficulty } from '@/engine/common/types'
+import { loadSave, writeSave } from './storage'
+
+export interface GamePrefs {
+  difficulty: Difficulty
+  options: Record<string, string | boolean>
+}
+
+interface Settings {
+  /** 0～1 */
+  volume: number
+  games: Record<string, GamePrefs>
+}
+
+interface Stats {
+  gomoku: { wins: number; losses: number; draws: number }
+  bigtwo: { rounds: number; wins: number; totals: number[] }
+}
+
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {} }))
+
+export const stats = reactive(
+  loadSave<Stats>('stats', {
+    gomoku: { wins: 0, losses: 0, draws: 0 },
+    bigtwo: { rounds: 0, wins: 0, totals: [0, 0, 0, 0] },
+  }),
+)
+
+watch(settings, (v) => writeSave('settings', v), { deep: true })
+watch(stats, (v) => writeSave('stats', v), { deep: true })
+
+/** 取得某個遊戲的偏好設定，沒有就建立 */
+export function gamePrefs(gameId: string): GamePrefs {
+  if (!settings.games[gameId]) settings.games[gameId] = { difficulty: 'normal', options: {} }
+  const prefs = settings.games[gameId]
+  if (prefs.difficulty !== 'easy' && prefs.difficulty !== 'normal') prefs.difficulty = 'normal'
+  if (typeof prefs.options !== 'object' || prefs.options === null) prefs.options = {}
+  return prefs
+}

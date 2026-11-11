@@ -1,0 +1,199 @@
+<script setup lang="ts">
+// 棋盤：手繪格線、棋子、預覽、勝利筆劃。只負責畫與回報點了哪一格。
+import { computed } from 'vue'
+import type { Stone } from '@/engine/gomoku/rules'
+
+const props = withDefaults(
+  defineProps<{
+    board: readonly Stone[]
+    size?: number
+    lastMove?: number
+    winLine?: readonly number[]
+    preview?: number
+    previewColor?: 1 | 2
+    highlights?: readonly number[]
+    interactive?: boolean
+  }>(),
+  { size: 15, lastMove: -1, winLine: () => [], preview: -1, previewColor: 1, highlights: () => [], interactive: true },
+)
+const emit = defineEmits<{ pick: [index: number] }>()
+
+const CELL = 10
+const PAD = 7
+const span = computed(() => (props.size - 1) * CELL)
+const total = computed(() => span.value + PAD * 2)
+const px = (i: number) => PAD + (i % props.size) * CELL
+const py = (i: number) => PAD + Math.floor(i / props.size) * CELL
+
+/** 固定的小偏移，讓線條略不規則但每次畫出來都一樣 */
+const wobble = (n: number) => ((Math.sin(n * 12.9898) * 43758.5453) % 1) * 0.5
+
+const gridLines = computed(() => {
+  const lines: string[] = []
+  const end = PAD + span.value
+  for (let i = 0; i < props.size; i++) {
+    const p = PAD + i * CELL
+    lines.push(`M ${PAD - 0.4} ${p + wobble(i)} Q ${PAD + span.value * 0.45} ${p + wobble(i + 40)} ${end + 0.4} ${p + wobble(i + 80)}`)
+    lines.push(`M ${p + wobble(i + 120)} ${PAD - 0.4} Q ${p + wobble(i + 160)} ${PAD + span.value * 0.55} ${p + wobble(i + 200)} ${end + 0.4}`)
+  }
+  return lines.join(' ')
+})
+
+const stars = computed(() => {
+  if (props.size !== 15) return []
+  return [
+    [3, 3],
+    [11, 3],
+    [7, 7],
+    [3, 11],
+    [11, 11],
+  ].map(([x, y]) => y * 15 + x)
+})
+
+const stones = computed(() => {
+  const out: { index: number; color: Stone }[] = []
+  props.board.forEach((color, index) => {
+    if (color !== 0) out.push({ index, color })
+  })
+  return out
+})
+
+const winPath = computed(() => {
+  if (props.winLine.length < 2) return ''
+  const a = props.winLine[0]
+  const b = props.winLine[props.winLine.length - 1]
+  const dx = Math.sign(px(b) - px(a)) * 3.2
+  const dy = Math.sign(py(b) - py(a)) * 3.2
+  return `M ${px(a) - dx} ${py(a) - dy} L ${px(b) + dx} ${py(b) + dy}`
+})
+
+function onClick(event: MouseEvent) {
+  if (!props.interactive) return
+  const rect = (event.currentTarget as SVGElement).getBoundingClientRect()
+  const x = Math.round((((event.clientX - rect.left) / rect.width) * total.value - PAD) / CELL)
+  const y = Math.round((((event.clientY - rect.top) / rect.height) * total.value - PAD) / CELL)
+  if (x < 0 || y < 0 || x >= props.size || y >= props.size) return
+  emit('pick', y * props.size + x)
+}
+</script>
+
+<template>
+  <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick">
+    <path :d="`M 1.6 2 L ${total - 1.4} 1.4 L ${total - 1.8} ${total - 1.6} L 1.2 ${total - 2} Z`" class="wood" />
+    <path :d="`M 0.4 2 Q ${total / 2} 0.6 ${total - 0.2} 1.5 M ${total - 1.5} 0.2 Q ${total - 0.6} ${total / 2} ${total - 1.8} ${total - 0.2} M ${total - 0.3} ${total - 1.7} Q ${total / 2} ${total - 0.5} 0.2 ${total - 2} M 1.3 ${total - 0.3} Q 0.5 ${total / 2} 1.6 0.3`" class="edge" />
+    <path :d="gridLines" class="grid" />
+    <circle v-for="s in stars" :key="`s${s}`" :cx="px(s)" :cy="py(s)" r="0.9" class="star" />
+
+    <circle v-for="h in highlights" :key="`h${h}`" :cx="px(h)" :cy="py(h)" r="4.4" class="highlight" />
+
+    <g v-for="s in stones" :key="s.index" class="stone" :class="s.color === 1 ? 'black' : 'white'">
+      <circle :cx="px(s.index)" :cy="py(s.index)" r="4.25" />
+      <path v-if="s.color === 1" :d="`M ${px(s.index) - 2.4} ${py(s.index) - 1.4} q 1 -1.5 2.6 -1.7`" class="shine" />
+    </g>
+    <circle v-if="lastMove >= 0 && !winLine.length" :cx="px(lastMove)" :cy="py(lastMove)" r="1.15" class="last" />
+
+    <g v-if="preview >= 0" class="preview" :class="previewColor === 1 ? 'black' : 'white'">
+      <circle :cx="px(preview)" :cy="py(preview)" r="4.25" class="ghost" />
+      <circle :cx="px(preview)" :cy="py(preview)" r="5.4" class="ring" />
+    </g>
+
+    <path v-if="winPath" :key="winPath" :d="winPath" pathLength="1" class="win draw" />
+  </svg>
+</template>
+
+<style scoped>
+.board {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  touch-action: manipulation;
+}
+.board.interactive {
+  cursor: pointer;
+}
+.wood {
+  fill: var(--color-wood);
+}
+.edge {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 0.9;
+  stroke-linecap: round;
+}
+.grid {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 0.32;
+  stroke-linecap: round;
+  opacity: 0.62;
+}
+.star {
+  fill: var(--color-ink);
+  opacity: 0.7;
+}
+.highlight {
+  fill: var(--color-sun);
+  stroke: var(--color-ink);
+  stroke-width: 0.35;
+  stroke-dasharray: 1.4 1.2;
+}
+.stone circle {
+  stroke: var(--color-ink);
+  stroke-width: 0.6;
+}
+.stone.black circle {
+  fill: var(--color-ink);
+}
+.stone.white circle {
+  fill: var(--color-card);
+}
+.shine {
+  fill: none;
+  stroke: var(--color-paper);
+  stroke-width: 0.55;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+/* 落子：從略高、略大的位置按到棋盤上 */
+@keyframes stone-in {
+  from {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+}
+.stone {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: stone-in 200ms var(--ease-out) both;
+}
+.last {
+  fill: var(--color-red);
+}
+.preview .ghost {
+  opacity: 0.45;
+  stroke: var(--color-ink);
+  stroke-width: 0.6;
+}
+.preview.black .ghost {
+  fill: var(--color-ink);
+}
+.preview.white .ghost {
+  fill: var(--color-card);
+  opacity: 0.8;
+}
+.preview .ring {
+  fill: none;
+  stroke: var(--color-red);
+  stroke-width: 0.6;
+  stroke-dasharray: 1.6 1.3;
+}
+.win {
+  fill: none;
+  stroke: var(--color-red);
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  opacity: 0.88;
+  animation-duration: 480ms;
+}
+</style>
