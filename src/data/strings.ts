@@ -34,6 +34,7 @@ export const S = {
   category: {
     cards: { title: '撲克牌', lead: '一副 52 張的牌。' },
     board: { title: '棋盤', lead: '一張棋盤，兩種棋子。' },
+    more: '更多遊戲\n之後加入',
   },
   lobby: {
     start: '開始對局',
@@ -41,6 +42,9 @@ export const S = {
     rules: '規則說明',
     settings: '規則設定',
     difficulty: '電腦強度',
+    tutorialShort: '教學',
+    rulesShort: '規則',
+    settingsShort: '設定',
   },
   appSettings: {
     title: '設定',

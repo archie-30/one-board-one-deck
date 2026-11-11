@@ -3,8 +3,9 @@ import { computed, ref } from 'vue'
 import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { createGomoku, placeStone, toIndex, type GomokuState } from '@/engine/gomoku/rules'
-import InkButton from '@/ui/InkButton.vue'
-import InkIcon from '@/ui/InkIcon.vue'
+import Doodle from '@/ui/art/Doodle.vue'
+import DoodleButton from '@/ui/DoodleButton.vue'
+import StoneButton from './StoneButton.vue'
 import GomokuBoard from './GomokuBoard.vue'
 import { GOMOKU_LESSONS } from './tutorialData'
 
@@ -82,7 +83,7 @@ function next() {
 
     <aside class="flex min-w-0 flex-1 flex-col py-[0.3rem]">
       <header class="flex items-center gap-[0.6rem]">
-        <button class="back" :aria-label="S.common.back" @click="emit('exit')"><InkIcon name="back" class="h-[1.4rem] w-[1.4rem]" /></button>
+        <button class="back" :aria-label="S.common.back" @click="emit('exit')"><Doodle name="back" class="h-[1.8rem] w-[1.8rem]" /></button>
         <h1 class="font-display text-[1.5rem] leading-none">{{ S.tutorial.title }}</h1>
         <span v-if="!finished" class="ml-auto text-[0.9rem] text-ink-soft tabular-nums">{{ S.tutorial.step(step + 1, GOMOKU_LESSONS.length) }}</span>
       </header>
@@ -97,13 +98,13 @@ function next() {
         <p v-else-if="misses > 0" :key="misses" class="rise mt-[0.8rem] text-[0.95rem] text-red">{{ S.tutorial.tryAgain }}</p>
       </div>
 
-      <div class="flex flex-col gap-[0.6rem]">
+      <div class="flex justify-center gap-[1.6rem]">
         <template v-if="finished">
-          <InkButton tone="red" size="lg" @click="emit('play')">{{ S.tutorial.play }}</InkButton>
-          <InkButton :variant="1" @click="emit('exit')">{{ S.common.back }}</InkButton>
+          <DoodleButton :label="S.tutorial.play" size="5rem" @click="emit('play')"><Doodle name="resume" /></DoodleButton>
+          <DoodleButton :label="S.common.back" size="5rem" @click="emit('exit')"><Doodle name="exit" /></DoodleButton>
         </template>
-        <InkButton v-else-if="solved" tone="leaf" size="lg" @click="next">{{ step + 1 >= GOMOKU_LESSONS.length ? S.common.done : S.common.next }}</InkButton>
-        <InkButton v-else tone="red" size="lg" :disabled="preview < 0" @click="confirmMove">{{ T.place }}</InkButton>
+        <DoodleButton v-else-if="solved" :label="step + 1 >= GOMOKU_LESSONS.length ? S.common.done : S.common.next" size="5rem" @click="next"><Doodle name="resume" /></DoodleButton>
+        <StoneButton v-else :label="T.place" black :disabled="preview < 0" @click="confirmMove" />
       </div>
     </aside>
   </section>

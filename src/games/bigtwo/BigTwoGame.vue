@@ -12,9 +12,11 @@ import { applyBigTwo, checkPlay, dealBigTwo, scoreBigTwo, type BigTwoAction, typ
 import type { BigTwoOptions } from '@/engine/bigtwo/options'
 import type { GameDef } from '@/games/types'
 import GameMenu from '@/ui/GameMenu.vue'
-import InkButton from '@/ui/InkButton.vue'
 import InkDialog from '@/ui/InkDialog.vue'
-import InkIcon from '@/ui/InkIcon.vue'
+import ArtRobot from '@/ui/art/ArtRobot.vue'
+import Doodle from '@/ui/art/Doodle.vue'
+import DoodleButton from '@/ui/DoodleButton.vue'
+import SketchBox from '@/ui/SketchBox.vue'
 import CardHand from './CardHand.vue'
 import TablePlay from './TablePlay.vue'
 
@@ -148,11 +150,12 @@ onUnmounted(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <section class="table">
-    <button class="icon-btn menu" :aria-label="S.common.menu" @click="menuOpen = true"><InkIcon name="menu" class="h-[1.6rem] w-[1.6rem]" /></button>
+  <section class="felt">
+    <button class="icon-btn menu" :aria-label="S.common.menu" @click="menuOpen = true"><Doodle name="menu" class="h-[2rem] w-[2rem]" /></button>
 
     <!-- 三個電腦：右、上、左（出牌順序是 你 → 右 → 上 → 左） -->
     <div v-for="p in [1, 2, 3]" :key="p" class="seat" :class="[`seat-${p}`, { active: !over && state.turn === p }]">
+      <ArtRobot class="robot" :variant="p - 1" />
       <div class="back" :class="{ few: state.hands[p].length <= 3 }">
         <span class="font-display tabular-nums">{{ state.hands[p].length }}</span>
       </div>
@@ -163,6 +166,7 @@ onUnmounted(() => window.clearTimeout(timer))
     </div>
 
     <div class="center">
+      <div class="mat"><span class="mat-hatch" /><SketchBox fill="var(--color-leaf-soft)" :variant="2" /></div>
       <TablePlay :cards="state.table?.combo.cards ?? null" :from="state.table?.player" :caption="tableCaption" />
     </div>
 
@@ -175,14 +179,14 @@ onUnmounted(() => window.clearTimeout(timer))
 
     <div class="bottom">
       <div class="side">
-        <InkButton size="sm" tone="deck" :variant="2" :disabled="!myTurn" @click="hint">{{ T.hint }}</InkButton>
+        <DoodleButton :label="T.hint" size="3.4rem" :disabled="!myTurn" @click="hint"><Doodle name="bulb" /></DoodleButton>
       </div>
       <CardHand v-model:selected="selected" class="mine-hand" :cards="state.hands[ME]" :disabled="over" :deal-key="round" />
       <div class="side actions">
-        <InkButton v-if="over" tone="red" @click="resultOpen = true">{{ T.result.howTitle }}</InkButton>
+        <DoodleButton v-if="over" :label="T.result.howTitle" size="4rem" @click="resultOpen = true"><Doodle name="score" /></DoodleButton>
         <template v-else>
-          <InkButton tone="red" :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</InkButton>
-          <InkButton :variant="1" :disabled="!canPass" @click="pass">{{ T.pass }}</InkButton>
+          <DoodleButton :label="T.pass" size="3.2rem" :disabled="!canPass" @click="pass"><Doodle name="pass" /></DoodleButton>
+          <DoodleButton :label="T.play" size="4.2rem" :disabled="!myTurn || !selected.length" @click="playSelected"><Doodle name="play" /></DoodleButton>
         </template>
       </div>
     </div>
@@ -215,16 +219,16 @@ onUnmounted(() => window.clearTimeout(timer))
         {{ T.result.base }}{{ doubleNotes.join('') }}
       </p>
       <template #actions>
-        <InkButton tone="red" @click="newRound">{{ S.common.again }}</InkButton>
-        <InkButton :variant="1" @click="emit('exit')">{{ S.common.quit }}</InkButton>
-        <InkButton :variant="2" size="sm" class="self-center" @click="resetTotals">{{ T.result.resetTotal }}</InkButton>
+        <DoodleButton row :label="S.common.again" size="2.8rem" @click="newRound"><Doodle name="again" /></DoodleButton>
+        <DoodleButton row :label="S.common.quit" size="2.8rem" @click="emit('exit')"><Doodle name="exit" /></DoodleButton>
+        <button class="reset" @click="resetTotals">{{ T.result.resetTotal }}</button>
       </template>
     </InkDialog>
   </section>
 </template>
 
 <style scoped>
-.table {
+.felt {
   position: relative;
   display: grid;
   grid-template-rows: 1fr auto auto;
@@ -250,8 +254,37 @@ onUnmounted(() => window.clearTimeout(timer))
   z-index: 2;
 }
 .center {
+  position: relative;
   min-height: 0;
-  padding: 2.6rem 9rem 0;
+  padding: 3.4rem 9.5rem 0.2rem;
+}
+/* 桌墊：出的牌都落在這裡 */
+.mat {
+  position: absolute;
+  inset: 3.7rem 10.5rem 0.3rem;
+}
+.mat-hatch {
+  position: absolute;
+  inset: 0.45rem -0.45rem -0.45rem 0.45rem;
+  background-image: repeating-linear-gradient(-52deg, var(--color-ink) 0 0.07rem, transparent 0.07rem 0.32rem);
+  opacity: 0.4;
+}
+.robot {
+  width: 3rem;
+  height: 3rem;
+  transition: transform 240ms var(--ease-out);
+}
+.seat.active .robot {
+  transform: translateY(-0.2rem) rotate(-5deg);
+}
+.reset {
+  align-self: center;
+  border: 0;
+  background: none;
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 /* 電腦的座位：牌背上寫剩幾張 */
@@ -260,7 +293,7 @@ onUnmounted(() => window.clearTimeout(timer))
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  opacity: 0.72;
+  opacity: 0.8;
   transition: opacity 200ms ease;
 }
 .seat.active {
@@ -268,8 +301,11 @@ onUnmounted(() => window.clearTimeout(timer))
 }
 .seat-1 {
   right: max(1.2rem, env(safe-area-inset-right));
-  top: 5.6rem;
-  flex-direction: column;
+  top: 4.2rem;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-items: center;
+  gap: 0.2rem 0.4rem;
 }
 .seat-2 {
   left: 50%;
@@ -278,14 +314,23 @@ onUnmounted(() => window.clearTimeout(timer))
 }
 .seat-3 {
   left: max(1.2rem, env(safe-area-inset-left));
-  top: 5.6rem;
-  flex-direction: column;
+  top: 4.2rem;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-items: center;
+  gap: 0.2rem 0.4rem;
+}
+.seat-1 .name,
+.seat-3 .name,
+.seat-1 .pass-mark,
+.seat-3 .pass-mark {
+  grid-column: 1 / -1;
 }
 .back {
   display: grid;
   place-items: center;
-  width: 2.3rem;
-  height: 3.1rem;
+  width: 2rem;
+  height: 2.7rem;
   border: 0.13rem solid var(--color-ink);
   border-radius: 0.3rem 0.22rem 0.34rem 0.2rem;
   background: var(--color-deck);
@@ -377,14 +422,17 @@ onUnmounted(() => window.clearTimeout(timer))
 }
 .side {
   display: flex;
+  position: absolute;
+  bottom: 0.5rem;
+  left: max(1rem, env(safe-area-inset-left));
   width: 6.2rem;
-  flex-shrink: 0;
   flex-direction: column;
-  gap: 0.5rem;
-  padding-bottom: 0.2rem;
+  align-items: center;
+  gap: 0.1rem;
 }
-.side:first-child {
-  align-items: flex-start;
+.side.actions {
+  left: auto;
+  right: max(1rem, env(safe-area-inset-right));
 }
 
 .score {

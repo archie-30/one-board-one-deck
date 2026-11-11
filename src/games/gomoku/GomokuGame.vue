@@ -9,9 +9,11 @@ import { chooseGomokuMove } from '@/engine/gomoku/ai'
 import { canPlace, createGomoku, placeStone, type GomokuOptions, type GomokuState, type Player } from '@/engine/gomoku/rules'
 import type { GameDef } from '@/games/types'
 import GameMenu from '@/ui/GameMenu.vue'
-import InkButton from '@/ui/InkButton.vue'
 import InkDialog from '@/ui/InkDialog.vue'
-import InkIcon from '@/ui/InkIcon.vue'
+import ArtBowl from '@/ui/art/ArtBowl.vue'
+import Doodle from '@/ui/art/Doodle.vue'
+import DoodleButton from '@/ui/DoodleButton.vue'
+import StoneButton from './StoneButton.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
 import GomokuBoard from './GomokuBoard.vue'
 
@@ -123,10 +125,10 @@ onUnmounted(() => window.clearTimeout(timer))
 <template>
   <section class="flex h-full items-stretch gap-[1.2rem] px-[max(1.2rem,env(safe-area-inset-left))] py-[0.7rem]">
     <aside class="flex w-[9.5rem] shrink-0 flex-col">
-      <button class="icon-btn" :aria-label="S.common.menu" @click="menuOpen = true"><InkIcon name="menu" class="h-[1.6rem] w-[1.6rem]" /></button>
+      <button class="icon-btn" :aria-label="S.common.menu" @click="menuOpen = true"><Doodle name="menu" class="h-[2rem] w-[2rem]" /></button>
       <ul v-if="phase !== 'rps'" class="mt-auto mb-auto flex flex-col gap-[0.9rem]">
         <li v-for="seat in seats" :key="seat.color" class="seat" :class="{ active: phase === 'playing' && state.turn === seat.color }">
-          <span class="dot" :class="seat.color === 1 ? 'black' : 'white'" />
+          <ArtBowl class="bowl" :black="seat.color === 1" />
           <span class="flex flex-col leading-tight">
             <span class="font-display text-[1.3rem]">{{ seat.name }}</span>
             <span class="text-[0.8rem] text-ink-soft">{{ seat.label }}</span>
@@ -155,9 +157,9 @@ onUnmounted(() => window.clearTimeout(timer))
           {{ message || (myTurn ? T.previewHint : '') }}
         </p>
       </div>
-      <div class="flex flex-col gap-[0.6rem]">
-        <InkButton v-if="phase === 'over'" tone="red" size="lg" @click="restart">{{ S.common.again }}</InkButton>
-        <InkButton v-else tone="red" size="lg" :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</InkButton>
+      <div class="flex justify-center">
+        <DoodleButton v-if="phase === 'over'" :label="S.common.again" size="5rem" @click="restart"><Doodle name="again" /></DoodleButton>
+        <StoneButton v-else :label="T.place" :black="human === 1" :disabled="!myTurn || preview < 0" @click="confirmMove" />
       </div>
     </aside>
 
@@ -167,8 +169,8 @@ onUnmounted(() => window.clearTimeout(timer))
       <p class="text-center text-[1rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p class="pt-[0.3rem] text-center text-[0.85rem] text-ink-soft tabular-nums">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>
-        <InkButton tone="red" @click="restart">{{ S.common.again }}</InkButton>
-        <InkButton :variant="1" @click="emit('exit')">{{ S.common.quit }}</InkButton>
+        <DoodleButton :label="S.common.again" @click="restart"><Doodle name="again" /></DoodleButton>
+        <DoodleButton :label="S.common.quit" @click="emit('exit')"><Doodle name="exit" /></DoodleButton>
       </template>
     </InkDialog>
   </section>
@@ -221,18 +223,14 @@ onUnmounted(() => window.clearTimeout(timer))
 .seat.active::before {
   transform: scaleY(1);
 }
-.dot {
-  width: 1.7rem;
-  height: 1.7rem;
+.bowl {
+  width: 3.4rem;
+  height: 3.4rem;
   flex-shrink: 0;
-  border: 0.14rem solid var(--color-ink);
-  border-radius: 50%;
+  transition: transform 240ms var(--ease-out);
 }
-.dot.black {
-  background: var(--color-ink);
-}
-.dot.white {
-  background: var(--color-card);
+.seat.active .bowl {
+  transform: translateY(-0.15rem) rotate(-6deg) scale(1.06);
 }
 .note {
   min-height: 2.6em;

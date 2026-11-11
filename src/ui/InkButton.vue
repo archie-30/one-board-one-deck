@@ -16,6 +16,7 @@ function onClick() {
 
 <template>
   <button class="ink-btn font-display" :class="[`tone-${tone}`, `size-${size}`]" :disabled="disabled" @click="onClick">
+    <span class="hatch" />
     <SketchBox fill="var(--btn-fill)" :variant="variant" />
     <span class="relative flex items-center justify-center gap-[0.5em]"><slot /></span>
   </button>
@@ -34,6 +35,12 @@ function onClick() {
   transition:
     transform 160ms var(--ease-out),
     opacity 160ms ease;
+}
+.hatch {
+  position: absolute;
+  inset: 0.32rem -0.32rem -0.32rem 0.32rem;
+  background-image: repeating-linear-gradient(-52deg, var(--color-ink) 0 0.07rem, transparent 0.07rem 0.3rem);
+  opacity: 0.42;
 }
 .size-lg {
   padding: 0.8rem 1.6rem;

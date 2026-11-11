@@ -1,11 +1,10 @@
 <script setup lang="ts">
+// 分類頁：每款遊戲是一張大圖，點圖就進去
 import { computed } from 'vue'
-import { go } from '@/core/nav'
-import { playSound } from '@/core/audio'
+import { curtainFor, go, travel } from '@/core/nav'
 import { S } from '@/data/strings'
 import { gamesIn } from '@/games/registry'
 import type { GameCategory } from '@/games/types'
-import InkIcon from '@/ui/InkIcon.vue'
 import ScreenFrame from '@/ui/ScreenFrame.vue'
 import SketchBox from '@/ui/SketchBox.vue'
 
@@ -14,50 +13,74 @@ const games = computed(() => gamesIn(props.category))
 const text = computed(() => S.category[props.category])
 
 function open(gameId: string) {
-  playSound('tap')
-  go({ name: 'lobby', gameId })
+  travel(curtainFor(props.category), () => go({ name: 'lobby', gameId }))
 }
 </script>
 
 <template>
   <ScreenFrame :title="text.title" :lead="text.lead">
-    <ul class="scroll-y flex h-full flex-col gap-[0.9rem] pt-[0.4rem] pr-[0.6rem]">
+    <ul class="flex h-full items-center gap-[2.4rem] pl-[1.5rem]">
       <li v-for="(game, i) in games" :key="game.id" class="rise" :style="{ '--i': i }">
-        <button class="row" @click="open(game.id)">
-          <SketchBox :fill="category === 'cards' ? 'var(--color-deck-soft)' : 'var(--color-wood-soft)'" :variant="i" />
-          <span class="font-display relative text-[2rem] leading-none">{{ game.name }}</span>
-          <span class="relative flex flex-col text-left leading-snug">
-            <span class="text-[1rem]">{{ game.summary }}</span>
-            <span class="text-[0.85rem] text-ink-soft">{{ game.players }}</span>
+        <button class="tile" :class="category" @click="open(game.id)">
+          <span class="art"><component :is="game.art" animate /></span>
+          <span class="flex flex-col items-start">
+            <span class="font-display text-[2.4rem] leading-tight">{{ game.name }}</span>
+            <span class="text-[0.95rem] leading-snug">{{ game.summary }}</span>
+            <span class="text-[0.8rem] text-ink-soft">{{ game.players }}</span>
           </span>
-          <InkIcon name="chevron" class="arrow relative ml-auto h-[1.6rem] w-[1.6rem]" />
         </button>
+      </li>
+      <li class="more rise" style="--i: 2">
+        <SketchBox dashed :variant="2" :weight="1.6" />
+        <span class="font-display relative text-[2.2rem] leading-none">？</span>
+        <span class="relative text-center text-[0.8rem] leading-snug whitespace-pre-line">{{ S.category.more }}</span>
       </li>
     </ul>
   </ScreenFrame>
 </template>
 
 <style scoped>
-.row {
-  position: relative;
+.tile {
   display: flex;
   align-items: center;
-  gap: 1.600rem;
-  width: min(100%, 40rem);
+  gap: 1.6rem;
   border: 0;
   background: none;
-  padding: 1.100rem 1.400rem;
-  transition: transform 160ms var(--ease-out);
+  padding: 0.5rem;
+  text-align: left;
 }
-.row:active {
-  transform: scale(0.985);
+.art {
+  display: block;
+  width: 14rem;
+  height: 12.5rem;
+  transition: transform 240ms var(--ease-out);
 }
-.arrow {
-  transition: transform 200ms var(--ease-out);
+.tile.cards .art {
+  width: 16rem;
+  height: 11rem;
+}
+.tile:active .art {
+  transform: scale(0.96) rotate(-1.5deg);
+}
+.more {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 7.5rem;
+  height: 10rem;
+  margin-left: auto;
+  margin-right: 1.5rem;
+  color: var(--color-ink-soft);
+  opacity: 0.7;
+  transform: rotate(3deg);
 }
 @media (hover: hover) and (pointer: fine) {
-  .row:hover .arrow {
-    transform: translateX(0.300rem);
+  .tile:hover .art {
+    transform: translateY(-0.3rem) rotate(-1.5deg);
+    --spread: 1.12;
   }
 }
 </style>

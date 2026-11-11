@@ -5,8 +5,8 @@ import { S } from '@/data/strings'
 import { parseCards, sortCards, type Card } from '@/engine/bigtwo/cards'
 import { canBeat, identifyCombo } from '@/engine/bigtwo/combos'
 import { DEFAULT_BIGTWO_OPTIONS as OPTS } from '@/engine/bigtwo/options'
-import InkButton from '@/ui/InkButton.vue'
-import InkIcon from '@/ui/InkIcon.vue'
+import Doodle from '@/ui/art/Doodle.vue'
+import DoodleButton from '@/ui/DoodleButton.vue'
 import CardHand from './CardHand.vue'
 import TablePlay from './TablePlay.vue'
 import { BIGTWO_LESSONS } from './tutorialData'
@@ -75,7 +75,7 @@ function next() {
 <template>
   <section class="flex h-full flex-col px-[max(1.4rem,env(safe-area-inset-left))] pt-[0.7rem] pb-[0.55rem]">
     <header class="flex shrink-0 items-center gap-[0.6rem]">
-      <button class="back" :aria-label="S.common.back" @click="emit('exit')"><InkIcon name="back" class="h-[1.4rem] w-[1.4rem]" /></button>
+      <button class="back" :aria-label="S.common.back" @click="emit('exit')"><Doodle name="back" class="h-[1.8rem] w-[1.8rem]" /></button>
       <h1 class="font-display text-[1.5rem] leading-none">{{ S.tutorial.title }}</h1>
       <span v-if="!finished" class="ml-auto text-[0.9rem] text-ink-soft tabular-nums">{{ S.tutorial.step(step + 1, BIGTWO_LESSONS.length) }}</span>
     </header>
@@ -83,9 +83,9 @@ function next() {
     <div v-if="finished" class="rise flex flex-1 flex-col items-start justify-center gap-[0.6rem] pl-[2rem]">
       <p class="font-display text-[2.2rem] leading-tight">{{ S.tutorial.finish }}</p>
       <p class="text-ink-soft">{{ S.tutorial.finishLead }}</p>
-      <div class="flex gap-[0.8rem] pt-[0.6rem]">
-        <InkButton tone="red" size="lg" @click="emit('play')">{{ S.tutorial.play }}</InkButton>
-        <InkButton :variant="1" size="lg" @click="emit('exit')">{{ S.common.back }}</InkButton>
+      <div class="flex gap-[2rem] pt-[0.8rem]">
+        <DoodleButton :label="S.tutorial.play" size="5rem" @click="emit('play')"><Doodle name="resume" /></DoodleButton>
+        <DoodleButton :label="S.common.back" size="5rem" @click="emit('exit')"><Doodle name="exit" /></DoodleButton>
       </div>
     </div>
 
@@ -104,11 +104,11 @@ function next() {
       <div class="flex shrink-0 items-end justify-center gap-[1rem]">
         <p class="font-display w-[6.2rem] pb-[0.6rem] text-[1.1rem] text-leaf">{{ selectedName }}</p>
         <CardHand v-model:selected="selected" :cards="hand" :disabled="solved" :deal-key="step" />
-        <div class="flex w-[6.2rem] flex-col gap-[0.5rem] pb-[0.2rem]">
-          <InkButton v-if="solved" tone="leaf" @click="next">{{ step + 1 >= BIGTWO_LESSONS.length ? S.common.done : S.common.next }}</InkButton>
+        <div class="flex w-[6.2rem] flex-col items-center gap-[0.1rem]">
+          <DoodleButton v-if="solved" :label="step + 1 >= BIGTWO_LESSONS.length ? S.common.done : S.common.next" size="4.2rem" @click="next"><Doodle name="resume" /></DoodleButton>
           <template v-else>
-            <InkButton tone="red" :disabled="!selected.length" @click="play">{{ T.play }}</InkButton>
-            <InkButton :variant="1" :disabled="!table" @click="pass">{{ T.pass }}</InkButton>
+            <DoodleButton :label="T.pass" size="3.2rem" :disabled="!table" @click="pass"><Doodle name="pass" /></DoodleButton>
+            <DoodleButton :label="T.play" size="4.2rem" :disabled="!selected.length" @click="play"><Doodle name="play" /></DoodleButton>
           </template>
         </div>
       </div>

@@ -2,6 +2,8 @@
 // 棋盤：手繪格線、棋子、預覽、勝利筆劃。只負責畫與回報點了哪一格。
 import { computed } from 'vue'
 import type { Stone } from '@/engine/gomoku/rules'
+import ArtStone from '@/ui/art/ArtStone.vue'
+import { polyFill, rectPts, roughPoly } from '@/ui/art/sketch'
 
 const props = withDefaults(
   defineProps<{
@@ -38,6 +40,8 @@ const gridLines = computed(() => {
   }
   return lines.join(' ')
 })
+
+const edge = computed(() => roughPoly(rectPts(1, 1, total.value - 2, total.value - 2), 3, 0.7, 2.2))
 
 const stars = computed(() => {
   if (props.size !== 15) return []
@@ -79,16 +83,17 @@ function onClick(event: MouseEvent) {
 
 <template>
   <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick">
-    <path :d="`M 1.6 2 L ${total - 1.4} 1.4 L ${total - 1.8} ${total - 1.6} L 1.2 ${total - 2} Z`" class="wood" />
-    <path :d="`M 0.4 2 Q ${total / 2} 0.6 ${total - 0.2} 1.5 M ${total - 1.5} 0.2 Q ${total - 0.6} ${total / 2} ${total - 1.8} ${total - 0.2} M ${total - 0.3} ${total - 1.7} Q ${total / 2} ${total - 0.5} 0.2 ${total - 2} M 1.3 ${total - 0.3} Q 0.5 ${total / 2} 1.6 0.3`" class="edge" />
-    <path :d="gridLines" class="grid" />
+    <path :d="polyFill(rectPts(4.5, 5, total - 2, total - 2))" fill="url(#hatch-fine)" />
+    <path :d="polyFill(rectPts(1, 1, total - 2, total - 2))" class="wood" />
+    <path :d="polyFill(rectPts(1, total - 5, total - 2, 4))" fill="url(#hatch-fine-soft)" />
+    <path :d="edge" class="edge" />
+    <path :d="gridLines" class="lines" />
     <circle v-for="s in stars" :key="`s${s}`" :cx="px(s)" :cy="py(s)" r="0.9" class="star" />
 
     <circle v-for="h in highlights" :key="`h${h}`" :cx="px(h)" :cy="py(h)" r="4.4" class="highlight" />
 
-    <g v-for="s in stones" :key="s.index" class="stone" :class="s.color === 1 ? 'black' : 'white'">
-      <circle :cx="px(s.index)" :cy="py(s.index)" r="4.25" />
-      <path v-if="s.color === 1" :d="`M ${px(s.index) - 2.4} ${py(s.index) - 1.4} q 1 -1.5 2.6 -1.7`" class="shine" />
+    <g v-for="s in stones" :key="s.index" class="stone">
+      <ArtStone :cx="px(s.index)" :cy="py(s.index)" :r="4.3" :black="s.color === 1" :seed="s.index" />
     </g>
     <circle v-if="lastMove >= 0 && !winLine.length" :cx="px(lastMove)" :cy="py(lastMove)" r="1.15" class="last" />
 
@@ -121,7 +126,7 @@ function onClick(event: MouseEvent) {
   stroke-width: 0.9;
   stroke-linecap: round;
 }
-.grid {
+.lines {
   fill: none;
   stroke: var(--color-ink);
   stroke-width: 0.32;

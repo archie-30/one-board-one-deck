@@ -31,6 +31,7 @@
   --color-deck-soft: oklch(90% 0.04 255);
   --color-wood: oklch(80% 0.095 82);
   --color-wood-soft: oklch(91% 0.05 85);
+  --color-wood-deep: oklch(62% 0.09 68);
   --color-leaf: oklch(58% 0.11 155);
   --color-leaf-soft: oklch(91% 0.05 155);
   --color-sun: oklch(86% 0.14 92);
@@ -158,4 +159,23 @@ button {
   .screen-enter-from {
     transform: none;
   }
+}
+
+/* 鉛筆排線陰影：墊在物件右下方（像 INKRAGE 的畫法） */
+.hatch-shadow {
+  position: relative;
+}
+.hatch-shadow::before {
+  content: '';
+  position: absolute;
+  inset: 0.38rem -0.38rem -0.38rem 0.38rem;
+  background-image: repeating-linear-gradient(-52deg, var(--color-ink) 0 0.07rem, transparent 0.07rem 0.3rem);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+/* 手寫標註用的字 */
+.handwritten {
+  font-family: var(--font-display);
+  line-height: 1.2;
 }

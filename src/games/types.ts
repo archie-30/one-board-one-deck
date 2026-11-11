@@ -25,6 +25,8 @@ export interface GameDef {
   name: string
   summary: string
   players: string
+  /** 代表圖（分類頁與大廳用，同時也是「開始」按鈕） */
+  art: Component
   /** 文字版規則說明 */
   rulesIntro: RuleSection[]
   /** 互動式教學的畫面 */

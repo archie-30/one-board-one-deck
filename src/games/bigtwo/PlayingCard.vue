@@ -29,6 +29,27 @@ const suit = computed(() => suitOf(props.card))
   background: var(--color-card);
   color: var(--color-ink);
 }
+.card::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--w) * -0.035) calc(var(--w) * -0.02) calc(var(--w) * -0.015) calc(var(--w) * -0.04);
+  border: calc(var(--w) * 0.016) solid var(--color-ink);
+  border-radius: calc(var(--w) * 0.1) calc(var(--w) * 0.14) calc(var(--w) * 0.09) calc(var(--w) * 0.13);
+  opacity: 0.45;
+  transform: rotate(0.7deg);
+  pointer-events: none;
+}
+.card::after {
+  content: '';
+  position: absolute;
+  left: 6%;
+  right: 4%;
+  bottom: 3%;
+  height: 9%;
+  background-image: repeating-linear-gradient(-52deg, var(--color-ink) 0 calc(var(--w) * 0.012), transparent calc(var(--w) * 0.012) calc(var(--w) * 0.06));
+  opacity: 0.22;
+  pointer-events: none;
+}
 .card.red {
   color: var(--color-red);
 }

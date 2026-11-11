@@ -1,47 +1,88 @@
 <script setup lang="ts">
+// 大廳：代表圖就是「開始對局」，旁邊是教學、規則、設定三個圖示，下面選電腦強度
 import { computed } from 'vue'
-import { go } from '@/core/nav'
+import { curtainFor, go, travel } from '@/core/nav'
 import { gamePrefs } from '@/core/settings'
-import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
 import type { Difficulty } from '@/engine/common/types'
-import InkButton from '@/ui/InkButton.vue'
+import ArtRobot from '@/ui/art/ArtRobot.vue'
+import Doodle from '@/ui/art/Doodle.vue'
+import DoodleButton from '@/ui/DoodleButton.vue'
 import ScreenFrame from '@/ui/ScreenFrame.vue'
-import SegChoice from '@/ui/SegChoice.vue'
 
 const props = defineProps<{ gameId: string }>()
 const game = computed(() => getGame(props.gameId))
 const prefs = computed(() => gamePrefs(props.gameId))
-const tone = computed(() => (game.value.category === 'cards' ? 'deck' : 'wood'))
+const kind = computed(() => curtainFor(game.value.category))
 
-const levels = [
+const levels: { value: Difficulty; label: string }[] = [
   { value: 'easy', label: S.common.easy },
   { value: 'normal', label: S.common.normal },
 ]
-
-function setLevel(value: string) {
-  prefs.value.difficulty = value as Difficulty
-  playSound('tap')
-}
 </script>
 
 <template>
-  <ScreenFrame :title="game.name" :lead="game.players">
-    <div class="grid h-full grid-cols-12 items-center gap-[1.5rem]">
-      <div class="col-span-6 flex flex-col gap-[1.5rem] pl-[0.4rem]">
-        <p class="rise max-w-[19rem] text-[1.25rem] leading-relaxed">{{ game.summary }}</p>
-        <div class="rise flex items-center gap-[0.9rem]" style="--i: 1">
-          <span class="text-[0.95rem] text-ink-soft">{{ S.lobby.difficulty }}</span>
-          <SegChoice :choices="levels" :value="prefs.difficulty" @change="setLevel" />
+  <ScreenFrame :title="game.name" :lead="game.summary">
+    <div class="flex h-full items-center justify-between gap-[2rem] pr-[1.5rem] pl-[1.2rem]">
+      <button class="start rise" :class="game.category" @click="travel(kind, () => go({ name: 'play', gameId }))">
+        <span class="art"><component :is="game.art" animate /></span>
+        <span class="caption">
+          <span class="font-display text-[2.3rem] leading-none whitespace-nowrap">{{ S.lobby.start }}</span>
+          <svg class="h-[0.6rem] w-full overflow-visible" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+            <path class="draw" style="--i: 8" pathLength="1" d="M1 4.500C22 2 42 6.500 62 3.500S90 3 99 5" fill="none" stroke="var(--color-red)" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke" />
+          </svg>
+        </span>
+      </button>
+
+      <div class="flex flex-col items-center gap-[1.3rem]">
+        <div class="flex gap-[1.5rem]">
+          <DoodleButton class="rise" style="--i: 2" :label="S.lobby.tutorialShort" @click="travel(kind, () => go({ name: 'tutorial', gameId }))"><Doodle name="tutor" /></DoodleButton>
+          <DoodleButton class="rise" style="--i: 3" :label="S.lobby.rulesShort" @click="go({ name: 'rules', gameId })"><Doodle name="book" /></DoodleButton>
+          <DoodleButton class="rise" style="--i: 4" :label="S.lobby.settingsShort" @click="go({ name: 'settings', gameId })"><Doodle name="gear" /></DoodleButton>
         </div>
-      </div>
-      <div class="col-span-5 col-start-8 flex flex-col gap-[0.8rem]">
-        <InkButton class="rise" style="--i: 1" tone="red" size="lg" @click="go({ name: 'play', gameId })">{{ S.lobby.start }}</InkButton>
-        <InkButton class="rise" style="--i: 2" :tone="tone" :variant="1" @click="go({ name: 'tutorial', gameId })">{{ S.lobby.tutorial }}</InkButton>
-        <InkButton class="rise" style="--i: 3" :variant="2" @click="go({ name: 'rules', gameId })">{{ S.lobby.rules }}</InkButton>
-        <InkButton class="rise" style="--i: 4" :variant="1" @click="go({ name: 'settings', gameId })">{{ S.lobby.settings }}</InkButton>
+        <div class="rise flex items-center gap-[1.1rem]" style="--i: 5">
+          <span class="font-display text-[1.05rem] text-ink-soft">{{ S.lobby.difficulty }}</span>
+          <DoodleButton v-for="(level, i) in levels" :key="level.value" size="3.3rem" :label="level.label" :selected="prefs.difficulty === level.value" @click="prefs.difficulty = level.value">
+            <ArtRobot :variant="i" :mood="level.value" />
+          </DoodleButton>
+        </div>
       </div>
     </div>
   </ScreenFrame>
 </template>
+
+<style scoped>
+.start {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  border: 0;
+  background: none;
+  padding: 0.4rem;
+}
+.art {
+  display: block;
+  width: 13rem;
+  height: 13rem;
+  transition: transform 240ms var(--ease-out);
+}
+.start.cards .art {
+  width: 17rem;
+  height: 11.8rem;
+}
+.caption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.start:active .art {
+  transform: scale(0.96);
+}
+@media (hover: hover) and (pointer: fine) {
+  .start:hover .art {
+    transform: translateY(-0.3rem);
+    --spread: 1.12;
+  }
+}
+</style>

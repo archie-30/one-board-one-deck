@@ -3,6 +3,8 @@
 import { ref, watch } from 'vue'
 import { S } from '@/data/strings'
 import type { GameDef } from '@/games/types'
+import Doodle from './art/Doodle.vue'
+import DoodleButton from './DoodleButton.vue'
 import InkButton from './InkButton.vue'
 import InkDialog from './InkDialog.vue'
 import RulesBody from './RulesBody.vue'
@@ -20,13 +22,13 @@ watch(
 </script>
 
 <template>
-  <InkDialog :open="open" :title="showRules ? S.rules.title : game.name" :wide="showRules" @close="emit('close')">
+  <InkDialog :open="open" :title="showRules ? S.rules.title : game.name" wide @close="emit('close')">
     <RulesBody v-if="showRules" :game="game" :options="options" />
-    <div v-else class="flex flex-col gap-[0.7rem] px-[0.5rem] py-[0.4rem]">
-      <InkButton tone="red" @click="emit('close')">{{ S.common.resume }}</InkButton>
-      <InkButton :variant="1" @click="showRules = true">{{ S.lobby.rules }}</InkButton>
-      <InkButton :variant="2" @click="emit('restart')">{{ S.common.restart }}</InkButton>
-      <InkButton :variant="1" @click="emit('exit')">{{ S.common.quit }}</InkButton>
+    <div v-else class="flex justify-center gap-[1.6rem] px-[0.5rem] pt-[0.8rem] pb-[0.2rem]">
+      <DoodleButton :label="S.common.resume" @click="emit('close')"><Doodle name="resume" /></DoodleButton>
+      <DoodleButton :label="S.lobby.rulesShort" @click="showRules = true"><Doodle name="book" /></DoodleButton>
+      <DoodleButton :label="S.common.restart" @click="emit('restart')"><Doodle name="again" /></DoodleButton>
+      <DoodleButton :label="S.common.quit" @click="emit('exit')"><Doodle name="exit" /></DoodleButton>
     </div>
     <template v-if="showRules" #actions>
       <InkButton @click="showRules = false">{{ S.common.back }}</InkButton>

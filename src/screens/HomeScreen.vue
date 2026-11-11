@@ -1,202 +1,175 @@
 <script setup lang="ts">
+// 主畫面：一張桌面。那疊牌和那張棋盤本身就是按鈕。
 import { ref } from 'vue'
-import { go } from '@/core/nav'
+import { curtainFor, go, travel } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { VERSION } from '@/data/version'
+import GomokuArt from '@/games/gomoku/GomokuArt.vue'
 import type { GameCategory } from '@/games/types'
-import InkIcon from '@/ui/InkIcon.vue'
-import SuitIcon from '@/ui/SuitIcon.vue'
+import ArtBowl from '@/ui/art/ArtBowl.vue'
+import ArtCard from '@/ui/art/ArtCard.vue'
+import Doodle from '@/ui/art/Doodle.vue'
 import AppSettings from './AppSettings.vue'
 
 const settingsOpen = ref(false)
 
 function open(category: GameCategory) {
-  playSound(category === 'cards' ? 'card' : 'stone')
-  go({ name: 'category', category })
+  travel(curtainFor(category), () => go({ name: 'category', category }))
+}
+function openSettings() {
+  playSound('tap')
+  settingsOpen.value = true
 }
 </script>
 
 <template>
-  <section class="home grid h-full grid-cols-12 px-[max(2.2rem,env(safe-area-inset-left))] py-[1.4rem]">
-    <div class="col-span-5 flex flex-col justify-between">
-      <div class="pt-[1.6rem]">
-        <h1 class="font-display text-[3rem] leading-[1.04]">
-          <span class="rise block" style="--i: 0">One Board</span>
-          <span class="rise block" style="--i: 1">One Deck</span>
-        </h1>
-        <svg class="mt-[0.5rem] h-[0.7rem] w-[13.5rem] overflow-visible text-red" viewBox="0 0 200 8" preserveAspectRatio="none" aria-hidden="true">
-          <path class="draw" style="--i: 4" pathLength="1" d="M2 4.600C40 1.800 70 6.400 110 3.600s60-1 88 1.400" fill="none" stroke="currentColor" stroke-width="3.400" stroke-linecap="round" />
-        </svg>
-        <p class="rise mt-[0.9rem] text-[1.05rem] text-ink-soft" style="--i: 3">{{ S.app.tagline }}</p>
-      </div>
-      <div class="rise flex items-center gap-[0.7rem] text-ink-soft" style="--i: 6">
-        <button class="gear" :aria-label="S.home.settings" @click="settingsOpen = true"><InkIcon name="gear" class="h-[1.6rem] w-[1.6rem]" /></button>
-        <span class="text-[0.8rem]">{{ VERSION.number }}</span>
-      </div>
-    </div>
+  <section class="h-full">
+    <svg class="scene" viewBox="0 0 844 390" preserveAspectRatio="xMidYMid meet">
+      <!-- 標題：像寫在筆記本上 -->
+      <g class="rise" style="--i: 0">
+        <text x="42" y="80" class="font-display title">One Board</text>
+        <text x="42" y="127" class="font-display title">One Deck</text>
+      </g>
+      <path class="draw underline" style="--i: 5" pathLength="1" d="M42 142C90 137 130 146 180 141S240 139 262 143" />
+      <text x="44" y="170" class="tagline rise" style="--i: 3">{{ S.app.tagline }}</text>
 
-    <div class="col-span-7 flex items-center justify-end gap-[2rem]">
+      <!-- 桌上的鉛筆 -->
+      <g class="rise" style="--i: 6" transform="rotate(-7 150 352)">
+        <path d="M102 349L212 349L212 361L102 361Z" transform="translate(4 5)" fill="url(#hatch)" />
+        <path d="M100 346H206V358H100Z" class="ink" fill="var(--color-sun)" />
+        <path d="M206 346L226 352L206 358Z" class="ink" fill="var(--color-card)" />
+        <path d="M219 349.900L226 352L219 354.100Z" fill="var(--color-ink)" />
+        <path d="M88 346H100V358H88Z" class="ink" fill="var(--color-red)" />
+        <path d="M112 350H198" class="ink" stroke-width="1" opacity=".5" />
+      </g>
+
+      <!-- 設定 -->
+      <g class="tap gear rise" style="--i: 7" role="button" tabindex="0" :aria-label="S.home.settings" @click="openSettings" @keydown.enter="openSettings">
+        <rect x="28" y="318" width="56" height="56" fill="transparent" />
+        <Doodle name="gear" x="34" y="324" width="44" height="44" />
+      </g>
+      <text x="44" y="304" class="version">{{ VERSION.number }}</text>
+
       <!-- 撲克牌 -->
-      <button class="pick rise" style="--i: 3" @click="open('cards')">
-        <span class="art art-cards">
-          <svg viewBox="0 0 150 190" class="h-full w-full overflow-visible" aria-hidden="true">
-            <g transform="rotate(9 75 95)">
-              <path d="M22 16.500 127.500 15l1.500 159.500L21 176z" class="fill-deck" />
-              <path d="M20 15.500q54-3 109.500-.5M128 12.500q2.500 80 .5 164.500M130.500 175q-55 2.500-111.500.5M21 178.500Q18.500 95 21.500 12.500" class="ink" />
-              <path d="M34 30 116 160M34 160 116 30M75 28v134M32 95h86" class="ink" stroke-width="1.600" opacity=".35" style="stroke: var(--color-card)" />
-            </g>
-            <g class="front" transform="rotate(-7 75 95)">
-              <path d="M22 16.500 127.500 15l1.500 159.500L21 176z" class="fill-card" />
-              <path d="M19.500 16q55-2.500 110 0M128.500 12q1.500 82-.5 166M130 175.500q-54 2-110.500.5M21.500 179Q19.500 96 21 12.500" class="ink" />
-              <text x="33" y="52" class="rank font-display">A</text>
-            </g>
-          </svg>
-          <SuitIcon :suit="3" class="suit-big" />
-          <SuitIcon :suit="3" class="suit-small" />
-        </span>
-        <span class="font-display label">{{ S.home.cards }}</span>
-      </button>
+      <g class="tap deck" role="button" tabindex="0" :aria-label="S.home.cards" @click="open('cards')" @keydown.enter="open('cards')">
+        <rect x="228" y="100" width="260" height="262" fill="transparent" />
+        <g class="rise" style="--i: 1">
+          <ArtCard back :seed="41" shadow transform="translate(243 163) rotate(-13) scale(1.15)" />
+          <ArtCard back :seed="42" transform="translate(240 160) rotate(-13) scale(1.15)" />
+          <ArtCard back :seed="43" transform="translate(237 157) rotate(-13) scale(1.15)" />
+        </g>
+        <g class="deal d1" style="--i: 0"><ArtCard rank="3" :suit="0" :seed="5" shadow transform="translate(296 132) rotate(-5) scale(1.15)" /></g>
+        <g class="deal d2" style="--i: 1"><ArtCard rank="A" :suit="2" :seed="6" shadow transform="translate(342 126) rotate(8) scale(1.15)" /></g>
+        <g class="deal d3" style="--i: 2"><ArtCard rank="2" :suit="3" :seed="7" shadow transform="translate(390 134) rotate(21) scale(1.15)" /></g>
+        <g class="rise" style="--i: 6">
+          <text x="296" y="340" class="font-display label">{{ S.home.cards }}</text>
+          <path class="ink note" d="M412 330C432 328 442 314 438 296M438 296l-7 6M438 296l6 7" />
+        </g>
+      </g>
 
       <!-- 棋盤 -->
-      <button class="pick pick-board rise" style="--i: 5" @click="open('board')">
-        <span class="art art-board">
-          <svg viewBox="0 0 190 190" class="h-full w-full overflow-visible" aria-hidden="true">
-            <g transform="rotate(3 95 95)">
-              <path d="M14 15.500 176.500 13l1.500 163L13 177.500z" class="fill-wood" />
-              <path d="M11 15q83-3.500 168-1M177 10.500q2.500 82 .5 169M179.500 176.500q-84 3-168.500 1M13.500 180.500Q10.500 95 14 10.500" class="ink" />
-              <path d="M46 16q1.500 80-.5 160M79 15q-1.500 82 .5 161M112 15q1.500 80-.5 161M145 14.500q-1 82 .5 161.500M14.500 47q82-1.500 162.500.5M14 80q80 1.500 163.500-.5M14 113q84-1.500 163.500.5M13.500 146q82 1.500 164-.5" class="ink" stroke-width="1.500" opacity=".55" />
-              <circle cx="79" cy="80" r="14" class="stone-b" />
-              <circle cx="112" cy="80" r="14" class="stone-w" />
-              <circle cx="112" cy="113" r="14" class="stone-b" />
-              <circle cx="79" cy="113" r="14" class="stone-w" />
-              <circle cx="145" cy="146" r="14" class="stone-b drop" />
-            </g>
-          </svg>
-        </span>
-        <span class="font-display label">{{ S.home.board }}</span>
-      </button>
-    </div>
+      <g class="tap board" role="button" tabindex="0" :aria-label="S.home.board" @click="open('board')" @keydown.enter="open('board')">
+        <rect x="520" y="40" width="310" height="322" fill="transparent" />
+        <g class="rise" style="--i: 2">
+          <ArtBowl x="762" y="28" width="74" height="74" />
+          <ArtBowl black x="744" y="236" width="88" height="88" />
+        </g>
+        <g class="rise" style="--i: 2">
+          <g transform="rotate(4 640 178)"><GomokuArt x="522" y="60" width="236" height="236" animate /></g>
+        </g>
+        <g class="rise" style="--i: 7">
+          <text x="596" y="346" class="font-display label">{{ S.home.board }}</text>
+          <path class="ink note" d="M580 334C560 332 552 318 556 302M556 302l-6 7M556 302l7 5" />
+        </g>
+      </g>
+    </svg>
 
     <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
   </section>
 </template>
 
 <style scoped>
-.pick {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.7rem;
-  border: 0;
-  background: none;
-  padding: 0.6rem;
-}
-.pick-board {
-  margin-top: 2.6rem;
-}
-.art {
-  position: relative;
+.scene {
   display: block;
-  transition: transform 200ms var(--ease-out);
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
-.art-cards {
-  width: 10.5rem;
-  height: 13.3rem;
+.title {
+  font-size: 46px;
+  fill: var(--color-ink);
 }
-.art-board {
-  width: 12.4rem;
-  height: 12.4rem;
+.tagline {
+  font-size: 15px;
+  fill: var(--color-ink-soft);
 }
-.pick:active .art {
-  transform: scale(0.97);
+.version {
+  font-size: 11px;
+  fill: var(--color-ink-soft);
 }
 .label {
-  font-size: 1.9rem;
-  line-height: 1.1;
-}
-.ink {
-  fill: none;
-  stroke: var(--color-ink);
-  stroke-width: 2.600;
-  stroke-linecap: round;
-}
-.fill-deck {
-  fill: var(--color-deck);
-}
-.fill-card {
-  fill: var(--color-card);
-}
-.fill-wood {
-  fill: var(--color-wood);
-}
-.rank {
   font-size: 34px;
   fill: var(--color-ink);
 }
-.suit-big,
-.suit-small {
-  position: absolute;
-  color: var(--color-ink);
-  transform: rotate(-7deg);
+.underline {
+  fill: none;
+  stroke: var(--color-red);
+  stroke-width: 5;
+  stroke-linecap: round;
 }
-.suit-big {
-  width: 4.200rem;
-  left: 3.300rem;
-  top: 5rem;
+.ink {
+  stroke: var(--color-ink);
+  stroke-width: 1.800;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.suit-small {
-  width: 1.150rem;
-  left: 1.350rem;
-  top: 4.300rem;
+.note {
+  fill: none;
+  stroke-width: 2.200;
 }
-.front {
-  transition: transform 260ms var(--ease-out);
+.tap {
+  cursor: pointer;
+  outline-offset: 4px;
+}
+.tap > * {
+  transition: transform 240ms var(--ease-out);
+}
+.tap:active > * {
+  transform: scale(0.985);
+  transform-origin: center;
   transform-box: fill-box;
-  transform-origin: 20% 100%;
 }
-.stone-b {
-  fill: var(--color-ink);
-  stroke: var(--color-ink);
-  stroke-width: 2;
-}
-.stone-w {
-  fill: var(--color-card);
-  stroke: var(--color-ink);
-  stroke-width: 2.400;
-}
-/* 進場時最後一顆棋子落下：呼應「落子」 */
-@keyframes drop {
+
+/* 進場：三張牌從牌堆發出來 */
+@keyframes deal-out {
   from {
     opacity: 0;
-    transform: translateY(-1.200rem) scale(1.150);
+    transform: translate(-70px, 26px) rotate(-16deg);
   }
 }
-.drop {
+.deal {
   transform-box: fill-box;
-  transform-origin: center;
-  animation: drop 380ms var(--ease-out) 620ms both;
+  transform-origin: 0% 100%;
+  animation: deal-out 460ms var(--ease-out) both;
+  animation-delay: calc(260ms + var(--i) * 90ms);
+  transition: transform 260ms var(--ease-out);
 }
-.gear {
-  display: grid;
-  place-items: center;
-  width: 2.600rem;
-  height: 2.600rem;
-  margin-left: -0.500rem;
-  border: 0;
-  background: none;
-  color: var(--color-ink);
-  transition: transform 300ms var(--ease-out);
-}
-.gear:active {
-  transform: rotate(40deg) scale(0.940);
+.gear:active > * {
+  transform: rotate(30deg);
 }
 @media (hover: hover) and (pointer: fine) {
-  .pick:hover .art {
-    transform: translateY(-0.250rem);
+  .deck:hover .d1 {
+    transform: rotate(-5deg);
   }
-  .pick:hover .front {
-    transform: rotate(-12deg);
+  .deck:hover .d2 {
+    transform: translateY(-6px);
+  }
+  .deck:hover .d3 {
+    transform: rotate(6deg);
+  }
+  .board:hover > g:nth-of-type(2) {
+    transform: translateY(-4px);
   }
 }
 </style>
