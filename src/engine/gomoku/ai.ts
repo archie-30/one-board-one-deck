@@ -1,6 +1,7 @@
 // 五子棋 AI：評分式。輸入狀態，輸出要下的格子，不碰 UI。
 import type { Difficulty } from '../common/types'
 import { nextInt, nextRandom, type RngState } from '../common/rng'
+import { PRESET_STYLES, type GomokuStyle } from '../common/personas'
 import { DIRECTIONS, forbiddenKind, toXY, type GomokuState, type Player, type Stone } from './rules'
 
 const SCORE = {
@@ -95,50 +96,59 @@ export interface ScoredMove {
   score: number
 }
 
+export type GomokuAiStyle = Difficulty | GomokuStyle
+const styleOf = (style: GomokuAiStyle): GomokuStyle => (typeof style === 'string' ? PRESET_STYLES[style].gomoku : style)
+
 /** 所有候選格的分數（由高到低），教學與測試也會用到 */
-export function scoreMoves(state: GomokuState, difficulty: Difficulty): ScoredMove[] {
+export function scoreMoves(state: GomokuState, style: GomokuAiStyle): ScoredMove[] {
+  const st = styleOf(style)
   const { board, size, turn } = state
   const opponent: Player = turn === 1 ? 2 : 1
-  const normal = difficulty === 'normal'
-  const defence = normal ? 0.9 : 0.55
   const center = (size - 1) / 2
   const out: ScoredMove[] = []
   for (const index of candidates(state)) {
     if (state.options.forbidden && turn === 1 && forbiddenKind(board, size, index)) continue
-    const attack = pointScore(board, size, index, turn, normal)
-    let block = pointScore(board, size, index, opponent, normal)
-    // 簡單難度也一定會擋「下一手就輸」的棋
-    const blockWeight = block >= SCORE.five ? 0.9 : defence
-    block *= blockWeight
+    const attack = pointScore(board, size, index, turn, st.sharp) * st.attack
+    const rawBlock = pointScore(board, size, index, opponent, st.sharp)
+    // 「下一手就輸」的棋，除了漏看的人以外一定會擋
+    const block = rawBlock >= SCORE.five ? rawBlock * 0.9 : rawBlock * st.defense
     const [x, y] = toXY(index, size)
-    const centerBonus = normal ? Math.max(0, 7 - Math.abs(x - center) - Math.abs(y - center)) : 0
+    const centerBonus = st.center * Math.max(0, 7 - Math.abs(x - center) - Math.abs(y - center)) * 3
     out.push({ index, score: attack + block + centerBonus })
   }
   return out.sort((a, b) => b.score - a.score || a.index - b.index)
 }
 
 /** 選一手棋。回傳 [格子編號, 新的亂數狀態]；沒有可下的格子時回傳 -1 */
-export function chooseGomokuMove(state: GomokuState, difficulty: Difficulty, rng: RngState): [number, RngState] {
+export function chooseGomokuMove(state: GomokuState, style: GomokuAiStyle, rng: RngState): [number, RngState] {
+  const st = styleOf(style)
   if (state.winner !== 0) return [-1, rng]
   if (state.moves.length === 0) {
     const mid = Math.floor(state.size / 2)
     return [mid * state.size + mid, rng]
   }
-  const scored = scoreMoves(state, difficulty)
-  if (scored.length === 0) {
-    const empty = state.board.findIndex((s) => s === 0)
-    return [empty, rng]
+  let scored = scoreMoves(state, st)
+  if (scored.length === 0) return [state.board.findIndex((v) => v === 0), rng]
+
+  // 自己能贏：一定下
+  const win = scored.find((m) => pointScore(state.board, state.size, m.index, state.turn, true) >= SCORE.five)
+  if (win) return [win.index, rng]
+
+  // 漏看：偶爾沒注意到對手的四
+  let r: number
+  ;[r, rng] = nextRandom(rng)
+  if (r < st.blind) {
+    const opp: Player = state.turn === 1 ? 2 : 1
+    const rest = scored.filter((m) => pointScore(state.board, state.size, m.index, opp, true) < SCORE.five)
+    if (rest.length) scored = rest
   }
+
   const best = scored[0]
-  if (difficulty === 'normal') {
-    const ties = scored.filter((m) => m.score === best.score)
-    const [i, next] = nextInt(rng, ties.length)
-    return [ties[i].index, next]
-  }
-  // 簡單：必勝或必擋的棋一定下，其餘在前三名裡隨機挑（偶爾失誤）
-  if (best.score >= SCORE.openFour) return [best.index, rng]
-  const pool = scored.slice(0, 3)
-  const [v, next] = nextRandom(rng)
-  const pick = v < 0.55 ? 0 : v < 0.85 ? Math.min(1, pool.length - 1) : pool.length - 1
-  return [pool[pick].index, next]
+  if (best.score >= SCORE.openFour * 0.9 && st.blind === 0) return [best.index, rng]
+  // 在分數接近的前幾名裡挑：noise 越大，挑選範圍越寬
+  const floor = best.score * (1 - 0.06 - st.noise * 0.6)
+  const pool = scored.filter((m) => m.score >= floor).slice(0, 1 + Math.round(st.noise * 5))
+  let i: number
+  ;[i, rng] = nextInt(rng, pool.length)
+  return [pool[i].index, rng]
 }
