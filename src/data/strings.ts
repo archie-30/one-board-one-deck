@@ -83,6 +83,7 @@ export const S = {
     win: '你贏了，你先下',
     lose: (name: string) => `${name}贏了，${name}先下`,
     go: '開始',
+    vs: 'VS',
   },
   tutorial: {
     title: '互動教學',

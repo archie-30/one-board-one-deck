@@ -37,18 +37,19 @@ const current = computed(() => {
 
 <style scoped>
 .rules {
-  columns: 2;
-  column-gap: 2.4rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 0 2.4rem;
   font-size: 0.96rem;
   line-height: 1.75;
   -webkit-user-select: text;
   user-select: text;
 }
 .rules.single {
-  columns: 1;
+  grid-template-columns: 1fr;
 }
 section {
-  break-inside: avoid;
   padding-bottom: 1.1rem;
 }
 h3 {
