@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // 手繪外框：量出容器的實際大小再畫，所以線條不會被拉伸變形。
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { fillPath, hatch, inkPath, inkPoly, rectPts, type Pt } from './ink'
+import { fillPath, hatch, inkLoop, inkPath, inkPoly, rectPts, roundRectPts, type Pt } from './ink'
 
 const props = withDefaults(
-  defineProps<{ fill?: string; tone?: string; weight?: number; seed?: number; shadow?: boolean; dashed?: boolean; boil?: boolean; shade?: string }>(),
-  { tone: 'var(--color-ink)', weight: 2.2, seed: 1 },
+  defineProps<{ fill?: string; tone?: string; weight?: number; seed?: number; shadow?: boolean; block?: boolean; dashed?: boolean; boil?: boolean; shade?: string; round?: number }>(),
+  { tone: 'var(--color-ink)', weight: 2.2, seed: 1, boil: true, round: 0 },
 )
 
 const el = ref<SVGSVGElement>()
@@ -30,10 +30,11 @@ onMounted(() => {
 })
 onBeforeUnmount(() => observer?.disconnect())
 
-const box = computed(() => rectPts(1, 1, w.value - 2, h.value - 2))
+const box = computed(() => (props.round ? roundRectPts(1, 1, w.value - 2, h.value - 2, props.round * u.value, 4) : rectPts(1, 1, w.value - 2, h.value - 2)))
 
 function outline(seed: number): string {
   const width = props.weight * u.value
+  if (props.round && !props.dashed) return inkLoop(box.value, { width, seed })
   if (!props.dashed) return inkPoly(box.value, { width, seed })
   let d = ''
   const pts = box.value
@@ -51,8 +52,7 @@ function outline(seed: number): string {
 }
 
 const ready = computed(() => w.value > 4 && h.value > 4)
-const lineA = computed(() => (ready.value ? outline(props.seed) : ''))
-const lineB = computed(() => (ready.value && props.boil ? outline(props.seed + 4099) : ''))
+const lines = computed(() => (ready.value ? (props.boil === false ? [outline(props.seed)] : [outline(props.seed), outline(props.seed + 4099), outline(props.seed + 8191)]) : []))
 const off = computed(() => 5.5 * u.value)
 const shadowD = computed(() =>
   ready.value && props.shadow
@@ -88,10 +88,10 @@ const shadeD = computed(() =>
   <svg ref="el" class="ink-frame" :viewBox="`0 0 ${Math.max(1, w)} ${Math.max(1, h)}`" aria-hidden="true">
     <template v-if="ready">
       <path v-if="shadowD" :d="shadowD" fill="var(--color-near)" opacity=".7" />
+      <path v-if="block" :d="fillPath(box)" fill="var(--color-ink)" opacity=".1" :transform="`translate(${4 * u} ${5 * u})`" />
       <path v-if="fill" :d="fillPath(box)" :fill="fill" />
       <path v-if="shadeD" :d="shadeD" :fill="shade" opacity=".75" />
-      <path :d="lineA" :fill="tone" :class="lineB ? 'boil-a' : undefined" />
-      <path v-if="lineB" :d="lineB" :fill="tone" class="boil-b" />
+      <path v-for="(d, i) in lines" :key="i" :d="d" :fill="tone" :class="lines.length > 1 ? `bv${i}` : undefined" />
     </template>
   </svg>
 </template>

@@ -154,6 +154,35 @@ export function inkCircle(cx: number, cy: number, r: number, opts: InkOpts = {})
   return inkPath(pts, { jitter: 0, taper: 0.3, ...opts })
 }
 
+/** 圓角矩形的外框點（順時針） */
+export function roundRectPts(x: number, y: number, w: number, h: number, r: number, seg = 4): Pt[] {
+  const out: Pt[] = []
+  const corner = (cx: number, cy: number, from: number) => {
+    for (let i = 0; i <= seg; i++) {
+      const a = from + (i / seg) * (Math.PI / 2)
+      out.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r])
+    }
+  }
+  corner(x + w - r, y + r, -Math.PI / 2)
+  corner(x + w - r, y + h - r, 0)
+  corner(x + r, y + h - r, Math.PI / 2)
+  corner(x + r, y + r, Math.PI)
+  return out
+}
+
+/** 封閉的外框分成兩筆畫：起點錯開、頭尾稍微交疊，像手繪時分兩次描完 */
+export function inkLoop(pts: Pt[], opts: InkOpts = {}): string {
+  const n = pts.length
+  const rand = rng((opts.seed ?? 1) + 991)
+  const start = Math.floor(rand() * n)
+  const half = Math.floor(n / 2)
+  const seg = (from: number, len: number): Pt[] => Array.from({ length: len + 1 }, (_, i) => pts[(from + i) % n])
+  return (
+    inkPath(seg(start, half + 1), { taper: 0.3, ...opts, seed: (opts.seed ?? 1) * 3 + 1 }) +
+    inkPath(seg(start + half, n - half + 1), { taper: 0.3, ...opts, seed: (opts.seed ?? 1) * 3 + 2 })
+  )
+}
+
 export const rectPts = (x: number, y: number, w: number, h: number): Pt[] => [
   [x, y],
   [x + w, y],
@@ -231,6 +260,7 @@ export type Prim =
   | { k: 'poly'; pts: Pt[]; w?: number; tone?: string; opacity?: number; over?: number }
   | { k: 'path'; pts: Pt[]; w?: number; tone?: string; opacity?: number; taper?: number }
   | { k: 'ring'; c: Pt; r: number; w?: number; tone?: string; opacity?: number }
+  | { k: 'loop'; pts: Pt[]; w?: number; tone?: string; opacity?: number }
 
 export interface Drawn {
   d: string
@@ -260,6 +290,7 @@ export const TONE = {
   indigoD: 'var(--color-indigo-dark)',
   mossL: 'var(--color-leaf-soft)',
   mossM: 'var(--color-moss)',
+  shadow: 'var(--color-shadow)',
 }
 
 export function draw(prims: Prim[], seed = 0): Drawn[] {
@@ -278,6 +309,8 @@ export function draw(prims: Prim[], seed = 0): Drawn[] {
         return { d: inkPath(p.pts, { width: p.w ?? 2, taper: p.taper, seed: s }), fill: p.tone ?? TONE.ink, opacity: p.opacity, line: true }
       case 'ring':
         return { d: inkCircle(p.c[0], p.c[1], p.r, { width: p.w ?? 2, seed: s }), fill: p.tone ?? TONE.ink, opacity: p.opacity, line: true }
+      case 'loop':
+        return { d: inkLoop(p.pts, { width: p.w ?? 2, seed: s }), fill: p.tone ?? TONE.ink, opacity: p.opacity, line: true }
     }
   })
 }

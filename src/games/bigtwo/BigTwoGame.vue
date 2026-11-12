@@ -1,118 +1,273 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+// 大老二牌桌：你在下方，三位隨機入座的對手在左、上、右。
+// 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
+import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
-import { seedRng } from '@/engine/common/rng'
-import type { Difficulty } from '@/engine/common/types'
 import { chooseBigTwoAction, legalPlays, suggestPlay } from '@/engine/bigtwo/ai'
-import type { Card } from '@/engine/bigtwo/cards'
-import { identifyCombo } from '@/engine/bigtwo/combos'
+import { RANK_2, RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
+import { identifyCombo, isBomb } from '@/engine/bigtwo/combos'
 import { applyBigTwo, checkPlay, dealBigTwo, scoreBigTwo, type BigTwoAction, type BigTwoState } from '@/engine/bigtwo/game'
 import type { BigTwoOptions } from '@/engine/bigtwo/options'
+import { seedRng } from '@/engine/common/rng'
 import type { GameDef } from '@/games/types'
+import ArtCard from '@/ui/art/ArtCard.vue'
+import ArtKid from '@/ui/art/ArtKid.vue'
+import type { KidMood } from '@/ui/art/kid'
 import GameMenu from '@/ui/GameMenu.vue'
 import InkDialog from '@/ui/InkDialog.vue'
-import ArtBuddy from '@/ui/art/ArtBuddy.vue'
-import ArtCard from '@/ui/art/ArtCard.vue'
-import Doodle from '@/ui/art/Doodle.vue'
-import DoodleButton from '@/ui/DoodleButton.vue'
-import SketchBox from '@/ui/SketchBox.vue'
-import CardHand from './CardHand.vue'
-import TablePlay, { type PilePlay } from './TablePlay.vue'
+import MenuButton from '@/ui/MenuButton.vue'
+import RoundButton from '@/ui/RoundButton.vue'
+import { CardStage } from './cardStage'
+import { cardPoses, makeLayout, type Layout, type PileGroup, type TableModel } from './tableLayout'
 
-const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; difficulty: Difficulty }>()
+const props = defineProps<{ game: GameDef; options: Record<string, string | boolean> }>()
 const emit = defineEmits<{ exit: [] }>()
 
-// 規則在開局時固定下來
 const options = { ...props.options } as unknown as BigTwoOptions
 const T = S.bigtwo
 const ME = 0
+const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
 const opponents = pickOpponents(3)
 const names = [S.common.you, ...opponents.map((o) => o.name)]
-/** 這一桌的累計分數（換一桌就重算）；自己的總分另外存檔 */
+const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
 const tableTotals = ref([0, 0, 0, 0])
 
 let seed = (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
 let rng = seedRng(seed)
-let timer = 0
+const timers = new Set<number>()
+const later = (fn: () => void, ms: number) => {
+  const id = window.setTimeout(() => {
+    timers.delete(id)
+    fn()
+  }, ms)
+  timers.add(id)
+}
 
-const state = ref<BigTwoState>(dealBigTwo(seed, options))
+const state = shallowRef<BigTwoState>(dealBigTwo(seed, options))
+const phase = ref<'deal' | 'play' | 'over'>('deal')
 const selected = ref<Card[]>([])
 const message = ref('')
-const round = ref(0)
+const pile = ref<PileGroup[]>([])
+const discard = ref<Card[]>([])
+const gathered = ref(true)
+const passed = reactive([false, false, false, false])
+const moods = reactive<KidMood[]>(['idle', 'idle', 'idle', 'idle'])
+const caption = ref<{ id: number; text: string } | null>(null)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const scores = ref(scoreBigTwo(state.value))
-// 桌上的牌堆：只留最近幾手，更早的會被蓋住所以不用畫
-const pile = ref<PilePlay[]>([])
-let playId = 0
+let groupId = 0
 
-const over = computed(() => state.value.winner >= 0)
-const myTurn = computed(() => !over.value && state.value.turn === ME)
-const selectedCombo = computed(() => (selected.value.length ? identifyCombo(selected.value, options) : null))
-const canPass = computed(() => myTurn.value && state.value.table !== null)
-const tableCaption = computed(() => {
-  const table = state.value.table
-  return table ? `${names[table.player]}　${T.combos[table.combo.type]}` : ''
+// ── 版面與動畫 ──
+const stageEl = ref<HTMLElement>()
+const layout = shallowRef<Layout>(makeLayout(844, 390))
+const stage = new CardStage()
+let lastLand = 0
+stage.onLand = () => {
+  const now = performance.now()
+  if (now - lastLand > 45) playSound(phase.value === 'deal' ? 'deal' : 'card')
+  lastLand = now
+}
+const ch = computed(() => (layout.value.cw * 108) / 78)
+
+function model(): TableModel {
+  return { hands: state.value.hands, selected: selected.value, pile: pile.value, discard: discard.value, gathered: gathered.value }
+}
+
+interface Flight {
+  cards: Card[]
+  stagger: number
+  dur: number
+  arc: number
+  order?: (c: Card) => number
+}
+
+/** 依目前的狀態把每張牌送到該去的位置；flight 裡的牌用「飛」的，其他牌滑過去 */
+function sync(flight?: Flight, instant = false) {
+  const poses = cardPoses(layout.value, model())
+  for (const c of ALL) {
+    const pose = poses.get(c)
+    if (!pose) continue
+    const fi = flight ? flight.cards.indexOf(c) : -1
+    if (fi >= 0 && flight) {
+      const k = flight.order ? flight.order(c) : fi
+      stage.move(c, pose, { delay: k * flight.stagger, dur: flight.dur, arc: flight.arc, flightZ: 600 + k, land: true, instant })
+    } else stage.move(c, pose, { dur: 240, instant })
+  }
+}
+
+let observer: ResizeObserver | undefined
+onMounted(() => {
+  const el = stageEl.value!
+  const measure = () => {
+    layout.value = makeLayout(el.clientWidth, el.clientHeight)
+    sync(undefined, true)
+  }
+  measure()
+  observer = new ResizeObserver(measure)
+  observer.observe(el)
+  later(deal, 280)
 })
-const status = computed(() => {
-  if (over.value) return state.value.winner === ME ? T.result.win : T.result.lose(names[state.value.winner])
-  if (!myTurn.value) return T.waiting(names[state.value.turn])
-  if (selectedCombo.value) return T.combos[selectedCombo.value.type]
-  if (state.value.firstTurn) return T.firstLead
-  return state.value.table ? T.yourTurn : T.yourLead
+onBeforeUnmount(() => {
+  observer?.disconnect()
+  stage.destroy()
+  timers.forEach((t) => window.clearTimeout(t))
 })
-const doubleNotes = computed(() => {
-  const notes: string[] = []
-  if (options.doubleOverTen) notes.push(T.result.overTen)
-  if (options.doubleTwos) notes.push(T.result.twos)
-  return notes.length ? notes : [T.result.noDoubles]
-})
+
+// ── 遊戲流程 ──
+function deal() {
+  phase.value = 'deal'
+  gathered.value = false
+  const hands = state.value.hands
+  const order = new Map<Card, number>()
+  hands.forEach((h, seat) => h.forEach((c, k) => order.set(c, k * 4 + seat)))
+  sync({ cards: ALL, stagger: 24, dur: 320, arc: 16, order: (c) => order.get(c) ?? 0 })
+  later(() => {
+    phase.value = 'play'
+    nextTurn()
+  }, 52 * 24 + 420)
+}
+
+function nextTurn() {
+  const s = state.value
+  if (s.winner >= 0 || phase.value !== 'play') return
+  moods.forEach((_, i) => {
+    if (moods[i] === 'think') moods[i] = 'idle'
+  })
+  if (s.turn === ME) return
+  const opp = opponents[s.turn - 1]
+  moods[s.turn] = 'think'
+  const st = opp.persona.bigtwo
+  const think = 850 + st.skill * 700 + (1 - st.aggression) * 450 + Math.random() * 550
+  later(() => {
+    let action: BigTwoAction
+    ;[action, rng] = chooseBigTwoAction(state.value, st, rng)
+    act(action)
+  }, think)
+}
 
 function act(action: BigTwoAction): boolean {
-  const result = applyBigTwo(state.value, action)
+  const before = state.value
+  const result = applyBigTwo(before, action)
   if (!result.ok) {
     message.value = T.errors[result.reason]
     playSound('error')
     return false
   }
-  state.value = result.state
+  const s = result.state
+  state.value = s
   message.value = ''
-  playSound(action.type === 'play' ? 'card' : 'pass')
+  const p = action.player
+  if (moods[p] === 'think') moods[p] = 'idle'
+
   if (action.type === 'play') {
-    pile.value = [...pile.value, { id: ++playId, cards: result.state.table?.combo.cards ?? action.cards, from: action.player, live: true }].slice(-5)
-  } else if (!result.state.table) {
-    // 其他人都過牌：這一輪結束，桌上的牌留著但變淡
-    pile.value = pile.value.map((p) => ({ ...p, live: false }))
+    const combo = s.table!.combo
+    passed[p] = false
+    const g: PileGroup = { id: ++groupId, cards: combo.cards, from: p }
+    pile.value = [...pile.value, g]
+    caption.value = { id: g.id, text: `${names[p]}　${T.combos[combo.type]}` }
+    sync({ cards: combo.cards, stagger: 85, dur: 430, arc: layout.value.cw * 0.9 })
+    // 表情：出炸彈或 2 的人得意，其他人嚇一跳
+    const big = isBomb(combo.type) || combo.cards.some((c) => rankOf(c) === RANK_2)
+    if (p !== ME && big) flash(p, 'smug', 1400)
+    if (isBomb(combo.type)) for (let o = 1; o < 4; o++) if (o !== p) flash(o, 'shock', 900)
+    const landed = combo.cards.length * 85 + 450
+    if (s.winner >= 0) {
+      later(finish, landed + 500)
+      return true
+    }
+    later(nextTurn, landed)
+  } else {
+    passed[p] = true
+    playSound('pass')
+    if (!s.table) {
+      // 其他人都過牌：這一輪的牌推到旁邊蓋起來
+      later(() => {
+        const cards = pile.value.flatMap((g) => g.cards)
+        discard.value = [...discard.value, ...cards]
+        pile.value = []
+        caption.value = null
+        passed.fill(false)
+        sync({ cards, stagger: 22, dur: 380, arc: 10 })
+        later(nextTurn, cards.length * 22 + 420)
+      }, 650)
+    } else later(nextTurn, 380)
+    if (p === ME) sync()
   }
-  if (result.state.winner >= 0) finish()
-  else if (result.state.turn !== ME) scheduleCpu()
   return true
 }
 
-function scheduleCpu() {
-  window.clearTimeout(timer)
-  timer = window.setTimeout(() => {
-    let action: BigTwoAction
-    ;[action, rng] = chooseBigTwoAction(state.value, props.difficulty, rng)
-    act(action)
-  }, 1350 + Math.random() * 650)
+function flash(seat: number, mood: KidMood, ms: number) {
+  moods[seat] = mood
+  later(() => {
+    if (moods[seat] === mood && phase.value === 'play') moods[seat] = state.value.turn === seat ? 'think' : 'idle'
+  }, ms)
 }
 
 function finish() {
-  scores.value = scoreBigTwo(state.value)
+  phase.value = 'over'
+  const s = state.value
+  scores.value = scoreBigTwo(s)
+  tableTotals.value = scores.value.map((sc, p) => tableTotals.value[p] + sc.points)
   stats.bigtwo.rounds++
-  if (state.value.winner === ME) stats.bigtwo.wins++
-  tableTotals.value = scores.value.map((s, p) => tableTotals.value[p] + s.points)
+  if (s.winner === ME) stats.bigtwo.wins++
   stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
-  timer = window.setTimeout(() => {
-    playSound(state.value.winner === ME ? 'win' : 'lose')
-    resultOpen.value = true
-  }, 900)
+  for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
+  // 輸家的牌翻開給你看
+  playSound(s.winner === ME ? 'win' : 'lose')
+  later(() => (resultOpen.value = true), 900)
+}
+
+function newRound() {
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  menuOpen.value = false
+  resultOpen.value = false
+  selected.value = []
+  message.value = ''
+  caption.value = null
+  passed.fill(false)
+  moods.fill('idle')
+  phase.value = 'deal'
+  // 先把所有牌收回桌子中間
+  pile.value = []
+  discard.value = []
+  gathered.value = true
+  sync({ cards: ALL, stagger: 7, dur: 360, arc: 0 })
+  later(() => {
+    seed = (seed * 1664525 + 1013904223) >>> 0
+    state.value = dealBigTwo(seed, options)
+    deal()
+  }, 52 * 7 + 480)
+}
+
+// ── 你的操作 ──
+const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
+const canPass = computed(() => myTurn.value && state.value.table !== null)
+const selectedCombo = computed(() => (selected.value.length ? identifyCombo(selected.value, options) : null))
+const status = computed(() => {
+  if (message.value) return message.value
+  const s = state.value
+  if (phase.value === 'deal') return ''
+  if (s.winner >= 0) return s.winner === ME ? T.result.win : T.result.lose(names[s.winner])
+  if (!myTurn.value) return T.waiting(names[s.turn])
+  if (selectedCombo.value) return T.combos[selectedCombo.value.type]
+  if (s.firstTurn) return T.firstLead
+  return s.table ? T.yourTurn : T.yourLead
+})
+
+function tapCard(c: Card) {
+  if (phase.value !== 'play' || !state.value.hands[ME].includes(c)) return
+  playSound('tap')
+  message.value = ''
+  selected.value = selected.value.includes(c) ? selected.value.filter((x) => x !== c) : [...selected.value, c]
+  sync()
 }
 
 function playSelected() {
@@ -123,11 +278,15 @@ function playSelected() {
     playSound('error')
     return
   }
-  if (act({ type: 'play', player: ME, cards: selected.value })) selected.value = []
+  const cards = selected.value
+  selected.value = []
+  act({ type: 'play', player: ME, cards })
 }
 
 function pass() {
-  if (canPass.value && act({ type: 'pass', player: ME })) selected.value = []
+  if (!canPass.value) return
+  selected.value = []
+  act({ type: 'pass', player: ME })
 }
 
 function hint() {
@@ -136,76 +295,65 @@ function hint() {
   if (!cards) {
     message.value = T.noPlay
     selected.value = []
-    return
+  } else {
+    message.value = ''
+    selected.value = cards
   }
-  message.value = ''
-  selected.value = cards
-}
-
-function newRound() {
-  window.clearTimeout(timer)
-  menuOpen.value = false
-  resultOpen.value = false
-  seed = (seed * 1664525 + 1013904223) >>> 0
-  state.value = dealBigTwo(seed, options)
-  selected.value = []
-  message.value = ''
-  pile.value = []
-  round.value++
-  playSound('deal')
-  if (state.value.turn !== ME) scheduleCpu()
+  sync()
 }
 
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
-
-onMounted(() => {
-  if (state.value.turn !== ME) scheduleCpu()
+const doubleNotes = computed(() => {
+  const notes: string[] = []
+  if (options.doubleOverTen) notes.push(T.result.overTen)
+  if (options.doubleTwos) notes.push(T.result.twos)
+  return notes.length ? notes.join('') : T.result.noDoubles
 })
-onUnmounted(() => window.clearTimeout(timer))
+const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 </script>
 
 <template>
-  <section class="felt">
-    <button class="icon-btn menu" :aria-label="S.common.menu" @click="menuOpen = true"><Doodle name="menu" class="h-[2rem] w-[2rem]" /></button>
+  <section ref="stageEl" class="felt">
+    <!-- 座位上的人 -->
+    <template v-for="(seat, p) in layout.seats" :key="p">
+      <div class="kid" :class="{ active: phase === 'play' && state.turn === p, me: p === ME }" :style="{ left: `${seat.kid.x - seat.kid.w / 2}px`, top: `${seat.kid.y - seat.kid.w * 1.42}px`, width: `${seat.kid.w}px`, height: `${seat.kid.w * 1.42}px` }">
+        <ArtKid :look="looks[p]" :mood="moods[p]" :seed="p === ME ? 7 : opponents[p - 1].id" :flip="p === 1" />
+      </div>
+      <div v-if="p !== ME" class="tag" :class="[`al-${seat.label.align}`, { active: phase === 'play' && state.turn === p }]" :style="{ left: `${seat.label.x}px`, top: `${seat.label.y}px` }">
+        <span class="font-display nm">{{ names[p] }}</span>
+        <span class="tg">{{ opponents[p - 1].tag }}</span>
+      </div>
+      <span v-if="passed[p] && p !== ME" :key="`pass${p}`" class="pass-stamp font-display stamp" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.passed }}</span>
+    </template>
 
-    <!-- 三個電腦：右、上、左（出牌順序是 你 → 右 → 上 → 左） -->
-    <div v-for="p in [1, 2, 3]" :key="p" class="seat" :class="[`seat-${p}`, { active: !over && state.turn === p }]">
-      <ArtBuddy class="robot" :look="opponents[p - 1].look" />
-      <svg class="back" viewBox="-3 -3 84 114" aria-hidden="true">
-        <ArtCard back :seed="p + 20" shadow still />
-        <circle cx="35" cy="50" r="23" fill="var(--color-card)" />
-        <text x="35" y="61" text-anchor="middle" font-size="31" class="font-display" :fill="state.hands[p].length <= 3 ? 'var(--color-red)' : 'var(--color-ink)'">{{ state.hands[p].length }}</text>
-      </svg>
-      <span class="name font-display">{{ names[p] }}</span>
-      <Transition name="pass">
-        <span v-if="state.lastMoves[p] === 'pass'" class="pass-mark font-display">{{ T.passed }}</span>
-      </Transition>
+    <!-- 52 張牌 -->
+    <div
+      v-for="c in ALL"
+      :key="c"
+      :ref="(el) => stage.attach(c, el as HTMLElement | null)"
+      class="sprite"
+      :class="{ mine: state.hands[ME].includes(c), sel: selected.includes(c) }"
+      :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
+      @click="tapCard(c)"
+    >
+      <svg class="face" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard :rank="rankText(c)" :suit="suitOf(c)" :seed="c + 1" /></svg>
+      <svg class="back" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard back still :seed="(c % 6) + 1" /></svg>
     </div>
 
-    <div class="center">
-      <div class="mat"><SketchBox fill="var(--color-paper-deep)" :variant="2" :weight="2.6" shadow shade="var(--color-mid)" /></div>
-      <TablePlay :plays="pile" :caption="tableCaption" />
-    </div>
-
-    <p class="status font-display" :class="{ mine: myTurn && !message, warn: !!message }">
-      <Transition name="pass">
-        <span v-if="state.lastMoves[ME] === 'pass'" class="my-pass">{{ T.passed }}</span>
-      </Transition>
-      {{ message || status }}
+    <p v-if="caption" :key="caption.id" class="caption font-display pop" :style="{ left: `${layout.pile.x}px`, top: `${layout.pile.y + layout.cw * 0.95}px` }">{{ caption.text }}</p>
+    <p class="status" :class="{ mine: myTurn && !message, warn: !!message }" :style="{ bottom: `${layout.cw * 1.62}px` }">
+      <span v-if="passed[ME]" class="my-pass font-display stamp">{{ T.passed }}</span>
+      {{ status }}
     </p>
 
-    <div class="bottom">
-      <div class="side">
-        <DoodleButton :label="T.hint" size="3.4rem" :disabled="!myTurn" @click="hint"><Doodle name="bulb" /></DoodleButton>
-      </div>
-      <CardHand v-model:selected="selected" class="mine-hand" :cards="state.hands[ME]" :disabled="over" :deal-key="round" />
-      <div class="side actions">
-        <DoodleButton v-if="over" :label="T.result.howTitle" size="4rem" @click="resultOpen = true"><Doodle name="score" /></DoodleButton>
-        <template v-else>
-          <DoodleButton :label="T.pass" size="3.2rem" :disabled="!canPass" @click="pass"><Doodle name="pass" /></DoodleButton>
-          <DoodleButton :label="T.play" size="4.2rem" :disabled="!myTurn || !selected.length" @click="playSelected"><Doodle name="play" /></DoodleButton>
-        </template>
-      </div>
+    <div class="corner"><RoundButton icon="gear" :label="S.common.menu" @click="menuOpen = true" /></div>
+    <div class="hint-btn"><RoundButton icon="bulb" :label="T.hint" size="2.5rem" show-label :disabled="!myTurn" @click="hint" /></div>
+    <div class="actions">
+      <template v-if="phase !== 'over'">
+        <MenuButton class="slide-in" primary icon="play" size="md" :label="T.play" :chevron="false" :disabled="!myTurn || !selected.length" :seed="41" @click="playSelected" />
+        <MenuButton class="slide-in" style="--i: 1" icon="pass" size="sm" :label="T.pass" :chevron="false" :disabled="!canPass" :seed="43" @click="pass" />
+      </template>
+      <MenuButton v-else class="slide-in" primary icon="score" size="md" :label="T.result.howTitle" :chevron="false" :seed="45" @click="resultOpen = true" />
     </div>
 
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" />
@@ -222,23 +370,27 @@ onUnmounted(() => window.clearTimeout(timer))
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(s, p) in scores" :key="p" :class="{ winner: p === state.winner }">
-            <td class="font-display">{{ names[p] }}</td>
+          <tr v-for="(s, p) in scores" :key="p" class="slide-in" :class="{ winner: p === state.winner }" :style="{ '--i': p }">
+            <td class="font-display who">
+              <span class="mini"><ArtKid :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" :seed="p === ME ? 7 : opponents[p - 1].id" /></span>
+              {{ names[p] }}
+              <span v-if="p === state.winner" class="win-stamp stamp">{{ T.result.winnerStamp }}</span>
+            </td>
             <td>{{ p === state.winner ? T.result.winner : s.twos ? T.result.leftWithTwos(s.cards, s.twos) : T.cardsLeft(s.cards) }}</td>
             <td>{{ p === state.winner ? '' : `×${s.multiplier}` }}</td>
-            <td class="num">{{ signed(s.points) }}</td>
-            <td class="num">{{ signed(tableTotals[p]) }}</td>
+            <td class="num font-display" :class="{ red: s.points > 0 }">{{ signed(s.points) }}</td>
+            <td class="num font-display">{{ signed(tableTotals[p]) }}</td>
           </tr>
         </tbody>
       </table>
       <p class="how">
         <b class="font-display">{{ T.result.howTitle }}</b>
-        {{ T.result.base }}{{ doubleNotes.join('') }}
-        <span class="lifetime">{{ T.result.lifetime(signed(stats.bigtwo.totals[ME] ?? 0)) }}</span>
+        {{ T.result.base }}{{ doubleNotes }}
+        <span class="lifetime font-display">{{ T.result.lifetime(signed(stats.bigtwo.totals[ME] ?? 0)) }}</span>
       </p>
       <template #actions>
-        <DoodleButton row :label="S.common.again" size="2.8rem" @click="newRound"><Doodle name="again" /></DoodleButton>
-        <DoodleButton row :label="S.common.quit" size="2.8rem" @click="emit('exit')"><Doodle name="exit" /></DoodleButton>
+        <div class="w-[11rem]"><MenuButton primary icon="again" size="sm" :label="S.common.again" :chevron="false" :seed="51" @click="newRound" /></div>
+        <div class="w-[11rem]"><MenuButton icon="exit" size="sm" :label="S.common.quit" :chevron="false" :seed="53" @click="emit('exit')" /></div>
       </template>
     </InkDialog>
   </section>
@@ -247,236 +399,251 @@ onUnmounted(() => window.clearTimeout(timer))
 <style scoped>
 .felt {
   position: relative;
-  display: grid;
-  grid-template-rows: 1fr auto auto;
   height: 100%;
-  padding: 0.6rem max(1rem, env(safe-area-inset-left)) 0.55rem;
+  overflow: hidden;
 }
-.icon-btn {
-  display: grid;
-  place-items: center;
-  width: 2.6rem;
-  height: 2.6rem;
-  border: 0;
-  background: none;
-  transition: transform 110ms var(--ease-out);
-}
-.icon-btn:active {
-  transform: scale(1.12) rotate(-2deg);
-}
-.menu {
+.sprite {
   position: absolute;
-  left: max(0.7rem, env(safe-area-inset-left));
-  top: 0.5rem;
-  z-index: 2;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  transform-origin: 50% 50%;
 }
-.center {
+.sprite::before {
+  content: '';
+  position: absolute;
+  inset: 4% 4% 4% 4%;
+  border-radius: 10%;
+  background: var(--color-shadow);
+  transform: translate(6%, 5%);
+}
+.sprite svg {
   position: relative;
-  min-height: 0;
-  padding: 3.4rem 9.5rem 0.2rem;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
-/* 桌墊：出的牌都落在這裡 */
-.mat {
+.sprite[data-face='1'] .back,
+.sprite[data-face='0'] .face {
+  display: none;
+}
+.sprite.mine {
+  cursor: pointer;
+}
+.sprite.sel::after {
+  content: '';
   position: absolute;
-  inset: 3.7rem 10.5rem 0.3rem;
+  left: 18%;
+  right: 18%;
+  bottom: -9%;
+  height: 4%;
+  border-radius: 1rem;
+  background: var(--color-red);
 }
-.robot {
-  width: 2.9rem;
-  height: 3.1rem;
-  transition: transform 240ms var(--ease-out);
+.kid {
+  position: absolute;
+  pointer-events: none;
+  transition: transform 260ms var(--ease-back);
 }
-.seat.active .robot {
-  transform: translateY(-0.2rem) rotate(-5deg);
+.kid :deep(svg) {
+  width: 100%;
+  height: 100%;
 }
-
-/* 電腦的座位：牌背上寫剩幾張 */
-.seat {
+.kid.active {
+  transform: translateY(-0.25rem);
+}
+.tag {
   position: absolute;
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  opacity: 0.8;
-  transition: opacity 200ms ease;
+  flex-direction: column;
+  line-height: 1.15;
+  white-space: nowrap;
+  pointer-events: none;
 }
-.seat.active {
-  opacity: 1;
-}
-.seat-1 {
-  right: max(1.2rem, env(safe-area-inset-right));
-  top: 4.2rem;
-  display: grid;
-  grid-template-columns: auto auto;
-  justify-items: center;
-  gap: 0.2rem 0.4rem;
-}
-.seat-2 {
-  left: 50%;
-  top: 0.55rem;
+.al-center {
   transform: translateX(-50%);
+  align-items: center;
 }
-.seat-3 {
-  left: max(1.2rem, env(safe-area-inset-left));
-  top: 4.2rem;
-  display: grid;
-  grid-template-columns: auto auto;
-  justify-items: center;
-  gap: 0.2rem 0.4rem;
+.al-right {
+  transform: translateX(-100%);
+  align-items: flex-end;
 }
-.seat-1 .name,
-.seat-3 .name,
-.seat-1 .pass-mark,
-.seat-3 .pass-mark {
-  grid-column: 1 / -1;
-}
-.back {
-  width: 2.2rem;
-  height: 3rem;
-  overflow: visible;
-  transition: transform 220ms var(--ease-out);
-}
-.seat-2 .back {
-  width: 2rem;
-  height: 2.7rem;
-}
-.seat.active .back {
-  transform: translateY(-0.2rem) rotate(-3deg);
-}
-.name {
+.nm {
   position: relative;
-  font-size: 0.95rem;
-  line-height: 1.2;
+  font-size: 0.92rem;
+  font-weight: 900;
 }
-/* 輪到誰：名字下方一道綠色筆劃 */
-.name::after {
+.nm::after {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -0.2rem;
-  height: 0.22rem;
+  bottom: -0.12rem;
+  height: 0.17rem;
   border-radius: 0.2rem;
   background: var(--color-red);
-  opacity: 0;
   transform: scaleX(0);
   transform-origin: left;
-  transition:
-    transform 240ms var(--ease-out),
-    opacity 120ms ease;
+  transition: transform 260ms var(--ease-out);
 }
-.seat.active .name::after {
-  opacity: 1;
+.tag.active .nm::after {
   transform: scaleX(1);
 }
-.pass-mark,
-.my-pass {
-  border: 0.12rem solid var(--color-ink);
-  border-radius: 0.4rem 0.3rem 0.45rem 0.28rem;
-  background: var(--color-paper-deep);
-  padding: 0 0.5rem;
-  font-size: 1rem;
-  line-height: 1.5;
-}
-.my-pass {
-  margin-right: 0.6rem;
-  color: var(--color-ink);
-}
-.pass-enter-active {
-  transition:
-    opacity 160ms ease,
-    transform 200ms var(--ease-out);
-}
-.pass-leave-active {
-  transition: opacity 120ms ease;
-}
-.pass-enter-from {
-  opacity: 0;
-  transform: scale(0.95) translateY(0.3rem);
-}
-.pass-leave-to {
-  opacity: 0;
-}
-
-.status {
-  min-height: 1.9rem;
-  text-align: center;
-  font-size: 1.05rem;
-  line-height: 1.7;
+.tg {
+  font-size: 0.68rem;
   color: var(--color-ink-soft);
 }
+.pass-stamp,
+.my-pass {
+  position: absolute;
+  display: grid;
+  width: 2.3rem;
+  height: 2.3rem;
+  margin: -1.15rem 0 0 -1.15rem;
+  place-items: center;
+  border: 0.16rem solid var(--color-red);
+  border-radius: 50%;
+  color: var(--color-red);
+  font-size: 1.05rem;
+  font-weight: 900;
+  background: rgb(251 250 247 / 0.85);
+  rotate: -12deg;
+  z-index: 700;
+  pointer-events: none;
+}
+.my-pass {
+  position: relative;
+  display: inline-grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  margin: 0 0.5rem 0 0;
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+.caption {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  color: var(--color-near);
+  white-space: nowrap;
+  z-index: 650;
+  pointer-events: none;
+}
+.status {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: var(--color-ink-soft);
+  z-index: 650;
+  pointer-events: none;
+}
 .status.mine {
-  color: var(--color-leaf);
+  color: var(--color-ink);
+  font-weight: 700;
 }
 .status.warn {
   color: var(--color-red);
 }
-.bottom {
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0.8rem;
-}
-.side {
-  display: flex;
+.corner {
   position: absolute;
-  bottom: 0.5rem;
-  left: max(1rem, env(safe-area-inset-left));
-  width: 6.2rem;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
+  left: max(0.8rem, env(safe-area-inset-left));
+  top: max(0.6rem, env(safe-area-inset-top));
+  z-index: 700;
 }
-.side.actions {
-  left: auto;
+.hint-btn {
+  position: absolute;
+  left: max(5.8rem, env(safe-area-inset-left));
+  bottom: 0.6rem;
+  z-index: 700;
+}
+.actions {
+  position: absolute;
   right: max(1rem, env(safe-area-inset-right));
+  bottom: 0.7rem;
+  display: flex;
+  width: 8.6rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 700;
 }
-
 .score {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.98rem;
-  line-height: 1.5;
+  font-size: 0.95rem;
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
 }
 .score th {
-  padding: 0 0.6rem 0.2rem;
-  border-bottom: 0.12rem solid var(--color-ink);
-  font-size: 0.82rem;
+  padding: 0 0.5rem 0.2rem;
+  border-bottom: 0.14rem solid var(--color-ink);
+  font-size: 0.78rem;
   font-weight: 400;
   color: var(--color-ink-soft);
   text-align: center;
 }
 .score td {
-  padding: 0.08rem 0.6rem;
-  border-bottom: 0.07rem dashed var(--color-ink-soft);
+  padding: 0.1rem 0.5rem;
+  border-bottom: 0.07rem dashed var(--color-mid);
   text-align: center;
 }
 .score th:first-child,
 .score td:first-child {
   text-align: left;
-  font-size: 1.1rem;
+}
+.who {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 1rem;
+}
+.mini {
+  display: block;
+  width: 1.6rem;
+  height: 2.2rem;
+}
+.mini :deep(svg) {
+  width: 100%;
+  height: 100%;
 }
 .score .num {
   text-align: right;
 }
+.score .red {
+  color: var(--color-red);
+}
 .score .winner td {
-  background: repeating-linear-gradient(-52deg, var(--color-sun) 0 0.35rem, #efe08f 0.35rem 0.45rem);
+  background: rgb(214 40 40 / 0.06);
+}
+.win-stamp {
+  display: inline-grid;
+  width: 1.7rem;
+  height: 1.7rem;
+  place-items: center;
+  border: 0.14rem solid var(--color-red);
+  border-radius: 50%;
+  color: var(--color-red);
+  font-size: 0.85rem;
+  rotate: -14deg;
+  animation-delay: 500ms;
 }
 .how {
   padding-top: 0.5rem;
   font-size: 0.8rem;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--color-ink-soft);
+}
+.how b {
+  margin-right: 0.4rem;
+  font-size: 0.95rem;
+  color: var(--color-ink);
 }
 .lifetime {
   margin-left: 0.6rem;
-  font-family: var(--font-display);
-  font-weight: 800;
-  color: var(--color-ink);
-}
-.how b {
-  margin-right: 0.5rem;
-  font-size: 1rem;
-  font-weight: 400;
   color: var(--color-ink);
 }
 </style>

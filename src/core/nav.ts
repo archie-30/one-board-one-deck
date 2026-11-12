@@ -3,14 +3,14 @@ import { computed, reactive } from 'vue'
 import type { GameCategory } from '@/games/types'
 
 export type Route =
-  | { name: 'home' }
+  | { name: 'title' }
+  | { name: 'choose' }
   | { name: 'category'; category: GameCategory }
   | { name: 'lobby' | 'rules' | 'settings' | 'tutorial' | 'play'; gameId: string }
 
-const stack = reactive<Route[]>([{ name: 'home' }])
+const stack = reactive<Route[]>([{ name: 'title' }])
 
 export const route = computed(() => stack[stack.length - 1])
-export const depth = computed(() => stack.length)
 export const routeKey = computed(() => {
   const r = route.value
   return r.name + ('gameId' in r ? r.gameId : 'category' in r ? r.category : '')

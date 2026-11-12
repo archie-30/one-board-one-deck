@@ -3,13 +3,13 @@ import { onMounted, onUnmounted } from 'vue'
 import { back, replace, route, routeKey } from '@/core/nav'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
-import { gamePrefs } from '@/core/settings'
 import { getGame } from '@/games/registry'
 import CategoryScreen from '@/screens/CategoryScreen.vue'
+import ChooseScreen from '@/screens/ChooseScreen.vue'
 import GameSettingsScreen from '@/screens/GameSettingsScreen.vue'
-import HomeScreen from '@/screens/HomeScreen.vue'
 import LobbyScreen from '@/screens/LobbyScreen.vue'
 import RulesScreen from '@/screens/RulesScreen.vue'
+import TitleScreen from '@/screens/TitleScreen.vue'
 
 function onKey(event: KeyboardEvent) {
   if (event.key === 'Escape' && route.value.name !== 'play' && route.value.name !== 'tutorial') back()
@@ -19,9 +19,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <main class="h-full">
+  <main class="relative h-full">
     <Transition name="screen" mode="out-in">
-      <HomeScreen v-if="route.name === 'home'" :key="routeKey" />
+      <TitleScreen v-if="route.name === 'title'" :key="routeKey" />
+      <ChooseScreen v-else-if="route.name === 'choose'" :key="routeKey" />
       <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" />
       <LobbyScreen v-else-if="route.name === 'lobby'" :key="routeKey" :game-id="route.gameId" />
       <RulesScreen v-else-if="route.name === 'rules'" :key="routeKey" :game-id="route.gameId" />
@@ -33,15 +34,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         @exit="back()"
         @play="replace({ name: 'play', gameId: route.gameId })"
       />
-      <component
-        :is="getGame(route.gameId).component"
-        v-else
-        :key="routeKey"
-        :game="getGame(route.gameId)"
-        :options="resolveOptions(getGame(route.gameId))"
-        :difficulty="gamePrefs(route.gameId).difficulty"
-        @exit="back()"
-      />
+      <component :is="getGame(route.gameId).component" v-else :key="routeKey" :game="getGame(route.gameId)" :options="resolveOptions(getGame(route.gameId))" @exit="back()" />
     </Transition>
     <div class="rotate font-display">{{ S.app.rotate }}</div>
   </main>
