@@ -4,8 +4,9 @@ import { defineAsyncComponent } from 'vue'
 import { S } from '@/data/strings'
 import { DEFAULT_BIGTWO_OPTIONS as B } from '@/engine/bigtwo/options'
 import { DEFAULT_GOMOKU_OPTIONS as G } from '@/engine/gomoku/rules'
-import BigTwoArt from './bigtwo/BigTwoArt.vue'
-import GomokuArt from './gomoku/GomokuArt.vue'
+import { stats } from '@/core/settings'
+import BigTwoScene from './bigtwo/BigTwoScene.vue'
+import GomokuScene from './gomoku/GomokuScene.vue'
 import type { GameCategory, GameDef, SettingDef } from './types'
 
 const toggle = (key: string, text: { label: string; help: string }, def: boolean): SettingDef => ({
@@ -38,7 +39,9 @@ export const GAMES: GameDef[] = [
     name: S.bigtwo.name,
     summary: S.bigtwo.summary,
     players: S.bigtwo.players,
-    art: BigTwoArt,
+    scene: BigTwoScene,
+    rulesSub: S.lobby.rulesSub,
+    record: () => S.bigtwo.record(stats.bigtwo.rounds, stats.bigtwo.wins, stats.bigtwo.totals[0] ?? 0),
     rulesIntro: S.bigtwo.rules,
     tutorial: defineAsyncComponent(() => import('./bigtwo/BigTwoTutorial.vue')),
     component: defineAsyncComponent(() => import('./bigtwo/BigTwoGame.vue')),
@@ -59,7 +62,9 @@ export const GAMES: GameDef[] = [
     name: S.gomoku.name,
     summary: S.gomoku.summary,
     players: S.gomoku.players,
-    art: GomokuArt,
+    scene: GomokuScene,
+    rulesSub: S.lobby.rulesSubBoard,
+    record: () => S.gomoku.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws),
     rulesIntro: S.gomoku.rules,
     tutorial: defineAsyncComponent(() => import('./gomoku/GomokuTutorial.vue')),
     component: defineAsyncComponent(() => import('./gomoku/GomokuGame.vue')),

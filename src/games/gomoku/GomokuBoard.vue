@@ -84,14 +84,15 @@ function onClick(event: MouseEvent) {
 
     <circle v-for="h in highlights" :key="`h${h}`" :cx="px(h)" :cy="py(h)" r="4.4" class="highlight" />
 
-    <g v-for="s in stones" :key="s.index" class="stone">
+    <circle v-if="lastMove >= 0" :key="`rip${lastMove}`" :cx="px(lastMove)" :cy="py(lastMove)" r="4.6" class="ripple" />
+    <g v-for="s in stones" :key="s.index" class="stone" :class="{ fresh: s.index === lastMove }">
       <ArtStone :cx="px(s.index)" :cy="py(s.index)" :r="4.3" :black="s.color === 1" :seed="s.index" />
     </g>
     <circle v-if="lastMove >= 0 && !winLine.length" :cx="px(lastMove)" :cy="py(lastMove)" r="1.15" class="last" />
 
     <g v-if="preview >= 0" class="preview" :class="previewColor === 1 ? 'black' : 'white'">
       <circle :cx="px(preview)" :cy="py(preview)" r="4.25" class="ghost" />
-      <circle :cx="px(preview)" :cy="py(preview)" r="5.4" class="ring" />
+      <circle :cx="px(preview)" :cy="py(preview)" r="5.4" class="pv-ring" />
     </g>
 
     <path v-if="winPath" :key="winPath" :d="winPath" class="win" />
@@ -119,34 +120,38 @@ function onClick(event: MouseEvent) {
   stroke-width: 0.35;
   stroke-dasharray: 1.4 1.2;
 }
-.stone circle {
-  stroke: var(--color-ink);
-  stroke-width: 0.6;
-}
-.stone.black circle {
-  fill: var(--color-ink);
-}
-.stone.white circle {
-  fill: var(--color-card);
-}
-.shine {
-  fill: none;
-  stroke: var(--color-paper);
-  stroke-width: 0.55;
-  stroke-linecap: round;
-  opacity: 0.55;
-}
-/* 落子：從略高、略大的位置按到棋盤上 */
-@keyframes stone-in {
-  from {
-    opacity: 0;
-    transform: scale(1.28);
-  }
-}
 .stone {
   transform-box: fill-box;
   transform-origin: center;
-  animation: stone-in 200ms var(--ease-out) both;
+}
+/* 剛落下的棋子：壓扁一下再彈回來 */
+.stone.fresh {
+  animation: stone-land 260ms var(--ease-back) both;
+}
+@keyframes stone-land {
+  from {
+    transform: scale(1.18, 0.82);
+  }
+}
+/* 落點的墨圈往外擴散 */
+.ripple {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 0.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ripple 520ms var(--ease-out) both;
+  pointer-events: none;
+}
+@keyframes ripple {
+  from {
+    opacity: 0.7;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.1);
+  }
 }
 .last {
   fill: var(--color-red);
@@ -163,7 +168,7 @@ function onClick(event: MouseEvent) {
   fill: var(--color-card);
   opacity: 0.8;
 }
-.preview .ring {
+.preview .pv-ring {
   fill: none;
   stroke: var(--color-red);
   stroke-width: 0.6;

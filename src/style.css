@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 
-/* 標題用的手寫楷體（霞鶩文楷 TC，SIL OFL 授權，見 assets/fonts/OFL.txt） */
+/* 說明文字用的手寫楷體（霞鶩文楷 TC，SIL OFL 授權，見 assets/fonts/OFL.txt） */
 @font-face {
   font-family: 'InkKai';
   src: url('./assets/fonts/InkKai.woff2') format('woff2');
@@ -8,17 +8,13 @@
 }
 
 /*
-  視覺方向：攤在桌上的方格筆記本。墨線輪廓、色鉛筆塗色。
-  顏色都有固定用途，不為了熱鬧而加：
-    paper / ink   紙與墨（基底）
-    red           牌面紅色、主要按鈕、勝利筆劃
-    deck          撲克牌分類（靛藍）
-    wood          棋盤分類（木色）
-    leaf          「輪到你」與正確回饋（綠）
-    sun           提示與選取（黃）
+  INKRAGE 續作的視覺語言：
+  - 紙、三階灰、墨黑為主體；紅色是唯一的強調色（主要按鈕、紅牌、勝利筆劃）
+  - 所有線條都是粗細會變的墨線，並以三種描法輪流顯示（線條呼吸）
+  - 陰影用排線或 10% 的墨色色塊；不用漸層、不用發光
+  - 材質色（木、靛、苔）一律低彩度、三階一起用，只出現在物件本身
 */
 @theme {
-  /* 紙、三階灰、墨（和 INKRAGE 同一組基底） */
   --color-paper: #f2f0eb;
   --color-card: #fbfaf7;
   --color-far: #d6d3cc;
@@ -28,14 +24,13 @@
   --color-paper-deep: #e4e1da;
   --color-ink-soft: #62615d;
   --color-ink-faint: rgb(26 26 26 / 0.12);
-  --color-grid: rgb(255 255 255 / 0.75);
+  --color-shadow: rgb(26 26 26 / 0.1);
+  --color-grid: rgb(255 255 255 / 0.8);
 
-  /* 紅：唯一的強調色 */
   --color-red: #d62828;
   --color-red-dark: #8c1c1c;
   --color-red-soft: #f0c4c0;
 
-  /* 低彩度的材質色，各有淺／中／深三階，畫圖時三階一起用 */
   --color-wood: #decbaa;
   --color-wood-deep: #ac8e64;
   --color-kraft-dark: #4e3e28;
@@ -54,7 +49,8 @@
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  --ease-back: cubic-bezier(0.34, 1.5, 0.64, 1);
+  /* INKRAGE 的按鈕、面板都用 easeOutBack 出場 */
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* 整個介面依螢幕高度等比縮放：所有尺寸用 rem，手機與平板看起來比例一致 */
@@ -73,7 +69,7 @@ body,
 
 body {
   background-color: var(--color-paper);
-  /* 淺色大方格（像 INKRAGE 的地板）＋四角稍微壓暗，紙面就不是一片平的 */
+  /* 淺色大方格（像 INKRAGE 的地板）＋四角稍微壓暗 */
   background-image:
     radial-gradient(ellipse at 50% 45%, transparent 55%, rgb(74 73 70 / 0.1) 100%),
     linear-gradient(var(--color-grid) 0.12rem, transparent 0.12rem),
@@ -95,7 +91,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 紙的顆粒：一張靜態的雜訊蓋在最上面，所有色塊都會帶一點鉛筆的粗糙感 */
+/* 紙的顆粒：一張靜態的雜訊蓋在最上面 */
 body::after {
   content: '';
   position: fixed;
@@ -121,21 +117,21 @@ button {
   outline-offset: 0.2rem;
 }
 
+/* 粗黑體：標題、按鈕、數字 */
 .font-display {
   font-family: var(--font-display);
   font-weight: 800;
   letter-spacing: 0.02em;
 }
 
-/* 可捲動區域的捲軸：細、墨色 */
 .scroll-y {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-ink-soft) transparent;
+  scrollbar-color: var(--color-ink) transparent;
 }
 
-/* 畫面切換：不做整頁過場。舊畫面很快淡掉，新畫面的元件各自「彈出來」 */
+/* ── 畫面切換：不做整頁過場。舊畫面一瞬間淡掉，新畫面的元件各自出場 ── */
 .screen-leave-active {
   transition: opacity 90ms ease;
 }
@@ -143,37 +139,105 @@ button {
   opacity: 0;
 }
 
-/* 元件出現：從略小的狀態彈到定位（和 INKRAGE 的按鈕一樣用 ease-out-back），同一群錯開一點 */
+/* 出場一：從右邊滑進來並稍微過頭（INKRAGE 選單按鈕的動作） */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(3rem);
+  }
+  40% {
+    opacity: 1;
+  }
+}
+.slide-in {
+  animation: slide-in 420ms var(--ease-back) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* 出場二：從略小彈到定位 */
 @keyframes pop {
   from {
     opacity: 0;
     transform: scale(0.86);
   }
 }
-.rise {
+.pop {
   transform-box: fill-box;
   transform-origin: center;
-  animation: pop 300ms var(--ease-back) both;
-  animation-delay: calc(var(--i, 0) * 38ms);
+  animation: pop 320ms var(--ease-back) both;
+  animation-delay: calc(var(--i, 0) * 50ms);
 }
 
-/* 手繪線條「畫出來」 */
-@keyframes draw {
+/* 出場三：墨線由左畫到右 */
+@keyframes swipe {
   from {
-    stroke-dashoffset: 1;
+    clip-path: inset(-30% 100% -30% -5%);
   }
   to {
-    stroke-dashoffset: 0;
+    clip-path: inset(-30% -5% -30% -5%);
   }
 }
-.draw {
-  stroke-dasharray: 1;
-  animation: draw 520ms var(--ease-in-out) both;
+.swipe {
+  animation: swipe 460ms var(--ease-in-out) both;
   animation-delay: calc(var(--i, 0) * 60ms);
 }
 
+/* 紅色印章蓋下去 */
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: scale(1.6) rotate(-14deg);
+  }
+  60% {
+    opacity: 1;
+  }
+}
+.stamp {
+  animation: stamp 360ms var(--ease-back) both;
+}
+
+/* ── 線條呼吸：同一張圖預先畫好三種描法，輪流顯示（約每秒 10 次） ── */
+@keyframes bv0 {
+  0% {
+    visibility: visible;
+  }
+  33.33% {
+    visibility: hidden;
+  }
+}
+@keyframes bv1 {
+  0% {
+    visibility: hidden;
+  }
+  33.33% {
+    visibility: visible;
+  }
+  66.66% {
+    visibility: hidden;
+  }
+}
+@keyframes bv2 {
+  0% {
+    visibility: hidden;
+  }
+  66.66% {
+    visibility: visible;
+  }
+}
+.bv0 {
+  animation: bv0 300ms step-end infinite;
+}
+.bv1 {
+  visibility: hidden;
+  animation: bv1 300ms step-end infinite;
+}
+.bv2 {
+  visibility: hidden;
+  animation: bv2 300ms step-end infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  *:not(.boil-a):not(.boil-b),
+  *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
@@ -181,39 +245,13 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
-
-/* 線條呼吸：同一張圖的兩次描線輪流顯示（INKRAGE 的手繪動畫感） */
-@keyframes boil-a {
-  0% {
-    opacity: 1;
+  .bv0 {
+    animation: none !important;
+    visibility: visible;
   }
-  50% {
-    opacity: 0;
-  }
-}
-@keyframes boil-b {
-  0% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-.boil-a {
-  animation: boil-a 760ms step-end infinite;
-}
-.boil-b {
-  opacity: 0;
-  animation: boil-b 760ms step-end infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .boil-a {
-    animation: none;
-    opacity: 1;
-  }
-  .boil-b {
-    animation: none;
-    opacity: 0;
+  .bv1,
+  .bv2 {
+    animation: none !important;
+    visibility: hidden;
   }
 }
