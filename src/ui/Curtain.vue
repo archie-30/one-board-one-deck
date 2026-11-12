@@ -41,20 +41,20 @@ watch(
   left: calc(var(--i) * 100vw / 7 - 2.5vw);
   width: calc(100vw / 7 + 5vw);
   height: 130vh;
-  border: 0.2rem solid var(--color-ink);
-  border-radius: 1rem 0.7rem 1.100rem 0.800rem;
-  background: var(--color-deck);
+  border: 0.220rem solid var(--color-ink);
+  border-radius: 0.300rem 0.200rem 0.350rem 0.150rem;
+  background-color: var(--color-deck-soft);
+  background-image: repeating-linear-gradient(-52deg, transparent 0 0.380rem, rgb(34 44 69 / 0.180) 0.380rem 0.460rem);
   padding: 1rem;
 }
 .big-card span {
   display: block;
   height: 100%;
-  border: 0.150rem solid var(--color-card);
-  border-radius: 0.500rem;
-  opacity: 0.75;
+  border: 0.130rem solid var(--color-indigo-dark);
+  opacity: 0.800;
   background-image:
-    repeating-linear-gradient(45deg, var(--color-card) 0 0.060rem, transparent 0.060rem 0.550rem),
-    repeating-linear-gradient(-45deg, var(--color-card) 0 0.060rem, transparent 0.060rem 0.550rem);
+    repeating-linear-gradient(45deg, var(--color-deck) 0 0.070rem, transparent 0.070rem 0.600rem),
+    repeating-linear-gradient(-45deg, var(--color-deck) 0 0.070rem, transparent 0.070rem 0.600rem);
 }
 @keyframes card-cover {
   from {
@@ -87,7 +87,8 @@ watch(
   inset: 0;
   background-color: var(--color-wood);
   background-image:
-    linear-gradient(var(--color-ink) 0.100rem, transparent 0.100rem), linear-gradient(90deg, var(--color-ink) 0.100rem, transparent 0.100rem);
+    linear-gradient(var(--color-kraft-dark) 0.100rem, transparent 0.100rem), linear-gradient(90deg, var(--color-kraft-dark) 0.100rem, transparent 0.100rem),
+    repeating-linear-gradient(-52deg, transparent 0 0.500rem, rgb(172 142 100 / 0.350) 0.500rem 0.600rem);
   background-size: 12.500vw 25vh;
   background-position: 6.250vw 12.500vh;
 }
@@ -100,11 +101,13 @@ watch(
   margin: calc(max(11vw, 22vh) / -2) 0 0 calc(max(11vw, 22vh) / -2);
   border: 0.180rem solid var(--color-ink);
   border-radius: 50%;
-  background: var(--color-card);
-  box-shadow: 0.300rem 0.350rem 0 var(--color-ink-faint);
+  background-color: var(--color-card);
+  background-image: repeating-linear-gradient(-52deg, transparent 0 0.300rem, rgb(74 73 70 / 0.220) 0.300rem 0.380rem);
+  box-shadow: 0.300rem 0.350rem 0 rgb(74 73 70 / 0.350);
 }
 .big-stone.black {
-  background: var(--color-ink);
+  background-color: var(--color-ink);
+  background-image: repeating-linear-gradient(-52deg, transparent 0 0.300rem, rgb(154 152 146 / 0.300) 0.300rem 0.380rem);
 }
 @keyframes wood-in {
   from {

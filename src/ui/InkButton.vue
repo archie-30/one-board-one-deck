@@ -16,8 +16,7 @@ function onClick() {
 
 <template>
   <button class="ink-btn font-display" :class="[`tone-${tone}`, `size-${size}`]" :disabled="disabled" @click="onClick">
-    <span class="hatch" />
-    <SketchBox fill="var(--btn-fill)" :variant="variant" />
+    <SketchBox fill="var(--btn-fill)" :variant="variant" shadow :tone="tone === 'red' ? 'var(--color-red)' : undefined" shade="var(--btn-shade)" />
     <span class="relative flex items-center justify-center gap-[0.5em]"><slot /></span>
   </button>
 </template>
@@ -25,7 +24,9 @@ function onClick() {
 <style scoped>
 .ink-btn {
   --btn-fill: var(--color-card);
+  --btn-shade: var(--color-far);
   position: relative;
+  font-weight: 800;
   border: 0;
   background: none;
   padding: 0.55rem 1.3rem;
@@ -36,12 +37,6 @@ function onClick() {
     transform 160ms var(--ease-out),
     opacity 160ms ease;
 }
-.hatch {
-  position: absolute;
-  inset: 0.32rem -0.32rem -0.32rem 0.32rem;
-  background-image: repeating-linear-gradient(-52deg, var(--color-ink) 0 0.07rem, transparent 0.07rem 0.3rem);
-  opacity: 0.42;
-}
 .size-lg {
   padding: 0.8rem 1.6rem;
   font-size: 1.45rem;
@@ -51,20 +46,21 @@ function onClick() {
   font-size: 1rem;
 }
 .tone-red {
-  --btn-fill: var(--color-red);
-  color: var(--color-card);
-}
-.tone-red :deep(.sketch) {
-  color: var(--color-ink);
+  --btn-fill: #f7e3e0;
+  --btn-shade: var(--color-red-soft);
+  color: var(--color-red);
 }
 .tone-deck {
-  --btn-fill: var(--color-deck-soft);
+  --btn-fill: #dfe5ee;
+  --btn-shade: var(--color-deck-soft);
 }
 .tone-wood {
   --btn-fill: var(--color-wood-soft);
+  --btn-shade: var(--color-wood);
 }
 .tone-leaf {
-  --btn-fill: var(--color-leaf-soft);
+  --btn-fill: #e3e8d6;
+  --btn-shade: var(--color-leaf-soft);
 }
 .ink-btn:active:not(:disabled) {
   transform: scale(0.97);

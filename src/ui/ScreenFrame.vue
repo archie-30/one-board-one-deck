@@ -20,11 +20,11 @@ function onBack() {
     <header class="flex shrink-0 items-end gap-[0.9rem] pb-[0.5rem]">
       <button class="back-btn" :aria-label="S.common.back" @click="onBack"><Doodle name="back" class="h-[2rem] w-[2rem]" /></button>
       <h1 class="font-display text-[1.9rem] leading-none">{{ title }}</h1>
-      <p v-if="lead" class="pb-[0.1rem] text-[0.9rem] leading-none text-ink-soft">{{ lead }}</p>
+      <p v-if="lead" class="pb-[0.1rem] text-[1rem] leading-none text-ink-soft">{{ lead }}</p>
       <div class="ml-auto flex items-center gap-[0.6rem]"><slot name="actions" /></div>
     </header>
     <svg class="h-[0.4rem] w-full shrink-0 overflow-visible text-ink" viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M 0 2.4 Q 30 0.6 60 2.2 T 100 1.6" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" />
+      <path d="M0 2C18 .8 40 1.300 62 1.600S88 1 100 1.800C86 3.400 64 3 44 3S14 3.600 0 2Z" fill="currentColor" />
     </svg>
     <div class="min-h-0 flex-1 pt-[0.8rem]"><slot /></div>
   </section>

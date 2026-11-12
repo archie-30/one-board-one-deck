@@ -19,7 +19,6 @@ export const S = {
     next: '下一步',
     done: '完成',
     you: '你',
-    cpu: '電腦',
     easy: '簡單',
     normal: '普通',
     on: '開',
@@ -41,7 +40,7 @@ export const S = {
     tutorial: '互動教學',
     rules: '規則說明',
     settings: '規則設定',
-    difficulty: '電腦強度',
+    difficulty: '對手強度',
     tutorialShort: '教學',
     rulesShort: '規則',
     settingsShort: '設定',
@@ -70,7 +69,7 @@ export const S = {
     scissors: '剪刀',
     draw: '平手，再猜一次',
     win: '你贏了，你先下',
-    lose: '電腦贏了，電腦先下',
+    lose: (name: string) => `${name}贏了，${name}先下`,
     go: '開始',
   },
   tutorial: {
@@ -85,16 +84,16 @@ export const S = {
   gomoku: {
     name: '五子棋',
     summary: '先把五顆棋連成一線的人獲勝。',
-    players: '你 對 1 個電腦',
+    players: '你 對 1 位對手',
     black: '黑棋',
     white: '白棋',
     yourTurn: '輪到你',
-    cpuTurn: '電腦思考中…',
+    cpuTurn: (name: string) => `${name}思考中…`,
     place: '落子',
     previewHint: '點棋盤選位置，再按「落子」',
     moveCount: (n: number) => `第 ${n} 手`,
     win: '你贏了',
-    lose: '電腦贏了',
+    lose: (name: string) => `${name}贏了`,
     draw: '和局',
     winLead: (n: number) => `共 ${n} 手，五子連線。`,
     drawLead: '棋盤下滿了，沒有人連成五子。',
@@ -126,7 +125,7 @@ export const S = {
         body: [
           '棋盤是 15 × 15 的格線，棋子下在線的交叉點上。',
           '黑棋先下，之後雙方輪流各下一顆。下了就不能移動或拿掉。',
-          '每一局開始前先和電腦猜拳，贏的人拿黑棋先下。',
+          '每一局開始前先和對手猜拳，贏的人拿黑棋先下。',
         ],
       },
       {
@@ -180,8 +179,7 @@ export const S = {
   bigtwo: {
     name: '大老二',
     summary: '四個人比誰先把手上的牌出完。',
-    players: '你 對 3 個電腦',
-    seats: ['你', '電腦甲', '電腦乙', '電腦丙'],
+    players: '你 對 3 位對手',
     play: '出牌',
     pass: '過牌',
     hint: '提示',
@@ -219,7 +217,8 @@ export const S = {
       colLeft: '剩牌',
       colTimes: '倍數',
       colRound: '本局',
-      colTotal: '累計',
+      colTotal: '本桌累計',
+      lifetime: (n: string) => `你的總分 ${n}`,
       winner: '出完',
       leftWithTwos: (n: number, twos: number) => `${n} 張（含 ${twos} 張 2）`,
       howTitle: '算分方式',
@@ -227,7 +226,6 @@ export const S = {
       overTen: '剩 10 張以上 ×2。',
       twos: '手上每剩一張 2 再 ×2。',
       noDoubles: '本局沒有開啟任何加倍。',
-      resetTotal: '累計歸零',
     },
     settings: {
       suitOrder: {
@@ -269,7 +267,7 @@ export const S = {
       {
         title: '怎麼玩',
         body: [
-          '四個人各拿 13 張牌，你對三個電腦。',
+          '四個人各拿 13 張牌，你和三位對手一桌。',
           '拿到梅花 3 的人先出，第一手必須包含梅花 3。',
           '之後照順序輪流：出一手比桌上更大的牌，或是過牌。張數要和桌上的一樣。',
           '其他三個人都過牌時，桌面清空，最後出牌的人可以改出任何牌型。',
@@ -324,7 +322,7 @@ export const S = {
           '剩 10 張以上：扣分 ×2。',
           '手上每剩一張 2：扣分再 ×2（剩兩張 2 就是 ×4）。',
           '贏家得到三個輸家扣分的總和。例如三家各扣 3、12、20 分，贏家得 35 分。',
-          '兩種加倍都可以在規則設定關閉。累計分數會自動保存，也能在結算畫面歸零。',
+          '兩種加倍都可以在規則設定關閉。你的總分會自動保存。',
         ],
       },
       {

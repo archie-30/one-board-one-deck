@@ -3,7 +3,9 @@
 import { computed } from 'vue'
 import type { Stone } from '@/engine/gomoku/rules'
 import ArtStone from '@/ui/art/ArtStone.vue'
-import { polyFill, rectPts, roughPoly } from '@/ui/art/sketch'
+import { inkPath } from '@/ui/art/ink'
+import Sketch from '@/ui/art/Sketch.vue'
+import { boardPrims } from './boardArt'
 
 const props = withDefaults(
   defineProps<{
@@ -27,21 +29,7 @@ const total = computed(() => span.value + PAD * 2)
 const px = (i: number) => PAD + (i % props.size) * CELL
 const py = (i: number) => PAD + Math.floor(i / props.size) * CELL
 
-/** 固定的小偏移，讓線條略不規則但每次畫出來都一樣 */
-const wobble = (n: number) => ((Math.sin(n * 12.9898) * 43758.5453) % 1) * 0.5
-
-const gridLines = computed(() => {
-  const lines: string[] = []
-  const end = PAD + span.value
-  for (let i = 0; i < props.size; i++) {
-    const p = PAD + i * CELL
-    lines.push(`M ${PAD - 0.4} ${p + wobble(i)} Q ${PAD + span.value * 0.45} ${p + wobble(i + 40)} ${end + 0.4} ${p + wobble(i + 80)}`)
-    lines.push(`M ${p + wobble(i + 120)} ${PAD - 0.4} Q ${p + wobble(i + 160)} ${PAD + span.value * 0.55} ${p + wobble(i + 200)} ${end + 0.4}`)
-  }
-  return lines.join(' ')
-})
-
-const edge = computed(() => roughPoly(rectPts(1, 1, total.value - 2, total.value - 2), 3, 0.7, 2.2))
+const art = computed(() => boardPrims(1, 1, total.value - 2, props.size, PAD - 1, 0.3, 2.6))
 
 const stars = computed(() => {
   if (props.size !== 15) return []
@@ -66,9 +54,16 @@ const winPath = computed(() => {
   if (props.winLine.length < 2) return ''
   const a = props.winLine[0]
   const b = props.winLine[props.winLine.length - 1]
-  const dx = Math.sign(px(b) - px(a)) * 3.2
-  const dy = Math.sign(py(b) - py(a)) * 3.2
-  return `M ${px(a) - dx} ${py(a) - dy} L ${px(b) + dx} ${py(b) + dy}`
+  const dx = Math.sign(px(b) - px(a)) * 3.4
+  const dy = Math.sign(py(b) - py(a)) * 3.4
+  return inkPath(
+    [
+      [px(a) - dx, py(a) - dy],
+      [(px(a) + px(b)) / 2 + dy * 0.2, (py(a) + py(b)) / 2 - dx * 0.2],
+      [px(b) + dx, py(b) + dy],
+    ],
+    { width: 2.6, seed: a + b, taper: 0.25, pressure: 0.5 },
+  )
 })
 
 function onClick(event: MouseEvent) {
@@ -83,11 +78,8 @@ function onClick(event: MouseEvent) {
 
 <template>
   <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick">
-    <path :d="polyFill(rectPts(4.5, 5, total - 2, total - 2))" fill="url(#hatch-fine)" />
-    <path :d="polyFill(rectPts(1, 1, total - 2, total - 2))" class="wood" />
-    <path :d="polyFill(rectPts(1, total - 5, total - 2, 4))" fill="url(#hatch-fine-soft)" />
-    <path :d="edge" class="edge" />
-    <path :d="gridLines" class="lines" />
+    <Sketch :prims="art.under" :seed="3" still />
+    <Sketch :prims="art.edge" :seed="8" still />
     <circle v-for="s in stars" :key="`s${s}`" :cx="px(s)" :cy="py(s)" r="0.9" class="star" />
 
     <circle v-for="h in highlights" :key="`h${h}`" :cx="px(h)" :cy="py(h)" r="4.4" class="highlight" />
@@ -102,7 +94,7 @@ function onClick(event: MouseEvent) {
       <circle :cx="px(preview)" :cy="py(preview)" r="5.4" class="ring" />
     </g>
 
-    <path v-if="winPath" :key="winPath" :d="winPath" pathLength="1" class="win draw" />
+    <path v-if="winPath" :key="winPath" :d="winPath" class="win" />
   </svg>
 </template>
 
@@ -117,28 +109,12 @@ function onClick(event: MouseEvent) {
 .board.interactive {
   cursor: pointer;
 }
-.wood {
-  fill: var(--color-wood);
-}
-.edge {
-  fill: none;
-  stroke: var(--color-ink);
-  stroke-width: 0.9;
-  stroke-linecap: round;
-}
-.lines {
-  fill: none;
-  stroke: var(--color-ink);
-  stroke-width: 0.32;
-  stroke-linecap: round;
-  opacity: 0.62;
-}
 .star {
   fill: var(--color-ink);
   opacity: 0.7;
 }
 .highlight {
-  fill: var(--color-sun);
+  fill: var(--color-marker);
   stroke: var(--color-ink);
   stroke-width: 0.35;
   stroke-dasharray: 1.4 1.2;
@@ -194,11 +170,16 @@ function onClick(event: MouseEvent) {
   stroke-dasharray: 1.6 1.3;
 }
 .win {
-  fill: none;
-  stroke: var(--color-red);
-  stroke-width: 2.1;
-  stroke-linecap: round;
-  opacity: 0.88;
-  animation-duration: 480ms;
+  fill: var(--color-red);
+  opacity: 0.9;
+  animation: win-swipe 460ms var(--ease-in-out) both;
+}
+@keyframes win-swipe {
+  from {
+    clip-path: circle(0% at 50% 50%);
+  }
+  to {
+    clip-path: circle(80% at 50% 50%);
+  }
 }
 </style>

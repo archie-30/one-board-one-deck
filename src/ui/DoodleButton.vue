@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // 圖示按鈕：一個大的手繪圖示加一行手寫字。選中時外面多一圈紅筆。
 import { playSound } from '@/core/audio'
-import { roughCircle } from './art/sketch'
+import { inkCircle } from './art/ink'
 
 withDefaults(defineProps<{ label?: string; selected?: boolean; disabled?: boolean; size?: string; row?: boolean }>(), { size: '4.6rem' })
 const emit = defineEmits<{ click: [] }>()
-const ring = roughCircle(50, 50, 47, 21, 0.05, 2)
+const ring = inkCircle(50, 50, 46, { width: 3.6, seed: 21, taper: 0.2, pressure: 0.5 })
 
 function onClick() {
   playSound('tap')
@@ -16,7 +16,7 @@ function onClick() {
 <template>
   <button class="doodle-btn" :class="{ selected, row }" :disabled="disabled" :style="{ '--size': size }" @click="onClick">
     <span class="art">
-      <svg v-if="selected" class="pick-ring" viewBox="0 0 100 100" aria-hidden="true"><path class="draw" pathLength="1" :d="ring" /></svg>
+      <svg v-if="selected" class="pick-ring" viewBox="0 0 100 100" aria-hidden="true"><path :d="ring" /></svg>
       <slot />
     </span>
     <span v-if="label" class="label font-display">{{ label }}</span>
@@ -50,8 +50,8 @@ function onClick() {
   height: 100%;
 }
 .label {
-  font-size: 1.15rem;
-  line-height: 1.25;
+  font-size: 1rem;
+  line-height: 1.3;
   white-space: nowrap;
 }
 .pick-ring {
@@ -60,13 +60,14 @@ function onClick() {
   width: 128%;
   height: 128%;
   overflow: visible;
-  fill: none;
-  stroke: var(--color-red);
-  stroke-width: 3;
-  stroke-linecap: round;
+  fill: var(--color-red);
+  animation: ring-in 260ms var(--ease-out) both;
 }
-.pick-ring .draw {
-  animation-duration: 380ms;
+@keyframes ring-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12) rotate(-12deg);
+  }
 }
 .doodle-btn:active:not(:disabled) .art {
   transform: scale(0.92) rotate(-3deg);

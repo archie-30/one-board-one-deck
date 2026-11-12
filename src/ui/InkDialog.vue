@@ -11,8 +11,7 @@ const emit = defineEmits<{ close: [] }>()
     <div v-if="open" class="fixed inset-0 z-40 grid place-items-center" role="dialog" aria-modal="true" @click.self="emit('close')">
       <div class="backdrop absolute inset-0" @click="emit('close')" />
       <div class="sheet relative flex max-h-[94vh] flex-col px-[1.6rem] py-[0.9rem]" :class="wide ? 'w-[34rem]' : 'w-[22rem]'">
-        <span class="hatch" />
-        <SketchBox fill="var(--color-paper)" :variant="1" />
+        <SketchBox fill="var(--color-card)" :variant="1" :weight="2.6" shadow shade="var(--color-far)" />
         <span class="tape tape-l" /><span class="tape tape-r" />
         <h2 v-if="title" class="font-display relative pb-[0.35rem] text-center text-[1.6rem] leading-tight">{{ title }}</h2>
         <div class="scroll-y relative min-h-0"><slot /></div>
@@ -24,16 +23,10 @@ const emit = defineEmits<{ close: [] }>()
 
 <style scoped>
 .backdrop {
-  background: oklch(23% 0.012 60 / 0.42);
+  background: rgb(26 26 26 / 0.45);
 }
 .sheet {
   max-width: 94vw;
-}
-.hatch {
-  position: absolute;
-  inset: 0.55rem -0.55rem -0.55rem 0.55rem;
-  background-image: repeating-linear-gradient(-52deg, var(--color-ink) 0 0.07rem, transparent 0.07rem 0.32rem);
-  opacity: 0.5;
 }
 /* 把紙貼在桌上的兩段紙膠帶 */
 .tape {
@@ -41,8 +34,9 @@ const emit = defineEmits<{ close: [] }>()
   top: -0.55rem;
   width: 3.4rem;
   height: 1.1rem;
-  background: var(--color-sun);
-  opacity: 0.85;
+  background: repeating-linear-gradient(-52deg, var(--color-far) 0 0.28rem, var(--color-paper-deep) 0.28rem 0.5rem);
+  opacity: 0.92;
+  box-shadow: 0 0 0 0.06rem var(--color-mid);
   border-left: 0.1rem dashed var(--color-ink-faint);
   border-right: 0.1rem dashed var(--color-ink-faint);
 }

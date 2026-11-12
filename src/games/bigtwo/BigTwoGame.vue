@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { playSound } from '@/core/audio'
+import { pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
@@ -13,7 +14,8 @@ import type { BigTwoOptions } from '@/engine/bigtwo/options'
 import type { GameDef } from '@/games/types'
 import GameMenu from '@/ui/GameMenu.vue'
 import InkDialog from '@/ui/InkDialog.vue'
-import ArtRobot from '@/ui/art/ArtRobot.vue'
+import ArtBuddy from '@/ui/art/ArtBuddy.vue'
+import ArtCard from '@/ui/art/ArtCard.vue'
 import Doodle from '@/ui/art/Doodle.vue'
 import DoodleButton from '@/ui/DoodleButton.vue'
 import SketchBox from '@/ui/SketchBox.vue'
@@ -27,6 +29,12 @@ const emit = defineEmits<{ exit: [] }>()
 const options = { ...props.options } as unknown as BigTwoOptions
 const T = S.bigtwo
 const ME = 0
+
+// 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
+const opponents = pickOpponents(3)
+const names = [S.common.you, ...opponents.map((o) => o.name)]
+/** 這一桌的累計分數（換一桌就重算）；自己的總分另外存檔 */
+const tableTotals = ref([0, 0, 0, 0])
 
 let seed = (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
 let rng = seedRng(seed)
@@ -46,11 +54,11 @@ const selectedCombo = computed(() => (selected.value.length ? identifyCombo(sele
 const canPass = computed(() => myTurn.value && state.value.table !== null)
 const tableCaption = computed(() => {
   const table = state.value.table
-  return table ? `${T.seats[table.player]}　${T.combos[table.combo.type]}` : ''
+  return table ? `${names[table.player]}　${T.combos[table.combo.type]}` : ''
 })
 const status = computed(() => {
-  if (over.value) return state.value.winner === ME ? T.result.win : T.result.lose(T.seats[state.value.winner])
-  if (!myTurn.value) return T.waiting(T.seats[state.value.turn])
+  if (over.value) return state.value.winner === ME ? T.result.win : T.result.lose(names[state.value.winner])
+  if (!myTurn.value) return T.waiting(names[state.value.turn])
   if (selectedCombo.value) return T.combos[selectedCombo.value.type]
   if (state.value.firstTurn) return T.firstLead
   return state.value.table ? T.yourTurn : T.yourLead
@@ -90,7 +98,8 @@ function finish() {
   scores.value = scoreBigTwo(state.value)
   stats.bigtwo.rounds++
   if (state.value.winner === ME) stats.bigtwo.wins++
-  stats.bigtwo.totals = scores.value.map((s, p) => (stats.bigtwo.totals[p] ?? 0) + s.points)
+  tableTotals.value = scores.value.map((s, p) => tableTotals.value[p] + s.points)
+  stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
   timer = window.setTimeout(() => {
     playSound(state.value.winner === ME ? 'win' : 'lose')
     resultOpen.value = true
@@ -137,10 +146,6 @@ function newRound() {
   if (state.value.turn !== ME) scheduleCpu()
 }
 
-function resetTotals() {
-  stats.bigtwo.totals = [0, 0, 0, 0]
-}
-
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 
 onMounted(() => {
@@ -155,18 +160,20 @@ onUnmounted(() => window.clearTimeout(timer))
 
     <!-- 三個電腦：右、上、左（出牌順序是 你 → 右 → 上 → 左） -->
     <div v-for="p in [1, 2, 3]" :key="p" class="seat" :class="[`seat-${p}`, { active: !over && state.turn === p }]">
-      <ArtRobot class="robot" :variant="p - 1" />
-      <div class="back" :class="{ few: state.hands[p].length <= 3 }">
-        <span class="font-display tabular-nums">{{ state.hands[p].length }}</span>
-      </div>
-      <span class="name font-display">{{ T.seats[p] }}</span>
+      <ArtBuddy class="robot" :look="opponents[p - 1].look" />
+      <svg class="back" viewBox="-3 -3 84 114" aria-hidden="true">
+        <ArtCard back :seed="p + 20" shadow still />
+        <circle cx="35" cy="50" r="23" fill="var(--color-card)" />
+        <text x="35" y="61" text-anchor="middle" font-size="31" class="font-display" :fill="state.hands[p].length <= 3 ? 'var(--color-red)' : 'var(--color-ink)'">{{ state.hands[p].length }}</text>
+      </svg>
+      <span class="name font-display">{{ names[p] }}</span>
       <Transition name="pass">
         <span v-if="state.lastMoves[p] === 'pass'" class="pass-mark font-display">{{ T.passed }}</span>
       </Transition>
     </div>
 
     <div class="center">
-      <div class="mat"><span class="mat-hatch" /><SketchBox fill="var(--color-leaf-soft)" :variant="2" /></div>
+      <div class="mat"><SketchBox fill="var(--color-paper-deep)" :variant="2" :weight="2.6" shadow shade="var(--color-mid)" /></div>
       <TablePlay :cards="state.table?.combo.cards ?? null" :from="state.table?.player" :caption="tableCaption" />
     </div>
 
@@ -193,7 +200,7 @@ onUnmounted(() => window.clearTimeout(timer))
 
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" />
 
-    <InkDialog :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(T.seats[Math.max(0, state.winner)])" wide @close="resultOpen = false">
+    <InkDialog :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
@@ -206,22 +213,22 @@ onUnmounted(() => window.clearTimeout(timer))
         </thead>
         <tbody>
           <tr v-for="(s, p) in scores" :key="p" :class="{ winner: p === state.winner }">
-            <td class="font-display">{{ T.seats[p] }}</td>
+            <td class="font-display">{{ names[p] }}</td>
             <td>{{ p === state.winner ? T.result.winner : s.twos ? T.result.leftWithTwos(s.cards, s.twos) : T.cardsLeft(s.cards) }}</td>
             <td>{{ p === state.winner ? '' : `×${s.multiplier}` }}</td>
             <td class="num">{{ signed(s.points) }}</td>
-            <td class="num">{{ signed(stats.bigtwo.totals[p] ?? 0) }}</td>
+            <td class="num">{{ signed(tableTotals[p]) }}</td>
           </tr>
         </tbody>
       </table>
       <p class="how">
         <b class="font-display">{{ T.result.howTitle }}</b>
         {{ T.result.base }}{{ doubleNotes.join('') }}
+        <span class="lifetime">{{ T.result.lifetime(signed(stats.bigtwo.totals[ME] ?? 0)) }}</span>
       </p>
       <template #actions>
         <DoodleButton row :label="S.common.again" size="2.8rem" @click="newRound"><Doodle name="again" /></DoodleButton>
         <DoodleButton row :label="S.common.quit" size="2.8rem" @click="emit('exit')"><Doodle name="exit" /></DoodleButton>
-        <button class="reset" @click="resetTotals">{{ T.result.resetTotal }}</button>
       </template>
     </InkDialog>
   </section>
@@ -263,28 +270,13 @@ onUnmounted(() => window.clearTimeout(timer))
   position: absolute;
   inset: 3.7rem 10.5rem 0.3rem;
 }
-.mat-hatch {
-  position: absolute;
-  inset: 0.45rem -0.45rem -0.45rem 0.45rem;
-  background-image: repeating-linear-gradient(-52deg, var(--color-ink) 0 0.07rem, transparent 0.07rem 0.32rem);
-  opacity: 0.4;
-}
 .robot {
-  width: 3rem;
-  height: 3rem;
+  width: 2.9rem;
+  height: 3.1rem;
   transition: transform 240ms var(--ease-out);
 }
 .seat.active .robot {
   transform: translateY(-0.2rem) rotate(-5deg);
-}
-.reset {
-  align-self: center;
-  border: 0;
-  background: none;
-  font-size: 0.85rem;
-  color: var(--color-ink-soft);
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
 }
 
 /* 電腦的座位：牌背上寫剩幾張 */
@@ -327,32 +319,21 @@ onUnmounted(() => window.clearTimeout(timer))
   grid-column: 1 / -1;
 }
 .back {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2.7rem;
-  border: 0.13rem solid var(--color-ink);
-  border-radius: 0.3rem 0.22rem 0.34rem 0.2rem;
-  background: var(--color-deck);
-  box-shadow: 0.22rem 0.2rem 0 -0.02rem var(--color-deck-soft), 0.22rem 0.2rem 0 0.1rem var(--color-ink);
-  color: var(--color-card);
-  font-size: 1.35rem;
+  width: 2.2rem;
+  height: 3rem;
+  overflow: visible;
   transition: transform 220ms var(--ease-out);
 }
 .seat-2 .back {
   width: 2rem;
-  height: 2.6rem;
-  font-size: 1.2rem;
-}
-.back.few {
-  background: var(--color-red);
+  height: 2.7rem;
 }
 .seat.active .back {
-  transform: translateY(-0.25rem) rotate(-3deg);
+  transform: translateY(-0.2rem) rotate(-3deg);
 }
 .name {
   position: relative;
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   line-height: 1.2;
 }
 /* 輪到誰：名字下方一道綠色筆劃 */
@@ -364,7 +345,7 @@ onUnmounted(() => window.clearTimeout(timer))
   bottom: -0.2rem;
   height: 0.22rem;
   border-radius: 0.2rem;
-  background: var(--color-leaf);
+  background: var(--color-red);
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 240ms var(--ease-out);
@@ -404,8 +385,8 @@ onUnmounted(() => window.clearTimeout(timer))
 .status {
   min-height: 1.9rem;
   text-align: center;
-  font-size: 1.15rem;
-  line-height: 1.6;
+  font-size: 1.05rem;
+  line-height: 1.7;
   color: var(--color-ink-soft);
 }
 .status.mine {
@@ -464,13 +445,19 @@ onUnmounted(() => window.clearTimeout(timer))
   text-align: right;
 }
 .score .winner td {
-  background: var(--color-sun);
+  background: repeating-linear-gradient(-52deg, var(--color-sun) 0 0.35rem, #efe08f 0.35rem 0.45rem);
 }
 .how {
   padding-top: 0.5rem;
   font-size: 0.8rem;
   line-height: 1.5;
   color: var(--color-ink-soft);
+}
+.lifetime {
+  margin-left: 0.6rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  color: var(--color-ink);
 }
 .how b {
   margin-right: 0.5rem;

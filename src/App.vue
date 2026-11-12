@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { back, curtainFor, depth, replace, route, routeKey, travel } from '@/core/nav'
-import ArtDefs from '@/ui/art/ArtDefs.vue'
 import Curtain from '@/ui/Curtain.vue'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
@@ -33,7 +32,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <main class="h-full" :style="{ '--screen-shift': shift }">
-    <ArtDefs />
     <Transition name="screen" mode="out-in">
       <HomeScreen v-if="route.name === 'home'" :key="routeKey" />
       <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" />

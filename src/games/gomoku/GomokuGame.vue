@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue'
 import { playSound } from '@/core/audio'
+import { pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
@@ -11,6 +12,7 @@ import type { GameDef } from '@/games/types'
 import GameMenu from '@/ui/GameMenu.vue'
 import InkDialog from '@/ui/InkDialog.vue'
 import ArtBowl from '@/ui/art/ArtBowl.vue'
+import ArtBuddy from '@/ui/art/ArtBuddy.vue'
 import Doodle from '@/ui/art/Doodle.vue'
 import DoodleButton from '@/ui/DoodleButton.vue'
 import StoneButton from './StoneButton.vue'
@@ -26,6 +28,7 @@ const T = S.gomoku
 
 const state = ref<GomokuState>(createGomoku(options))
 const human = ref<Player>(1)
+const opponent = ref(pickOpponents(1)[0])
 const phase = ref<'rps' | 'playing' | 'over'>('rps')
 const preview = ref(-1)
 const message = ref('')
@@ -36,15 +39,15 @@ let timer = 0
 
 const myTurn = computed(() => phase.value === 'playing' && state.value.turn === human.value)
 const lastMove = computed(() => state.value.moves[state.value.moves.length - 1] ?? -1)
-const resultTitle = computed(() => (state.value.winner === 3 ? T.draw : state.value.winner === human.value ? T.win : T.lose))
+const resultTitle = computed(() => (state.value.winner === 3 ? T.draw : state.value.winner === human.value ? T.win : T.lose(opponent.value.name)))
 const status = computed(() => {
   if (phase.value === 'over') return resultTitle.value
   if (phase.value === 'rps') return ''
-  return myTurn.value ? T.yourTurn : T.cpuTurn
+  return myTurn.value ? T.yourTurn : T.cpuTurn(opponent.value.name)
 })
 const seats = computed(() => [
-  { color: 1 as Player, name: human.value === 1 ? S.common.you : S.common.cpu, label: T.black },
-  { color: 2 as Player, name: human.value === 2 ? S.common.you : S.common.cpu, label: T.white },
+  { color: 1 as Player, mine: human.value === 1, name: human.value === 1 ? S.common.you : opponent.value.name, label: T.black },
+  { color: 2 as Player, mine: human.value === 2, name: human.value === 2 ? S.common.you : opponent.value.name, label: T.white },
 ])
 
 function startAfterRps(playerWins: boolean) {
@@ -60,6 +63,7 @@ function restart() {
   window.clearTimeout(timer)
   menuOpen.value = false
   resultOpen.value = false
+  opponent.value = pickOpponents(1)[0]
   state.value = createGomoku(options)
   preview.value = -1
   message.value = ''
@@ -124,15 +128,16 @@ onUnmounted(() => window.clearTimeout(timer))
 
 <template>
   <section class="flex h-full items-stretch gap-[1.2rem] px-[max(1.2rem,env(safe-area-inset-left))] py-[0.7rem]">
-    <aside class="flex w-[9.5rem] shrink-0 flex-col">
+    <aside class="flex w-[11rem] shrink-0 flex-col">
       <button class="icon-btn" :aria-label="S.common.menu" @click="menuOpen = true"><Doodle name="menu" class="h-[2rem] w-[2rem]" /></button>
       <ul v-if="phase !== 'rps'" class="mt-auto mb-auto flex flex-col gap-[0.9rem]">
         <li v-for="seat in seats" :key="seat.color" class="seat" :class="{ active: phase === 'playing' && state.turn === seat.color }">
           <ArtBowl class="bowl" :black="seat.color === 1" />
           <span class="flex flex-col leading-tight">
-            <span class="font-display text-[1.3rem]">{{ seat.name }}</span>
-            <span class="text-[0.8rem] text-ink-soft">{{ seat.label }}</span>
+            <span class="font-display text-[1.15rem]">{{ seat.name }}</span>
+            <span class="text-[0.85rem] text-ink-soft">{{ seat.label }}</span>
           </span>
+          <ArtBuddy v-if="!seat.mine" :look="opponent.look" class="h-[2.8rem] w-[2.6rem]" />
         </li>
       </ul>
     </aside>
@@ -151,7 +156,7 @@ onUnmounted(() => window.clearTimeout(timer))
 
     <aside class="flex min-w-0 flex-1 flex-col justify-between py-[0.3rem]">
       <div>
-        <p class="font-display text-[1.5rem] leading-tight" :class="{ 'text-leaf': myTurn }">{{ status }}</p>
+        <p class="font-display text-[1.35rem] leading-tight" :class="{ 'text-leaf': myTurn }">{{ status }}</p>
         <p v-if="phase !== 'rps'" class="text-[0.85rem] text-ink-soft tabular-nums">{{ T.moveCount(state.moves.length) }}</p>
         <p class="note pt-[0.5rem] text-[0.88rem] leading-snug" :class="message ? 'text-red' : 'text-ink-soft'">
           {{ message || (myTurn ? T.previewHint : '') }}
@@ -163,7 +168,7 @@ onUnmounted(() => window.clearTimeout(timer))
       </div>
     </aside>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" @done="startAfterRps" />
+    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" @done="startAfterRps" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" />
     <InkDialog :open="resultOpen" :title="resultTitle" @close="resultOpen = false">
       <p class="text-center text-[1rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
@@ -216,7 +221,7 @@ onUnmounted(() => window.clearTimeout(timer))
   width: 0.28rem;
   height: 76%;
   border-radius: 0.2rem;
-  background: var(--color-leaf);
+  background: var(--color-red);
   transform: scaleY(0);
   transition: transform 220ms var(--ease-out);
 }

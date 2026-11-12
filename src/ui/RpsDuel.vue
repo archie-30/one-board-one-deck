@@ -5,11 +5,13 @@ import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { RPS_HANDS, randomRps, resolveRps, type RpsHand } from '@/engine/common/rps'
+import type { Opponent } from '@/core/opponents'
+import ArtBuddy from './art/ArtBuddy.vue'
 import InkButton from './InkButton.vue'
 import InkDialog from './InkDialog.vue'
 import RpsIcon from './RpsIcon.vue'
 
-defineProps<{ open: boolean }>()
+defineProps<{ open: boolean; opponent: Opponent }>()
 const emit = defineEmits<{ done: [playerWins: boolean] }>()
 
 let rng = seedRng(Date.now())
@@ -47,11 +49,11 @@ function finish() {
           <span>{{ S.common.you }}</span>
         </div>
         <p :key="`r${round}`" class="font-display verdict w-[15rem] text-center text-[1.3rem] leading-snug" :class="{ win: outcome === 1 }">
-          {{ outcome === 0 ? S.rps.draw : outcome === 1 ? S.rps.win : S.rps.lose }}
+          {{ outcome === 0 ? S.rps.draw : outcome === 1 ? S.rps.win : S.rps.lose(opponent.name) }}
         </p>
         <div :key="`t${round}`" class="shown from-right">
-          <RpsIcon :hand="theirs" class="h-[4.4rem] w-[4.4rem]" />
-          <span>{{ S.common.cpu }}</span>
+          <span class="flex items-end"><RpsIcon :hand="theirs" class="h-[4.4rem] w-[4.4rem]" /><ArtBuddy :look="opponent.look" class="h-[3.4rem] w-[3.2rem]" /></span>
+          <span>{{ opponent.name }}</span>
         </div>
       </template>
     </div>
@@ -59,7 +61,7 @@ function finish() {
     <template #actions>
       <template v-if="outcome === null || outcome === 0">
         <button v-for="hand in RPS_HANDS" :key="hand" class="hand" @click="choose(hand)">
-          <RpsIcon :hand="hand" class="h-[3.4rem] w-[3.4rem]" />
+          <RpsIcon :hand="hand" class="h-[4rem] w-[4rem]" />
           <span class="font-display">{{ S.rps[hand] }}</span>
         </button>
       </template>
@@ -74,11 +76,11 @@ function finish() {
   flex-direction: column;
   align-items: center;
   width: 6rem;
-  border: 0.14rem solid var(--color-ink);
-  border-radius: 0.7rem 0.5rem 0.8rem 0.45rem;
-  background: var(--color-card);
-  padding: 0.5rem 0 0.3rem;
-  font-size: 1.1rem;
+  border: 0;
+  background: none;
+  padding: 0.3rem 0 0.2rem;
+  font-weight: 800;
+  font-size: 1rem;
   line-height: 1.4;
   transition: transform 160ms var(--ease-out);
 }

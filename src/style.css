@@ -18,26 +18,39 @@
     sun           提示與選取（黃）
 */
 @theme {
-  --color-paper: oklch(96.5% 0.012 85);
-  --color-paper-deep: oklch(92.5% 0.02 85);
-  --color-card: oklch(99% 0.005 85);
-  --color-ink: oklch(23% 0.012 60);
-  --color-ink-soft: oklch(44% 0.014 60);
-  --color-ink-faint: oklch(23% 0.012 60 / 0.14);
-  --color-grid: oklch(50% 0.05 250 / 0.11);
-  --color-red: oklch(57% 0.2 27);
-  --color-red-soft: oklch(90% 0.05 27);
-  --color-deck: oklch(50% 0.115 255);
-  --color-deck-soft: oklch(90% 0.04 255);
-  --color-wood: oklch(80% 0.095 82);
-  --color-wood-soft: oklch(91% 0.05 85);
-  --color-wood-deep: oklch(62% 0.09 68);
-  --color-leaf: oklch(58% 0.11 155);
-  --color-leaf-soft: oklch(91% 0.05 155);
-  --color-sun: oklch(86% 0.14 92);
+  /* 紙、三階灰、墨（和 INKRAGE 同一組基底） */
+  --color-paper: #f2f0eb;
+  --color-card: #fbfaf7;
+  --color-far: #d6d3cc;
+  --color-mid: #9a9892;
+  --color-near: #4a4946;
+  --color-ink: #1a1a1a;
+  --color-paper-deep: #e4e1da;
+  --color-ink-soft: #62615d;
+  --color-ink-faint: rgb(26 26 26 / 0.12);
+  --color-grid: rgb(255 255 255 / 0.75);
 
-  --font-display: 'InkKai', 'Noto Serif TC', 'PingFang TC', 'Microsoft JhengHei', serif;
-  --font-body: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  /* 紅：唯一的強調色 */
+  --color-red: #d62828;
+  --color-red-dark: #8c1c1c;
+  --color-red-soft: #f0c4c0;
+
+  /* 低彩度的材質色，各有淺／中／深三階，畫圖時三階一起用 */
+  --color-wood: #decbaa;
+  --color-wood-deep: #ac8e64;
+  --color-kraft-dark: #4e3e28;
+  --color-wood-soft: #ebe1cd;
+  --color-deck-soft: #b3c0d6;
+  --color-deck: #5e7399;
+  --color-indigo-dark: #222c45;
+  --color-leaf-soft: #c3cca8;
+  --color-moss: #7a8a5b;
+  --color-leaf: #4f5d36;
+  --color-sun: #f3e7a6;
+  --color-marker: #e0b43c;
+
+  --font-display: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif;
+  --font-body: 'InkKai', 'Noto Serif TC', 'PingFang TC', 'Microsoft JhengHei', serif;
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -59,21 +72,37 @@ body,
 
 body {
   background-color: var(--color-paper);
-  /* 方格紙：靜態背景，不做動畫 */
+  /* 淺色大方格（像 INKRAGE 的地板）＋四角稍微壓暗，紙面就不是一片平的 */
   background-image:
-    linear-gradient(var(--color-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
-  background-size: 1.5rem 1.5rem;
+    radial-gradient(ellipse at 50% 45%, transparent 55%, rgb(74 73 70 / 0.1) 100%),
+    linear-gradient(var(--color-grid) 0.12rem, transparent 0.12rem),
+    linear-gradient(90deg, var(--color-grid) 0.12rem, transparent 0.12rem);
+  background-size:
+    100% 100%,
+    4rem 4rem,
+    4rem 4rem;
   background-position: center;
   color: var(--color-ink);
   font-family: var(--font-body);
-  line-height: 1.75;
+  font-size: 1.05rem;
+  line-height: 1.7;
   overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
+}
+
+/* 紙的顆粒：一張靜態的雜訊蓋在最上面，所有色塊都會帶一點鉛筆的粗糙感 */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 -1.1 0.62'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 ::selection {
@@ -87,12 +116,14 @@ button {
 }
 
 :focus-visible {
-  outline: 0.14rem dashed var(--color-red);
+  outline: 0.16rem dashed var(--color-red);
   outline-offset: 0.2rem;
 }
 
 .font-display {
   font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.02em;
 }
 
 /* 可捲動區域的捲軸：細、墨色 */
@@ -148,7 +179,7 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
+  *:not(.boil-a):not(.boil-b),
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
@@ -161,21 +192,37 @@ button {
   }
 }
 
-/* 鉛筆排線陰影：墊在物件右下方（像 INKRAGE 的畫法） */
-.hatch-shadow {
-  position: relative;
+/* 線條呼吸：同一張圖的兩次描線輪流顯示（INKRAGE 的手繪動畫感） */
+@keyframes boil-a {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
 }
-.hatch-shadow::before {
-  content: '';
-  position: absolute;
-  inset: 0.38rem -0.38rem -0.38rem 0.38rem;
-  background-image: repeating-linear-gradient(-52deg, var(--color-ink) 0 0.07rem, transparent 0.07rem 0.3rem);
-  opacity: 0.42;
-  pointer-events: none;
+@keyframes boil-b {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
 }
-
-/* 手寫標註用的字 */
-.handwritten {
-  font-family: var(--font-display);
-  line-height: 1.2;
+.boil-a {
+  animation: boil-a 760ms step-end infinite;
+}
+.boil-b {
+  opacity: 0;
+  animation: boil-b 760ms step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .boil-a {
+    animation: none;
+    opacity: 1;
+  }
+  .boil-b {
+    animation: none;
+    opacity: 0;
+  }
 }
