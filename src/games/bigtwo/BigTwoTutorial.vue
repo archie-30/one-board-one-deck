@@ -157,6 +157,7 @@ function next() {
       </div>
     </div>
 
+    <div class="cards">
     <div
       v-for="c in ALL"
       v-show="used.has(c)"
@@ -169,6 +170,7 @@ function next() {
     >
       <svg class="face" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :seed="c + 1" /></svg>
       <svg class="back" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard back still :seed="2" /></svg>
+    </div>
     </div>
 
     <div class="me" :style="{ left: `${layout.seats[0].kid.x - layout.seats[0].kid.w / 2}px`, width: `${layout.seats[0].kid.w}px`, height: `${layout.seats[0].kid.w * 1.42}px` }">
@@ -204,6 +206,12 @@ function next() {
   top: 0.9rem;
   width: 18.5rem;
   z-index: 650;
+}
+.cards {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  z-index: 1;
 }
 .sprite {
   position: absolute;

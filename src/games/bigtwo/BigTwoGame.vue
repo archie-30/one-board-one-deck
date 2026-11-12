@@ -156,6 +156,7 @@ function act(action: BigTwoAction): boolean {
   const before = state.value
   const result = applyBigTwo(before, action)
   if (!result.ok) {
+    if (result.reason === 'finished') return false
     message.value = T.errors[result.reason]
     playSound('error')
     return false
@@ -212,6 +213,9 @@ function flash(seat: number, mood: KidMood, ms: number) {
 
 function finish() {
   phase.value = 'over'
+  message.value = ''
+  selected.value = []
+  passed.fill(false)
   const s = state.value
   scores.value = scoreBigTwo(s)
   tableTotals.value = scores.value.map((sc, p) => tableTotals.value[p] + sc.points)
@@ -327,6 +331,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     </template>
 
     <!-- 52 張牌 -->
+    <div class="cards">
     <div
       v-for="c in ALL"
       :key="c"
@@ -338,6 +343,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     >
       <svg class="face" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard :rank="rankText(c)" :suit="suitOf(c)" :seed="c + 1" /></svg>
       <svg class="back" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard back still :seed="(c % 6) + 1" /></svg>
+    </div>
     </div>
 
     <p v-if="caption" :key="caption.id" class="caption font-display pop" :style="{ left: `${layout.pile.x}px`, top: `${layout.pile.y + layout.cw * 0.95}px` }">{{ caption.text }}</p>
@@ -402,6 +408,12 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   height: 100%;
   overflow: hidden;
 }
+.cards {
+  position: absolute;
+  inset: 0;
+  isolation: isolate;
+  z-index: 1;
+}
 .sprite {
   position: absolute;
   left: 0;
@@ -455,6 +467,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .tag {
   position: absolute;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   line-height: 1.15;
@@ -603,8 +616,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .mini {
   display: block;
-  width: 1.6rem;
-  height: 2.2rem;
+  width: 1.4rem;
+  height: 1.9rem;
 }
 .mini :deep(svg) {
   width: 100%;
@@ -629,6 +642,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   color: var(--color-red);
   font-size: 0.85rem;
   rotate: -14deg;
+  margin-left: 0.2rem;
   animation-delay: 500ms;
 }
 .how {

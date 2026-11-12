@@ -8,7 +8,7 @@ const emit = defineEmits<{ close: [] }>()
 
 <template>
   <Transition name="dialog">
-    <div v-if="open" class="fixed inset-0 z-40 grid place-items-center" role="dialog" aria-modal="true">
+    <div v-if="open" class="fixed inset-0 z-[900] grid place-items-center" role="dialog" aria-modal="true">
       <div class="backdrop absolute inset-0" @click="emit('close')" />
       <div class="sheet relative flex max-h-[92vh] flex-col px-[1.6rem] pt-[1rem] pb-[1.1rem]" :class="wide ? 'w-[36rem]' : 'w-[23rem]'">
         <InkFrame block fill="var(--color-card)" :weight="2.6" :seed="21" />
