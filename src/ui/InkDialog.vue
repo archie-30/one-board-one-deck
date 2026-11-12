@@ -52,7 +52,7 @@ const emit = defineEmits<{ close: [] }>()
   transition: opacity 180ms ease;
 }
 .dialog-enter-active .sheet {
-  transition: transform 240ms var(--ease-out);
+  transition: transform 260ms var(--ease-back);
 }
 .dialog-leave-active {
   transition: opacity 120ms ease;
@@ -62,6 +62,6 @@ const emit = defineEmits<{ close: [] }>()
   opacity: 0;
 }
 .dialog-enter-from .sheet {
-  transform: scale(0.95) translateY(0.5rem) rotate(-0.6deg);
+  transform: scale(0.9);
 }
 </style>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 分類頁：每款遊戲是一張大圖，點圖就進去
 import { computed } from 'vue'
-import { curtainFor, go, travel } from '@/core/nav'
+import { go } from '@/core/nav'
+import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { gamesIn } from '@/games/registry'
 import type { GameCategory } from '@/games/types'
@@ -13,7 +14,8 @@ const games = computed(() => gamesIn(props.category))
 const text = computed(() => S.category[props.category])
 
 function open(gameId: string) {
-  travel(curtainFor(props.category), () => go({ name: 'lobby', gameId }))
+  playSound('tap')
+  go({ name: 'lobby', gameId })
 }
 </script>
 
@@ -53,14 +55,14 @@ function open(gameId: string) {
   display: block;
   width: 14rem;
   height: 12.5rem;
-  transition: transform 240ms var(--ease-out);
+  transition: transform 110ms var(--ease-out);
 }
 .tile.cards .art {
   width: 16rem;
   height: 11rem;
 }
 .tile:active .art {
-  transform: scale(0.96) rotate(-1.5deg);
+  transform: scale(1.04) rotate(-0.7deg);
 }
 .more {
   position: relative;
@@ -79,7 +81,7 @@ function open(gameId: string) {
 }
 @media (hover: hover) and (pointer: fine) {
   .tile:hover .art {
-    transform: translateY(-0.3rem) rotate(-1.5deg);
+    transform: scale(1.04) rotate(-0.7deg);
     --spread: 1.12;
   }
 }

@@ -8,7 +8,7 @@ import { DEFAULT_BIGTWO_OPTIONS as OPTS } from '@/engine/bigtwo/options'
 import Doodle from '@/ui/art/Doodle.vue'
 import DoodleButton from '@/ui/DoodleButton.vue'
 import CardHand from './CardHand.vue'
-import TablePlay from './TablePlay.vue'
+import TablePlay, { type PilePlay } from './TablePlay.vue'
 import { BIGTWO_LESSONS } from './tutorialData'
 
 const emit = defineEmits<{ exit: []; play: [] }>()
@@ -25,7 +25,12 @@ const lesson = computed(() => BIGTWO_LESSONS[step.value])
 const text = computed(() => T.tutorial[step.value])
 const table = computed(() => (lesson.value.table ? parseCards(lesson.value.table) : null))
 const hand = computed(() => sortCards(parseCards(lesson.value.hand), OPTS.suitOrder).filter((c) => !played.value?.includes(c)))
-const shown = computed(() => played.value ?? table.value)
+const shown = computed(() => {
+  const plays: PilePlay[] = []
+  if (table.value) plays.push({ id: step.value * 2 + 1, cards: table.value, from: 2, live: true })
+  if (played.value) plays.push({ id: step.value * 2 + 2, cards: played.value, from: 0, live: true })
+  return plays
+})
 const selectedName = computed(() => {
   const combo = selected.value.length ? identifyCombo(selected.value, OPTS) : null
   return combo ? T.combos[combo.type] : ''
@@ -97,7 +102,7 @@ function next() {
           <p v-else-if="misses > 0" :key="misses" class="rise mt-[0.5rem] text-[0.95rem] text-red">{{ S.tutorial.tryAgain }}</p>
         </div>
         <div class="col-span-6 h-full">
-          <TablePlay :cards="shown" :from="played ? 0 : 2" />
+          <TablePlay :plays="shown" />
         </div>
       </div>
 

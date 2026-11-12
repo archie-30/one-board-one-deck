@@ -39,9 +39,9 @@ function onBack() {
   margin: -0.3rem 0 -0.3rem -0.5rem;
   border: 0;
   background: none;
-  transition: transform 160ms var(--ease-out);
+  transition: transform 110ms var(--ease-out);
 }
 .back-btn:active {
-  transform: scale(0.92) translateX(-0.15rem);
+  transform: scale(1.12) rotate(-2deg);
 }
 </style>

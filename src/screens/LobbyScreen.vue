@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 大廳：代表圖就是「開始對局」，旁邊是教學、規則、設定三個圖示，下面選電腦強度
 import { computed } from 'vue'
-import { curtainFor, go, travel } from '@/core/nav'
+import { go } from '@/core/nav'
+import { playSound } from '@/core/audio'
 import { gamePrefs } from '@/core/settings'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
@@ -14,7 +15,11 @@ import ScreenFrame from '@/ui/ScreenFrame.vue'
 const props = defineProps<{ gameId: string }>()
 const game = computed(() => getGame(props.gameId))
 const prefs = computed(() => gamePrefs(props.gameId))
-const kind = computed(() => curtainFor(game.value.category))
+
+function start() {
+  playSound(game.value.category === 'cards' ? 'card' : 'stone')
+  go({ name: 'play', gameId: props.gameId })
+}
 
 const levels: { value: Difficulty; label: string }[] = [
   { value: 'easy', label: S.common.easy },
@@ -25,7 +30,7 @@ const levels: { value: Difficulty; label: string }[] = [
 <template>
   <ScreenFrame :title="game.name" :lead="game.summary">
     <div class="flex h-full items-center justify-between gap-[1rem] pr-[1rem] pl-[0.6rem]">
-      <button class="start rise" :class="game.category" @click="travel(kind, () => go({ name: 'play', gameId }))">
+      <button class="start rise" :class="game.category" @click="start">
         <span class="art"><component :is="game.art" animate /></span>
         <span class="caption">
           <span class="font-display text-[1.9rem] leading-none whitespace-nowrap">{{ S.lobby.start }}</span>
@@ -37,7 +42,7 @@ const levels: { value: Difficulty; label: string }[] = [
 
       <div class="flex flex-col items-center gap-[1.3rem]">
         <div class="flex gap-[1.1rem]">
-          <DoodleButton class="rise" style="--i: 2" :label="S.lobby.tutorialShort" @click="travel(kind, () => go({ name: 'tutorial', gameId }))"><Doodle name="tutor" /></DoodleButton>
+          <DoodleButton class="rise" style="--i: 2" :label="S.lobby.tutorialShort" @click="go({ name: 'tutorial', gameId })"><Doodle name="tutor" /></DoodleButton>
           <DoodleButton class="rise" style="--i: 3" :label="S.lobby.rulesShort" @click="go({ name: 'rules', gameId })"><Doodle name="book" /></DoodleButton>
           <DoodleButton class="rise" style="--i: 4" :label="S.lobby.settingsShort" @click="go({ name: 'settings', gameId })"><Doodle name="gear" /></DoodleButton>
         </div>
@@ -65,7 +70,7 @@ const levels: { value: Difficulty; label: string }[] = [
   display: block;
   width: 12rem;
   height: 12rem;
-  transition: transform 240ms var(--ease-out);
+  transition: transform 110ms var(--ease-out);
 }
 .start.cards .art {
   width: 14rem;
@@ -77,11 +82,11 @@ const levels: { value: Difficulty; label: string }[] = [
   gap: 0.3rem;
 }
 .start:active .art {
-  transform: scale(0.96);
+  transform: scale(1.04) rotate(-0.7deg);
 }
 @media (hover: hover) and (pointer: fine) {
   .start:hover .art {
-    transform: translateY(-0.3rem);
+    transform: scale(1.04) rotate(-0.7deg);
     --spread: 1.12;
   }
 }

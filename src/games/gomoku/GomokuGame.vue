@@ -102,7 +102,7 @@ function scheduleCpu() {
     let move: number
     ;[move, rng] = chooseGomokuMove(state.value, props.difficulty, rng)
     if (move >= 0) commit(move)
-  }, 520)
+  }, 1100 + Math.random() * 600)
 }
 
 function pick(index: number) {
@@ -195,10 +195,10 @@ onUnmounted(() => window.clearTimeout(timer))
   margin-left: -0.4rem;
   border: 0;
   background: none;
-  transition: transform 160ms var(--ease-out);
+  transition: transform 110ms var(--ease-out);
 }
 .icon-btn:active {
-  transform: scale(0.92);
+  transform: scale(1.12) rotate(-2deg);
 }
 .seat {
   position: relative;
