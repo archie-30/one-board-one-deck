@@ -1,0 +1,228 @@
+@import 'tailwindcss';
+
+/* 標題用的手寫楷體（霞鶩文楷 TC，SIL OFL 授權，見 assets/fonts/OFL.txt） */
+@font-face {
+  font-family: 'InkKai';
+  src: url('./assets/fonts/InkKai.woff2') format('woff2');
+  font-display: swap;
+}
+
+/*
+  視覺方向：攤在桌上的方格筆記本。墨線輪廓、色鉛筆塗色。
+  顏色都有固定用途，不為了熱鬧而加：
+    paper / ink   紙與墨（基底）
+    red           牌面紅色、主要按鈕、勝利筆劃
+    deck          撲克牌分類（靛藍）
+    wood          棋盤分類（木色）
+    leaf          「輪到你」與正確回饋（綠）
+    sun           提示與選取（黃）
+*/
+@theme {
+  /* 紙、三階灰、墨（和 INKRAGE 同一組基底） */
+  --color-paper: #f2f0eb;
+  --color-card: #fbfaf7;
+  --color-far: #d6d3cc;
+  --color-mid: #9a9892;
+  --color-near: #4a4946;
+  --color-ink: #1a1a1a;
+  --color-paper-deep: #e4e1da;
+  --color-ink-soft: #62615d;
+  --color-ink-faint: rgb(26 26 26 / 0.12);
+  --color-grid: rgb(255 255 255 / 0.75);
+
+  /* 紅：唯一的強調色 */
+  --color-red: #d62828;
+  --color-red-dark: #8c1c1c;
+  --color-red-soft: #f0c4c0;
+
+  /* 低彩度的材質色，各有淺／中／深三階，畫圖時三階一起用 */
+  --color-wood: #decbaa;
+  --color-wood-deep: #ac8e64;
+  --color-kraft-dark: #4e3e28;
+  --color-wood-soft: #ebe1cd;
+  --color-deck-soft: #b3c0d6;
+  --color-deck: #5e7399;
+  --color-indigo-dark: #222c45;
+  --color-leaf-soft: #c3cca8;
+  --color-moss: #7a8a5b;
+  --color-leaf: #4f5d36;
+  --color-sun: #f3e7a6;
+  --color-marker: #e0b43c;
+
+  --font-display: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif;
+  --font-body: 'InkKai', 'Noto Serif TC', 'PingFang TC', 'Microsoft JhengHei', serif;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* 整個介面依螢幕高度等比縮放：所有尺寸用 rem，手機與平板看起來比例一致 */
+html {
+  font-size: clamp(11px, min(4.45vh, 2.1vw), 30px);
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background-color: var(--color-paper);
+  /* 淺色大方格（像 INKRAGE 的地板）＋四角稍微壓暗，紙面就不是一片平的 */
+  background-image:
+    radial-gradient(ellipse at 50% 45%, transparent 55%, rgb(74 73 70 / 0.1) 100%),
+    linear-gradient(var(--color-grid) 0.12rem, transparent 0.12rem),
+    linear-gradient(90deg, var(--color-grid) 0.12rem, transparent 0.12rem);
+  background-size:
+    100% 100%,
+    4rem 4rem,
+    4rem 4rem;
+  background-position: center;
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 紙的顆粒：一張靜態的雜訊蓋在最上面，所有色塊都會帶一點鉛筆的粗糙感 */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 -1.1 0.62'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+::selection {
+  background: var(--color-sun);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 0.16rem dashed var(--color-red);
+  outline-offset: 0.2rem;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+/* 可捲動區域的捲軸：細、墨色 */
+.scroll-y {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-soft) transparent;
+}
+
+/* 畫面切換：短、只動 transform 與 opacity */
+.screen-enter-active {
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 260ms var(--ease-out);
+}
+.screen-leave-active {
+  transition: opacity 110ms ease;
+}
+.screen-enter-from {
+  opacity: 0;
+  transform: translateX(var(--screen-shift, 1.2rem));
+}
+.screen-leave-to {
+  opacity: 0;
+}
+
+/* 進場序列：同一群少數元素錯開出現 */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.7rem);
+  }
+}
+.rise {
+  animation: rise 420ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+/* 手繪線條「畫出來」 */
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw {
+  stroke-dasharray: 1;
+  animation: draw 520ms var(--ease-in-out) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *:not(.boil-a):not(.boil-b),
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .screen-enter-from {
+    transform: none;
+  }
+}
+
+/* 線條呼吸：同一張圖的兩次描線輪流顯示（INKRAGE 的手繪動畫感） */
+@keyframes boil-a {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+@keyframes boil-b {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.boil-a {
+  animation: boil-a 760ms step-end infinite;
+}
+.boil-b {
+  opacity: 0;
+  animation: boil-b 760ms step-end infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .boil-a {
+    animation: none;
+    opacity: 1;
+  }
+  .boil-b {
+    animation: none;
+    opacity: 0;
+  }
+}
