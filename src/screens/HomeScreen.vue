@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 主畫面：一張桌面的鉛筆素描。那疊牌和那張棋盤本身就是按鈕。
 import { ref } from 'vue'
-import { curtainFor, go, travel } from '@/core/nav'
+import { go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { VERSION } from '@/data/version'
@@ -17,7 +17,8 @@ import AppSettings from './AppSettings.vue'
 const settingsOpen = ref(false)
 
 function open(category: GameCategory) {
-  travel(curtainFor(category), () => go({ name: 'category', category }))
+  playSound(category === 'cards' ? 'card' : 'stone')
+  go({ name: 'category', category })
 }
 function openSettings() {
   playSound('tap')
@@ -141,10 +142,10 @@ const arrows: Prim[] = [
   outline-offset: 4px;
 }
 .tap > * {
-  transition: transform 240ms var(--ease-out);
+  transition: transform 110ms var(--ease-out);
 }
 .tap:active > * {
-  transform: scale(0.985);
+  transform: scale(1.03) rotate(-0.7deg);
   transform-origin: center;
   transform-box: fill-box;
 }

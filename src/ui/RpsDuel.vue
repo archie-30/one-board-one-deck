@@ -82,10 +82,10 @@ function finish() {
   font-weight: 800;
   font-size: 1rem;
   line-height: 1.4;
-  transition: transform 160ms var(--ease-out);
+  transition: transform 110ms var(--ease-out);
 }
 .hand:active {
-  transform: scale(0.95);
+  transform: scale(1.08) rotate(-1.2deg);
 }
 .shown {
   display: flex;

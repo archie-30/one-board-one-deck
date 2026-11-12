@@ -34,7 +34,7 @@ function onClick() {
   line-height: 1.3;
   white-space: nowrap;
   transition:
-    transform 160ms var(--ease-out),
+    transform 110ms var(--ease-out),
     opacity 160ms ease;
 }
 .size-lg {
@@ -63,7 +63,8 @@ function onClick() {
   --btn-shade: var(--color-leaf-soft);
 }
 .ink-btn:active:not(:disabled) {
-  transform: scale(0.97);
+  --btn-fill: var(--btn-shade);
+  transform: scale(1.04) rotate(-0.7deg);
 }
 .ink-btn:disabled {
   opacity: 0.38;
@@ -71,10 +72,7 @@ function onClick() {
 }
 @media (hover: hover) and (pointer: fine) {
   .ink-btn:hover:not(:disabled) {
-    transform: translateY(-0.08rem);
-  }
-  .ink-btn:hover:active:not(:disabled) {
-    transform: scale(0.97);
+    transform: scale(1.04) rotate(-0.7deg);
   }
 }
 </style>

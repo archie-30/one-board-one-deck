@@ -54,6 +54,7 @@
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-back: cubic-bezier(0.34, 1.5, 0.64, 1);
 }
 
 /* 整個介面依螢幕高度等比縮放：所有尺寸用 rem，手機與平板看起來比例一致 */
@@ -134,33 +135,26 @@ button {
   scrollbar-color: var(--color-ink-soft) transparent;
 }
 
-/* 畫面切換：短、只動 transform 與 opacity */
-.screen-enter-active {
-  transition:
-    opacity 220ms var(--ease-out),
-    transform 260ms var(--ease-out);
-}
+/* 畫面切換：不做整頁過場。舊畫面很快淡掉，新畫面的元件各自「彈出來」 */
 .screen-leave-active {
-  transition: opacity 110ms ease;
-}
-.screen-enter-from {
-  opacity: 0;
-  transform: translateX(var(--screen-shift, 1.2rem));
+  transition: opacity 90ms ease;
 }
 .screen-leave-to {
   opacity: 0;
 }
 
-/* 進場序列：同一群少數元素錯開出現 */
-@keyframes rise {
+/* 元件出現：從略小的狀態彈到定位（和 INKRAGE 的按鈕一樣用 ease-out-back），同一群錯開一點 */
+@keyframes pop {
   from {
     opacity: 0;
-    transform: translateY(0.7rem);
+    transform: scale(0.86);
   }
 }
 .rise {
-  animation: rise 420ms var(--ease-out) both;
-  animation-delay: calc(var(--i, 0) * 60ms);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pop 300ms var(--ease-back) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
 }
 
 /* 手繪線條「畫出來」 */
@@ -186,9 +180,6 @@ button {
     animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-  .screen-enter-from {
-    transform: none;
   }
 }
 

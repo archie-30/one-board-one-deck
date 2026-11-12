@@ -43,7 +43,7 @@ function onClick() {
   display: block;
   width: var(--size);
   height: var(--size);
-  transition: transform 200ms var(--ease-out);
+  transition: transform 110ms var(--ease-out);
 }
 .art > :deep(svg:not(.pick-ring)) {
   width: 100%;
@@ -66,11 +66,11 @@ function onClick() {
 @keyframes ring-in {
   from {
     opacity: 0;
-    transform: scale(1.12) rotate(-12deg);
+    transform: scale(1.1);
   }
 }
 .doodle-btn:active:not(:disabled) .art {
-  transform: scale(0.92) rotate(-3deg);
+  transform: scale(1.08) rotate(-1.2deg);
 }
 .doodle-btn:disabled {
   opacity: 0.32;
@@ -78,7 +78,7 @@ function onClick() {
 }
 @media (hover: hover) and (pointer: fine) {
   .doodle-btn:hover:not(:disabled) .art {
-    transform: translateY(-0.2rem) rotate(-4deg);
+    transform: scale(1.05) rotate(-1.2deg);
   }
 }
 </style>

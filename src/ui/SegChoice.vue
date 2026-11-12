@@ -41,6 +41,6 @@ const emit = defineEmits<{ change: [value: string] }>()
   background: var(--color-sun);
 }
 .seg-item:active {
-  transform: scale(0.960);
+  transform: scale(1.05) rotate(-0.7deg);
 }
 </style>

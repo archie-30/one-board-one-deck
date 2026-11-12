@@ -20,7 +20,7 @@ import Doodle from '@/ui/art/Doodle.vue'
 import DoodleButton from '@/ui/DoodleButton.vue'
 import SketchBox from '@/ui/SketchBox.vue'
 import CardHand from './CardHand.vue'
-import TablePlay from './TablePlay.vue'
+import TablePlay, { type PilePlay } from './TablePlay.vue'
 
 const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; difficulty: Difficulty }>()
 const emit = defineEmits<{ exit: [] }>()
@@ -47,6 +47,9 @@ const round = ref(0)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const scores = ref(scoreBigTwo(state.value))
+// 桌上的牌堆：只留最近幾手，更早的會被蓋住所以不用畫
+const pile = ref<PilePlay[]>([])
+let playId = 0
 
 const over = computed(() => state.value.winner >= 0)
 const myTurn = computed(() => !over.value && state.value.turn === ME)
@@ -80,6 +83,12 @@ function act(action: BigTwoAction): boolean {
   state.value = result.state
   message.value = ''
   playSound(action.type === 'play' ? 'card' : 'pass')
+  if (action.type === 'play') {
+    pile.value = [...pile.value, { id: ++playId, cards: result.state.table?.combo.cards ?? action.cards, from: action.player, live: true }].slice(-5)
+  } else if (!result.state.table) {
+    // 其他人都過牌：這一輪結束，桌上的牌留著但變淡
+    pile.value = pile.value.map((p) => ({ ...p, live: false }))
+  }
   if (result.state.winner >= 0) finish()
   else if (result.state.turn !== ME) scheduleCpu()
   return true
@@ -91,7 +100,7 @@ function scheduleCpu() {
     let action: BigTwoAction
     ;[action, rng] = chooseBigTwoAction(state.value, props.difficulty, rng)
     act(action)
-  }, 760)
+  }, 1350 + Math.random() * 650)
 }
 
 function finish() {
@@ -141,6 +150,7 @@ function newRound() {
   state.value = dealBigTwo(seed, options)
   selected.value = []
   message.value = ''
+  pile.value = []
   round.value++
   playSound('deal')
   if (state.value.turn !== ME) scheduleCpu()
@@ -174,7 +184,7 @@ onUnmounted(() => window.clearTimeout(timer))
 
     <div class="center">
       <div class="mat"><SketchBox fill="var(--color-paper-deep)" :variant="2" :weight="2.6" shadow shade="var(--color-mid)" /></div>
-      <TablePlay :cards="state.table?.combo.cards ?? null" :from="state.table?.player" :caption="tableCaption" />
+      <TablePlay :plays="pile" :caption="tableCaption" />
     </div>
 
     <p class="status font-display" :class="{ mine: myTurn && !message, warn: !!message }">
@@ -249,10 +259,10 @@ onUnmounted(() => window.clearTimeout(timer))
   height: 2.6rem;
   border: 0;
   background: none;
-  transition: transform 160ms var(--ease-out);
+  transition: transform 110ms var(--ease-out);
 }
 .icon-btn:active {
-  transform: scale(0.92);
+  transform: scale(1.12) rotate(-2deg);
 }
 .menu {
   position: absolute;
@@ -346,11 +356,15 @@ onUnmounted(() => window.clearTimeout(timer))
   height: 0.22rem;
   border-radius: 0.2rem;
   background: var(--color-red);
+  opacity: 0;
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 240ms var(--ease-out);
+  transition:
+    transform 240ms var(--ease-out),
+    opacity 120ms ease;
 }
 .seat.active .name::after {
+  opacity: 1;
   transform: scaleX(1);
 }
 .pass-mark,
