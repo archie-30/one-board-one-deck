@@ -37,12 +37,56 @@ export interface GomokuStyle {
   blind: number
 }
 
+/** 撿紅點的打法 */
+export interface RedPointStyle {
+  /** 0～1：會不會算（墊牌時避開容易被吃的牌、記牌） */
+  skill: number
+  /** 0～1：看到分數就想吃的程度 */
+  greed: number
+  /** 0～1：隨手亂出的機率 */
+  blunder: number
+}
+
+/** 圍棋的打法 */
+export interface GoStyle {
+  /** 0～1：會不會算（避免自己被打吃、看得到叫吃與提子） */
+  skill: number
+  /** 0～1：愛去碰對方、打吃對方的程度 */
+  attack: number
+  /** 0～1：重視補強自己的棋 */
+  defense: number
+  /** 0～1：在前幾名候選裡隨機挑的程度 */
+  noise: number
+  /** 0～1：偏愛下在棋盤中央（否則偏愛邊角） */
+  center: number
+}
+
 export interface Persona {
   bigtwo: BigTwoStyle
   gomoku: GomokuStyle
+  redpoint: RedPointStyle
+  go: GoStyle
 }
 
-const P = (bigtwo: BigTwoStyle, gomoku: GomokuStyle): Persona => ({ bigtwo, gomoku })
+/**
+ * 撿紅點與圍棋的打法由同一個人的個性推出來，所以 20 位對手在每款遊戲都各不相同：
+ * 大老二的「會不會算、衝動、手滑」對應撿紅點；五子棋的「攻守、隨機、看不看得懂」對應圍棋。
+ */
+function derive(bigtwo: BigTwoStyle, gomoku: GomokuStyle): Pick<Persona, 'redpoint' | 'go'> {
+  const clamp = (v: number) => Math.max(0, Math.min(1, v))
+  return {
+    redpoint: { skill: bigtwo.skill, greed: clamp(bigtwo.aggression * 0.8 + (1 - bigtwo.hoard) * 0.2), blunder: bigtwo.blunder },
+    go: {
+      skill: clamp((gomoku.sharp ? 0.55 : 0.2) + (1 - gomoku.noise) * 0.4 - gomoku.blind),
+      attack: clamp(gomoku.attack - 0.5),
+      defense: clamp(gomoku.defense - 0.4),
+      noise: gomoku.noise,
+      center: gomoku.center,
+    },
+  }
+}
+
+const P = (bigtwo: BigTwoStyle, gomoku: GomokuStyle): Persona => ({ bigtwo, gomoku, ...derive(bigtwo, gomoku) })
 
 /** 順序對應 src/data/names.ts 的 OPPONENT_NAMES */
 export const PERSONAS: Persona[] = [
