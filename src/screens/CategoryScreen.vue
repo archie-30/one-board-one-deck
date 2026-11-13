@@ -2,7 +2,7 @@
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { settings } from '@/core/settings'
@@ -57,7 +57,7 @@ onBeforeUnmount(() => ro?.disconnect())
 
 /** 目前「位置」：整數 = 停在某張；拖曳時是小數。頭尾拉不過去，會有一點阻力。 */
 const pos = computed(() => {
-  let p = index.value - dragX.value / (cardW.value * 0.9)
+  let p = index.value + dragX.value / (cardW.value * 0.9)
   if (p < 0) p = p * 0.3
   if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
   return p
@@ -81,13 +81,24 @@ function onMove(e: PointerEvent) {
 function onUp(e: PointerEvent) {
   if (!dragging.value || e.pointerId !== pid) return
   dragging.value = false
-  const target = Math.round(pos.value + Math.sign(-dragX.value) * 0.25 * (Math.abs(dragX.value) > 30 ? 1 : 0))
+  if (!moved) {
+    // 沒有拖：當作點一下（拖曳時抓住了指標，點擊事件不會傳到卡片上，所以在這裡找點到哪一張）
+    dragX.value = 0
+    const hit = document.elementsFromPoint(e.clientX, e.clientY).find((el) => cardEls.includes(el as HTMLElement))
+    if (hit) tapCard(cardEls.indexOf(hit as HTMLElement))
+    return
+  }
+  const target = Math.round(pos.value + Math.sign(dragX.value) * 0.25 * (Math.abs(dragX.value) > 30 ? 1 : 0))
   dragX.value = 0
   show(target)
 }
-function onClick(k: number) {
-  if (moved) return
+function tapCard(k: number) {
   if (k !== index.value) show(k)
+  else void launch()
+}
+/** 鍵盤（Enter／空白鍵）按卡片 */
+function onClick(k: number, e: MouseEvent) {
+  if (e.detail === 0) tapCard(k)
 }
 function cardStyle(k: number) {
   const r = rel(k)
@@ -96,13 +107,14 @@ function cardStyle(k: number) {
   let op: number
   let fade: number
   if (r < 0) {
-    // 已經滑過去的：往左整張滑出，快出去時才淡掉
-    x = r * cardW.value * 1.15
+    // 已經滑過去的：往右整張滑出，快出去時才淡掉
+    x = -r * cardW.value * 1.15
     sc = 1
     op = Math.min(1, Math.max(0, (1 + r) * 2.5))
     fade = 0
   } else {
-    x = r * PEEK
+    // 後面的卡片往左側露出一條
+    x = -r * PEEK
     sc = Math.max(0.6, 1 - r * 0.09)
     op = r > 3 ? 0 : 1
     // 後面的卡片不透明，只是蓋上一層紙色，看起來越後面越淡
@@ -116,6 +128,38 @@ function cardStyle(k: number) {
   }
   if (dragging.value) style.transition = 'none'
   return style
+}
+
+// ── 點最前面的卡片（或按「開始遊戲」）：卡片放大到整個畫面，接著直接開始遊戲 ──
+const cardEls: (HTMLElement | null)[] = []
+const zoomEl = ref<HTMLElement>()
+const zooming = ref<{ left: number; top: number; width: number; height: number } | null>(null)
+async function launch() {
+  if (zooming.value) return
+  const el = cardEls[index.value]
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (!el || reduced) return open('play')
+  const r = el.getBoundingClientRect()
+  zooming.value = { left: r.left, top: r.top, width: r.width, height: r.height }
+  playSound(props.category === 'cards' ? 'deal' : 'stone')
+  await nextTick()
+  const z = zoomEl.value
+  if (!z) return open('play')
+  const ease = 'cubic-bezier(0.77, 0, 0.175, 1)'
+  const grow = z.animate(
+    [
+      { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, borderWidth: '0.14rem', borderRadius: '0.5rem' },
+      { left: '0px', top: '0px', width: `${window.innerWidth}px`, height: `${window.innerHeight}px`, borderWidth: '0rem', borderRadius: '0rem' },
+    ],
+    { duration: 520, easing: ease, fill: 'forwards' },
+  )
+  // 後半段：插圖淡掉、底色變回紙色，換到對局畫面時不會突然跳色
+  z.querySelector('.zoom-art')?.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.6)' }], { duration: 520, easing: 'ease-in', fill: 'forwards' })
+  const tone = getComputedStyle(z).backgroundColor
+  const paper = getComputedStyle(document.body).backgroundColor
+  z.animate([{ backgroundColor: tone }, { backgroundColor: tone, offset: 0.45 }, { backgroundColor: paper }], { duration: 640, easing: 'ease-out', fill: 'forwards' })
+  await grow.finished
+  window.setTimeout(() => go({ name: 'play', gameId: game.value.id }), 120)
 }
 
 function onKey(e: KeyboardEvent) {
@@ -140,6 +184,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div
           ref="deckEl"
           class="deck"
+          :style="{ '--offset': `${PEEK * (games.length - 1)}px` }"
           role="listbox"
           :aria-activedescendant="`mode-${game.id}`"
           @pointerdown="onDown"
@@ -151,13 +196,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             v-for="(g, k) in games"
             :id="`mode-${g.id}`"
             :key="g.id"
+            :ref="(el) => (cardEls[k] = el as HTMLElement | null)"
             class="card"
             :class="{ front: k === index, past: k < index, peek: hoverId === g.id && k > index }"
             :style="cardStyle(k)"
             role="option"
             :aria-selected="k === index"
             :tabindex="k === index ? 0 : -1"
-            @click="onClick(k)"
+            @click="onClick(k, $event)"
             @pointerenter="$event.pointerType === 'mouse' && (hoverId = g.id)"
             @pointerleave="hoverId = null"
           >
@@ -189,7 +235,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <p class="summary rise" style="--i: 2">{{ game.summary }}</p>
         </div>
         <div class="acts">
-          <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="open('play')">{{ S.lobby.start }}</Btn>
+          <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="launch">{{ S.lobby.start }}</Btn>
           <div class="minor rise" style="--i: 4">
             <button class="link" @click="open('tutorial')"><span>{{ S.lobby.tutorial }}</span><Icon name="arrow" class="ar" /></button>
             <button class="link" @click="open('rules')"><span>{{ S.lobby.rules }}</span><Icon name="arrow" class="ar" /></button>
@@ -198,6 +244,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <p v-if="game.record" :key="game.id" class="t-label record rise" style="--i: 5">{{ game.record() }}</p>
         </div>
       </aside>
+    </div>
+    <!-- 放大中的卡片 -->
+    <div v-if="zooming" ref="zoomEl" class="zoom" :style="{ left: `${zooming.left}px`, top: `${zooming.top}px`, width: `${zooming.width}px`, height: `${zooming.height}px` }">
+      <span class="zoom-art"><component :is="game.cover" active /></span>
     </div>
   </section>
 </template>
@@ -258,10 +308,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   user-select: none;
   animation: rise 520ms var(--ease-out) 80ms both;
 }
+/* 只把往右滑出去的卡片切掉（不要蓋到右邊的介紹） */
+.deck {
+  clip-path: inset(-2rem 0 -2rem -2rem);
+}
 /* 直式卡片：米白底、黑框、右下實心陰影。位置由 cardStyle 算（往右後方疊、滑過的往左出去）。 */
 .card {
   position: absolute;
-  left: 0;
+  left: var(--offset, 0);
   top: 0;
   display: flex;
   height: 100%;
@@ -273,7 +327,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding: 0;
   text-align: left;
   box-shadow: 0.25rem 0.25rem 0 var(--color-ink);
-  transform-origin: 100% 50%;
+  transform-origin: 0% 50%;
   transition:
     transform 460ms var(--ease-out),
     opacity 360ms ease,
@@ -494,7 +548,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 @media (hover: hover) and (pointer: fine) {
   /* 滑鼠移到後面的卡片上：那張往上探出來一點（預覽） */
   .card.peek {
-    translate: 0.5rem 0;
+    translate: -0.5rem 0;
   }
   .card {
     transition:
@@ -512,5 +566,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   .arrow:hover:not(:disabled) {
     background: var(--color-yellow);
   }
+}
+.zoom {
+  position: fixed;
+  z-index: 3000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 0.14rem solid var(--color-ink);
+  border-radius: 0.5rem;
+  background-color: var(--tone);
+  pointer-events: none;
+}
+.zoom-art {
+  display: block;
+  width: min(60vw, 30rem);
+  aspect-ratio: 200 / 130;
 }
 </style>
