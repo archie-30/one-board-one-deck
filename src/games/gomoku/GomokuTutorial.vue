@@ -4,11 +4,11 @@ import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { createGomoku, placeStone, toIndex, type GomokuState } from '@/engine/gomoku/rules'
 import { PLAYER_LOOK } from '@/data/names'
-import ArtBowl from '@/ui/art/ArtBowl.vue'
-import ArtKid from '@/ui/art/ArtKid.vue'
+import Avatar from '@/ui/art/Avatar.vue'
+import Bowl from '@/ui/art/Bowl.vue'
+import Btn from '@/ui/Btn.vue'
 import GuideNote from '@/ui/GuideNote.vue'
-import MenuButton from '@/ui/MenuButton.vue'
-import RoundButton from '@/ui/RoundButton.vue'
+import IconBtn from '@/ui/IconBtn.vue'
 import GomokuBoard from './GomokuBoard.vue'
 import { GOMOKU_LESSONS } from './tutorialData'
 
@@ -73,11 +73,11 @@ function next() {
 
 <template>
   <section class="gt">
-    <div class="corner"><RoundButton icon="back" :label="S.common.back" @click="emit('exit')" /></div>
+    <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
     <aside class="side">
       <div class="who">
-        <ArtKid class="kid" :look="PLAYER_LOOK" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" :seed="7" />
-        <span class="bowl"><ArtBowl black /></span>
+        <span class="kid"><Avatar :look="PLAYER_LOOK" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
+        <span class="bowl"><Bowl black /></span>
       </div>
     </aside>
     <div class="board-wrap">
@@ -86,16 +86,16 @@ function next() {
     <aside class="guide">
       <GuideNote v-if="!finished" :step="step" :total="GOMOKU_LESSONS.length" :text="text.text" :ok="text.ok" :solved="solved" :misses="misses" />
       <div v-else class="pop">
-        <p class="font-display text-[2rem] font-black leading-tight">{{ S.tutorial.finish }}</p>
-        <p class="text-ink-soft">{{ S.tutorial.finishLead }}</p>
+        <h2 class="t-black text-[2.4rem] leading-tight"><span class="mask"><span>{{ S.tutorial.finish }}</span></span></h2>
+        <p class="text-ink-2">{{ S.tutorial.finishLead }}</p>
       </div>
       <div class="act">
         <template v-if="finished">
-          <MenuButton primary icon="play" size="md" :label="S.tutorial.play" :seed="91" @click="emit('play')" />
-          <MenuButton icon="back" size="sm" :label="S.common.back" :chevron="false" :seed="93" @click="emit('exit')" />
+          <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+          <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </template>
-        <MenuButton v-else-if="solved" class="pop" primary icon="play" size="md" :label="step + 1 >= GOMOKU_LESSONS.length ? S.common.done : S.common.next" :chevron="false" :seed="95" @click="next" />
-        <MenuButton v-else primary icon="stone" size="md" :label="T.place" :chevron="false" :disabled="preview < 0" :seed="97" @click="confirmMove" />
+        <Btn v-else-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= GOMOKU_LESSONS.length ? S.common.done : S.common.next }}</Btn>
+        <Btn v-else tone="red" size="lg" arrow block :disabled="preview < 0" @click="confirmMove">{{ T.place }}</Btn>
       </div>
     </aside>
   </section>
@@ -125,14 +125,14 @@ function next() {
 .who {
   position: relative;
   width: 7rem;
-  height: 8.6rem;
+  height: 6rem;
 }
 .kid {
   position: absolute;
   left: 0;
   top: 0;
-  width: 5.4rem;
-  height: 7.6rem;
+  width: 4.6rem;
+  height: 4.6rem;
 }
 .bowl {
   position: absolute;
@@ -150,7 +150,7 @@ function next() {
   height: 100%;
   aspect-ratio: 1;
   flex-shrink: 0;
-  animation: pop 360ms var(--ease-back) both;
+  animation: rise 520ms var(--ease-out) both;
 }
 .guide {
   display: flex;

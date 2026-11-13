@@ -1,4 +1,9 @@
 import { createApp } from 'vue'
+import '@fontsource/noto-sans-tc/chinese-traditional-500.css'
+import '@fontsource/noto-sans-tc/chinese-traditional-900.css'
+import '@fontsource/noto-sans-tc/latin-500.css'
+import '@fontsource/noto-sans-tc/latin-900.css'
+import '@fontsource/alfa-slab-one/latin-400.css'
 import App from './App.vue'
 import './style.css'
 

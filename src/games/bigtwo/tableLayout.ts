@@ -19,7 +19,7 @@ export interface TableModel {
 }
 
 export interface Seat {
-  /** 小人中心 x、腳底 y、寬度 */
+  /** 頭像中心 x、底邊 y、邊長 */
   kid: { x: number; y: number; w: number }
   /** 名字標籤的位置與對齊 */
   label: { x: number; y: number; align: 'left' | 'center' | 'right' }
@@ -51,10 +51,10 @@ export function makeLayout(W: number, H: number): Layout {
     H,
     cw,
     seats: [
-      { kid: { x: cw * 0.85, y: H - 4, w: kw * 0.95 }, label: { x: cw * 0.85, y: H - kw * 1.5 - 8, align: 'center' }, stamp: { x: W / 2, y: H - cw * 1.95 } },
-      { kid: { x: W - cw * 0.8, y: H * 0.47, w: kw }, label: { x: W - cw * 0.8, y: H * 0.47 + 4, align: 'center' }, stamp: { x: W - cw * 2.2, y: H * 0.3 } },
-      { kid: { x: W / 2 - cw * 1.75, y: kw * 1.42 + 2, w: kw }, label: { x: W / 2 - cw * 2.35, y: kw * 0.55, align: 'right' }, stamp: { x: W / 2 + cw * 0.6, y: cw * 0.95 } },
-      { kid: { x: cw * 0.8, y: H * 0.47, w: kw }, label: { x: cw * 0.8, y: H * 0.47 + 4, align: 'center' }, stamp: { x: cw * 2.2, y: H * 0.3 } },
+      { kid: { x: cw * 0.8, y: H - 8, w: cw * 0.9 }, label: { x: cw * 0.8, y: H - cw - 12, align: 'center' }, stamp: { x: W / 2, y: H - cw * 1.95 } },
+      { kid: { x: W - cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: W - cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: W - cw * 2.2, y: H * 0.3 } },
+      { kid: { x: W / 2 - cw * 1.75, y: cw * 1.02, w: kw * 0.85 }, label: { x: W / 2 - cw * 2.35, y: cw * 0.3, align: 'right' }, stamp: { x: W / 2 + cw * 0.6, y: cw * 0.95 } },
+      { kid: { x: cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: cw * 2.2, y: H * 0.3 } },
     ],
     pile: { x: W / 2, y: H * 0.42 },
     discard: { x: W / 2 + cw * 2.7, y: H * 0.47 },

@@ -1,97 +1,107 @@
 <script setup lang="ts">
-// 五子棋大廳的場景：你和一位對手對下，一顆一顆落子，有人連成五顆就劃紅線、清盤再來。
+// 五子棋大廳的色塊插圖：你和一位對手對下，一顆一顆落子，連成五顆就劃線、清盤、換對手再來
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { OPPONENTS, PLAYER_LOOK } from '@/data/names'
-import ArtKid from '@/ui/art/ArtKid.vue'
-import ArtStone from '@/ui/art/ArtStone.vue'
-import { inkPath } from '@/ui/art/ink'
-import Sketch from '@/ui/art/Sketch.vue'
-import { boardPrims } from './boardArt'
+import Avatar from '@/ui/art/Avatar.vue'
+import Stone from '@/ui/art/Stone.vue'
 
 const N = 9
-const PAD = 14
-const SIDE = 180
-const step = (SIDE - PAD * 2) / (N - 1)
-const art = boardPrims(110, 40, SIDE, N, PAD, 1.1)
-const px = (i: number) => 110 + PAD + i * step
-const py = (i: number) => 40 + PAD + i * step
-
-// 一盤固定的棋：黑棋最後斜向連成五顆
-const SCRIPT: [number, number][] = [
-  [4, 4], [5, 4], [3, 5], [5, 5], [5, 3], [4, 5], [2, 6], [6, 2], [3, 3], [1, 7], [6, 6], [2, 2], [1, 7],
+const S = 150
+const step = S / (N - 1)
+const p = (i: number) => 10 + i * step
+const MOVES: [number, number][] = [
+  [4, 4], [5, 4], [3, 5], [5, 5], [5, 3], [4, 5], [2, 6], [6, 2], [3, 3], [6, 5], [6, 2], [1, 7],
 ]
-const MOVES = (() => {
-  const seen = new Set<string>()
-  return SCRIPT.filter(([x, y]) => !seen.has(`${x},${y}`) && seen.add(`${x},${y}`))
-})()
+const SEQ = MOVES.filter((m, i) => MOVES.findIndex((x) => x[0] === m[0] && x[1] === m[1]) === i)
 const shown = ref(0)
 const opp = ref(13)
-const won = computed(() => shown.value >= MOVES.length)
-const turnBlack = computed(() => shown.value % 2 === 0)
-const winD = [0, 4099, 8191].map((k) => inkPath([[px(1) - 8, py(7) + 8], [px(4), py(4)], [px(6) + 8, py(2) - 8]], { width: 7, seed: 5 + k, taper: 0.25, pressure: 0.5 }))
+const won = computed(() => shown.value >= SEQ.length)
 let timer = 0
 onMounted(() => {
   timer = window.setInterval(() => {
-    if (shown.value >= MOVES.length + 3) {
+    if (shown.value >= SEQ.length + 3) {
       shown.value = 0
       opp.value = (opp.value + 7) % OPPONENTS.length
     } else shown.value++
-  }, 800)
+  }, 750)
 })
 onBeforeUnmount(() => window.clearInterval(timer))
 </script>
 
 <template>
-  <div class="gm-scene">
-    <svg viewBox="0 0 400 290" class="stage" aria-hidden="true">
-      <Sketch :prims="art.under" :seed="3" still />
-      <Sketch :prims="art.edge" :seed="8" />
-      <template v-for="(m, i) in MOVES.slice(0, Math.min(shown, MOVES.length))" :key="`${opp}-${i}`">
-        <g class="drop"><ArtStone :cx="px(m[0])" :cy="py(m[1])" :r="8.5" :black="i % 2 === 0" :seed="i" /></g>
-      </template>
-      <g v-if="won" :key="`w${opp}`" class="swipe">
-        <path v-for="(d, i) in winD" :key="i" :d="d" fill="var(--color-red)" opacity=".9" :class="`bv${i}`" />
+  <div class="gm">
+    <span class="av left"><Avatar :look="PLAYER_LOOK" :mood="won ? 'happy' : shown % 2 === 0 ? 'think' : 'idle'" /></span>
+    <svg viewBox="0 0 170 170" class="board" aria-hidden="true">
+      <rect x="6" y="6" width="164" height="164" fill="var(--color-ink)" />
+      <rect x="0" y="0" width="164" height="164" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="2.4" />
+      <g stroke="var(--color-ink)" stroke-width="1">
+        <line v-for="i in N" :key="`h${i}`" :x1="p(0) + 2" :x2="p(N - 1) + 2" :y1="p(i - 1) + 2" :y2="p(i - 1) + 2" />
+        <line v-for="i in N" :key="`v${i}`" :y1="p(0) + 2" :y2="p(N - 1) + 2" :x1="p(i - 1) + 2" :x2="p(i - 1) + 2" />
       </g>
-      <ArtKid :look="PLAYER_LOOK" :seed="7" :mood="won ? 'happy' : turnBlack ? 'think' : 'idle'" x="8" y="120" width="92" height="132" />
-      <g :key="opp" class="opp">
-        <ArtKid :look="OPPONENTS[opp].look" :seed="opp" flip :mood="won ? 'sad' : !turnBlack ? 'think' : 'idle'" x="300" y="120" width="92" height="132" />
-        <text x="346" y="116" text-anchor="middle" class="font-display nm">{{ OPPONENTS[opp].name }}</text>
+      <g v-for="(m, i) in SEQ.slice(0, Math.min(shown, SEQ.length))" :key="`${opp}-${i}`" class="drop">
+        <Stone :cx="p(m[0]) + 2" :cy="p(m[1]) + 2" :r="7.5" :black="i % 2 === 0" />
       </g>
+      <line v-if="won" :key="`w${opp}`" class="win" :x1="p(1) - 4" :y1="p(7) + 8" :x2="p(6) + 8" :y2="p(2) - 4" />
     </svg>
+    <span :key="opp" class="av right pop"><Avatar :look="OPPONENTS[opp].look" flip :mood="won ? 'sad' : shown % 2 === 1 ? 'think' : 'idle'" /></span>
   </div>
 </template>
 
 <style scoped>
-.gm-scene {
-  display: grid;
+.gm {
+  display: flex;
   height: 100%;
-  place-items: center;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
 }
-.stage {
-  width: 100%;
-  max-width: 31rem;
+.board {
+  width: 58%;
   max-height: 90%;
   overflow: visible;
-  animation: pop 420ms var(--ease-back) both;
 }
-.nm {
-  font-size: 12px;
-  font-weight: 800;
+.av {
+  display: block;
+  width: 3rem;
+  height: 3rem;
+  flex-shrink: 0;
+}
+.av :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.left {
+  align-self: flex-end;
+  margin-bottom: 2rem;
+}
+.right {
+  align-self: flex-start;
+  margin-top: 2rem;
 }
 .drop {
   transform-box: fill-box;
   transform-origin: center;
-  animation: stone-drop 280ms var(--ease-back) both;
+  animation: drop 320ms var(--ease-back) both;
 }
-@keyframes stone-drop {
+@keyframes drop {
   from {
     opacity: 0;
-    transform: translateY(-12px) scale(1.3);
+    transform: translateY(-14px) scale(1.35);
   }
 }
-.opp {
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  animation: pop 380ms var(--ease-back) both;
+.win {
+  stroke: var(--color-red);
+  stroke-width: 6;
+  stroke-linecap: square;
+  stroke-dasharray: 220;
+  animation: draw 500ms var(--ease-in-out) both;
+}
+@keyframes draw {
+  from {
+    stroke-dashoffset: 220;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 </style>

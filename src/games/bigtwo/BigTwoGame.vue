@@ -14,13 +14,14 @@ import { applyBigTwo, checkPlay, dealBigTwo, scoreBigTwo, type BigTwoAction, typ
 import type { BigTwoOptions } from '@/engine/bigtwo/options'
 import { seedRng } from '@/engine/common/rng'
 import type { GameDef } from '@/games/types'
-import ArtCard from '@/ui/art/ArtCard.vue'
-import ArtKid from '@/ui/art/ArtKid.vue'
-import type { KidMood } from '@/ui/art/kid'
+import Avatar from '@/ui/art/Avatar.vue'
+import Burst from '@/ui/art/Burst.vue'
+import CardArt from '@/ui/art/Card.vue'
+import type { Mood as KidMood } from '@/ui/art/look'
+import Btn from '@/ui/Btn.vue'
+import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
-import InkDialog from '@/ui/InkDialog.vue'
-import MenuButton from '@/ui/MenuButton.vue'
-import RoundButton from '@/ui/RoundButton.vue'
+import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup, type TableModel } from './tableLayout'
 
@@ -58,7 +59,7 @@ const discard = ref<Card[]>([])
 const gathered = ref(true)
 const passed = reactive([false, false, false, false])
 const moods = reactive<KidMood[]>(['idle', 'idle', 'idle', 'idle'])
-const caption = ref<{ id: number; text: string } | null>(null)
+const caption = ref<{ id: number; who: string; text: string; bomb: boolean } | null>(null)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const scores = ref(scoreBigTwo(state.value))
@@ -172,7 +173,7 @@ function act(action: BigTwoAction): boolean {
     passed[p] = false
     const g: PileGroup = { id: ++groupId, cards: combo.cards, from: p }
     pile.value = [...pile.value, g]
-    caption.value = { id: g.id, text: `${names[p]}　${T.combos[combo.type]}` }
+    caption.value = { id: g.id, who: names[p], text: T.combos[combo.type], bomb: isBomb(combo.type) }
     sync({ cards: combo.cards, stagger: 85, dur: 430, arc: layout.value.cw * 0.9 })
     // 表情：出炸彈或 2 的人得意，其他人嚇一跳
     const big = isBomb(combo.type) || combo.cards.some((c) => rankOf(c) === RANK_2)
@@ -318,53 +319,66 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 
 <template>
   <section ref="stageEl" class="felt">
+    <!-- 桌面中央的框 -->
+    <div class="table-box" :style="{ left: `${layout.pile.x - layout.cw * 3.1}px`, top: `${layout.pile.y - layout.cw * 1.25}px`, width: `${layout.cw * 6.2}px`, height: `${layout.cw * 2.5}px` }">
+      <span class="t-label lab">TABLE</span>
+    </div>
+
     <!-- 座位上的人 -->
     <template v-for="(seat, p) in layout.seats" :key="p">
-      <div class="kid" :class="{ active: phase === 'play' && state.turn === p, me: p === ME }" :style="{ left: `${seat.kid.x - seat.kid.w / 2}px`, top: `${seat.kid.y - seat.kid.w * 1.42}px`, width: `${seat.kid.w}px`, height: `${seat.kid.w * 1.42}px` }">
-        <ArtKid :look="looks[p]" :mood="moods[p]" :seed="p === ME ? 7 : opponents[p - 1].id" :flip="p === 1" />
+      <div
+        class="who"
+        :class="[`s${p}`, { active: phase === 'play' && state.turn === p }]"
+        :style="{ left: `${seat.kid.x - seat.kid.w / 2}px`, top: `${seat.kid.y - seat.kid.w}px`, width: `${seat.kid.w}px`, height: `${seat.kid.w}px` }"
+      >
+        <Avatar :look="looks[p]" :mood="moods[p]" :flip="p === 1" />
       </div>
       <div v-if="p !== ME" class="tag" :class="[`al-${seat.label.align}`, { active: phase === 'play' && state.turn === p }]" :style="{ left: `${seat.label.x}px`, top: `${seat.label.y}px` }">
-        <span class="font-display nm">{{ names[p] }}</span>
-        <span class="tg">{{ opponents[p - 1].tag }}</span>
+        <span class="nm t-black"><span class="hl" />{{ names[p] }}</span>
+        <span class="t-label tg">{{ opponents[p - 1].tag }}</span>
       </div>
-      <span v-if="passed[p] && p !== ME" :key="`pass${p}`" class="pass-stamp font-display stamp" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.passed }}</span>
+      <span v-if="passed[p] && p !== ME" :key="`pass${p}`" class="stamp pop" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.passed }}</span>
     </template>
 
     <!-- 52 張牌 -->
     <div class="cards">
-    <div
-      v-for="c in ALL"
-      :key="c"
-      :ref="(el) => stage.attach(c, el as HTMLElement | null)"
-      class="sprite"
-      :class="{ mine: state.hands[ME].includes(c), sel: selected.includes(c) }"
-      :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
-      @click="tapCard(c)"
-    >
-      <svg class="face" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard :rank="rankText(c)" :suit="suitOf(c)" :seed="c + 1" /></svg>
-      <svg class="back" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard back still :seed="(c % 6) + 1" /></svg>
-    </div>
+      <div
+        v-for="c in ALL"
+        :key="c"
+        :ref="(el) => stage.attach(c, el as HTMLElement | null)"
+        class="sprite"
+        :class="{ mine: state.hands[ME].includes(c), sel: selected.includes(c) }"
+        :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
+        @click="tapCard(c)"
+      >
+        <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="rankText(c)" :suit="suitOf(c)" /></svg>
+        <svg class="back" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt back /></svg>
+      </div>
     </div>
 
-    <p v-if="caption" :key="caption.id" class="caption font-display pop" :style="{ left: `${layout.pile.x}px`, top: `${layout.pile.y + layout.cw * 0.95}px` }">{{ caption.text }}</p>
+    <div v-if="caption" :key="caption.id" class="combo" :style="{ left: `${layout.pile.x + layout.cw * 2.45}px`, top: `${layout.pile.y - layout.cw * 1.05}px` }">
+      <Burst class="pop" :tone="caption.bomb ? 'red' : 'yellow'" size="3.4rem">{{ caption.text }}</Burst>
+      <span class="t-label by rise" style="--i: 2">{{ caption.who }}</span>
+    </div>
+
     <p class="status" :class="{ mine: myTurn && !message, warn: !!message }" :style="{ bottom: `${layout.cw * 1.62}px` }">
-      <span v-if="passed[ME]" class="my-pass font-display stamp">{{ T.passed }}</span>
+      <span v-if="passed[ME]" class="stamp inline pop">{{ T.passed }}</span>
       {{ status }}
     </p>
 
-    <div class="corner"><RoundButton icon="gear" :label="S.common.menu" @click="menuOpen = true" /></div>
-    <div class="hint-btn"><RoundButton icon="bulb" :label="T.hint" size="2.5rem" show-label :disabled="!myTurn" @click="hint" /></div>
+    <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
+    <div class="hint-btn"><Btn icon="bulb" size="sm" :disabled="!myTurn" @click="hint">{{ T.hint }}</Btn></div>
     <div class="actions">
       <template v-if="phase !== 'over'">
-        <MenuButton class="slide-in" primary icon="play" size="md" :label="T.play" :chevron="false" :disabled="!myTurn || !selected.length" :seed="41" @click="playSelected" />
-        <MenuButton class="slide-in" style="--i: 1" icon="pass" size="sm" :label="T.pass" :chevron="false" :disabled="!canPass" :seed="43" @click="pass" />
+        <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</Btn>
+        <Btn class="rise" style="--i: 1" icon="pass" block :disabled="!canPass" @click="pass">{{ T.pass }}</Btn>
       </template>
-      <MenuButton v-else class="slide-in" primary icon="score" size="md" :label="T.result.howTitle" :chevron="false" :seed="45" @click="resultOpen = true" />
+      <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.result.howTitle }}</Btn>
     </div>
 
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" />
 
-    <InkDialog :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" wide @close="resultOpen = false">
+    <Dialog :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" :tone="state.winner === ME ? 'red' : 'ink'" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
@@ -376,29 +390,29 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(s, p) in scores" :key="p" class="slide-in" :class="{ winner: p === state.winner }" :style="{ '--i': p }">
-            <td class="font-display who">
-              <span class="mini"><ArtKid :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" :seed="p === ME ? 7 : opponents[p - 1].id" /></span>
-              {{ names[p] }}
-              <span v-if="p === state.winner" class="win-stamp stamp">{{ T.result.winnerStamp }}</span>
+          <tr v-for="(s, p) in scores" :key="p" class="rise" :class="{ winner: p === state.winner }" :style="{ '--i': p + 2 }">
+            <td class="who-cell">
+              <span class="mini"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" /></span>
+              <span class="t-black">{{ names[p] }}</span>
+              <Burst v-if="p === state.winner" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ T.result.winnerStamp }}</Burst>
             </td>
             <td>{{ p === state.winner ? T.result.winner : s.twos ? T.result.leftWithTwos(s.cards, s.twos) : T.cardsLeft(s.cards) }}</td>
             <td>{{ p === state.winner ? '' : `×${s.multiplier}` }}</td>
-            <td class="num font-display" :class="{ red: s.points > 0 }">{{ signed(s.points) }}</td>
-            <td class="num font-display">{{ signed(tableTotals[p]) }}</td>
+            <td class="num t-slab" :class="{ red: s.points > 0 }">{{ signed(s.points) }}</td>
+            <td class="num t-slab">{{ signed(tableTotals[p]) }}</td>
           </tr>
         </tbody>
       </table>
       <p class="how">
-        <b class="font-display">{{ T.result.howTitle }}</b>
+        <b class="t-black">{{ T.result.howTitle }}</b>
         {{ T.result.base }}{{ doubleNotes }}
-        <span class="lifetime font-display">{{ T.result.lifetime(signed(stats.bigtwo.totals[ME] ?? 0)) }}</span>
       </p>
+      <p class="lifetime t-black">{{ T.result.lifetime(signed(stats.bigtwo.totals[ME] ?? 0)) }}</p>
       <template #actions>
-        <div class="w-[11rem]"><MenuButton primary icon="again" size="sm" :label="S.common.again" :chevron="false" :seed="51" @click="newRound" /></div>
-        <div class="w-[11rem]"><MenuButton icon="exit" size="sm" :label="S.common.quit" :chevron="false" :seed="53" @click="emit('exit')" /></div>
+        <Btn tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
+        <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
       </template>
-    </InkDialog>
+    </Dialog>
   </section>
 </template>
 
@@ -407,6 +421,20 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   position: relative;
   height: 100%;
   overflow: hidden;
+}
+.table-box {
+  position: absolute;
+  border: 0.14rem solid var(--color-ink);
+  background-image: radial-gradient(rgb(20 20 20 / 0.1) 30%, transparent 32%);
+  background-size: 0.5rem 0.5rem;
+  animation: rise 520ms var(--ease-out) both;
+}
+.lab {
+  position: absolute;
+  left: 0.5rem;
+  top: -0.55rem;
+  padding: 0 0.4rem;
+  background: var(--color-paper);
 }
 .cards {
   position: absolute;
@@ -419,18 +447,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   left: 0;
   top: 0;
   will-change: transform;
-  transform-origin: 50% 50%;
-}
-.sprite::before {
-  content: '';
-  position: absolute;
-  inset: 4% 4% 4% 4%;
-  border-radius: 10%;
-  background: var(--color-shadow);
-  transform: translate(6%, 5%);
 }
 .sprite svg {
-  position: relative;
   display: block;
   width: 100%;
   height: 100%;
@@ -443,34 +461,36 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 .sprite.mine {
   cursor: pointer;
 }
+/* 選起的牌：底下一條黃色 */
 .sprite.sel::after {
   content: '';
   position: absolute;
-  left: 18%;
-  right: 18%;
-  bottom: -9%;
-  height: 4%;
-  border-radius: 1rem;
-  background: var(--color-red);
+  left: 8%;
+  right: 4%;
+  bottom: -10%;
+  height: 6%;
+  background: var(--color-yellow);
+  border: 0.1rem solid var(--color-ink);
 }
-.kid {
+.who {
   position: absolute;
+  z-index: 2;
   pointer-events: none;
-  transition: transform 260ms var(--ease-back);
+  transition: transform 300ms var(--ease-back);
 }
-.kid :deep(svg) {
+.who :deep(svg) {
   width: 100%;
   height: 100%;
 }
-.kid.active {
-  transform: translateY(-0.25rem);
+.who.active {
+  transform: translateY(-0.3rem);
 }
 .tag {
   position: absolute;
   z-index: 2;
   display: flex;
   flex-direction: column;
-  line-height: 1.15;
+  line-height: 1.2;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -484,32 +504,29 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .nm {
   position: relative;
-  font-size: 0.92rem;
-  font-weight: 900;
+  padding: 0 0.25rem;
+  font-size: 0.95rem;
 }
-.nm::after {
-  content: '';
+/* 輪到誰：名字底下刷上一塊黃色 */
+.hl {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -0.12rem;
-  height: 0.17rem;
-  border-radius: 0.2rem;
-  background: var(--color-red);
+  inset: 0.15rem -0.1rem 0.05rem;
+  z-index: -1;
+  background: var(--color-yellow);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 260ms var(--ease-out);
+  transition: transform 300ms var(--ease-out);
 }
-.tag.active .nm::after {
-  transform: scaleX(1);
+.tag.active .hl {
+  transform: none;
 }
 .tg {
-  font-size: 0.68rem;
-  color: var(--color-ink-soft);
+  font-size: 0.5rem;
+  color: var(--color-ink-2);
 }
-.pass-stamp,
-.my-pass {
+.stamp {
   position: absolute;
+  z-index: 700;
   display: grid;
   width: 2.3rem;
   height: 2.3rem;
@@ -517,60 +534,62 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   place-items: center;
   border: 0.16rem solid var(--color-red);
   border-radius: 50%;
+  background: var(--color-card);
   color: var(--color-red);
   font-size: 1.05rem;
   font-weight: 900;
-  background: rgb(251 250 247 / 0.85);
   rotate: -12deg;
-  z-index: 700;
   pointer-events: none;
 }
-.my-pass {
+.stamp.inline {
   position: relative;
   display: inline-grid;
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 1.8rem;
+  height: 1.8rem;
   margin: 0 0.5rem 0 0;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   vertical-align: middle;
 }
-.caption {
+.combo {
   position: absolute;
-  transform: translateX(-50%);
-  font-size: 0.78rem;
-  color: var(--color-near);
-  white-space: nowrap;
   z-index: 650;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
   pointer-events: none;
+}
+.by {
+  font-size: 0.5rem;
 }
 .status {
   position: absolute;
   left: 0;
   right: 0;
-  text-align: center;
-  font-size: 1.15rem;
-  line-height: 1.6;
-  color: var(--color-ink-soft);
   z-index: 650;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1.6;
+  color: var(--color-ink-3);
   pointer-events: none;
 }
 .status.mine {
   color: var(--color-ink);
-  font-weight: 700;
 }
 .status.warn {
   color: var(--color-red);
 }
 .corner {
   position: absolute;
-  left: max(0.8rem, env(safe-area-inset-left));
-  top: max(0.6rem, env(safe-area-inset-top));
+  left: max(0.9rem, env(safe-area-inset-left));
+  top: max(0.7rem, env(safe-area-inset-top));
   z-index: 700;
 }
 .hint-btn {
   position: absolute;
-  left: max(5.8rem, env(safe-area-inset-left));
-  bottom: 0.6rem;
+  left: max(5.4rem, env(safe-area-inset-left));
+  bottom: 0.7rem;
   z-index: 700;
 }
 .actions {
@@ -578,46 +597,45 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   right: max(1rem, env(safe-area-inset-right));
   bottom: 0.7rem;
   display: flex;
-  width: 8.6rem;
+  width: 8.4rem;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.45rem;
   z-index: 700;
 }
 .score {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   line-height: 1.4;
   font-variant-numeric: tabular-nums;
 }
 .score th {
   padding: 0 0.5rem 0.2rem;
   border-bottom: 0.14rem solid var(--color-ink);
-  font-size: 0.78rem;
-  font-weight: 400;
-  color: var(--color-ink-soft);
+  font-size: 0.6rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: var(--color-ink-2);
   text-align: center;
 }
 .score td {
-  padding: 0.1rem 0.5rem;
-  border-bottom: 0.07rem dashed var(--color-mid);
+  padding: 0.06rem 0.5rem;
+  border-bottom: 0.07rem solid var(--color-ink);
   text-align: center;
 }
 .score th:first-child,
 .score td:first-child {
   text-align: left;
 }
-.who {
-  position: relative;
+.who-cell {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 1rem;
+  gap: 0.45rem;
 }
 .mini {
   display: block;
-  width: 1.4rem;
-  height: 1.9rem;
+  width: 1.5rem;
+  height: 1.5rem;
 }
 .mini :deep(svg) {
   width: 100%;
@@ -625,39 +643,26 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .score .num {
   text-align: right;
+  font-size: 0.95rem;
 }
 .score .red {
   color: var(--color-red);
 }
 .score .winner td {
-  background: rgb(214 40 40 / 0.06);
-}
-.win-stamp {
-  display: inline-grid;
-  width: 1.7rem;
-  height: 1.7rem;
-  place-items: center;
-  border: 0.14rem solid var(--color-red);
-  border-radius: 50%;
-  color: var(--color-red);
-  font-size: 0.85rem;
-  rotate: -14deg;
-  margin-left: 0.2rem;
-  animation-delay: 500ms;
+  background: rgb(255 194 26 / 0.3);
 }
 .how {
   padding-top: 0.5rem;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   line-height: 1.55;
-  color: var(--color-ink-soft);
+  color: var(--color-ink-2);
 }
 .how b {
   margin-right: 0.4rem;
-  font-size: 0.95rem;
   color: var(--color-ink);
 }
 .lifetime {
-  margin-left: 0.6rem;
-  color: var(--color-ink);
+  padding-top: 0.2rem;
+  font-size: 0.8rem;
 }
 </style>

@@ -27,4 +27,4 @@
 
 ## 授權
 
-標題字型為霞鶩文楷 TC（LXGW WenKai TC），採 SIL Open Font License 1.1，授權全文在 `src/assets/fonts/OFL.txt`。
+字型 Noto Sans TC 與 Alfa Slab One 皆採 SIL Open Font License 1.1，透過 @fontsource 套件打包。

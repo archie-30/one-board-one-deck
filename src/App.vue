@@ -20,7 +20,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <main class="relative h-full">
-    <Transition name="screen" mode="out-in">
       <TitleScreen v-if="route.name === 'title'" :key="routeKey" />
       <ChooseScreen v-else-if="route.name === 'choose'" :key="routeKey" />
       <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" />
@@ -35,8 +34,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         @play="replace({ name: 'play', gameId: route.gameId })"
       />
       <component :is="getGame(route.gameId).component" v-else :key="routeKey" :game="getGame(route.gameId)" :options="resolveOptions(getGame(route.gameId))" @exit="back()" />
-    </Transition>
-    <div class="rotate font-display">{{ S.app.rotate }}</div>
+    <div class="rotate">{{ S.app.rotate }}</div>
   </main>
 </template>
 
@@ -49,6 +47,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   place-items: center;
   background: var(--color-paper);
   font-size: 7vw;
+  font-weight: 900;
 }
 @media (orientation: portrait) and (max-width: 700px) {
   .rotate {

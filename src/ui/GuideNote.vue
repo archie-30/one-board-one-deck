@@ -1,74 +1,78 @@
 <script setup lang="ts">
-// 教學用的便條：用紙膠帶貼著，寫著這一步要做什麼；答對時打勾、答錯時紅字提醒
+// 教學說明卡：黃色色帶上寫第幾步，下面一段話；答對時出現打勾的一行，答錯時紅字
 import { S } from '@/data/strings'
-import InkFrame from './art/InkFrame.vue'
+import Icon from './art/Icon.vue'
 
 defineProps<{ step: number; total: number; text: string; ok?: string; solved?: boolean; misses?: number }>()
 </script>
 
 <template>
-  <div :key="step" class="note pop">
-    <InkFrame block fill="var(--color-card)" :weight="2.3" :seed="step * 3 + 5" />
-    <span class="tape" />
-    <p class="head font-display">
-      <span>{{ S.tutorial.title }}</span>
-      <span class="count">{{ S.tutorial.step(step + 1, total) }}</span>
-    </p>
+  <div :key="step" class="note rise">
+    <div class="band halftone">
+      <span class="t-label">{{ S.tutorial.title }}</span>
+      <span class="t-slab n">{{ String(step + 1).padStart(2, '0') }}<small>/{{ String(total).padStart(2, '0') }}</small></span>
+    </div>
     <p class="text">{{ text }}</p>
-    <p v-if="solved && ok" class="ok slide-in"><span class="tick font-display">✓</span>{{ ok }}</p>
-    <p v-else-if="misses" :key="misses" class="miss slide-in">{{ S.tutorial.tryAgain }}</p>
+    <p v-if="solved && ok" class="ok rise"><span class="tick"><Icon name="check" /></span>{{ ok }}</p>
+    <p v-else-if="misses" :key="misses" class="miss rise">{{ S.tutorial.tryAgain }}</p>
   </div>
 </template>
 
 <style scoped>
 .note {
-  position: relative;
-  padding: 0.9rem 1.1rem 0.9rem;
-  transform-origin: 30% 0;
+  border: 0.14rem solid var(--color-ink);
+  background: var(--color-card);
+  box-shadow: 0.3rem 0.3rem 0 var(--color-ink);
 }
-.tape {
-  position: absolute;
-  top: -0.5rem;
-  left: 40%;
-  width: 3.6rem;
-  height: 1.05rem;
-  background: repeating-linear-gradient(-52deg, var(--color-far) 0 0.28rem, var(--color-paper-deep) 0.28rem 0.5rem);
-  box-shadow: 0 0 0 0.06rem var(--color-mid);
-  transform: rotate(-4deg);
-}
-.head {
-  position: relative;
+.band {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  font-size: 0.82rem;
-  color: var(--color-ink-soft);
+  padding: 0.15rem 0.8rem;
+  border-bottom: 0.14rem solid var(--color-ink);
+  background-color: var(--color-yellow);
+  --dot: rgb(20 20 20 / 0.14);
+}
+.n {
+  font-size: 1rem;
+}
+.n small {
+  font-size: 0.65rem;
+  opacity: 0.6;
 }
 .text {
-  position: relative;
-  padding-top: 0.25rem;
-  font-size: 1.02rem;
+  padding: 0.6rem 0.9rem 0;
+  font-size: 0.98rem;
   line-height: 1.65;
   text-wrap: pretty;
 }
 .ok,
 .miss {
-  position: relative;
-  margin-top: 0.5rem;
-  font-size: 0.95rem;
+  display: flex;
+  gap: 0.45rem;
+  margin: 0.5rem 0.9rem 0;
+  font-size: 0.9rem;
   line-height: 1.55;
 }
+.text:last-child,
+.ok,
+.miss {
+  padding-bottom: 0.75rem;
+}
 .tick {
-  display: inline-grid;
+  display: grid;
+  flex-shrink: 0;
   width: 1.3rem;
   height: 1.3rem;
-  margin-right: 0.35rem;
   place-items: center;
-  border-radius: 50%;
   background: var(--color-ink);
-  color: var(--color-paper);
-  font-size: 0.75rem;
+  color: var(--color-card);
+}
+.tick svg {
+  width: 0.85rem;
 }
 .miss {
   color: var(--color-red);
+  font-weight: 900;
 }
 </style>

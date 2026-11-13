@@ -1,59 +1,31 @@
 @import 'tailwindcss';
 
-/* 說明文字用的手寫楷體（霞鶩文楷 TC，SIL OFL 授權，見 assets/fonts/OFL.txt） */
-@font-face {
-  font-family: 'InkKai';
-  src: url('./assets/fonts/InkKai.woff2') format('woff2');
-  font-display: swap;
-}
-
 /*
-  INKRAGE 續作的視覺語言：
-  - 紙、三階灰、墨黑為主體；紅色是唯一的強調色（主要按鈕、紅牌、勝利筆劃）
-  - 所有線條都是粗細會變的墨線，並以三種描法輪流顯示（線條呼吸）
-  - 陰影用排線或 10% 的墨色色塊；不用漸層、不用發光
-  - 材質色（木、靛、苔）一律低彩度、三階一起用，只出現在物件本身
+  視覺方向：現代平面設計（瑞士風格的大字、色塊、細格線）＋一點復古桌遊盒
+  （實心偏移陰影、網點、鋸齒徽章、印刷顆粒、粗襯線數字）。
+  顏色只有四個：墨黑、朱紅、鈷藍、亮黃，加上米白紙底。
 */
 @theme {
-  --color-paper: #f2f0eb;
-  --color-card: #fbfaf7;
-  --color-far: #d6d3cc;
-  --color-mid: #9a9892;
-  --color-near: #4a4946;
-  --color-ink: #1a1a1a;
-  --color-paper-deep: #e4e1da;
-  --color-ink-soft: #62615d;
-  --color-ink-faint: rgb(26 26 26 / 0.12);
-  --color-shadow: rgb(26 26 26 / 0.1);
-  --color-grid: rgb(255 255 255 / 0.8);
+  --color-paper: #efe9dc;
+  --color-paper-2: #e6dfcf;
+  --color-card: #fbf8f1;
+  --color-ink: #141414;
+  --color-ink-2: #5c5850;
+  --color-ink-3: #9a958a;
+  --color-line: rgb(20 20 20 / 0.1);
+  --color-red: #ff4a1c;
+  --color-blue: #2340d9;
+  --color-yellow: #ffc21a;
 
-  --color-red: #d62828;
-  --color-red-dark: #8c1c1c;
-  --color-red-soft: #f0c4c0;
-
-  --color-wood: #decbaa;
-  --color-wood-deep: #ac8e64;
-  --color-kraft-dark: #4e3e28;
-  --color-wood-soft: #ebe1cd;
-  --color-deck-soft: #b3c0d6;
-  --color-deck: #5e7399;
-  --color-indigo-dark: #222c45;
-  --color-leaf-soft: #c3cca8;
-  --color-moss: #7a8a5b;
-  --color-leaf: #4f5d36;
-  --color-sun: #f3e7a6;
-  --color-marker: #e0b43c;
-
-  --font-display: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', 'Heiti TC', sans-serif;
-  --font-body: 'InkKai', 'Noto Serif TC', 'PingFang TC', 'Microsoft JhengHei', serif;
+  --font-sans: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  --font-slab: 'Alfa Slab One', 'Noto Sans TC', serif;
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
-  /* INKRAGE 的按鈕、面板都用 easeOutBack 出場 */
-  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-back: cubic-bezier(0.34, 1.4, 0.64, 1);
 }
 
-/* 整個介面依螢幕高度等比縮放：所有尺寸用 rem，手機與平板看起來比例一致 */
+/* 整個介面依螢幕高度等比縮放：所有尺寸用 rem */
 html {
   font-size: clamp(11px, min(4.45vh, 2.1vw), 30px);
 }
@@ -69,20 +41,14 @@ body,
 
 body {
   background-color: var(--color-paper);
-  /* 淺色大方格（像 INKRAGE 的地板）＋四角稍微壓暗 */
-  background-image:
-    radial-gradient(ellipse at 50% 45%, transparent 55%, rgb(74 73 70 / 0.1) 100%),
-    linear-gradient(var(--color-grid) 0.12rem, transparent 0.12rem),
-    linear-gradient(90deg, var(--color-grid) 0.12rem, transparent 0.12rem);
-  background-size:
-    100% 100%,
-    4rem 4rem,
-    4rem 4rem;
-  background-position: center;
+  /* 細直線格：瑞士海報的欄線 */
+  background-image: linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: calc(100vw / 12) 100%;
   color: var(--color-ink);
-  font-family: var(--font-body);
-  font-size: 1.05rem;
-  line-height: 1.7;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 1rem;
+  line-height: 1.6;
   overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;
@@ -91,19 +57,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 紙的顆粒：一張靜態的雜訊蓋在最上面 */
+/* 印刷顆粒：很淡，只為了讓色塊不像螢幕上的純色 */
 body::after {
   content: '';
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 2000;
   pointer-events: none;
-  opacity: 0.22;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 -1.1 0.62'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-::selection {
-  background: var(--color-sun);
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .4 0 0 0 0 .3 0 0 0 .4 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 button {
@@ -113,15 +76,36 @@ button {
 }
 
 :focus-visible {
-  outline: 0.16rem dashed var(--color-red);
+  outline: 0.15rem solid var(--color-blue);
   outline-offset: 0.2rem;
 }
 
-/* 粗黑體：標題、按鈕、數字 */
-.font-display {
-  font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: 0.02em;
+::selection {
+  background: var(--color-yellow);
+}
+
+/* ── 字體角色 ── */
+.t-black {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+.t-slab {
+  font-family: var(--font-slab);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+/* 小型標籤：字距拉開、粗體，像海報上的分類標 */
+.t-label {
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  line-height: 1.4;
+}
+
+/* 網點 */
+.halftone {
+  background-image: radial-gradient(var(--dot, rgb(20 20 20 / 0.18)) 30%, transparent 32%);
+  background-size: 0.5rem 0.5rem;
 }
 
 .scroll-y {
@@ -131,109 +115,73 @@ button {
   scrollbar-color: var(--color-ink) transparent;
 }
 
-/* ── 畫面切換：不做整頁過場。舊畫面一瞬間淡掉，新畫面的元件各自出場 ── */
-.screen-leave-active {
-  transition: opacity 90ms ease;
+/* ── 動畫 ── */
+
+/* 換頁：用 View Transitions，整頁只做極短的淡入淡出；有共用元素的畫面會「變形」過去 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 140ms;
+  animation-timing-function: ease;
 }
-.screen-leave-to {
-  opacity: 0;
+::view-transition-group(*) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-out);
 }
 
-/* 出場一：從右邊滑進來並稍微過頭（INKRAGE 選單按鈕的動作） */
-@keyframes slide-in {
+/* 出場：上移 12px＋淡入，同一群錯開 50ms */
+@keyframes rise {
   from {
     opacity: 0;
-    transform: translateX(3rem);
-  }
-  40% {
-    opacity: 1;
+    transform: translateY(0.7rem);
   }
 }
-.slide-in {
-  animation: slide-in 420ms var(--ease-back) both;
-  animation-delay: calc(var(--i, 0) * 60ms);
+.rise {
+  animation: rise 520ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
 }
 
-/* 出場二：從略小彈到定位 */
+/* 文字從遮罩裡滑上來（每一行包一層 .mask） */
+.mask {
+  display: block;
+  overflow: clip;
+  padding-bottom: 0.06em;
+  margin-bottom: -0.06em;
+}
+@keyframes line-up {
+  from {
+    transform: translateY(105%);
+  }
+}
+.mask > span {
+  display: block;
+  animation: line-up 700ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+
+/* 彈出（徽章、印章） */
 @keyframes pop {
   from {
     opacity: 0;
-    transform: scale(0.86);
+    transform: scale(0.6) rotate(-12deg);
   }
 }
 .pop {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: pop 320ms var(--ease-back) both;
-  animation-delay: calc(var(--i, 0) * 50ms);
+  animation: pop 380ms var(--ease-back) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
 }
 
-/* 出場三：墨線由左畫到右 */
-@keyframes swipe {
+/* 色塊由左刷過去 */
+@keyframes wipe {
   from {
-    clip-path: inset(-30% 100% -30% -5%);
+    clip-path: inset(0 100% 0 0);
   }
   to {
-    clip-path: inset(-30% -5% -30% -5%);
+    clip-path: inset(0 0 0 0);
   }
 }
-.swipe {
-  animation: swipe 460ms var(--ease-in-out) both;
+.wipe {
+  animation: wipe 560ms var(--ease-in-out) both;
   animation-delay: calc(var(--i, 0) * 60ms);
-}
-
-/* 紅色印章蓋下去 */
-@keyframes stamp {
-  from {
-    opacity: 0;
-    transform: scale(1.6) rotate(-14deg);
-  }
-  60% {
-    opacity: 1;
-  }
-}
-.stamp {
-  animation: stamp 360ms var(--ease-back) both;
-}
-
-/* ── 線條呼吸：同一張圖預先畫好三種描法，輪流顯示（約每秒 10 次） ── */
-@keyframes bv0 {
-  0% {
-    visibility: visible;
-  }
-  33.33% {
-    visibility: hidden;
-  }
-}
-@keyframes bv1 {
-  0% {
-    visibility: hidden;
-  }
-  33.33% {
-    visibility: visible;
-  }
-  66.66% {
-    visibility: hidden;
-  }
-}
-@keyframes bv2 {
-  0% {
-    visibility: hidden;
-  }
-  66.66% {
-    visibility: visible;
-  }
-}
-.bv0 {
-  animation: bv0 300ms step-end infinite;
-}
-.bv1 {
-  visibility: hidden;
-  animation: bv1 300ms step-end infinite;
-}
-.bv2 {
-  visibility: hidden;
-  animation: bv2 300ms step-end infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -245,13 +193,9 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .bv0 {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
     animation: none !important;
-    visibility: visible;
-  }
-  .bv1,
-  .bv2 {
-    animation: none !important;
-    visibility: hidden;
   }
 }
