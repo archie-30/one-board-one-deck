@@ -21,6 +21,7 @@ interface Stats {
   bigtwo: { rounds: number; wins: number; totals: number[] }
   redpoint: { rounds: number; wins: number; best: number }
   go: { wins: number; losses: number }
+  solitaire: { played: number; wins: number; best: number; fastest: number }
 }
 
 export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {} }))
@@ -31,6 +32,7 @@ export const stats = reactive(
     bigtwo: { rounds: 0, wins: 0, totals: [0, 0, 0, 0] },
     redpoint: { rounds: 0, wins: 0, best: 0 },
     go: { wins: 0, losses: 0 },
+    solitaire: { played: 0, wins: 0, best: 0, fastest: 0 },
   }),
 )
 

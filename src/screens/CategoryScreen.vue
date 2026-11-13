@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// 模式選單：左半邊是各模式的卡片（整張卡片都能點，一次選一張），
+// 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
-// 滑鼠移到卡片上：卡片浮起、插圖先動起來預覽；點下去才真正選起。
-import { computed, ref } from 'vue'
+// 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { settings } from '@/core/settings'
@@ -15,21 +15,80 @@ import IconBtn from '@/ui/IconBtn.vue'
 
 const props = defineProps<{ category: GameCategory }>()
 const games = computed(() => gamesIn(props.category))
-const pickedId = ref(games.value.find((g) => g.id === settings.lastGame[props.category])?.id ?? games.value[0].id)
-const game = computed(() => games.value.find((g) => g.id === pickedId.value) ?? games.value[0])
+const n = computed(() => games.value.length)
+const start = games.value.findIndex((g) => g.id === settings.lastGame[props.category])
+const index = ref(start >= 0 ? start : 0)
+const game = computed(() => games.value[index.value])
 const hoverId = ref<string | null>(null)
-const pad = (n: number) => String(n).padStart(2, '0')
+const pad = (k: number) => String(k).padStart(2, '0')
 
-function pick(id: string) {
-  if (id === pickedId.value) return
-  pickedId.value = id
-  settings.lastGame[props.category] = id
-  playSound('tap')
+function show(k: number) {
+  const next = ((k % n.value) + n.value) % n.value
+  if (next === index.value) return
+  index.value = next
+  settings.lastGame[props.category] = games.value[next].id
+  playSound('card')
 }
 function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
   if (name === 'play') playSound(props.category === 'cards' ? 'deal' : 'stone')
   go({ name, gameId: game.value.id })
 }
+
+/** 每張卡片在疊裡的位置：0 = 最前面，1、2… 往右後方疊 */
+const depth = (k: number) => (k - index.value + n.value) % n.value
+
+// ── 拖曳最前面那張 ──
+const dragX = ref(0)
+const dragging = ref(false)
+let x0 = 0
+let pid = -1
+let moved = false
+function onDown(k: number, e: PointerEvent) {
+  if (depth(k) !== 0 || (e.button !== undefined && e.button > 0)) return
+  pid = e.pointerId
+  x0 = e.clientX
+  moved = false
+  dragging.value = true
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+}
+function onMove(e: PointerEvent) {
+  if (!dragging.value || e.pointerId !== pid) return
+  dragX.value = e.clientX - x0
+  if (Math.abs(dragX.value) > 6) moved = true
+}
+function onUp(e: PointerEvent) {
+  if (!dragging.value || e.pointerId !== pid) return
+  dragging.value = false
+  const dx = dragX.value
+  dragX.value = 0
+  if (dx < -50) show(index.value + 1)
+  else if (dx > 50) show(index.value - 1)
+}
+function onClick(k: number) {
+  if (moved) return
+  if (depth(k) !== 0) show(k)
+}
+function cardStyle(k: number) {
+  const d = depth(k)
+  const front = d === 0
+  const x = dragX.value
+  const style: Record<string, string | number> = {
+    '--i': 1 + k,
+    zIndex: 10 - d,
+    transform: front
+      ? `translateX(${x}px) rotate(${x * 0.04}deg)`
+      : `translateX(${d * 3.3}rem) scale(${1 - d * 0.08}) rotate(${d * 2.5}deg)`,
+  }
+  if (front && dragging.value) style.transition = 'none'
+  return style
+}
+
+function onKey(e: KeyboardEvent) {
+  if (e.key === 'ArrowRight') show(index.value + 1)
+  else if (e.key === 'ArrowLeft') show(index.value - 1)
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
@@ -42,30 +101,44 @@ function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
     <div class="rule wipe" style="--i: 1" />
 
     <div class="body">
-      <div class="cards" role="radiogroup">
-        <button
-          v-for="(g, i) in games"
-          :key="g.id"
-          class="card rise"
-          :class="{ on: g.id === game.id, peek: hoverId === g.id && g.id !== game.id }"
-          :style="{ '--i': 1 + i }"
-          role="radio"
-          :aria-checked="g.id === game.id"
-          @click="pick(g.id)"
-          @pointerenter="$event.pointerType === 'mouse' && (hoverId = g.id)"
-          @pointerleave="hoverId = null"
-        >
-          <span class="cover halftone"><component :is="g.cover" :active="g.id === game.id || hoverId === g.id" /></span>
-          <span class="info">
-            <span class="t-slab no">{{ pad(i + 1) }}</span>
-            <span class="nm t-black">{{ g.name }}</span>
-            <span class="sm">{{ g.summary }}</span>
-            <span class="tags">
-              <span v-for="t in g.tags" :key="t" class="tag">{{ t }}</span>
+      <div class="deck-wrap">
+        <div class="deck" role="listbox" :aria-activedescendant="`mode-${game.id}`">
+          <button
+            v-for="(g, k) in games"
+            :id="`mode-${g.id}`"
+            :key="g.id"
+            class="card"
+            :class="{ front: depth(k) === 0, peek: hoverId === g.id }"
+            :style="cardStyle(k)"
+            role="option"
+            :aria-selected="depth(k) === 0"
+            @pointerdown="onDown(k, $event)"
+            @pointermove="onMove"
+            @pointerup="onUp"
+            @pointercancel="onUp"
+            @click="onClick(k)"
+            @pointerenter="$event.pointerType === 'mouse' && (hoverId = g.id)"
+            @pointerleave="hoverId = null"
+          >
+            <span class="cover halftone"><component :is="g.cover" :active="depth(k) === 0 || hoverId === g.id" /></span>
+            <span class="info">
+              <span class="t-slab no">{{ pad(k + 1) }}</span>
+              <span class="nm t-black">{{ g.name }}</span>
+              <span class="sm">{{ g.summary }}</span>
+              <span class="tags">
+                <span v-for="t in g.tags" :key="t" class="tag">{{ t }}</span>
+              </span>
             </span>
+          </button>
+        </div>
+        <div class="pager">
+          <button class="arrow prev" :aria-label="S.common.back" @click="show(index - 1)"><Icon name="arrow" /></button>
+          <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
+          <span class="dots">
+            <button v-for="(g, k) in games" :key="g.id" class="dot" :class="{ on: k === index }" :aria-label="g.name" @click="show(k)" />
           </span>
-          <span class="check"><Icon name="check" /></span>
-        </button>
+          <button class="arrow" :aria-label="S.common.next" @click="show(index + 1)"><Icon name="arrow" /></button>
+        </div>
       </div>
 
       <aside class="panel">
@@ -126,51 +199,66 @@ function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
   gap: 1.8rem;
   padding-top: 1rem;
 }
-.cards {
+/* 左半邊：一疊卡片＋下面的翻頁列 */
+.deck-wrap {
   display: flex;
   min-width: 0;
-  flex: 1.25;
-  gap: 1.1rem;
-  padding: 0 0.3rem 0.3rem 0;
+  flex: 1.15;
+  flex-direction: column;
+  gap: 0.6rem;
 }
-/* 卡片：米白底、黑框、右下實心陰影。選起時浮起、陰影拉長，插圖底色染上分類色。 */
-.card {
+.deck {
   position: relative;
-  display: flex;
-  min-width: 0;
+  min-height: 0;
   flex: 1;
+  margin-right: 5rem;
+  animation: rise 520ms var(--ease-out) 80ms both;
+}
+/* 卡片：米白底、黑框、右下實心陰影。後面的卡片往右後方疊，最前面那張可以拖。 */
+.card {
+  position: absolute;
+  inset: 0;
+  display: flex;
   flex-direction: column;
   border: 0.14rem solid var(--color-ink);
   border-radius: 0.5rem;
   background: var(--color-card);
   padding: 0;
   text-align: left;
-  box-shadow: 0.22rem 0.22rem 0 var(--color-ink);
+  box-shadow: 0.25rem 0.25rem 0 var(--color-ink);
+  transform-origin: 0% 50%;
+  touch-action: pan-y;
+  user-select: none;
   transition:
-    transform 220ms var(--ease-out),
-    box-shadow 220ms var(--ease-out);
+    transform 420ms var(--ease-back),
+    box-shadow 220ms var(--ease-out),
+    filter 300ms ease;
 }
-.card.on {
-  transform: translate(-0.15rem, -0.2rem);
+.card:not(.front) {
+  filter: saturate(0.6) brightness(0.96);
+  cursor: pointer;
+}
+.card.front {
   box-shadow: 0.4rem 0.45rem 0 var(--color-ink);
+  cursor: grab;
 }
-.card:active {
-  transform: translate(0.12rem, 0.12rem);
-  box-shadow: 0.08rem 0.08rem 0 var(--color-ink);
+.card.front:active {
+  cursor: grabbing;
 }
 .cover {
   position: relative;
   display: block;
   min-height: 0;
   flex: 1;
-  padding: 0.7rem 0.5rem 0.4rem;
+  padding: 0.8rem 1rem 0.4rem;
   border-bottom: 0.14rem solid var(--color-ink);
   border-radius: 0.36rem 0.36rem 0 0;
   background-color: var(--color-paper-2);
   --dot: rgb(20 20 20 / 0.1);
   transition: background-color 260ms ease;
+  pointer-events: none;
 }
-.on .cover {
+.front .cover {
   background-color: var(--tone);
   --dot: rgb(251 248 241 / 0.18);
 }
@@ -179,18 +267,19 @@ function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
-  padding: 0.5rem 0.8rem 0.7rem;
+  padding: 0.5rem 0.9rem 0.7rem;
+  pointer-events: none;
 }
 .no {
   font-size: 0.85rem;
   color: var(--color-red);
 }
 .nm {
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   line-height: 1.2;
 }
 .sm {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   line-height: 1.45;
   color: var(--color-ink-2);
 }
@@ -206,30 +295,65 @@ function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
   font-size: 0.6rem;
   font-weight: 900;
 }
-.on .tag {
+.front .tag {
   background: var(--color-yellow);
 }
-.check {
-  position: absolute;
-  right: 0.6rem;
-  top: 0.6rem;
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-right: 5rem;
+}
+.arrow {
   display: grid;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 2rem;
+  height: 2rem;
   place-items: center;
   border: 0.13rem solid var(--color-ink);
   border-radius: 50%;
   background: var(--color-card);
-  color: transparent;
-  transition: transform 300ms var(--ease-back);
+  padding: 0;
+  box-shadow: 0.12rem 0.12rem 0 var(--color-ink);
+  transition: transform 110ms var(--ease-out);
 }
-.check svg {
-  width: 0.85rem;
+.arrow svg {
+  width: 0.9rem;
 }
-.on .check {
-  background: var(--color-yellow);
-  color: var(--color-ink);
-  transform: scale(1.1) rotate(-8deg);
+.arrow.prev svg {
+  rotate: 180deg;
+}
+.arrow:active {
+  transform: translate(0.12rem, 0.12rem);
+  box-shadow: none;
+}
+.count {
+  font-size: 0.95rem;
+}
+.count i {
+  font-style: normal;
+  color: var(--color-ink-3);
+}
+.dots {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border: 0.1rem solid var(--color-ink);
+  border-radius: 50%;
+  background: none;
+  padding: 0;
+  transition:
+    width 260ms var(--ease-out),
+    background-color 200ms ease;
+}
+.dot.on {
+  width: 1.4rem;
+  border-radius: 999px;
+  background: var(--color-ink);
 }
 .panel {
   display: flex;
@@ -305,18 +429,26 @@ function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
   letter-spacing: 0.1em;
 }
 @media (hover: hover) and (pointer: fine) {
-  .card.peek {
-    transform: translate(-0.08rem, -0.1rem);
-    box-shadow: 0.3rem 0.32rem 0 var(--color-ink);
+  /* 滑鼠移到後面的卡片上：那張往上探出來一點（預覽） */
+  .card.peek:not(.front) {
+    filter: none;
+    translate: 0 -0.6rem;
   }
-  .card.peek .cover {
-    background-color: color-mix(in srgb, var(--tone) 22%, var(--color-paper-2));
+  .card {
+    transition:
+      transform 420ms var(--ease-back),
+      translate 200ms var(--ease-out),
+      box-shadow 220ms var(--ease-out),
+      filter 300ms ease;
   }
   .link:hover .ar {
     transform: translateX(0.3rem);
   }
   .link:hover {
     color: var(--color-red);
+  }
+  .arrow:hover {
+    background: var(--color-yellow);
   }
 }
 </style>

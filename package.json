@@ -1,6 +1,6 @@
 {
   "name": "one-board-one-deck",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "private": true,
   "description": "One-Board-One-Deck - a clean collection of card and board games",
   "type": "module",

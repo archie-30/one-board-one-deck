@@ -6,7 +6,6 @@ import type { GameCategory } from '@/games/types'
 
 export type Route =
   | { name: 'title' }
-  | { name: 'choose' }
   | { name: 'category'; category: GameCategory }
   | { name: 'rules' | 'settings' | 'tutorial' | 'play'; gameId: string }
 
