@@ -23,7 +23,7 @@ const hoverId = ref<string | null>(null)
 const pad = (k: number) => String(k).padStart(2, '0')
 
 function show(k: number) {
-  const next = ((k % n.value) + n.value) % n.value
+  const next = Math.min(n.value - 1, Math.max(0, k))
   if (next === index.value) return
   index.value = next
   settings.lastGame[props.category] = games.value[next].id
@@ -34,22 +34,44 @@ function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
   go({ name, gameId: game.value.id })
 }
 
-/** 每張卡片在疊裡的位置：0 = 最前面，1、2… 往右後方疊 */
-const depth = (k: number) => (k - index.value + n.value) % n.value
-
-// ── 拖曳最前面那張 ──
+// ── 一疊卡片：最前面那張完整顯示，後面的往右側露出一條、越後面越小越淡；
+//    往左滑時前面那張整張滑出去，下一張放大補上。拖曳時跟著手指連續變化。 ──
+const deckEl = ref<HTMLElement>()
+const cardW = ref(220)
 const dragX = ref(0)
 const dragging = ref(false)
 let x0 = 0
 let pid = -1
 let moved = false
-function onDown(k: number, e: PointerEvent) {
-  if (depth(k) !== 0 || (e.button !== undefined && e.button > 0)) return
+let ro: ResizeObserver | undefined
+onMounted(() => {
+  const measure = () => {
+    const el = deckEl.value?.querySelector<HTMLElement>('.card')
+    if (el) cardW.value = el.offsetWidth
+  }
+  measure()
+  ro = new ResizeObserver(measure)
+  if (deckEl.value) ro.observe(deckEl.value)
+})
+onBeforeUnmount(() => ro?.disconnect())
+
+/** 目前「位置」：整數 = 停在某張；拖曳時是小數。頭尾拉不過去，會有一點阻力。 */
+const pos = computed(() => {
+  let p = index.value - dragX.value / (cardW.value * 0.9)
+  if (p < 0) p = p * 0.3
+  if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
+  return p
+})
+const rel = (k: number) => k - pos.value
+const PEEK = 26
+
+function onDown(e: PointerEvent) {
+  if (e.button !== undefined && e.button > 0) return
   pid = e.pointerId
   x0 = e.clientX
   moved = false
   dragging.value = true
-  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  deckEl.value?.setPointerCapture(e.pointerId)
 }
 function onMove(e: PointerEvent) {
   if (!dragging.value || e.pointerId !== pid) return
@@ -59,27 +81,40 @@ function onMove(e: PointerEvent) {
 function onUp(e: PointerEvent) {
   if (!dragging.value || e.pointerId !== pid) return
   dragging.value = false
-  const dx = dragX.value
+  const target = Math.round(pos.value + Math.sign(-dragX.value) * 0.25 * (Math.abs(dragX.value) > 30 ? 1 : 0))
   dragX.value = 0
-  if (dx < -50) show(index.value + 1)
-  else if (dx > 50) show(index.value - 1)
+  show(target)
 }
 function onClick(k: number) {
   if (moved) return
-  if (depth(k) !== 0) show(k)
+  if (k !== index.value) show(k)
 }
 function cardStyle(k: number) {
-  const d = depth(k)
-  const front = d === 0
-  const x = dragX.value
-  const style: Record<string, string | number> = {
-    '--i': 1 + k,
-    zIndex: 10 - d,
-    transform: front
-      ? `translateX(${x}px) rotate(${x * 0.04}deg)`
-      : `translateX(${d * 3.3}rem) scale(${1 - d * 0.08}) rotate(${d * 2.5}deg)`,
+  const r = rel(k)
+  let x: number
+  let sc: number
+  let op: number
+  let fade: number
+  if (r < 0) {
+    // 已經滑過去的：往左整張滑出，快出去時才淡掉
+    x = r * cardW.value * 1.15
+    sc = 1
+    op = Math.min(1, Math.max(0, (1 + r) * 2.5))
+    fade = 0
+  } else {
+    x = r * PEEK
+    sc = Math.max(0.6, 1 - r * 0.09)
+    op = r > 3 ? 0 : 1
+    // 後面的卡片不透明，只是蓋上一層紙色，看起來越後面越淡
+    fade = Math.min(0.75, r * 0.3)
   }
-  if (front && dragging.value) style.transition = 'none'
+  const style: Record<string, string | number> = {
+    zIndex: 100 - Math.round(r * 10),
+    opacity: op,
+    '--fade': fade,
+    transform: `translateX(${x}px) scale(${sc})`,
+  }
+  if (dragging.value) style.transition = 'none'
   return style
 }
 
@@ -102,25 +137,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
     <div class="body">
       <div class="deck-wrap">
-        <div class="deck" role="listbox" :aria-activedescendant="`mode-${game.id}`">
+        <div
+          ref="deckEl"
+          class="deck"
+          role="listbox"
+          :aria-activedescendant="`mode-${game.id}`"
+          @pointerdown="onDown"
+          @pointermove="onMove"
+          @pointerup="onUp"
+          @pointercancel="onUp"
+        >
           <button
             v-for="(g, k) in games"
             :id="`mode-${g.id}`"
             :key="g.id"
             class="card"
-            :class="{ front: depth(k) === 0, peek: hoverId === g.id }"
+            :class="{ front: k === index, past: k < index, peek: hoverId === g.id && k > index }"
             :style="cardStyle(k)"
             role="option"
-            :aria-selected="depth(k) === 0"
-            @pointerdown="onDown(k, $event)"
-            @pointermove="onMove"
-            @pointerup="onUp"
-            @pointercancel="onUp"
+            :aria-selected="k === index"
+            :tabindex="k === index ? 0 : -1"
             @click="onClick(k)"
             @pointerenter="$event.pointerType === 'mouse' && (hoverId = g.id)"
             @pointerleave="hoverId = null"
           >
-            <span class="cover halftone"><component :is="g.cover" :active="depth(k) === 0 || hoverId === g.id" /></span>
+            <span class="cover halftone"><component :is="g.cover" :active="k === index || hoverId === g.id" /></span>
             <span class="info">
               <span class="t-slab no">{{ pad(k + 1) }}</span>
               <span class="nm t-black">{{ g.name }}</span>
@@ -132,12 +173,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </button>
         </div>
         <div class="pager">
-          <button class="arrow prev" :aria-label="S.common.back" @click="show(index - 1)"><Icon name="arrow" /></button>
+          <button class="arrow prev" :disabled="index === 0" :aria-label="S.common.back" @click="show(index - 1)"><Icon name="arrow" /></button>
           <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
           <span class="dots">
             <button v-for="(g, k) in games" :key="g.id" class="dot" :class="{ on: k === index }" :aria-label="g.name" @click="show(k)" />
           </span>
-          <button class="arrow" :aria-label="S.common.next" @click="show(index + 1)"><Icon name="arrow" /></button>
+          <button class="arrow" :disabled="index === games.length - 1" :aria-label="S.common.next" @click="show(index + 1)"><Icon name="arrow" /></button>
         </div>
       </div>
 
@@ -203,22 +244,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .deck-wrap {
   display: flex;
   min-width: 0;
-  flex: 1.15;
+  flex: 0.85;
   flex-direction: column;
   gap: 0.6rem;
 }
 .deck {
   position: relative;
+  display: flex;
   min-height: 0;
   flex: 1;
-  margin-right: 5rem;
+  align-items: center;
+  touch-action: pan-y;
+  user-select: none;
   animation: rise 520ms var(--ease-out) 80ms both;
 }
-/* 卡片：米白底、黑框、右下實心陰影。後面的卡片往右後方疊，最前面那張可以拖。 */
+/* 直式卡片：米白底、黑框、右下實心陰影。位置由 cardStyle 算（往右後方疊、滑過的往左出去）。 */
 .card {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
   display: flex;
+  height: 100%;
+  aspect-ratio: 0.78;
   flex-direction: column;
   border: 0.14rem solid var(--color-ink);
   border-radius: 0.5rem;
@@ -226,23 +273,37 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding: 0;
   text-align: left;
   box-shadow: 0.25rem 0.25rem 0 var(--color-ink);
-  transform-origin: 0% 50%;
-  touch-action: pan-y;
-  user-select: none;
+  transform-origin: 100% 50%;
   transition:
-    transform 420ms var(--ease-back),
-    box-shadow 220ms var(--ease-out),
-    filter 300ms ease;
+    transform 460ms var(--ease-out),
+    opacity 360ms ease,
+    box-shadow 220ms var(--ease-out);
 }
 .card:not(.front) {
-  filter: saturate(0.6) brightness(0.96);
   cursor: pointer;
 }
 .card.front {
   box-shadow: 0.4rem 0.45rem 0 var(--color-ink);
   cursor: grab;
 }
-.card.front:active {
+.card.past {
+  pointer-events: none;
+}
+/* 越後面的卡片蓋上越濃的紙色 */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 0.36rem;
+  background: var(--color-paper);
+  opacity: var(--fade, 0);
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+.deck:active .card::after {
+  transition: none;
+}
+.deck:active .card.front {
   cursor: grabbing;
 }
 .cover {
@@ -258,7 +319,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   transition: background-color 260ms ease;
   pointer-events: none;
 }
-.front .cover {
+.cover {
   background-color: var(--tone);
   --dot: rgb(251 248 241 / 0.18);
 }
@@ -302,7 +363,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  margin-right: 5rem;
 }
 .arrow {
   display: grid;
@@ -322,7 +382,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .arrow.prev svg {
   rotate: 180deg;
 }
-.arrow:active {
+.arrow:disabled {
+  opacity: 0.3;
+}
+.arrow:active:not(:disabled) {
   transform: translate(0.12rem, 0.12rem);
   box-shadow: none;
 }
@@ -430,16 +493,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 @media (hover: hover) and (pointer: fine) {
   /* 滑鼠移到後面的卡片上：那張往上探出來一點（預覽） */
-  .card.peek:not(.front) {
-    filter: none;
-    translate: 0 -0.6rem;
+  .card.peek {
+    translate: 0.5rem 0;
   }
   .card {
     transition:
-      transform 420ms var(--ease-back),
+      transform 460ms var(--ease-out),
+      opacity 360ms ease,
       translate 200ms var(--ease-out),
-      box-shadow 220ms var(--ease-out),
-      filter 300ms ease;
+      box-shadow 220ms var(--ease-out);
   }
   .link:hover .ar {
     transform: translateX(0.3rem);
@@ -447,7 +509,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   .link:hover {
     color: var(--color-red);
   }
-  .arrow:hover {
+  .arrow:hover:not(:disabled) {
     background: var(--color-yellow);
   }
 }
