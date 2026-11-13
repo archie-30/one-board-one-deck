@@ -8,7 +8,7 @@ defineProps<{ step: number; total: number; text: string; ok?: string; solved?: b
 
 <template>
   <div :key="step" class="note rise">
-    <div class="band halftone">
+    <div class="band">
       <span class="t-label">{{ S.tutorial.title }}</span>
       <span class="t-slab n">{{ String(step + 1).padStart(2, '0') }}<small>/{{ String(total).padStart(2, '0') }}</small></span>
     </div>
@@ -20,29 +20,28 @@ defineProps<{ step: number; total: number; text: string; ok?: string; solved?: b
 
 <style scoped>
 .note {
-  border: 0.14rem solid var(--color-ink);
+  border-radius: var(--radius);
   background: var(--color-card);
-  box-shadow: 0.3rem 0.3rem 0 var(--color-ink);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
 }
 .band {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.15rem 0.8rem;
-  border-bottom: 0.14rem solid var(--color-ink);
-  background-color: var(--color-yellow);
-  --dot: rgb(20 20 20 / 0.14);
+  padding: 0.55rem 0.95rem 0;
 }
 .n {
-  font-size: 1rem;
+  font-size: 0.85rem;
+  color: var(--color-red);
 }
 .n small {
   font-size: 0.65rem;
-  opacity: 0.6;
+  color: var(--color-ink-3);
 }
 .text {
-  padding: 0.6rem 0.9rem 0;
-  font-size: 0.98rem;
+  padding: 0.3rem 0.95rem 0;
+  font-size: 0.95rem;
   line-height: 1.65;
   text-wrap: pretty;
 }
@@ -50,14 +49,14 @@ defineProps<{ step: number; total: number; text: string; ok?: string; solved?: b
 .miss {
   display: flex;
   gap: 0.45rem;
-  margin: 0.5rem 0.9rem 0;
-  font-size: 0.9rem;
+  margin: 0.5rem 0.95rem 0;
+  font-size: 0.88rem;
   line-height: 1.55;
 }
 .text:last-child,
 .ok,
 .miss {
-  padding-bottom: 0.75rem;
+  padding-bottom: 0.85rem;
 }
 .tick {
   display: grid;
@@ -65,11 +64,12 @@ defineProps<{ step: number; total: number; text: string; ok?: string; solved?: b
   width: 1.3rem;
   height: 1.3rem;
   place-items: center;
+  border-radius: 50%;
   background: var(--color-ink);
-  color: var(--color-card);
+  color: #fff;
 }
 .tick svg {
-  width: 0.85rem;
+  width: 0.8rem;
 }
 .miss {
   color: var(--color-red);

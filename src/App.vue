@@ -7,7 +7,6 @@ import { getGame } from '@/games/registry'
 import CategoryScreen from '@/screens/CategoryScreen.vue'
 import ChooseScreen from '@/screens/ChooseScreen.vue'
 import GameSettingsScreen from '@/screens/GameSettingsScreen.vue'
-import LobbyScreen from '@/screens/LobbyScreen.vue'
 import RulesScreen from '@/screens/RulesScreen.vue'
 import TitleScreen from '@/screens/TitleScreen.vue'
 
@@ -23,7 +22,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
       <TitleScreen v-if="route.name === 'title'" :key="routeKey" />
       <ChooseScreen v-else-if="route.name === 'choose'" :key="routeKey" />
       <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" />
-      <LobbyScreen v-else-if="route.name === 'lobby'" :key="routeKey" :game-id="route.gameId" />
       <RulesScreen v-else-if="route.name === 'rules'" :key="routeKey" :game-id="route.gameId" />
       <GameSettingsScreen v-else-if="route.name === 'settings'" :key="routeKey" :game-id="route.gameId" />
       <component

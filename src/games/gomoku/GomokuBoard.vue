@@ -55,9 +55,9 @@ function onClick(event: MouseEvent) {
 
 <template>
   <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick">
-    <rect x="2.2" y="2.6" :width="total - 1" :height="total - 1" fill="var(--color-ink)" />
-    <rect x="0.5" y="0.5" :width="total - 1.6" :height="total - 1.6" fill="var(--color-yellow)" stroke="var(--color-ink)" stroke-width="0.9" />
-    <g stroke="var(--color-ink)" stroke-width="0.32">
+    <rect x="0.5" y="1.6" :width="total - 1" :height="total - 1" rx="2" fill="rgb(23 23 26 / .12)" />
+    <rect x="0.5" y="0.5" :width="total - 1" :height="total - 1" rx="2" fill="var(--color-board)" />
+    <g stroke="rgb(23 23 26 / .55)" stroke-width="0.3">
       <line v-for="i in size" :key="`h${i}`" :x1="PAD" :x2="total - PAD" :y1="PAD + (i - 1) * CELL" :y2="PAD + (i - 1) * CELL" />
       <line v-for="i in size" :key="`v${i}`" :y1="PAD" :y2="total - PAD" :x1="PAD + (i - 1) * CELL" :x2="PAD + (i - 1) * CELL" />
     </g>

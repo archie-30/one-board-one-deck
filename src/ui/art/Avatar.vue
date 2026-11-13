@@ -1,11 +1,10 @@
 <script setup lang="ts">
 // 對手頭像：一個幾何形狀，兩點眼睛。表情靠眼睛與小動作表達：
 //   think 眼睛左右看、happy 彈跳＋笑眼、sad 往下沉＋垂眼、smug 半瞇、shock 圓眼＋抖一下
-import { computed, useId } from 'vue'
+import { computed } from 'vue'
 import type { Look, Mood } from './look'
 
 const props = withDefaults(defineProps<{ look: Look; mood?: Mood; flip?: boolean }>(), { mood: 'idle' })
-const id = useId()
 
 const TONE: Record<Look['tone'], string> = {
   red: 'var(--color-red)',
@@ -15,8 +14,7 @@ const TONE: Record<Look['tone'], string> = {
   card: 'var(--color-card)',
 }
 const fill = computed(() => TONE[props.look.tone])
-const light = computed(() => props.look.tone === 'ink' || props.look.tone === 'blue' || props.look.tone === 'red')
-const eye = computed(() => (light.value ? 'var(--color-card)' : 'var(--color-ink)'))
+const eye = computed(() => (props.look.tone === 'ink' || props.look.tone === 'blue' || props.look.tone === 'red' ? '#fff' : 'var(--color-ink)'))
 
 const SHAPES: Record<Look['shape'], string> = {
   circle: 'M30 4a26 26 0 1 1 0 52a26 26 0 1 1 0-52z',
@@ -33,14 +31,9 @@ const ey = computed(() => EYE_Y[props.look.shape])
 
 <template>
   <svg class="avatar" :class="[`m-${mood}`, { flip }]" viewBox="-2 -2 66 66" aria-hidden="true">
-    <defs>
-      <pattern :id="`dt${id}`" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="1.1" :fill="light ? 'rgb(251 248 241 / .4)' : 'rgb(20 20 20 / .25)'" /></pattern>
-      <pattern :id="`st${id}`" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="6" :fill="light ? 'rgb(251 248 241 / .3)' : 'rgb(20 20 20 / .2)'" /></pattern>
-    </defs>
     <g class="body">
-      <path :d="SHAPES[look.shape]" fill="var(--color-ink)" transform="translate(3 3)" />
-      <path :d="SHAPES[look.shape]" :fill="fill" stroke="var(--color-ink)" stroke-width="2.4" stroke-linejoin="round" />
-      <path v-if="look.fill !== 'solid'" :d="SHAPES[look.shape]" :fill="`url(#${look.fill === 'dots' ? 'dt' : 'st'}${id})`" />
+      <path :d="SHAPES[look.shape]" fill="rgb(23 23 26 / .1)" transform="translate(0 2.5)" />
+      <path :d="SHAPES[look.shape]" :fill="fill" :stroke="look.tone === 'card' ? 'rgb(23 23 26 / .15)' : 'none'" stroke-width="1.2" stroke-linejoin="round" />
       <g class="eyes" :fill="eye" :stroke="eye" stroke-width="2.4" stroke-linecap="round">
         <template v-if="mood === 'happy'">
           <path :d="`M20 ${ey + 2}q3-5 6 0M34 ${ey + 2}q3-5 6 0`" fill="none" />

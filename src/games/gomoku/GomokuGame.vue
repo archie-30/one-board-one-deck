@@ -321,14 +321,19 @@ function confirmMove() {
 }
 .hl {
   position: absolute;
-  inset: 0.2rem -0.1rem 0.05rem;
-  z-index: -1;
-  background: var(--color-yellow);
+  inset: auto 0.25rem -0.12rem;
+  height: 0.16rem;
+  border-radius: 999px;
+  background: var(--color-red);
+  opacity: 0;
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 300ms var(--ease-out);
+  transition:
+    transform 300ms var(--ease-out),
+    opacity 150ms ease;
 }
 .hl.on {
+  opacity: 1;
   transform: none;
 }
 .tg {

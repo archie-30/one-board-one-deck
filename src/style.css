@@ -1,24 +1,32 @@
 @import 'tailwindcss';
 
 /*
-  視覺方向：現代平面設計（瑞士風格的大字、色塊、細格線）＋一點復古桌遊盒
-  （實心偏移陰影、網點、鋸齒徽章、印刷顆粒、粗襯線數字）。
-  顏色只有四個：墨黑、朱紅、鈷藍、亮黃，加上米白紙底。
+  視覺方向：簡約、現代。
+  - 淺暖灰底、白色卡片、圓角、柔和陰影；不用網點、顆粒、硬邊偏移陰影。
+  - 顏色：墨黑（文字）、朱紅（唯一的主要強調色：開始遊戲、紅牌、選取）、
+    鈷藍（棋盤分類、牌背）、亮黃（只用在「可以吃／輪到誰」的提示）。
+  - 字體只用 Noto Sans TC 兩種粗細；數字用等寬數字。
 */
 @theme {
-  --color-paper: #efe9dc;
-  --color-paper-2: #e6dfcf;
-  --color-card: #fbf8f1;
-  --color-ink: #141414;
-  --color-ink-2: #5c5850;
-  --color-ink-3: #9a958a;
-  --color-line: rgb(20 20 20 / 0.1);
-  --color-red: #ff4a1c;
-  --color-blue: #2340d9;
-  --color-yellow: #ffc21a;
+  --color-paper: #f4f2ee;
+  --color-paper-2: #e9e6e0;
+  --color-card: #ffffff;
+  --color-ink: #17171a;
+  --color-ink-2: #6b6a70;
+  --color-ink-3: #a9a7ad;
+  --color-line: rgb(23 23 26 / 0.08);
+  --color-red: #f04a2a;
+  --color-blue: #2f4fd8;
+  --color-yellow: #ffcb2f;
+  --color-board: #ecc983;
+  --color-felt: #e8e5df;
 
   --font-sans: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
-  --font-slab: 'Alfa Slab One', 'Noto Sans TC', serif;
+
+  --radius: 1rem;
+  --radius-sm: 0.65rem;
+  --shadow-1: 0 1px 2px rgb(23 23 26 / 0.06), 0 4px 14px rgb(23 23 26 / 0.07);
+  --shadow-2: 0 2px 4px rgb(23 23 26 / 0.06), 0 14px 34px rgb(23 23 26 / 0.12);
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
@@ -41,9 +49,6 @@ body,
 
 body {
   background-color: var(--color-paper);
-  /* 細直線格：瑞士海報的欄線 */
-  background-image: linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
-  background-size: calc(100vw / 12) 100%;
   color: var(--color-ink);
   font-family: var(--font-sans);
   font-weight: 500;
@@ -57,18 +62,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 印刷顆粒：很淡，只為了讓色塊不像螢幕上的純色 */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 2000;
-  pointer-events: none;
-  opacity: 0.35;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .4 0 0 0 0 .3 0 0 0 .4 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
 button {
   font: inherit;
   color: inherit;
@@ -76,7 +69,7 @@ button {
 }
 
 :focus-visible {
-  outline: 0.15rem solid var(--color-blue);
+  outline: 0.15rem solid var(--color-red);
   outline-offset: 0.2rem;
 }
 
@@ -90,22 +83,17 @@ button {
   letter-spacing: -0.02em;
 }
 .t-slab {
-  font-family: var(--font-slab);
-  font-weight: 400;
-  letter-spacing: 0;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 /* 小型標籤：字距拉開、粗體，像海報上的分類標 */
 .t-label {
   font-size: 0.62rem;
   font-weight: 900;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.14em;
   line-height: 1.4;
-}
-
-/* 網點 */
-.halftone {
-  background-image: radial-gradient(var(--dot, rgb(20 20 20 / 0.18)) 30%, transparent 32%);
-  background-size: 0.5rem 0.5rem;
+  color: var(--color-ink-2);
 }
 
 .scroll-y {
@@ -158,11 +146,11 @@ button {
   animation-delay: calc(var(--i, 0) * 80ms);
 }
 
-/* 彈出（徽章、印章） */
+/* 彈出（徽章、小標籤） */
 @keyframes pop {
   from {
     opacity: 0;
-    transform: scale(0.6) rotate(-12deg);
+    transform: scale(0.7);
   }
 }
 .pop {

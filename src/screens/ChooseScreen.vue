@@ -1,39 +1,27 @@
 <script setup lang="ts">
-// 選擇畫面：左邊一欄標題，中間「撲克牌」、右邊「棋盤」兩塊大面板。
-// 點一下：那塊面板從點的位置染上顏色、圖動起來；再點一下：面板直接放大變成大廳（共用元素變形）。
+// 選擇畫面：兩張大卡片「撲克牌／棋盤」。點一下選起（卡片浮起、插圖動起來），再點一下進入模式選單。
 import { ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
-import { gamesIn } from '@/games/registry'
-import BoardMini from '@/games/gomoku/BoardMini.vue'
+import BigTwoCover from '@/games/covers/BigTwoCover.vue'
+import GoCover from '@/games/covers/GoCover.vue'
 import type { GameCategory } from '@/games/types'
-import Card from '@/ui/art/Card.vue'
 import Icon from '@/ui/art/Icon.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import AppSettings from './AppSettings.vue'
 
 const picked = ref<GameCategory | null>(null)
-const origin = ref({ x: '50%', y: '50%' })
 const settingsOpen = ref(false)
-const fan = [
-  { rank: 'A', suit: 2 },
-  { rank: '2', suit: 3 },
-  { rank: 'K', suit: 1 },
-]
 
-function tap(side: GameCategory, event: MouseEvent) {
+function tap(side: GameCategory) {
   if (picked.value !== side) {
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-    origin.value = { x: `${event.clientX - rect.left}px`, y: `${event.clientY - rect.top}px` }
     picked.value = side
     playSound(side === 'cards' ? 'card' : 'stone')
     return
   }
   playSound('tap')
-  const games = gamesIn(side)
-  if (games.length === 1) go({ name: 'lobby', gameId: games[0].id })
-  else go({ name: 'category', category: side })
+  go({ name: 'category', category: side })
 }
 </script>
 
@@ -48,28 +36,26 @@ function tap(side: GameCategory, event: MouseEvent) {
       <p class="lead rise" style="--i: 3">{{ S.choose.lead }}</p>
     </aside>
 
-    <button
-      v-for="side in ['cards', 'board'] as const"
-      :key="side"
-      class="panel rise"
-      :class="[side, { on: picked === side, off: picked && picked !== side }]"
-      :style="{ '--i': side === 'cards' ? 1 : 2, '--ox': origin.x, '--oy': origin.y, viewTransitionName: picked === side ? 'hero' : 'none' }"
-      @click="tap(side, $event)"
-    >
-      <span class="flood halftone" />
-      <span class="t-label tag">{{ side === 'cards' ? S.choose.cardsTag : S.choose.boardTag }}</span>
-      <span class="art">
-        <svg v-if="side === 'cards'" viewBox="0 0 200 150" class="fan" aria-hidden="true">
-          <g v-for="(c, i) in fan" :key="i" class="fc" :style="{ '--a': `${(i - 1) * 16}deg`, '--i': i }">
-            <Card :rank="c.rank" :suit="c.suit" transform="translate(64 22)" />
-          </g>
-        </svg>
-        <BoardMini v-else :busy="picked === 'board'" />
-      </span>
-      <span class="name t-black">{{ side === 'cards' ? S.choose.cards : S.choose.board }}</span>
-      <span class="sub">{{ side === 'cards' ? S.choose.cardsLead : S.choose.boardLead }}</span>
-      <span class="go"><span>{{ S.choose.again }}</span><Icon name="arrow" class="ar" /></span>
-    </button>
+    <div class="cards">
+      <button
+        v-for="(side, i) in ['cards', 'board'] as const"
+        :key="side"
+        class="card rise"
+        :class="[`c-${side}`, { on: picked === side, off: picked && picked !== side }]"
+        :style="{ '--i': 1 + i }"
+        @click="tap(side)"
+      >
+        <span class="cover">
+          <BigTwoCover v-if="side === 'cards'" :active="picked === side" />
+          <GoCover v-else :active="picked === side" />
+        </span>
+        <span class="info">
+          <span class="nm t-black">{{ side === 'cards' ? S.choose.cards : S.choose.board }}</span>
+          <span class="sm">{{ side === 'cards' ? S.choose.cardsLead : S.choose.boardLead }}</span>
+          <span class="go"><span>{{ S.choose.again }}</span><Icon name="arrow" class="ar" /></span>
+        </span>
+      </button>
+    </div>
 
     <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
   </section>
@@ -79,136 +65,119 @@ function tap(side: GameCategory, event: MouseEvent) {
 .choose {
   display: flex;
   height: 100%;
+  gap: 1.6rem;
+  padding: 0.8rem max(1.6rem, env(safe-area-inset-right)) 1.2rem max(1.4rem, env(safe-area-inset-left));
 }
 .intro {
   display: flex;
-  width: 28%;
+  width: 26%;
   flex-shrink: 0;
   flex-direction: column;
-  padding: 1rem 1.2rem 1.2rem max(1.6rem, env(safe-area-inset-left));
 }
 .big {
   margin-top: auto;
-  font-size: 2.9rem;
-  line-height: 1;
-  letter-spacing: -0.05em;
+  font-size: 2.8rem;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
   white-space: nowrap;
 }
 .lead {
-  margin-top: 0.6rem;
-  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
   color: var(--color-ink-2);
 }
-.panel {
-  position: relative;
+.cards {
   display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 1.1rem;
+  padding-top: 0.6rem;
+}
+.card {
+  display: flex;
+  min-width: 0;
   flex: 1;
   flex-direction: column;
-  align-items: flex-start;
   border: 0;
-  border-left: 0.14rem solid var(--color-ink);
-  background: transparent;
-  padding: 1.1rem 1.4rem 1.2rem;
+  border-radius: 1.3rem;
+  background: var(--color-card);
+  padding: 0;
   text-align: left;
-  overflow: hidden;
-  transition: flex-grow 520ms var(--ease-out);
+  box-shadow: var(--shadow-1);
+  outline: 0.15rem solid transparent;
+  transition:
+    transform 300ms var(--ease-out),
+    box-shadow 300ms var(--ease-out),
+    outline-color 200ms ease,
+    opacity 240ms ease;
 }
-.panel.on {
-  flex-grow: 1.35;
+.c-cards {
+  --tint: #fdece7;
+  --accent: var(--color-red);
 }
-.cards {
-  --tone: var(--color-red);
+.c-board {
+  --tint: #e9edfb;
+  --accent: var(--color-blue);
 }
-.board {
-  --tone: var(--color-blue);
+.card.on {
+  transform: translateY(-0.35rem);
+  box-shadow: var(--shadow-2);
+  outline-color: var(--accent);
 }
-/* 從點的位置染開的顏色 */
-.flood {
-  position: absolute;
-  inset: 0;
-  background-color: var(--tone);
-  --dot: rgb(251 248 241 / 0.16);
-  clip-path: circle(0% at var(--ox) var(--oy));
-  transition: clip-path 620ms var(--ease-in-out);
+.card.off {
+  opacity: 0.55;
 }
-.on .flood {
-  clip-path: circle(150% at var(--ox) var(--oy));
+.card:active {
+  transform: scale(0.985);
 }
-.tag,
-.name,
-.sub,
-.go,
-.art {
-  position: relative;
-  transition: color 300ms ease 120ms;
-}
-.on .tag,
-.on .name,
-.on .sub,
-.on .go {
-  color: var(--color-card);
-}
-.art {
+.cover {
   display: block;
-  width: 100%;
-  flex: 1;
   min-height: 0;
-  margin: 0.4rem 0;
+  flex: 1;
+  margin: 0.5rem 0.5rem 0;
+  padding: 1rem 0.6rem;
+  border-radius: 1rem;
+  background: var(--tint);
 }
-.fan {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
+.info {
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem 1.1rem 0.9rem;
 }
-.fc {
-  transform-box: view-box;
-  transform-origin: 100px 140px;
-  transform: rotate(calc(var(--a) * var(--spread, 0.8)));
-  transition: transform 520ms var(--ease-back);
-  transition-delay: calc(var(--i) * 40ms);
+.nm {
+  font-size: 1.9rem;
+  line-height: 1.2;
 }
-.on .fc {
-  --spread: 1.6;
-}
-.name {
-  font-size: 2.6rem;
-  line-height: 1;
-}
-.off .name,
-.off .art {
-  opacity: 0.35;
-}
-.sub {
-  margin-top: 0.3rem;
-  font-size: 0.85rem;
+.sm {
+  font-size: 0.8rem;
   color: var(--color-ink-2);
 }
 .go {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  height: 1.4rem;
-  margin-top: 0.4rem;
-  font-size: 0.85rem;
+  gap: 0.35rem;
+  height: 1.3rem;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
   font-weight: 900;
+  color: var(--accent);
   opacity: 0;
-  transform: translateY(0.4rem);
+  transform: translateY(0.3rem);
   transition:
     opacity 200ms ease,
-    transform 320ms var(--ease-out);
+    transform 300ms var(--ease-out);
 }
 .on .go {
   opacity: 1;
   transform: none;
-  transition-delay: 260ms;
 }
 .ar {
-  width: 1rem;
+  width: 0.95rem;
   animation: nudge 1.2s ease-in-out infinite;
 }
 @keyframes nudge {
   50% {
-    transform: translateX(0.35rem);
+    transform: translateX(0.3rem);
   }
 }
 </style>

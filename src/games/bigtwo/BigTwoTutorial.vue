@@ -48,7 +48,10 @@ function sync(fly: Card[] = [], instant = false) {
     const p = poses.get(c)
     if (!p) continue
     const k = fly.indexOf(c)
-    if (k >= 0) stage.move(c, p, { delay: k * 85, dur: 420, arc: layout.value.cw * 0.9, flightZ: 600 + k, land: true, instant })
+    if (k >= 0) {
+      const v = Math.random()
+      stage.move(c, p, { delay: k * 120 + v * 50, dur: 420 * (0.88 + v * 0.3), arc: layout.value.cw * (0.6 + Math.random() * 0.6), flightZ: 600 + k, land: true, instant })
+    }
     else stage.move(c, p, { dur: 240, instant })
   }
 }
@@ -239,9 +242,9 @@ function next() {
   left: 8%;
   right: 4%;
   bottom: -10%;
-  height: 6%;
-  background: var(--color-yellow);
-  border: 0.1rem solid var(--color-ink);
+  height: 4%;
+  border-radius: 999px;
+  background: var(--color-red);
 }
 .me {
   position: absolute;

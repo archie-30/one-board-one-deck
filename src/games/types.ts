@@ -25,10 +25,10 @@ export interface GameDef {
   name: string
   summary: string
   players: string
-  /** 大廳左半邊的活動場景 */
-  scene: Component
-  /** 大廳「規則說明」按鈕下的小字 */
-  rulesSub: string
+  /** 選單卡片上的插圖（active = 卡片被選起時） */
+  cover: Component
+  /** 卡片上的小標籤，例如人數、一局多久 */
+  tags: string[]
   /** 大廳顯示的戰績一行字（沒有就不顯示） */
   record?: () => string
   /** 文字版規則說明 */

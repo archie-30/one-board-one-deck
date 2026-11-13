@@ -8,7 +8,7 @@ export type Route =
   | { name: 'title' }
   | { name: 'choose' }
   | { name: 'category'; category: GameCategory }
-  | { name: 'lobby' | 'rules' | 'settings' | 'tutorial' | 'play'; gameId: string }
+  | { name: 'rules' | 'settings' | 'tutorial' | 'play'; gameId: string }
 
 const stack = reactive<Route[]>([{ name: 'title' }])
 
