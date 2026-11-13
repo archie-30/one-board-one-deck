@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 棋盤：平面黃色棋盤、黑色格線、實心陰影；棋子、預覽、最後一手、勝利連線、落點擴散圈。
 // 只負責畫與回報點了哪一格。座標系：每格 10，邊距 7。
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Stone as StoneValue } from '@/engine/gomoku/rules'
 import Stone from '@/ui/art/Stone.vue'
 
@@ -43,21 +43,35 @@ const win = computed(() => {
   return { x1: px(a) - dx, y1: py(a) - dy, x2: px(b) + dx, y2: py(b) + dy, len: Math.hypot(px(b) - px(a), py(b) - py(a)) + 12 }
 })
 
-function onClick(event: MouseEvent) {
-  if (!props.interactive) return
+function pointAt(event: MouseEvent): number {
   const rect = (event.currentTarget as SVGElement).getBoundingClientRect()
   const x = Math.round((((event.clientX - rect.left) / rect.width) * total.value - PAD) / CELL)
   const y = Math.round((((event.clientY - rect.top) / rect.height) * total.value - PAD) / CELL)
-  if (x < 0 || y < 0 || x >= props.size || y >= props.size) return
-  emit('pick', y * props.size + x)
+  if (x < 0 || y < 0 || x >= props.size || y >= props.size) return -1
+  return y * props.size + x
 }
+function onClick(event: MouseEvent) {
+  if (!props.interactive) return
+  const i = pointAt(event)
+  if (i >= 0) emit('pick', i)
+}
+
+// 滑鼠移上去：在游標下的空點先顯示一顆半透明的棋子（預覽），只對滑鼠有效
+const hoverAt = ref(-1)
+function onMove(event: PointerEvent) {
+  hoverAt.value = event.pointerType === 'mouse' && props.interactive ? pointAt(event) : -1
+}
+const ghost = computed(() => {
+  const i = hoverAt.value
+  return props.interactive && i >= 0 && i !== props.preview && props.board[i] === 0 ? i : -1
+})
 </script>
 
 <template>
-  <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick">
-    <rect x="0.5" y="1.6" :width="total - 1" :height="total - 1" rx="2" fill="rgb(23 23 26 / .12)" />
-    <rect x="0.5" y="0.5" :width="total - 1" :height="total - 1" rx="2" fill="var(--color-board)" />
-    <g stroke="rgb(23 23 26 / .55)" stroke-width="0.3">
+  <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick" @pointermove="onMove" @pointerleave="hoverAt = -1">
+    <rect x="2.2" y="2.6" :width="total - 1" :height="total - 1" fill="var(--color-ink)" />
+    <rect x="0.5" y="0.5" :width="total - 1.6" :height="total - 1.6" fill="var(--color-yellow)" stroke="var(--color-ink)" stroke-width="0.9" />
+    <g stroke="var(--color-ink)" stroke-width="0.32">
       <line v-for="i in size" :key="`h${i}`" :x1="PAD" :x2="total - PAD" :y1="PAD + (i - 1) * CELL" :y2="PAD + (i - 1) * CELL" />
       <line v-for="i in size" :key="`v${i}`" :y1="PAD" :y2="total - PAD" :x1="PAD + (i - 1) * CELL" :x2="PAD + (i - 1) * CELL" />
     </g>
@@ -71,6 +85,7 @@ function onClick(event: MouseEvent) {
     </g>
     <rect v-if="lastMove >= 0 && !win" :x="px(lastMove) - 1.1" :y="py(lastMove) - 1.1" width="2.2" height="2.2" fill="var(--color-red)" />
 
+    <circle v-if="ghost >= 0" :key="`g${ghost}`" :cx="px(ghost)" :cy="py(ghost)" :r="4.2" :fill="previewColor === 1 ? 'var(--color-ink)' : 'var(--color-card)'" stroke="var(--color-ink)" stroke-width="0.6" class="ghost" />
     <g v-if="preview >= 0" class="preview">
       <circle :cx="px(preview)" :cy="py(preview)" r="4.2" :fill="previewColor === 1 ? 'var(--color-ink)' : 'var(--color-card)'" stroke="var(--color-ink)" stroke-width="0.8" opacity=".45" />
       <circle :cx="px(preview)" :cy="py(preview)" r="5.6" class="aim" />
@@ -162,6 +177,19 @@ function onClick(event: MouseEvent) {
   }
   to {
     stroke-dashoffset: 0;
+  }
+}
+.ghost {
+  opacity: 0.28;
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ghost-in 160ms var(--ease-out) both;
+}
+@keyframes ghost-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
   }
 }
 </style>

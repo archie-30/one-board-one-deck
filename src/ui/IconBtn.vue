@@ -22,17 +22,20 @@ function onClick() {
   width: var(--s);
   height: var(--s);
   place-items: center;
-  border: 0;
+  border: 0.13rem solid var(--color-ink);
   border-radius: 50%;
   background: var(--color-card);
-  box-shadow: var(--shadow-1);
-  transition: transform 140ms var(--ease-out);
+  box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
+  transition:
+    transform 110ms var(--ease-out),
+    box-shadow 110ms var(--ease-out);
 }
 .icon-btn svg {
-  width: 44%;
-  height: 44%;
+  width: 48%;
+  height: 48%;
 }
 .icon-btn:active {
-  transform: scale(0.92);
+  transform: translate(0.15rem, 0.15rem);
+  box-shadow: 0 0 0 var(--color-ink);
 }
 </style>

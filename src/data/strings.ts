@@ -29,6 +29,7 @@ export const S = {
     line2: '一張棋盤。',
     label: 'ONE BOARD · ONE DECK',
     lead: '大老二、撿紅點、五子棋、圍棋。',
+    badge: '四款\n遊戲',
     tap: '點一下開始',
   },
   choose: {

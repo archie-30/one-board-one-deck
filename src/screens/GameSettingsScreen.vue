@@ -52,7 +52,7 @@ function set(key: string, value: string | boolean) {
   align-items: center;
   gap: 1.4rem;
   padding: 0.55rem 0;
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 0.08rem solid var(--color-ink);
 }
 .ctl {
   flex-shrink: 0;

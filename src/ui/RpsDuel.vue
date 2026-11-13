@@ -115,9 +115,9 @@ function finish() {
   width: 2.4rem;
   height: 2.4rem;
   padding: 0.35rem;
-  border-radius: 50%;
+  border: 0.13rem solid var(--color-ink);
   background: var(--color-yellow);
-  box-shadow: var(--shadow-1);
+  box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
 }
 .reveal :deep(svg) {
   width: 100%;
@@ -153,9 +153,9 @@ function finish() {
   flex-direction: column;
   align-items: center;
   width: 5.4rem;
-  border: 0;
-  border-radius: var(--radius);
-  background: var(--color-paper);
+  border: 0.13rem solid var(--color-ink);
+  background: var(--color-card);
+  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
   padding: 0.4rem 0 0.2rem;
   font-size: 0.95rem;
   line-height: 1.3;
@@ -171,7 +171,8 @@ function finish() {
   height: 100%;
 }
 .hand:active:not(:disabled) {
-  transform: scale(0.95);
+  transform: translate(0.2rem, 0.2rem);
+  box-shadow: none;
 }
 .hand:disabled {
   opacity: 0.4;

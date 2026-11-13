@@ -14,7 +14,7 @@ import { chooseRedPointAction } from '@/engine/redpoint/ai'
 import { applyRedPoint, cardPoints, dealRedPoint, matches, scoreRedPoint, targetsFor, winners, type RedPointAction, type RedPointState } from '@/engine/redpoint/rules'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
-import Badge from '@/ui/art/Badge.vue'
+import Burst from '@/ui/art/Burst.vue'
 import CardArt from '@/ui/art/Card.vue'
 import type { Mood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
@@ -287,6 +287,13 @@ async function newRound() {
 
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
+// 滑鼠移到自己的手牌上：桌上能跟它配的牌先淡淡亮起來（預覽），點下去才選起
+const hoverCard = ref<Card | null>(null)
+const peekHits = computed<Card[]>(() => {
+  const c = hoverCard.value
+  if (c === null || !myTurn.value || selected.value !== null || !state.value.hands[ME].includes(c)) return []
+  return targetsFor(state.value, c)
+})
 const hits = computed<Card[]>(() => {
   if (awaitFlip.value) return targetsFor(state.value, state.value.pile[0])
   return selected.value !== null ? targetsFor(state.value, selected.value) : []
@@ -366,9 +373,11 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         :key="c"
         :ref="(el) => stage.attach(c, el as HTMLElement | null)"
         class="sprite"
-        :class="{ mine: state.hands[ME].includes(c), sel: selected === c, hit: hits.includes(c), red: isRed(c) }"
+        :class="{ mine: state.hands[ME].includes(c), sel: selected === c, hit: hits.includes(c), peekhit: peekHits.includes(c), red: isRed(c) }"
         :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
         @click="tapCard(c)"
+        @pointerenter="$event.pointerType === 'mouse' && (hoverCard = c)"
+        @pointerleave="hoverCard === c && (hoverCard = null)"
       >
         <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="rankText(c)" :suit="suitOf(c)" /></svg>
         <svg class="back" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt back /></svg>
@@ -399,7 +408,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
             <td class="who-cell">
               <span class="mini"><Avatar :look="looks[p]" :mood="winners(state).includes(p) ? 'happy' : 'sad'" /></span>
               <span class="t-black">{{ names[p] }}</span>
-              <Badge v-if="winners(state).includes(p)" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ S.bigtwo.result.winnerStamp }}</Badge>
+              <Burst v-if="winners(state).includes(p)" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ S.bigtwo.result.winnerStamp }}</Burst>
             </td>
             <td class="reds">
               <svg v-for="c in sc.reds" :key="c" viewBox="-2 -2 78 108" class="tiny"><CardArt :rank="rankText(c)" :suit="suitOf(c)" :shadow="false" /></svg>
@@ -425,9 +434,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .table-box {
   position: absolute;
-  border-radius: 1.4rem;
-  background: var(--color-felt);
-  box-shadow: inset 0 1px 3px rgb(23 23 26 / 0.06);
+  border: 0.14rem solid var(--color-ink);
+  background-image: radial-gradient(rgb(20 20 20 / 0.1) 30%, transparent 32%);
+  background-size: 0.5rem 0.5rem;
   animation: rise 520ms var(--ease-out) both;
 }
 .lab {
@@ -475,18 +484,31 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   left: 8%;
   right: 4%;
   bottom: -10%;
-  height: 4%;
-  border-radius: 999px;
-  background: var(--color-red);
+  height: 6%;
+  background: var(--color-yellow);
+  border: 0.1rem solid var(--color-ink);
 }
 /* 可以吃的桌上牌：黃色粗框，輕輕上下跳 */
 .sprite.hit::before {
   content: '';
   position: absolute;
   inset: -6% -8%;
-  border-radius: 12%;
-  box-shadow: 0 0 0 0.2rem var(--color-yellow), 0 0 1.2rem rgb(255 203 47 / 0.7);
+  border: 0.2rem solid var(--color-ink);
+  border-radius: 10%;
+  background: var(--color-yellow);
+  z-index: -1;
+  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
   animation: hit 0.9s ease-in-out infinite;
+  pointer-events: none;
+}
+.sprite.peekhit::before {
+  content: '';
+  position: absolute;
+  inset: -6% -8%;
+  z-index: -1;
+  border: 0.16rem dashed var(--color-ink);
+  border-radius: 10%;
+  background: rgb(255 194 26 / 0.45);
   pointer-events: none;
 }
 @keyframes hit {
@@ -531,19 +553,14 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .hl {
   position: absolute;
-  inset: auto 0.2rem -0.15rem;
-  height: 0.16rem;
-  border-radius: 999px;
-  background: var(--color-red);
-  opacity: 0;
+  inset: 0.15rem -0.1rem 0.05rem;
+  z-index: -1;
+  background: var(--color-yellow);
   transform: scaleX(0);
   transform-origin: left;
-  transition:
-    transform 300ms var(--ease-out),
-    opacity 150ms ease;
+  transition: transform 300ms var(--ease-out);
 }
 .tag.active .hl {
-  opacity: 1;
   transform: none;
 }
 .pts {
@@ -573,6 +590,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   color: var(--color-ink-3);
   pointer-events: none;
 }
+.status::first-line {
+  background: var(--color-paper);
+}
 .status.mine {
   color: var(--color-ink);
 }
@@ -600,7 +620,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .score th {
   padding: 0 0.5rem 0.2rem;
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 0.14rem solid var(--color-ink);
   font-size: 0.6rem;
   font-weight: 900;
   letter-spacing: 0.15em;
@@ -612,7 +632,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .score td {
   padding: 0.12rem 0.5rem;
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 0.07rem solid var(--color-ink);
 }
 .who-cell {
   display: flex;
@@ -646,7 +666,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   color: var(--color-red);
 }
 .score .winner td {
-  background: rgb(240 74 42 / 0.08);
+  background: rgb(255 194 26 / 0.3);
 }
 .how {
   padding-top: 0.5rem;
@@ -657,5 +677,14 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 .how b {
   margin-right: 0.4rem;
   color: var(--color-ink);
+}
+/* 滑鼠移到自己的手牌上：那張牌先浮起一點（預覽要出哪張） */
+@media (hover: hover) and (pointer: fine) {
+  .sprite.mine {
+    transition: translate 160ms var(--ease-out);
+  }
+  .sprite.mine:hover {
+    translate: 0 -7%;
+  }
 }
 </style>

@@ -15,7 +15,7 @@ import type { BigTwoOptions } from '@/engine/bigtwo/options'
 import { seedRng } from '@/engine/common/rng'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
-import Badge from '@/ui/art/Badge.vue'
+import Burst from '@/ui/art/Burst.vue'
 import CardArt from '@/ui/art/Card.vue'
 import type { Mood as KidMood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
@@ -323,6 +323,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 桌面中央的框 -->
     <div class="table-box" :style="{ left: `${layout.pile.x - layout.cw * 3.1}px`, top: `${layout.pile.y - layout.cw * 1.25}px`, width: `${layout.cw * 6.2}px`, height: `${layout.cw * 2.5}px` }">
+      <span class="t-label lab">TABLE</span>
     </div>
 
     <!-- 座位上的人 -->
@@ -358,7 +359,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     </div>
 
     <div v-if="caption" :key="caption.id" class="combo" :style="{ left: `${layout.pile.x + layout.cw * 2.45}px`, top: `${layout.pile.y - layout.cw * 1.05}px` }">
-      <Badge class="pop" :tone="caption.bomb ? 'red' : 'yellow'" size="3.4rem">{{ caption.text }}</Badge>
+      <Burst class="pop" :tone="caption.bomb ? 'red' : 'yellow'" size="3.4rem">{{ caption.text }}</Burst>
       <span class="t-label by rise" style="--i: 2">{{ caption.who }}</span>
     </div>
 
@@ -395,7 +396,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
             <td class="who-cell">
               <span class="mini"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" /></span>
               <span class="t-black">{{ names[p] }}</span>
-              <Badge v-if="p === state.winner" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ T.result.winnerStamp }}</Badge>
+              <Burst v-if="p === state.winner" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ T.result.winnerStamp }}</Burst>
             </td>
             <td>{{ p === state.winner ? T.result.winner : s.twos ? T.result.leftWithTwos(s.cards, s.twos) : T.cardsLeft(s.cards) }}</td>
             <td>{{ p === state.winner ? '' : `×${s.multiplier}` }}</td>
@@ -425,9 +426,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .table-box {
   position: absolute;
-  border-radius: 1.4rem;
-  background: var(--color-felt);
-  box-shadow: inset 0 1px 3px rgb(23 23 26 / 0.06);
+  border: 0.14rem solid var(--color-ink);
+  background-image: radial-gradient(rgb(20 20 20 / 0.1) 30%, transparent 32%);
+  background-size: 0.5rem 0.5rem;
   animation: rise 520ms var(--ease-out) both;
 }
 .lab {
@@ -435,6 +436,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   left: 0.5rem;
   top: -0.55rem;
   padding: 0 0.4rem;
+  background: var(--color-paper);
 }
 .cards {
   position: absolute;
@@ -468,9 +470,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   left: 8%;
   right: 4%;
   bottom: -10%;
-  height: 4%;
-  border-radius: 999px;
-  background: var(--color-red);
+  height: 6%;
+  background: var(--color-yellow);
+  border: 0.1rem solid var(--color-ink);
 }
 .who {
   position: absolute;
@@ -510,19 +512,14 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 /* 輪到誰：名字底下刷上一塊黃色 */
 .hl {
   position: absolute;
-  inset: auto 0.2rem -0.15rem;
-  height: 0.16rem;
-  border-radius: 999px;
-  background: var(--color-red);
-  opacity: 0;
+  inset: 0.15rem -0.1rem 0.05rem;
+  z-index: -1;
+  background: var(--color-yellow);
   transform: scaleX(0);
   transform-origin: left;
-  transition:
-    transform 300ms var(--ease-out),
-    opacity 150ms ease;
+  transition: transform 300ms var(--ease-out);
 }
 .tag.active .hl {
-  opacity: 1;
   transform: none;
 }
 .tg {
@@ -537,12 +534,13 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   height: 2.3rem;
   margin: -1.15rem 0 0 -1.15rem;
   place-items: center;
+  border: 0.16rem solid var(--color-red);
   border-radius: 50%;
-  background: var(--color-ink);
-  color: #fff;
-  box-shadow: var(--shadow-1);
+  background: var(--color-card);
+  color: var(--color-red);
   font-size: 1.05rem;
   font-weight: 900;
+  rotate: -12deg;
   pointer-events: none;
 }
 .stamp.inline {
@@ -615,7 +613,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .score th {
   padding: 0 0.5rem 0.2rem;
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 0.14rem solid var(--color-ink);
   font-size: 0.6rem;
   font-weight: 900;
   letter-spacing: 0.15em;
@@ -624,7 +622,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .score td {
   padding: 0.06rem 0.5rem;
-  border-bottom: 1px solid var(--color-line);
+  border-bottom: 0.07rem solid var(--color-ink);
   text-align: center;
 }
 .score th:first-child,
@@ -653,7 +651,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   color: var(--color-red);
 }
 .score .winner td {
-  background: rgb(240 74 42 / 0.08);
+  background: rgb(255 194 26 / 0.3);
 }
 .how {
   padding-top: 0.5rem;
@@ -668,5 +666,14 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 .lifetime {
   padding-top: 0.2rem;
   font-size: 0.8rem;
+}
+/* 滑鼠移到自己的手牌上：那張牌先浮起一點（預覽要出哪張） */
+@media (hover: hover) and (pointer: fine) {
+  .sprite.mine {
+    transition: translate 160ms var(--ease-out);
+  }
+  .sprite.mine:hover {
+    translate: 0 -7%;
+  }
 }
 </style>
