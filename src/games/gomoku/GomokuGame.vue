@@ -10,14 +10,14 @@ import { seedRng } from '@/engine/common/rng'
 import { chooseGomokuMove } from '@/engine/gomoku/ai'
 import { canPlace, createGomoku, placeStone, toXY, type GomokuOptions, type GomokuState, type Player } from '@/engine/gomoku/rules'
 import type { GameDef } from '@/games/types'
-import ArtBowl from '@/ui/art/ArtBowl.vue'
-import ArtKid from '@/ui/art/ArtKid.vue'
-import ArtStone from '@/ui/art/ArtStone.vue'
-import type { KidMood } from '@/ui/art/kid'
+import Avatar from '@/ui/art/Avatar.vue'
+import Bowl from '@/ui/art/Bowl.vue'
+import type { Mood as KidMood } from '@/ui/art/look'
+import Stone from '@/ui/art/Stone.vue'
+import Btn from '@/ui/Btn.vue'
+import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
-import InkDialog from '@/ui/InkDialog.vue'
-import MenuButton from '@/ui/MenuButton.vue'
-import RoundButton from '@/ui/RoundButton.vue'
+import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
 import GomokuBoard from './GomokuBoard.vue'
 
@@ -193,15 +193,15 @@ function confirmMove() {
 
 <template>
   <section ref="sectionEl" class="gm">
-    <div class="corner"><RoundButton icon="gear" :label="S.common.menu" @click="menuOpen = true" /></div>
+    <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
-      <div class="who" :class="{ active: phase === 'playing' && state.turn === human }">
-        <ArtKid class="kid" :look="PLAYER_LOOK" :mood="moods[0]" :seed="7" />
-        <span :ref="(el) => (bowlEls[0] = el as HTMLElement | null)" class="bowl"><ArtBowl :black="human === 1" /></span>
+      <div class="who rise" :class="{ active: phase === 'playing' && state.turn === human }">
+        <span class="av"><Avatar :look="PLAYER_LOOK" :mood="moods[0]" /></span>
+        <span :ref="(el) => (bowlEls[0] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 1" /></span>
       </div>
-      <p class="font-display nm">{{ S.common.you }}</p>
-      <p v-if="phase !== 'rps'" class="tg">{{ human === 1 ? T.black : T.white }}</p>
+      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>
+      <p v-if="phase !== 'rps'" class="t-label tg">{{ human === 1 ? T.black : T.white }}</p>
     </aside>
 
     <div ref="boardEl" class="board-wrap">
@@ -209,35 +209,35 @@ function confirmMove() {
     </div>
 
     <aside class="side right">
-      <div class="who" :class="{ active: phase === 'playing' && state.turn !== human }">
-        <ArtKid class="kid" :look="opponent.look" :mood="moods[1]" :seed="opponent.id" flip />
-        <span :ref="(el) => (bowlEls[1] = el as HTMLElement | null)" class="bowl"><ArtBowl :black="human === 2" /></span>
+      <div class="who rise" style="--i: 1" :class="{ active: phase === 'playing' && state.turn !== human }">
+        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip /></span>
+        <span :ref="(el) => (bowlEls[1] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 2" /></span>
       </div>
-      <p class="font-display nm">{{ opponent.name }}</p>
-      <p class="tg">{{ opponent.tag }}<template v-if="phase !== 'rps'"> · {{ human === 2 ? T.black : T.white }}</template></p>
+      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn !== human }" />{{ opponent.name }}</p>
+      <p class="t-label tg">{{ opponent.tag }}<template v-if="phase !== 'rps'"> · {{ human === 2 ? T.black : T.white }}</template></p>
       <div class="status-box">
+        <p class="t-slab moves">{{ phase !== 'rps' ? String(state.moves.length).padStart(3, '0') : '' }}</p>
         <p class="status" :class="{ mine: myTurn && !message, warn: !!message }">{{ status }}</p>
-        <p v-if="phase !== 'rps'" class="moves font-display">{{ T.moveCount(state.moves.length) }}</p>
         <p class="hint">{{ myTurn && !message ? T.previewHint : '' }}</p>
       </div>
       <div class="act">
-        <MenuButton v-if="phase === 'over'" primary icon="again" size="md" :label="S.common.again" :chevron="false" :seed="71" @click="restart" />
-        <MenuButton v-else primary icon="stone" size="md" :label="T.place" :chevron="false" :disabled="!myTurn || preview < 0" :seed="73" @click="confirmMove" />
+        <Btn v-if="phase === 'over'" tone="ink" size="lg" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+        <Btn v-else tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
       </div>
     </aside>
 
-    <div ref="flier" class="flier"><svg viewBox="-12 -12 24 24"><ArtStone :cx="0" :cy="0" :r="10" :black="flierBlack" :seed="5" /></svg></div>
+    <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
     <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" @done="startAfterRps" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" />
-    <InkDialog :open="resultOpen" :title="resultTitle" @close="resultOpen = false">
-      <p class="text-center text-[1rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
-      <p class="font-display pt-[0.3rem] text-center text-[0.8rem] text-ink-soft tabular-nums">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
+    <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
+      <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
+      <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>
-        <div class="w-[10rem]"><MenuButton primary icon="again" size="sm" :label="S.common.again" :chevron="false" :seed="75" @click="restart" /></div>
-        <div class="w-[10rem]"><MenuButton icon="exit" size="sm" :label="S.common.quit" :chevron="false" :seed="77" @click="emit('exit')" /></div>
+        <Btn tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
+        <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
       </template>
-    </InkDialog>
+    </Dialog>
   </section>
 </template>
 
@@ -247,20 +247,20 @@ function confirmMove() {
   display: flex;
   height: 100%;
   align-items: stretch;
-  gap: 1.2rem;
-  padding: 0.6rem max(1.2rem, env(safe-area-inset-right)) 0.6rem max(1.2rem, env(safe-area-inset-left));
+  gap: 1.4rem;
+  padding: 0.7rem max(1.2rem, env(safe-area-inset-right)) 0.7rem max(1.2rem, env(safe-area-inset-left));
 }
 .corner {
   position: absolute;
-  left: max(0.8rem, env(safe-area-inset-left));
-  top: max(0.6rem, env(safe-area-inset-top));
+  left: max(0.9rem, env(safe-area-inset-left));
+  top: max(0.7rem, env(safe-area-inset-top));
   z-index: 5;
 }
 .board-wrap {
   height: 100%;
   aspect-ratio: 1;
   flex-shrink: 0;
-  animation: pop 360ms var(--ease-back) both;
+  animation: rise 520ms var(--ease-out) both;
 }
 .side {
   display: flex;
@@ -271,29 +271,28 @@ function confirmMove() {
 }
 .left {
   justify-content: flex-end;
-  padding-bottom: 1rem;
+  padding-bottom: 0.6rem;
 }
 .right {
-  justify-content: flex-start;
-  padding-top: 0.6rem;
+  padding-top: 0.4rem;
 }
 .who {
   position: relative;
-  width: 7rem;
-  height: 8.6rem;
+  width: 6.4rem;
+  height: 5.2rem;
   transition: transform 300ms var(--ease-back);
 }
 .who.active {
   transform: translateY(-0.3rem);
 }
-.kid {
+.av {
   position: absolute;
   left: 0;
   top: 0;
-  width: 5.4rem;
-  height: 7.6rem;
+  width: 4.2rem;
+  height: 4.2rem;
 }
-.right .kid {
+.right .av {
   left: auto;
   right: 0;
 }
@@ -301,66 +300,76 @@ function confirmMove() {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 3.4rem;
-  height: 3.4rem;
+  width: 2.8rem;
+  height: 2.8rem;
 }
 .right .bowl {
   right: auto;
   left: 0;
 }
+.av :deep(svg),
 .bowl :deep(svg) {
   width: 100%;
   height: 100%;
 }
 .nm {
   position: relative;
-  font-size: 1.05rem;
-  font-weight: 900;
+  margin-top: 0.4rem;
+  padding: 0 0.3rem;
+  font-size: 1.1rem;
   line-height: 1.3;
 }
-.who.active + .nm::after {
-  content: '';
+.hl {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -0.05rem;
-  height: 0.17rem;
-  border-radius: 0.2rem;
+  inset: auto 0.25rem -0.12rem;
+  height: 0.16rem;
+  border-radius: 999px;
   background: var(--color-red);
-  animation: swipe 300ms var(--ease-out) both;
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition:
+    transform 300ms var(--ease-out),
+    opacity 150ms ease;
+}
+.hl.on {
+  opacity: 1;
+  transform: none;
 }
 .tg {
-  font-size: 0.75rem;
-  color: var(--color-ink-soft);
+  font-size: 0.5rem;
+  color: var(--color-ink-2);
 }
 .status-box {
   margin-top: auto;
   text-align: center;
 }
+.moves {
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--color-red);
+}
 .status {
-  font-size: 1.1rem;
+  margin-top: 0.2rem;
+  font-size: 1.05rem;
+  font-weight: 900;
   line-height: 1.4;
-  color: var(--color-ink-soft);
+  color: var(--color-ink-3);
 }
 .status.mine {
   color: var(--color-ink);
-  font-weight: 700;
 }
 .status.warn {
   color: var(--color-red);
 }
-.moves {
-  font-size: 0.72rem;
-  color: var(--color-mid);
-}
 .hint {
   min-height: 2.4em;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   line-height: 1.3;
-  color: var(--color-ink-soft);
+  color: var(--color-ink-2);
 }
 .act {
-  width: 9rem;
+  width: 8.6rem;
   margin-top: 0.4rem;
 }
 .flier {

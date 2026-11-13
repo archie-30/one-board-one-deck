@@ -7,11 +7,11 @@ import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { RPS_HANDS, randomRps, resolveRps, type RpsHand } from '@/engine/common/rps'
-import ArtKid from './art/ArtKid.vue'
-import type { KidMood } from './art/kid'
-import InkDialog from './InkDialog.vue'
-import MenuButton from './MenuButton.vue'
-import RpsIcon from './RpsIcon.vue'
+import Avatar from './art/Avatar.vue'
+import Icon from './art/Icon.vue'
+import type { Mood as KidMood } from './art/look'
+import Btn from './Btn.vue'
+import Dialog from './Dialog.vue'
 
 defineProps<{ open: boolean; opponent: Opponent }>()
 const emit = defineEmits<{ done: [playerWins: boolean] }>()
@@ -55,34 +55,34 @@ function finish() {
 </script>
 
 <template>
-  <InkDialog :open="open" :title="S.rps.title" wide>
-    <p class="text-center text-[0.92rem] text-ink-soft">{{ S.rps.lead }}</p>
+  <Dialog :open="open" :title="S.rps.title" label="ROCK · PAPER · SCISSORS" tone="blue" wide>
+    <p class="text-[0.85rem] text-ink-2">{{ S.rps.lead }}</p>
     <div class="duel">
       <div class="side">
-        <span v-if="phase === 'show'" :key="`m${round}`" class="reveal pop"><RpsIcon :hand="mine" /></span>
-        <span class="who" :class="{ shake: phase === 'shake' }"><ArtKid :look="PLAYER_LOOK" :mood="moods[0]" :seed="7" /></span>
-        <span class="font-display nm">{{ S.common.you }}</span>
+        <span v-if="phase === 'show'" :key="`m${round}`" class="reveal pop"><Icon :name="mine" /></span>
+        <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="PLAYER_LOOK" :mood="moods[0]" /></span>
+        <span class="t-black nm">{{ S.common.you }}</span>
       </div>
-      <p class="verdict font-display" :class="{ win: phase === 'show' && outcome === 1 }">
-        <template v-if="phase === 'show'">{{ outcome === 0 ? S.rps.draw : outcome === 1 ? S.rps.win : S.rps.lose(opponent.name) }}</template>
-        <template v-else>{{ S.rps.vs }}</template>
+      <p class="verdict t-black" :class="{ win: phase === 'show' && outcome === 1 }">
+        <span v-if="phase === 'show'" :key="`v${round}`" class="mask"><span>{{ outcome === 0 ? S.rps.draw : outcome === 1 ? S.rps.win : S.rps.lose(opponent.name) }}</span></span>
+        <span v-else class="t-slab vs">{{ S.rps.vs }}</span>
       </p>
       <div class="side">
-        <span v-if="phase === 'show'" :key="`t${round}`" class="reveal pop"><RpsIcon :hand="theirs" /></span>
-        <span class="who" :class="{ shake: phase === 'shake' }"><ArtKid :look="opponent.look" :mood="moods[1]" :seed="opponent.id" flip /></span>
-        <span class="font-display nm">{{ opponent.name }}</span>
+        <span v-if="phase === 'show'" :key="`t${round}`" class="reveal pop"><Icon :name="theirs" /></span>
+        <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="opponent.look" :mood="moods[1]" flip /></span>
+        <span class="t-black nm">{{ opponent.name }}</span>
       </div>
     </div>
     <template #actions>
       <template v-if="phase !== 'show' || outcome === 0">
         <button v-for="hand in RPS_HANDS" :key="hand" class="hand" :disabled="phase !== 'pick'" @click="choose(hand)">
-          <span class="ic"><RpsIcon :hand="hand" /></span>
-          <span class="font-display">{{ S.rps[hand] }}</span>
+          <span class="ic"><Icon :name="hand" /></span>
+          <span class="t-black">{{ S.rps[hand] }}</span>
         </button>
       </template>
-      <div v-else class="w-[11rem] pop"><MenuButton primary icon="play" size="md" :label="S.rps.go" :chevron="false" :seed="61" @click="finish" /></div>
+      <Btn v-else class="rise" tone="red" size="lg" arrow @click="finish">{{ S.rps.go }}</Btn>
     </template>
-  </InkDialog>
+  </Dialog>
 </template>
 
 <style scoped>
@@ -91,7 +91,7 @@ function finish() {
   align-items: flex-end;
   justify-content: center;
   gap: 1.2rem;
-  padding-top: 0.4rem;
+  padding-top: 3.2rem;
 }
 .side {
   position: relative;
@@ -103,7 +103,7 @@ function finish() {
 .who {
   display: block;
   width: 4.6rem;
-  height: 6.5rem;
+  height: 4.6rem;
 }
 .who :deep(svg) {
   width: 100%;
@@ -111,9 +111,13 @@ function finish() {
 }
 .reveal {
   position: absolute;
-  top: -1.8rem;
-  width: 3rem;
-  height: 3rem;
+  top: -2.6rem;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0.35rem;
+  border-radius: 50%;
+  background: var(--color-yellow);
+  box-shadow: var(--shadow-1);
 }
 .reveal :deep(svg) {
   width: 100%;
@@ -130,9 +134,13 @@ function finish() {
     transform: translateY(-0.5rem) rotate(-4deg);
   }
 }
+.vs {
+  font-size: 2rem;
+  color: var(--color-red);
+}
 .verdict {
-  width: 12rem;
-  padding-bottom: 2.4rem;
+  width: 13rem;
+  padding-bottom: 1.6rem;
   text-align: center;
   font-size: 1.2rem;
   line-height: 1.4;
@@ -146,22 +154,24 @@ function finish() {
   align-items: center;
   width: 5.4rem;
   border: 0;
-  background: none;
+  border-radius: var(--radius);
+  background: var(--color-paper);
+  padding: 0.4rem 0 0.2rem;
   font-size: 0.95rem;
   line-height: 1.3;
   transition: transform 140ms var(--ease-out);
 }
 .ic {
   display: block;
-  width: 3.4rem;
-  height: 3.4rem;
+  width: 2.2rem;
+  height: 2.2rem;
 }
 .ic :deep(svg) {
   width: 100%;
   height: 100%;
 }
 .hand:active:not(:disabled) {
-  transform: scale(1.1) rotate(-4deg);
+  transform: scale(0.95);
 }
 .hand:disabled {
   opacity: 0.4;

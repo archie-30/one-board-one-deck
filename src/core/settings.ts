@@ -12,19 +12,25 @@ interface Settings {
   /** 0～1 */
   volume: number
   games: Record<string, GamePrefs>
+  /** 每個分類上次選的遊戲 */
+  lastGame: Record<string, string>
 }
 
 interface Stats {
   gomoku: { wins: number; losses: number; draws: number }
   bigtwo: { rounds: number; wins: number; totals: number[] }
+  redpoint: { rounds: number; wins: number; best: number }
+  go: { wins: number; losses: number }
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {} }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {} }))
 
 export const stats = reactive(
   loadSave<Stats>('stats', {
     gomoku: { wins: 0, losses: 0, draws: 0 },
     bigtwo: { rounds: 0, wins: 0, totals: [0, 0, 0, 0] },
+    redpoint: { rounds: 0, wins: 0, best: 0 },
+    go: { wins: 0, losses: 0 },
   }),
 )
 

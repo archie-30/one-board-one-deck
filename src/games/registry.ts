@@ -4,9 +4,12 @@ import { defineAsyncComponent } from 'vue'
 import { S } from '@/data/strings'
 import { DEFAULT_BIGTWO_OPTIONS as B } from '@/engine/bigtwo/options'
 import { DEFAULT_GOMOKU_OPTIONS as G } from '@/engine/gomoku/rules'
+import { DEFAULT_GO_OPTIONS as GO } from '@/engine/go/rules'
 import { stats } from '@/core/settings'
-import BigTwoScene from './bigtwo/BigTwoScene.vue'
-import GomokuScene from './gomoku/GomokuScene.vue'
+import BigTwoCover from './covers/BigTwoCover.vue'
+import GoCover from './covers/GoCover.vue'
+import GomokuCover from './covers/GomokuCover.vue'
+import RedPointCover from './covers/RedPointCover.vue'
 import type { GameCategory, GameDef, SettingDef } from './types'
 
 const toggle = (key: string, text: { label: string; help: string }, def: boolean): SettingDef => ({
@@ -39,8 +42,8 @@ export const GAMES: GameDef[] = [
     name: S.bigtwo.name,
     summary: S.bigtwo.summary,
     players: S.bigtwo.players,
-    scene: BigTwoScene,
-    rulesSub: S.lobby.rulesSub,
+    cover: BigTwoCover,
+    tags: S.bigtwo.tags,
     record: () => S.bigtwo.record(stats.bigtwo.rounds, stats.bigtwo.wins, stats.bigtwo.totals[0] ?? 0),
     rulesIntro: S.bigtwo.rules,
     tutorial: defineAsyncComponent(() => import('./bigtwo/BigTwoTutorial.vue')),
@@ -57,18 +60,46 @@ export const GAMES: GameDef[] = [
     ],
   },
   {
+    id: 'redpoint',
+    category: 'cards',
+    name: S.redpoint.name,
+    summary: S.redpoint.summary,
+    players: S.redpoint.players,
+    cover: RedPointCover,
+    tags: S.redpoint.tags,
+    record: () => S.redpoint.record(stats.redpoint.rounds, stats.redpoint.wins, stats.redpoint.best),
+    rulesIntro: S.redpoint.rules,
+    tutorial: defineAsyncComponent(() => import('./redpoint/RedPointTutorial.vue')),
+    component: defineAsyncComponent(() => import('./redpoint/RedPointGame.vue')),
+    settings: [],
+  },
+  {
     id: 'gomoku',
     category: 'board',
     name: S.gomoku.name,
     summary: S.gomoku.summary,
     players: S.gomoku.players,
-    scene: GomokuScene,
-    rulesSub: S.lobby.rulesSubBoard,
+    cover: GomokuCover,
+    tags: S.gomoku.tags,
     record: () => S.gomoku.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws),
     rulesIntro: S.gomoku.rules,
     tutorial: defineAsyncComponent(() => import('./gomoku/GomokuTutorial.vue')),
     component: defineAsyncComponent(() => import('./gomoku/GomokuGame.vue')),
     settings: [toggle('forbidden', gs.forbidden, G.forbidden), toggle('overlineWins', gs.overlineWins, G.overlineWins)],
+  },
+  {
+    id: 'go',
+    category: 'board',
+    name: S.go.name,
+    summary: S.go.summary,
+    players: S.go.players,
+    cover: GoCover,
+    tags: S.go.tags,
+    record: () => S.go.record(stats.go.wins, stats.go.losses),
+    rulesIntro: S.go.rules,
+    tutorial: defineAsyncComponent(() => import('./go/GoTutorial.vue')),
+    component: defineAsyncComponent(() => import('./go/GoGame.vue')),
+    settings: [choice('size', S.go.settings.size, String(GO.size))],
   },
 ]
 

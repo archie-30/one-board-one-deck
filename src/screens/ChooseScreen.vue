@@ -1,30 +1,18 @@
 <script setup lang="ts">
-// 第二層：左邊撲克牌、右邊棋盤。點一下選起來（那一邊放大、圖會動），再點一下進入。
-import { computed, ref } from 'vue'
+// 選擇畫面：兩張大卡片「撲克牌／棋盤」。點一下選起（卡片浮起、插圖動起來），再點一下進入模式選單。
+import { ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
-import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
-import { gamesIn } from '@/games/registry'
+import BigTwoCover from '@/games/covers/BigTwoCover.vue'
+import GoCover from '@/games/covers/GoCover.vue'
 import type { GameCategory } from '@/games/types'
-import ArtCard from '@/ui/art/ArtCard.vue'
-import ArtKid from '@/ui/art/ArtKid.vue'
-import BoardArt from '@/games/gomoku/BoardArt.vue'
-import InkDivider from '@/ui/InkDivider.vue'
-import RoundButton from '@/ui/RoundButton.vue'
+import Icon from '@/ui/art/Icon.vue'
+import IconBtn from '@/ui/IconBtn.vue'
 import AppSettings from './AppSettings.vue'
 
 const picked = ref<GameCategory | null>(null)
 const settingsOpen = ref(false)
-const kidMood = computed(() => (picked.value ? 'happy' : 'idle'))
-
-const fan = [
-  { rank: '3', suit: 0 },
-  { rank: '7', suit: 1 },
-  { rank: 'J', suit: 3 },
-  { rank: 'A', suit: 2 },
-  { rank: '2', suit: 3 },
-]
 
 function tap(side: GameCategory) {
   if (picked.value !== side) {
@@ -33,195 +21,163 @@ function tap(side: GameCategory) {
     return
   }
   playSound('tap')
-  const games = gamesIn(side)
-  if (games.length === 1) go({ name: 'lobby', gameId: games[0].id })
-  else go({ name: 'category', category: side })
+  go({ name: 'category', category: side })
 }
 </script>
 
 <template>
-  <section class="choose" :class="picked ? `picked-${picked}` : ''">
-    <div class="corner left"><RoundButton icon="back" :label="S.common.back" @click="back()" /></div>
-    <div class="corner right"><RoundButton icon="gear" :label="S.choose.settings" @click="settingsOpen = true" /></div>
+  <section class="choose">
+    <aside class="intro">
+      <div class="flex gap-[0.6rem]">
+        <IconBtn icon="back" :label="S.common.back" @click="back()" />
+        <IconBtn icon="gear" :label="S.choose.settings" @click="settingsOpen = true" />
+      </div>
+      <h1 class="t-black big"><span class="mask"><span>{{ S.choose.title }}</span></span></h1>
+      <p class="lead rise" style="--i: 3">{{ S.choose.lead }}</p>
+    </aside>
 
-    <button class="half cards" :class="{ on: picked === 'cards', off: picked === 'board' }" @click="tap('cards')">
-      <span class="art">
-        <svg viewBox="0 0 300 220" class="fan-svg" aria-hidden="true">
-          <g class="deck">
-            <ArtCard back :seed="41" still transform="translate(30 118) rotate(-80)" />
-            <ArtCard back :seed="42" transform="translate(27 114) rotate(-80)" />
-          </g>
-          <g v-for="(c, i) in fan" :key="i" class="fan" :style="{ '--a': `${(i - 2) * 14}deg`, '--i': i }">
-            <ArtCard :rank="c.rank" :suit="c.suit" :seed="i * 13 + 3" transform="translate(115 45)" />
-          </g>
-        </svg>
-      </span>
-      <span class="label font-display">{{ S.choose.cards }}</span>
-      <span class="lead">{{ S.choose.cardsLead }}</span>
-      <span class="hint font-display">{{ S.choose.again }}</span>
-    </button>
+    <div class="cards">
+      <button
+        v-for="(side, i) in ['cards', 'board'] as const"
+        :key="side"
+        class="card rise"
+        :class="[`c-${side}`, { on: picked === side, off: picked && picked !== side }]"
+        :style="{ '--i': 1 + i }"
+        @click="tap(side)"
+      >
+        <span class="cover">
+          <BigTwoCover v-if="side === 'cards'" :active="picked === side" />
+          <GoCover v-else :active="picked === side" />
+        </span>
+        <span class="info">
+          <span class="nm t-black">{{ side === 'cards' ? S.choose.cards : S.choose.board }}</span>
+          <span class="sm">{{ side === 'cards' ? S.choose.cardsLead : S.choose.boardLead }}</span>
+          <span class="go"><span>{{ S.choose.again }}</span><Icon name="arrow" class="ar" /></span>
+        </span>
+      </button>
+    </div>
 
-    <InkDivider class="mid" :seed="5" />
-
-    <button class="half board" :class="{ on: picked === 'board', off: picked === 'cards' }" @click="tap('board')">
-      <span class="art"><BoardArt :key="picked === 'board' ? 'on' : 'off'" class="board-svg" :animate="picked === 'board'" /></span>
-      <span class="label font-display">{{ S.choose.board }}</span>
-      <span class="lead">{{ S.choose.boardLead }}</span>
-      <span class="hint font-display">{{ S.choose.again }}</span>
-    </button>
-
-    <ArtKid class="kid" :look="PLAYER_LOOK" :mood="kidMood" :flip="picked === 'cards'" :seed="7" />
     <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
   </section>
 </template>
 
 <style scoped>
 .choose {
-  position: relative;
   display: flex;
   height: 100%;
-  align-items: stretch;
-  padding: 0.6rem max(1rem, env(safe-area-inset-left)) 0;
+  gap: 1.6rem;
+  padding: 0.8rem max(1.6rem, env(safe-area-inset-right)) 1.2rem max(1.4rem, env(safe-area-inset-left));
 }
-.corner {
-  position: absolute;
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 3;
-}
-.corner.left {
-  left: max(1rem, env(safe-area-inset-left));
-}
-.corner.right {
-  right: max(1rem, env(safe-area-inset-right));
-}
-.mid {
-  height: 86%;
-  align-self: center;
-}
-.half {
-  position: relative;
+.intro {
   display: flex;
-  flex: 1;
+  width: 26%;
+  flex-shrink: 0;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.15rem;
-  border: 0;
-  background: none;
-  padding: 0 0 2.6rem;
-  transition:
-    flex-grow 420ms var(--ease-back),
-    opacity 240ms ease,
-    filter 240ms ease;
-  animation: pop 380ms var(--ease-back) both;
 }
-.half.board {
-  animation-delay: 80ms;
-}
-.half.on {
-  flex-grow: 1.45;
-}
-.half.off {
-  opacity: 0.42;
-  filter: grayscale(1);
-}
-.art {
-  display: block;
-  width: 15rem;
-  height: 11rem;
-  transition: transform 420ms var(--ease-back);
-}
-.on .art {
-  transform: scale(1.12) rotate(-1.5deg);
-}
-.fan-svg,
-.board-svg {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-.fan {
-  transform-box: view-box;
-  transform-origin: 150px 210px;
-  transform: rotate(calc(var(--a) * var(--spread, 0.75)));
-  transition: transform 460ms var(--ease-back);
-  transition-delay: calc(var(--i) * 30ms);
-}
-.on .fan {
-  --spread: 1.25;
-}
-.deck {
-  transform-box: view-box;
-  transition: transform 400ms var(--ease-out);
-}
-.on .deck {
-  transform: translate(-8px, 6px);
-}
-.label {
-  font-size: 2.3rem;
-  font-weight: 900;
-  line-height: 1.2;
-  margin-top: 0.4rem;
+.big {
+  margin-top: auto;
+  font-size: 2.8rem;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  white-space: nowrap;
 }
 .lead {
-  font-size: 0.95rem;
-  color: var(--color-ink-soft);
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--color-ink-2);
 }
-.hint {
-  position: relative;
-  margin-top: 0.4rem;
-  font-size: 1rem;
-  color: var(--color-red);
-  opacity: 0;
-  transform: scale(0.85);
+.cards {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 1.1rem;
+  padding-top: 0.6rem;
+}
+.card {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  border: 0;
+  border-radius: 1.3rem;
+  background: var(--color-card);
+  padding: 0;
+  text-align: left;
+  box-shadow: var(--shadow-1);
+  outline: 0.15rem solid transparent;
   transition:
-    opacity 160ms ease,
-    transform 300ms var(--ease-back);
+    transform 300ms var(--ease-out),
+    box-shadow 300ms var(--ease-out),
+    outline-color 200ms ease,
+    opacity 240ms ease;
 }
-.hint::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -0.15rem;
-  height: 0.15rem;
-  border-radius: 0.2rem;
-  background: var(--color-red);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 360ms var(--ease-out) 120ms;
+.c-cards {
+  --tint: #fdece7;
+  --accent: var(--color-red);
 }
-.on .hint {
+.c-board {
+  --tint: #e9edfb;
+  --accent: var(--color-blue);
+}
+.card.on {
+  transform: translateY(-0.35rem);
+  box-shadow: var(--shadow-2);
+  outline-color: var(--accent);
+}
+.card.off {
+  opacity: 0.55;
+}
+.card:active {
+  transform: scale(0.985);
+}
+.cover {
+  display: block;
+  min-height: 0;
+  flex: 1;
+  margin: 0.5rem 0.5rem 0;
+  padding: 1rem 0.6rem;
+  border-radius: 1rem;
+  background: var(--tint);
+}
+.info {
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem 1.1rem 0.9rem;
+}
+.nm {
+  font-size: 1.9rem;
+  line-height: 1.2;
+}
+.sm {
+  font-size: 0.8rem;
+  color: var(--color-ink-2);
+}
+.go {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 1.3rem;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: var(--accent);
+  opacity: 0;
+  transform: translateY(0.3rem);
+  transition:
+    opacity 200ms ease,
+    transform 300ms var(--ease-out);
+}
+.on .go {
   opacity: 1;
   transform: none;
-  animation: breathe-hint 1.6s ease-in-out 0.5s infinite;
 }
-.on .hint::after {
-  transform: scaleX(1);
+.ar {
+  width: 0.95rem;
+  animation: nudge 1.2s ease-in-out infinite;
 }
-@keyframes breathe-hint {
+@keyframes nudge {
   50% {
-    transform: translateY(-0.12rem);
+    transform: translateX(0.3rem);
   }
-}
-.half:active .art {
-  transform: scale(1.16) rotate(-2deg);
-}
-/* 你的小人站在中間，選哪邊就跳過去看 */
-.kid {
-  position: absolute;
-  left: 50%;
-  bottom: 0.2rem;
-  width: 4.6rem;
-  height: 6.5rem;
-  margin-left: -2.3rem;
-  transition: transform 520ms var(--ease-back);
-  pointer-events: none;
-}
-.picked-cards .kid {
-  transform: translateX(-4.5rem);
-}
-.picked-board .kid {
-  transform: translateX(4.5rem);
 }
 </style>

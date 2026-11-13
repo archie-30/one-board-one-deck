@@ -19,7 +19,7 @@ export interface TableModel {
 }
 
 export interface Seat {
-  /** 小人中心 x、腳底 y、寬度 */
+  /** 頭像中心 x、底邊 y、邊長 */
   kid: { x: number; y: number; w: number }
   /** 名字標籤的位置與對齊 */
   label: { x: number; y: number; align: 'left' | 'center' | 'right' }
@@ -51,10 +51,10 @@ export function makeLayout(W: number, H: number): Layout {
     H,
     cw,
     seats: [
-      { kid: { x: cw * 0.85, y: H - 4, w: kw * 0.95 }, label: { x: cw * 0.85, y: H - kw * 1.5 - 8, align: 'center' }, stamp: { x: W / 2, y: H - cw * 1.95 } },
-      { kid: { x: W - cw * 0.8, y: H * 0.47, w: kw }, label: { x: W - cw * 0.8, y: H * 0.47 + 4, align: 'center' }, stamp: { x: W - cw * 2.2, y: H * 0.3 } },
-      { kid: { x: W / 2 - cw * 1.75, y: kw * 1.42 + 2, w: kw }, label: { x: W / 2 - cw * 2.35, y: kw * 0.55, align: 'right' }, stamp: { x: W / 2 + cw * 0.6, y: cw * 0.95 } },
-      { kid: { x: cw * 0.8, y: H * 0.47, w: kw }, label: { x: cw * 0.8, y: H * 0.47 + 4, align: 'center' }, stamp: { x: cw * 2.2, y: H * 0.3 } },
+      { kid: { x: cw * 0.8, y: H - 8, w: cw * 0.9 }, label: { x: cw * 0.8, y: H - cw - 12, align: 'center' }, stamp: { x: W / 2, y: H - cw * 1.95 } },
+      { kid: { x: W - cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: W - cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: W - cw * 2.2, y: H * 0.3 } },
+      { kid: { x: W / 2 - cw * 1.75, y: cw * 1.02, w: kw * 0.85 }, label: { x: W / 2 - cw * 2.35, y: cw * 0.3, align: 'right' }, stamp: { x: W / 2 + cw * 0.6, y: cw * 0.95 } },
+      { kid: { x: cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: cw * 2.2, y: H * 0.3 } },
     ],
     pile: { x: W / 2, y: H * 0.42 },
     discard: { x: W / 2 + cw * 2.7, y: H * 0.47 },
@@ -107,19 +107,22 @@ export function cardPoses(L: Layout, m: TableModel): Map<Card, Pose> {
     })
   }
 
-  // 牌堆：每一手各有自己的落點與角度，一手疊在一手上
+  // 牌堆：每一張牌各自落在不同的位置與角度（不是一整排一起放下），
+  // 同一手的牌大致排成一排方便看清楚，一手疊在一手上。亂數用「這一手的編號＋第幾張」，所以每次都不一樣。
   m.pile.forEach((g, gi) => {
-    const ax = L.pile.x + hash(g.id, 1) * cw * 1.3
+    const ax = L.pile.x + hash(g.id, 1) * cw * 1.4
     const ay = L.pile.y + hash(g.id, 2) * cw * 0.5
-    const ar = hash(g.id, 3) * 22
+    const ar = hash(g.id, 3) * 26
     const rad = (ar * Math.PI) / 180
-    const step = cw * PILE * 0.44
+    const step = cw * PILE * 0.5
     g.cards.forEach((c, k) => {
-      const d = (k - (g.cards.length - 1) / 2) * step
+      const seed = g.id * 31 + k
+      const d = (k - (g.cards.length - 1) / 2) * step + hash(seed, 8) * cw * 0.16
+      const off = hash(seed, 9) * cw * 0.22
       out.set(c, {
-        x: ax + Math.cos(rad) * d,
-        y: ay + Math.sin(rad) * d,
-        r: ar + hash(c, 4) * 6,
+        x: ax + Math.cos(rad) * d - Math.sin(rad) * off,
+        y: ay + Math.sin(rad) * d + Math.cos(rad) * off,
+        r: ar + hash(seed, 4) * 28,
         s: PILE,
         f: 1,
         z: 200 + gi * 6 + k,

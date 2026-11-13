@@ -1,12 +1,11 @@
 <script setup lang="ts">
-// 規則說明內文（規則頁與對局中的選單共用）：橫向畫面排成兩欄，最後列出目前的規則設定
+// 規則說明：兩欄，每一段有編號；最後列出目前的規則設定
 import { computed } from 'vue'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
 import type { GameDef } from '@/games/types'
 
 const props = defineProps<{ game: GameDef; options?: Record<string, string | boolean>; single?: boolean }>()
-
 const current = computed(() => {
   const opts = props.options ?? resolveOptions(props.game)
   return props.game.settings.map((def) => {
@@ -19,16 +18,16 @@ const current = computed(() => {
 
 <template>
   <div class="rules" :class="{ single }">
-    <section v-for="(section, i) in game.rulesIntro" :key="section.title" class="slide-in" :style="{ '--i': i * 0.5 }">
-      <h3 class="font-display"><span class="num">{{ i + 1 }}</span>{{ section.title }}</h3>
+    <section v-for="(section, i) in game.rulesIntro" :key="section.title" class="rise" :style="{ '--i': i * 0.6 }">
+      <h3><span class="t-slab num">{{ String(i + 1).padStart(2, '0') }}</span><span class="t-black">{{ section.title }}</span></h3>
       <p v-for="line in section.body" :key="line">{{ line }}</p>
     </section>
-    <section class="slide-in" :style="{ '--i': game.rulesIntro.length * 0.5 }">
-      <h3 class="font-display"><span class="num red">✓</span>{{ S.rules.current }}</h3>
-      <dl class="current">
+    <section class="rise current-box" :style="{ '--i': game.rulesIntro.length * 0.6 }">
+      <h3><span class="t-slab num red">✓</span><span class="t-black">{{ S.rules.current }}</span></h3>
+      <dl>
         <template v-for="row in current" :key="row.label">
           <dt>{{ row.label }}</dt>
-          <dd class="font-display" :class="{ changed: row.changed }">{{ row.text }}</dd>
+          <dd :class="{ changed: row.changed }">{{ row.text }}</dd>
         </template>
       </dl>
     </section>
@@ -40,9 +39,9 @@ const current = computed(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: start;
-  gap: 0 2.4rem;
-  font-size: 0.96rem;
-  line-height: 1.75;
+  gap: 0 2.2rem;
+  font-size: 0.9rem;
+  line-height: 1.7;
   -webkit-user-select: text;
   user-select: text;
 }
@@ -50,54 +49,50 @@ const current = computed(() => {
   grid-template-columns: 1fr;
 }
 section {
-  padding-bottom: 1.1rem;
+  margin-bottom: 0.9rem;
+  padding: 0.8rem 1rem 0.7rem;
+  border-radius: var(--radius);
+  background: var(--color-card);
+  box-shadow: var(--shadow-1);
 }
 h3 {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1.15rem;
-  line-height: 1.3;
+  align-items: baseline;
+  gap: 0.55rem;
   padding-bottom: 0.2rem;
+  margin-bottom: 0.3rem;
+  font-size: 1.02rem;
 }
 .num {
-  display: grid;
-  width: 1.5rem;
-  height: 1.5rem;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-ink);
-  color: var(--color-paper);
-  font-size: 0.8rem;
-}
-.num.red {
-  background: var(--color-red);
+  font-size: 0.95rem;
+  color: var(--color-red);
 }
 p {
   position: relative;
-  padding-left: 1rem;
+  padding-left: 0.9rem;
+  color: var(--color-ink);
   text-wrap: pretty;
 }
 p::before {
   content: '';
   position: absolute;
-  left: 0.2rem;
-  top: 0.78em;
-  width: 0.36rem;
-  height: 0.12rem;
-  background: var(--color-ink);
+  left: 0.15rem;
+  top: 0.72em;
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 50%;
+  background: var(--color-ink-3);
 }
-.current {
+dl {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.05rem 1.2rem;
-  padding-left: 0.4rem;
+  gap: 0.05rem 1rem;
 }
 dt {
-  color: var(--color-ink-soft);
+  color: var(--color-ink-2);
 }
 dd {
-  font-size: 0.9rem;
+  font-weight: 900;
 }
 dd.changed {
   color: var(--color-red);

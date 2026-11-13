@@ -7,11 +7,11 @@ import { S } from '@/data/strings'
 import { RANK_LABELS, parseCards, rankOf, sortCards, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { canBeat, identifyCombo } from '@/engine/bigtwo/combos'
 import { DEFAULT_BIGTWO_OPTIONS as OPTS } from '@/engine/bigtwo/options'
-import ArtCard from '@/ui/art/ArtCard.vue'
-import ArtKid from '@/ui/art/ArtKid.vue'
+import Avatar from '@/ui/art/Avatar.vue'
+import CardArt from '@/ui/art/Card.vue'
+import Btn from '@/ui/Btn.vue'
 import GuideNote from '@/ui/GuideNote.vue'
-import MenuButton from '@/ui/MenuButton.vue'
-import RoundButton from '@/ui/RoundButton.vue'
+import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup } from './tableLayout'
 import { BIGTWO_LESSONS } from './tutorialData'
@@ -48,7 +48,10 @@ function sync(fly: Card[] = [], instant = false) {
     const p = poses.get(c)
     if (!p) continue
     const k = fly.indexOf(c)
-    if (k >= 0) stage.move(c, p, { delay: k * 85, dur: 420, arc: layout.value.cw * 0.9, flightZ: 600 + k, land: true, instant })
+    if (k >= 0) {
+      const v = Math.random()
+      stage.move(c, p, { delay: k * 120 + v * 50, dur: 420 * (0.88 + v * 0.3), arc: layout.value.cw * (0.6 + Math.random() * 0.6), flightZ: 600 + k, land: true, instant })
+    }
     else stage.move(c, p, { dur: 240, instant })
   }
 }
@@ -143,16 +146,16 @@ function next() {
 
 <template>
   <section ref="stageEl" class="tut">
-    <div class="corner"><RoundButton icon="back" :label="S.common.back" @click="emit('exit')" /></div>
+    <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
 
     <div class="guide">
       <GuideNote v-if="!finished" :step="step" :total="BIGTWO_LESSONS.length" :text="text.text" :ok="text.ok" :solved="solved" :misses="misses" />
       <div v-else class="done pop">
-        <p class="font-display text-[2rem] font-black leading-tight">{{ S.tutorial.finish }}</p>
-        <p class="text-ink-soft">{{ S.tutorial.finishLead }}</p>
+        <h2 class="t-black text-[2.4rem] leading-tight"><span class="mask"><span>{{ S.tutorial.finish }}</span></span></h2>
+        <p class="text-ink-2">{{ S.tutorial.finishLead }}</p>
         <div class="mt-[0.8rem] flex w-[12rem] flex-col gap-[0.5rem]">
-          <MenuButton primary icon="play" size="md" :label="S.tutorial.play" :seed="81" @click="emit('play')" />
-          <MenuButton icon="back" size="sm" :label="S.common.back" :chevron="false" :seed="83" @click="emit('exit')" />
+          <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+          <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </div>
       </div>
     </div>
@@ -168,21 +171,21 @@ function next() {
       :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
       @click="tapCard(c)"
     >
-      <svg class="face" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :seed="c + 1" /></svg>
-      <svg class="back" viewBox="-4 -4 78 108" aria-hidden="true"><ArtCard back still :seed="2" /></svg>
+      <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" /></svg>
+      <svg class="back" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt back /></svg>
     </div>
     </div>
 
-    <div class="me" :style="{ left: `${layout.seats[0].kid.x - layout.seats[0].kid.w / 2}px`, width: `${layout.seats[0].kid.w}px`, height: `${layout.seats[0].kid.w * 1.42}px` }">
-      <ArtKid :look="PLAYER_LOOK" :mood="finished ? 'happy' : solved ? 'happy' : misses ? 'shock' : 'think'" :seed="7" />
+    <div class="me" :style="{ left: `${layout.seats[0].kid.x - layout.seats[0].kid.w / 2}px`, width: `${layout.seats[0].kid.w}px`, height: `${layout.seats[0].kid.w}px` }">
+      <Avatar :look="PLAYER_LOOK" :mood="finished ? 'happy' : solved ? 'happy' : misses ? 'shock' : 'think'" />
     </div>
-    <p class="combo font-display" :style="{ bottom: `${layout.cw * 1.62}px` }">{{ comboName }}</p>
+    <p class="combo t-black" :style="{ bottom: `${layout.cw * 1.62}px` }">{{ comboName }}</p>
 
     <div v-if="!finished" class="actions">
-      <MenuButton v-if="solved" class="pop" primary icon="play" size="md" :label="step + 1 >= BIGTWO_LESSONS.length ? S.common.done : S.common.next" :chevron="false" :seed="85" @click="next" />
+      <Btn v-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= BIGTWO_LESSONS.length ? S.common.done : S.common.next }}</Btn>
       <template v-else>
-        <MenuButton primary icon="play" size="md" :label="T.play" :chevron="false" :disabled="!selected.length" :seed="87" @click="play" />
-        <MenuButton icon="pass" size="sm" :label="T.pass" :chevron="false" :disabled="!lesson.table" :seed="89" @click="pass" />
+        <Btn tone="red" size="lg" arrow block :disabled="!selected.length" @click="play">{{ T.play }}</Btn>
+        <Btn icon="pass" block :disabled="!lesson.table" @click="pass">{{ T.pass }}</Btn>
       </template>
     </div>
   </section>
@@ -219,14 +222,6 @@ function next() {
   top: 0;
   will-change: transform;
 }
-.sprite::before {
-  content: '';
-  position: absolute;
-  inset: 4%;
-  border-radius: 10%;
-  background: var(--color-shadow);
-  transform: translate(6%, 5%);
-}
 .sprite svg {
   position: relative;
   display: block;
@@ -244,11 +239,11 @@ function next() {
 .sprite.sel::after {
   content: '';
   position: absolute;
-  left: 18%;
-  right: 18%;
-  bottom: -9%;
+  left: 8%;
+  right: 4%;
+  bottom: -10%;
   height: 4%;
-  border-radius: 1rem;
+  border-radius: 999px;
   background: var(--color-red);
 }
 .me {
