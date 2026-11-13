@@ -27,11 +27,12 @@ function onClick() {
 
 <style scoped>
 .btn {
+  --sh: 0.22rem;
   position: relative;
   display: inline-block;
   border: 0;
   background: none;
-  padding: 0;
+  padding: 0 var(--sh) var(--sh) 0;
   text-align: left;
 }
 .btn.block {
@@ -42,38 +43,37 @@ function onClick() {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.55rem;
   height: var(--h);
   padding: 0 1rem;
-  border-radius: var(--radius-sm);
+  border: 0.13rem solid var(--color-ink);
   background: var(--bg);
   color: var(--fg);
   font-weight: 900;
   font-size: var(--fs);
-  box-shadow: var(--sh, var(--shadow-1));
+  letter-spacing: 0.02em;
+  box-shadow: var(--sh) var(--sh) 0 var(--color-ink);
   transition:
-    transform 140ms var(--ease-out),
-    box-shadow 140ms var(--ease-out),
+    transform 110ms var(--ease-out),
+    box-shadow 110ms var(--ease-out),
     background-color 160ms ease;
 }
 .s-lg {
-  --h: 3.1rem;
-  --fs: 1.2rem;
-}
-.s-lg .face {
-  border-radius: var(--radius);
-  padding: 0 1.2rem;
+  --h: 3rem;
+  --fs: 1.25rem;
+  --sh: 0.28rem;
 }
 .s-md {
   --h: 2.4rem;
-  --fs: 0.95rem;
+  --fs: 1rem;
 }
 .s-sm {
   --h: 1.9rem;
-  --fs: 0.8rem;
+  --fs: 0.82rem;
+  --sh: 0.16rem;
 }
 .s-sm .face {
-  padding: 0 0.75rem;
+  padding: 0 0.7rem;
 }
 .t-plain {
   --bg: var(--color-card);
@@ -81,25 +81,26 @@ function onClick() {
 }
 .t-red {
   --bg: var(--color-red);
-  --fg: #fff;
-  --sh: 0 2px 4px rgb(240 74 42 / 0.25), 0 10px 24px rgb(240 74 42 / 0.25);
+  --fg: var(--color-card);
 }
 .t-ink {
   --bg: var(--color-ink);
-  --fg: #fff;
+  --fg: var(--color-card);
 }
 .t-blue {
   --bg: var(--color-blue);
-  --fg: #fff;
+  --fg: var(--color-card);
 }
 .t-yellow {
   --bg: var(--color-yellow);
   --fg: var(--color-ink);
 }
-.ic,
-.ar {
-  width: 1.05em;
-  height: 1.05em;
+.t-ink .face {
+  box-shadow: var(--sh) var(--sh) 0 var(--color-red);
+}
+.ic {
+  width: 1.1em;
+  height: 1.1em;
   flex-shrink: 0;
 }
 .lb {
@@ -107,18 +108,23 @@ function onClick() {
   white-space: nowrap;
 }
 .ar {
-  transition: transform 220ms var(--ease-out);
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+  transition: transform 200ms var(--ease-out);
 }
 .btn:active:not(:disabled) .face {
-  transform: scale(0.97);
+  transform: translate(var(--sh), var(--sh));
+  box-shadow: 0 0 0 var(--color-ink);
 }
 .btn:active:not(:disabled) .ar {
   transform: translateX(0.25rem);
 }
 @media (hover: hover) and (pointer: fine) {
-  .btn:hover:not(:disabled) .face {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-2);
+  /* 滑鼠移上去：按鈕往左上浮一點、陰影拉長 */
+  .btn:hover:not(:disabled):not(:active) .face {
+    transform: translate(-0.07rem, -0.07rem);
+    box-shadow: calc(var(--sh) + 0.07rem) calc(var(--sh) + 0.07rem) 0 var(--color-ink);
   }
   .btn:hover:not(:disabled) .ar {
     transform: translateX(0.25rem);
@@ -130,6 +136,7 @@ function onClick() {
 .btn:disabled .face {
   --bg: var(--color-paper-2);
   --fg: var(--color-ink-3);
+  border-color: var(--color-ink-3);
   box-shadow: none;
 }
 </style>

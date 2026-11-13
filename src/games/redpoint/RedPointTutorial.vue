@@ -240,9 +240,9 @@ async function next() {
 }
 .table-box {
   position: absolute;
-  border-radius: 1.4rem;
-  background: var(--color-felt);
-  box-shadow: inset 0 1px 3px rgb(23 23 26 / 0.06);
+  border: 0.14rem solid var(--color-ink);
+  background-image: radial-gradient(rgb(20 20 20 / 0.1) 30%, transparent 32%);
+  background-size: 0.5rem 0.5rem;
 }
 .guide {
   position: absolute;
@@ -286,16 +286,19 @@ async function next() {
   left: 8%;
   right: 4%;
   bottom: -10%;
-  height: 4%;
-  border-radius: 999px;
-  background: var(--color-red);
+  height: 6%;
+  background: var(--color-yellow);
+  border: 0.1rem solid var(--color-ink);
 }
 .sprite.hit::before {
   content: '';
   position: absolute;
   inset: -6% -8%;
-  border-radius: 12%;
-  box-shadow: 0 0 0 0.2rem var(--color-yellow), 0 0 1.2rem rgb(255 203 47 / 0.7);
+  border: 0.2rem solid var(--color-ink);
+  border-radius: 10%;
+  background: var(--color-yellow);
+  z-index: -1;
+  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
   animation: hit 0.9s ease-in-out infinite;
   pointer-events: none;
 }

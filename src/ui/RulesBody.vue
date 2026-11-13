@@ -49,11 +49,7 @@ const current = computed(() => {
   grid-template-columns: 1fr;
 }
 section {
-  margin-bottom: 0.9rem;
-  padding: 0.8rem 1rem 0.7rem;
-  border-radius: var(--radius);
-  background: var(--color-card);
-  box-shadow: var(--shadow-1);
+  padding-bottom: 1.1rem;
 }
 h3 {
   display: flex;
@@ -61,7 +57,8 @@ h3 {
   gap: 0.55rem;
   padding-bottom: 0.2rem;
   margin-bottom: 0.3rem;
-  font-size: 1.02rem;
+  border-bottom: 0.1rem solid var(--color-ink);
+  font-size: 1.05rem;
 }
 .num {
   font-size: 0.95rem;
@@ -76,12 +73,11 @@ p {
 p::before {
   content: '';
   position: absolute;
-  left: 0.15rem;
+  left: 0.1rem;
   top: 0.72em;
-  width: 0.32rem;
-  height: 0.32rem;
-  border-radius: 50%;
-  background: var(--color-ink-3);
+  width: 0.35rem;
+  height: 0.35rem;
+  background: var(--color-ink);
 }
 dl {
   display: grid;

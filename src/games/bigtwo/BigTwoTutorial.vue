@@ -242,9 +242,9 @@ function next() {
   left: 8%;
   right: 4%;
   bottom: -10%;
-  height: 4%;
-  border-radius: 999px;
-  background: var(--color-red);
+  height: 6%;
+  background: var(--color-yellow);
+  border: 0.1rem solid var(--color-ink);
 }
 .me {
   position: absolute;

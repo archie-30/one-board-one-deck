@@ -1,6 +1,6 @@
 {
   "name": "one-board-one-deck",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "One-Board-One-Deck - a clean collection of card and board games",
   "type": "module",
@@ -15,6 +15,7 @@
   },
   "androidBuild": 0,
   "dependencies": {
+    "@fontsource/alfa-slab-one": "^5.3.0",
     "@fontsource/noto-sans-tc": "^5.3.1",
     "vue": "^3.5.45"
   },

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 圍棋棋盤：9／13／19 路。畫棋子、最後一手、預覽、剛被提掉的子（往上飄走），
 // 以及終局時的死棋（打叉）與地盤（小方塊）。只負責畫與回報點了哪一格。
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Point } from '@/engine/go/rules'
 import Stone from '@/ui/art/Stone.vue'
 
@@ -55,21 +55,35 @@ const owned = computed(() => {
   return out
 })
 
-function onClick(event: MouseEvent) {
-  if (!props.interactive) return
+function pointAt(event: MouseEvent): number {
   const rect = (event.currentTarget as SVGElement).getBoundingClientRect()
   const x = Math.round((((event.clientX - rect.left) / rect.width) * total.value - PAD) / CELL)
   const y = Math.round((((event.clientY - rect.top) / rect.height) * total.value - PAD) / CELL)
-  if (x < 0 || y < 0 || x >= props.size || y >= props.size) return
-  emit('pick', y * props.size + x)
+  if (x < 0 || y < 0 || x >= props.size || y >= props.size) return -1
+  return y * props.size + x
 }
+function onClick(event: MouseEvent) {
+  if (!props.interactive) return
+  const i = pointAt(event)
+  if (i >= 0) emit('pick', i)
+}
+
+// 滑鼠移上去：在游標下的空點先顯示一顆半透明的棋子（預覽），只對滑鼠有效
+const hoverAt = ref(-1)
+function onMove(event: PointerEvent) {
+  hoverAt.value = event.pointerType === 'mouse' && props.interactive ? pointAt(event) : -1
+}
+const ghost = computed(() => {
+  const i = hoverAt.value
+  return props.interactive && i >= 0 && i !== props.preview && props.board[i] === 0 && !props.area ? i : -1
+})
 </script>
 
 <template>
-  <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick">
-    <rect x="0.5" y="1.6" :width="total - 1" :height="total - 1" rx="2" fill="rgb(23 23 26 / .12)" />
-    <rect x="0.5" y="0.5" :width="total - 1" :height="total - 1" rx="2" fill="var(--color-board)" />
-    <g stroke="rgb(23 23 26 / .55)" stroke-width="0.3">
+  <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick" @pointermove="onMove" @pointerleave="hoverAt = -1">
+    <rect x="2.2" y="2.6" :width="total - 1" :height="total - 1" fill="var(--color-ink)" />
+    <rect x="0.5" y="0.5" :width="total - 1.6" :height="total - 1.6" fill="var(--color-yellow)" stroke="var(--color-ink)" stroke-width="0.9" />
+    <g stroke="var(--color-ink)" stroke-width="0.32">
       <line v-for="i in size" :key="`h${i}`" :x1="PAD" :x2="total - PAD" :y1="PAD + (i - 1) * CELL" :y2="PAD + (i - 1) * CELL" />
       <line v-for="i in size" :key="`v${i}`" :y1="PAD" :y2="total - PAD" :x1="PAD + (i - 1) * CELL" :x2="PAD + (i - 1) * CELL" />
     </g>
@@ -105,6 +119,7 @@ function onClick(event: MouseEvent) {
       <path v-for="d in dead" :key="`d${d}`" :d="`M${px(d) - 2.6} ${py(d) - 2.6}l5.2 5.2M${px(d) + 2.6} ${py(d) - 2.6}l-5.2 5.2`" class="cross" />
     </template>
 
+    <circle v-if="ghost >= 0" :key="`g${ghost}`" :cx="px(ghost)" :cy="py(ghost)" :r="R" :fill="previewColor === 1 ? 'var(--color-ink)' : 'var(--color-card)'" stroke="var(--color-ink)" stroke-width="0.6" class="ghost" />
     <g v-if="preview >= 0" class="preview">
       <circle :cx="px(preview)" :cy="py(preview)" :r="R" :fill="previewColor === 1 ? 'var(--color-ink)' : 'var(--color-card)'" stroke="var(--color-ink)" stroke-width="0.8" opacity=".45" />
       <circle :cx="px(preview)" :cy="py(preview)" r="6" class="aim" />
@@ -204,6 +219,19 @@ function onClick(event: MouseEvent) {
 @keyframes spin {
   to {
     rotate: 360deg;
+  }
+}
+.ghost {
+  opacity: 0.28;
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ghost-in 160ms var(--ease-out) both;
+}
+@keyframes ghost-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
   }
 }
 </style>

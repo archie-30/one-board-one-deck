@@ -19,9 +19,9 @@ const whites = [
 
 <template>
   <svg viewBox="0 0 200 130" class="cover" :class="{ active }" aria-hidden="true">
-    <rect x="22" y="3" width="160" height="128" rx="3" fill="rgb(23 23 26 / .1)" />
-    <rect x="22" y="1" width="160" height="128" rx="3" fill="var(--color-board)" />
-    <g stroke="rgb(23 23 26 / .5)" stroke-width="0.8">
+    <rect x="26" y="5" width="160" height="126" fill="var(--color-ink)" />
+    <rect x="22" y="1" width="160" height="126" fill="var(--color-yellow)" stroke="var(--color-ink)" stroke-width="2.4" />
+    <g stroke="var(--color-ink)" stroke-width="1">
       <line v-for="i in 8" :key="`h${i}`" x1="30" x2="174" :y1="P(i - 1) - 10" :y2="P(i - 1) - 10" />
       <line v-for="i in 9" :key="`v${i}`" y1="6" y2="124" :x1="P(i - 1) + 8" :x2="P(i - 1) + 8" />
     </g>

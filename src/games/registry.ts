@@ -10,6 +10,7 @@ import BigTwoCover from './covers/BigTwoCover.vue'
 import GoCover from './covers/GoCover.vue'
 import GomokuCover from './covers/GomokuCover.vue'
 import RedPointCover from './covers/RedPointCover.vue'
+import SolitaireCover from './covers/SolitaireCover.vue'
 import type { GameCategory, GameDef, SettingDef } from './types'
 
 const toggle = (key: string, text: { label: string; help: string }, def: boolean): SettingDef => ({
@@ -72,6 +73,20 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./redpoint/RedPointTutorial.vue')),
     component: defineAsyncComponent(() => import('./redpoint/RedPointGame.vue')),
     settings: [],
+  },
+  {
+    id: 'solitaire',
+    category: 'cards',
+    name: S.solitaire.name,
+    summary: S.solitaire.summary,
+    players: S.solitaire.players,
+    cover: SolitaireCover,
+    tags: S.solitaire.tags,
+    record: () => S.solitaire.record(stats.solitaire.played, stats.solitaire.wins, stats.solitaire.best),
+    rulesIntro: S.solitaire.rules,
+    tutorial: defineAsyncComponent(() => import('./solitaire/SolitaireTutorial.vue')),
+    component: defineAsyncComponent(() => import('./solitaire/SolitaireGame.vue')),
+    settings: [choice('difficulty', S.solitaire.settings.difficulty, 'easy')],
   },
   {
     id: 'gomoku',

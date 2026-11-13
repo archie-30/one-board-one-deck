@@ -12,6 +12,7 @@ defineProps<{ title: string; label?: string; num?: string }>()
     <header class="head">
       <h1 class="t-black title"><span class="mask"><span>{{ title }}</span></span></h1>
       <p v-if="label" class="t-label rise" style="--i: 2">{{ label }}</p>
+      <span v-if="num" class="t-slab num rise" style="--i: 1">{{ num }}</span>
     </header>
     <div class="rule wipe" style="--i: 2" />
     <div class="body"><slot /></div>
@@ -35,7 +36,7 @@ defineProps<{ title: string; label?: string; num?: string }>()
   gap: 1.2rem;
 }
 .title {
-  font-size: 2rem;
+  font-size: 2.3rem;
   line-height: 1.1;
 }
 .num {
@@ -44,9 +45,9 @@ defineProps<{ title: string; label?: string; num?: string }>()
   color: var(--color-red);
 }
 .rule {
-  height: 1px;
-  margin: 0.45rem 0 0.8rem;
-  background: var(--color-line);
+  height: 0.22rem;
+  margin: 0.35rem 0 0.7rem;
+  background: var(--color-ink);
 }
 .body {
   position: relative;

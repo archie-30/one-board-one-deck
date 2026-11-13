@@ -23,41 +23,36 @@ function pick(v: string) {
 .tabs {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 0.15rem;
-  padding: 0.2rem;
-  border-radius: 0.75rem;
-  background: var(--color-paper-2);
+  border: 0.13rem solid var(--color-ink);
+  background: var(--color-card);
+  box-shadow: 0.16rem 0.16rem 0 var(--color-ink);
 }
 .tab {
   position: relative;
   border: 0;
-  border-radius: 0.55rem;
+  border-right: 0.13rem solid var(--color-ink);
   background: none;
   padding: 0.25rem 0.8rem;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 900;
   line-height: 1.5;
   white-space: nowrap;
-  color: var(--color-ink-2);
-  transition: color 160ms ease;
+}
+.tab:last-child {
+  border-right: 0;
 }
 .fill {
   position: absolute;
   inset: 0;
-  border-radius: inherit;
-  background: var(--color-card);
-  box-shadow: var(--shadow-1);
-  opacity: 0;
-  transform: scale(0.9);
-  transition:
-    opacity 180ms ease,
-    transform 220ms var(--ease-out);
+  background: var(--color-ink);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 220ms var(--ease-out);
 }
 .tab.on {
-  color: var(--color-ink);
+  color: var(--color-card);
 }
 .tab.on .fill {
-  opacity: 1;
   transform: none;
 }
 </style>
