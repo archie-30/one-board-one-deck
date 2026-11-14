@@ -124,15 +124,15 @@ function cardStyle(k: number) {
   const sg = Math.sign(r)
   const w = cardW.value
   // 像一圈環形的卡片：中間那張正面朝前；兩側的卡片往後退、轉個角度朝向中間
-  const x = sg * (Math.min(a, 1) * w * 0.66 + Math.max(0, a - 1) * w * 0.3)
-  const z = -Math.min(a, 2) * w * 0.42
-  const rot = -sg * Math.min(a, 1) * 46
+  const x = sg * (Math.min(a, 1) * w * 0.42 + Math.max(0, a - 1) * w * 0.2)
+  const z = -Math.min(a, 2) * w * 0.5
+  const rot = -sg * Math.min(a, 1) * 52
   // 環形時，快轉到背面（左右交界）的卡片淡出，不會看到它從一邊跳到另一邊
   const op = ring.value ? Math.min(1, Math.max(0, (n.value / 2 - a) * 3)) : Math.max(0, 1 - Math.max(0, a - 1.6) * 2)
   const style: Record<string, string | number> = {
     zIndex: 100 - Math.round(a * 10),
     opacity: op,
-    '--fade': Math.min(0.6, a * 0.42),
+    '--fade': Math.min(0.8, a * 0.72),
     transform: `translateX(-50%) translateX(${x}px) translateZ(${z}px) rotateY(${rot}deg)`,
   }
   if (dragging.value) style.transition = 'none'
