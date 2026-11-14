@@ -37,6 +37,11 @@ const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 const salt = Math.floor(Math.random() * 997)
 const stageEl = ref<HTMLElement>()
 const L = shallowRef<SolLayout>(solLayout(844, 390))
+/** 左上角選單按鈕（距上 0.7rem、大小 2.4rem，見 SolitaireGame.vue）的下緣再留一點空，就是牌堆的上緣 */
+const stockTop = () => {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+  return rem * (0.7 + 2.4) + Math.max(10, rem * 0.5)
+}
 const stage = new CardStage()
 let lastLand = 0
 let dealingUntil = 0
@@ -124,12 +129,12 @@ onMounted(() => {
     const now = `${el.clientWidth}x${el.clientHeight}`
     if (now === size) return
     size = now
-    L.value = solLayout(el.clientWidth, el.clientHeight)
+    L.value = solLayout(el.clientWidth, el.clientHeight, 0, 0, stockTop())
     // 發牌途中不要把牌直接擺到終點（會提早翻開），等發完再重排
     if (dealing.value) resyncAfterDeal = true
     else sync(true)
   }
-  L.value = solLayout(el.clientWidth, el.clientHeight)
+  L.value = solLayout(el.clientWidth, el.clientHeight, 0, 0, stockTop())
   if (props.dealIn) dealAnimation()
   else sync(true)
   observer = new ResizeObserver(measure)
