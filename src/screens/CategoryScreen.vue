@@ -17,16 +17,32 @@ const props = defineProps<{ category: GameCategory }>()
 const games = computed(() => gamesIn(props.category))
 const n = computed(() => games.value.length)
 const start = games.value.findIndex((g) => g.id === settings.lastGame[props.category])
-const index = ref(start >= 0 ? start : 0)
+/** 環形轉盤的「游標」：可以一直往同一個方向轉（不會在頭尾停住），實際選中的是 index */
+const cursor = ref(start >= 0 ? start : 0)
+const mod = (a: number, m: number) => ((a % m) + m) % m
+/** 三張以上排成一圈；只有兩張時排成一排、頭尾停住 */
+const ring = computed(() => n.value >= 3)
+const index = computed(() => mod(cursor.value, n.value))
 const game = computed(() => games.value[index.value])
 const hoverId = ref<string | null>(null)
 const pad = (k: number) => String(k).padStart(2, '0')
 
+/** 轉到第 k 張（走最近的方向） */
 function show(k: number) {
-  const next = Math.min(n.value - 1, Math.max(0, k))
-  if (next === index.value) return
-  index.value = next
-  settings.lastGame[props.category] = games.value[next].id
+  let d: number
+  if (ring.value) {
+    d = mod(k - index.value + n.value / 2, n.value) - n.value / 2
+    d = Math.round(d)
+  } else d = Math.min(n.value - 1, Math.max(0, k)) - index.value
+  if (!d) return
+  turn(d)
+}
+/** 往右（+）或往左（−）轉幾格 */
+function turn(d: number) {
+  if (!ring.value) d = Math.min(n.value - 1, Math.max(0, index.value + d)) - index.value
+  if (!d) return
+  cursor.value += d
+  settings.lastGame[props.category] = games.value[index.value].id
   playSound('card')
 }
 function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
@@ -55,15 +71,17 @@ onMounted(() => {
 })
 onBeforeUnmount(() => ro?.disconnect())
 
-/** 目前「位置」：整數 = 停在某張；拖曳時是小數。頭尾拉不過去，會有一點阻力。 */
+/** 目前轉到的位置：整數 = 停在某張；拖曳時是小數（往左拖 = 往下一張轉） */
 const pos = computed(() => {
-  let p = index.value + dragX.value / (cardW.value * 0.9)
-  if (p < 0) p = p * 0.3
-  if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
+  let p = cursor.value - dragX.value / (cardW.value * 0.75)
+  if (!ring.value) {
+    if (p < 0) p = p * 0.3
+    if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
+  }
   return p
 })
-const rel = (k: number) => k - pos.value
-const PEEK = 26
+/** 第 k 張相對中間的位置：0 = 正中間，負的在左、正的在右 */
+const rel = (k: number) => (ring.value ? mod(k - pos.value + n.value / 2, n.value) - n.value / 2 : k - pos.value)
 
 function onDown(e: PointerEvent) {
   if (e.button !== undefined && e.button > 0) return
@@ -88,9 +106,9 @@ function onUp(e: PointerEvent) {
     if (hit) tapCard(cardEls.indexOf(hit as HTMLElement))
     return
   }
-  const target = Math.round(pos.value + Math.sign(dragX.value) * 0.25 * (Math.abs(dragX.value) > 30 ? 1 : 0))
+  const target = Math.round(pos.value - Math.sign(dragX.value) * 0.25 * (Math.abs(dragX.value) > 30 ? 1 : 0))
   dragX.value = 0
-  show(target)
+  turn(target - cursor.value)
 }
 function tapCard(k: number) {
   if (k !== index.value) show(k)
@@ -102,29 +120,20 @@ function onClick(k: number, e: MouseEvent) {
 }
 function cardStyle(k: number) {
   const r = rel(k)
-  let x: number
-  let sc: number
-  let op: number
-  let fade: number
-  if (r < 0) {
-    // 已經滑過去的：往右整張滑出，快出去時才淡掉
-    x = -r * cardW.value * 1.15
-    sc = 1
-    op = Math.min(1, Math.max(0, (1 + r) * 2.5))
-    fade = 0
-  } else {
-    // 後面的卡片往左側露出一條
-    x = -r * PEEK
-    sc = Math.max(0.6, 1 - r * 0.09)
-    op = r > 3 ? 0 : 1
-    // 後面的卡片不透明，只是蓋上一層紙色，看起來越後面越淡
-    fade = Math.min(0.75, r * 0.3)
-  }
+  const a = Math.abs(r)
+  const sg = Math.sign(r)
+  const w = cardW.value
+  // 像一圈環形的卡片：中間那張正面朝前；兩側的卡片往後退、轉個角度朝向中間
+  const x = sg * (Math.min(a, 1) * w * 0.66 + Math.max(0, a - 1) * w * 0.3)
+  const z = -Math.min(a, 2) * w * 0.42
+  const rot = -sg * Math.min(a, 1) * 46
+  // 環形時，快轉到背面（左右交界）的卡片淡出，不會看到它從一邊跳到另一邊
+  const op = ring.value ? Math.min(1, Math.max(0, (n.value / 2 - a) * 3)) : Math.max(0, 1 - Math.max(0, a - 1.6) * 2)
   const style: Record<string, string | number> = {
-    zIndex: 100 - Math.round(r * 10),
+    zIndex: 100 - Math.round(a * 10),
     opacity: op,
-    '--fade': fade,
-    transform: `translateX(${x}px) scale(${sc})`,
+    '--fade': Math.min(0.6, a * 0.42),
+    transform: `translateX(-50%) translateX(${x}px) translateZ(${z}px) rotateY(${rot}deg)`,
   }
   if (dragging.value) style.transition = 'none'
   return style
@@ -163,8 +172,8 @@ async function launch() {
 }
 
 function onKey(e: KeyboardEvent) {
-  if (e.key === 'ArrowRight') show(index.value + 1)
-  else if (e.key === 'ArrowLeft') show(index.value - 1)
+  if (e.key === 'ArrowRight') turn(1)
+  else if (e.key === 'ArrowLeft') turn(-1)
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
@@ -184,7 +193,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div
           ref="deckEl"
           class="deck"
-          :style="{ '--offset': `${PEEK * (games.length - 1)}px` }"
           role="listbox"
           :aria-activedescendant="`mode-${game.id}`"
           @pointerdown="onDown"
@@ -198,7 +206,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :key="g.id"
             :ref="(el) => (cardEls[k] = el as HTMLElement | null)"
             class="card"
-            :class="{ front: k === index, past: k < index, peek: hoverId === g.id && k > index }"
+            :class="{ front: k === index, peek: hoverId === g.id && k !== index }"
             :style="cardStyle(k)"
             role="option"
             :aria-selected="k === index"
@@ -219,12 +227,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </button>
         </div>
         <div class="pager">
-          <button class="arrow prev" :disabled="index === 0" :aria-label="S.common.back" @click="show(index - 1)"><Icon name="arrow" /></button>
+          <button class="arrow prev" :disabled="!ring && index === 0" :aria-label="S.common.back" @click="turn(-1)"><Icon name="arrow" /></button>
           <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
           <span class="dots">
             <button v-for="(g, k) in games" :key="g.id" class="dot" :class="{ on: k === index }" :aria-label="g.name" @click="show(k)" />
           </span>
-          <button class="arrow" :disabled="index === games.length - 1" :aria-label="S.common.next" @click="show(index + 1)"><Icon name="arrow" /></button>
+          <button class="arrow" :disabled="!ring && index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
         </div>
       </div>
 
@@ -294,7 +302,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .deck-wrap {
   display: flex;
   min-width: 0;
-  flex: 0.85;
+  flex: 1.1;
   flex-direction: column;
   gap: 0.6rem;
 }
@@ -308,14 +316,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   user-select: none;
   animation: rise 520ms var(--ease-out) 80ms both;
 }
-/* 只把往右滑出去的卡片切掉（不要蓋到右邊的介紹） */
+/* 3D 透視：兩側的卡片轉個角度往後退 */
 .deck {
-  clip-path: inset(-2rem 0 -2rem -2rem);
+  perspective: 900px;
+  perspective-origin: 50% 45%;
 }
 /* 直式卡片：米白底、黑框、右下實心陰影。位置由 cardStyle 算（往右後方疊、滑過的往左出去）。 */
 .card {
   position: absolute;
-  left: var(--offset, 0);
+  left: 50%;
   top: 0;
   display: flex;
   height: 100%;
@@ -327,7 +336,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   padding: 0;
   text-align: left;
   box-shadow: 0.25rem 0.25rem 0 var(--color-ink);
-  transform-origin: 0% 50%;
+  transform-origin: 50% 50%;
   transition:
     transform 460ms var(--ease-out),
     opacity 360ms ease,
@@ -339,9 +348,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .card.front {
   box-shadow: 0.4rem 0.45rem 0 var(--color-ink);
   cursor: grab;
-}
-.card.past {
-  pointer-events: none;
 }
 /* 越後面的卡片蓋上越濃的紙色 */
 .card::after {
@@ -547,8 +553,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 @media (hover: hover) and (pointer: fine) {
   /* 滑鼠移到後面的卡片上：那張往上探出來一點（預覽） */
-  .card.peek {
-    translate: -0.5rem 0;
+  /* 滑鼠移到旁邊的卡片上：那張變亮一點（預覽） */
+  .card.peek::after {
+    opacity: calc(var(--fade, 0) * 0.35);
   }
   .card {
     transition:
