@@ -25,8 +25,16 @@ import GameMenu from '@/ui/GameMenu.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import SolitaireTable from './SolitaireTable.vue'
 
-const props = defineProps<{ game: GameDef; options: Record<string, string | boolean> }>()
-const emit = defineEmits<{ exit: [] }>()
+const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
+const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
+
+/** 「保存進度並退出」存的資料（復原紀錄只留最近 40 步） */
+interface Saved {
+  state: SolitaireState
+  history: SolitaireState[]
+  seconds: number
+}
+const saved = (props.resume ?? null) as Saved | null
 const T = S.solitaire
 
 const draw = computed(() => (props.options.difficulty === 'hard' ? 3 : 1))
@@ -35,18 +43,18 @@ function fresh(): SolitaireState {
   return dealSolitaire(seedRng(seed), draw.value)[0]
 }
 
-const state = shallowRef<SolitaireState>(fresh())
-const history: SolitaireState[] = []
-const canUndo = ref(false)
+const state = shallowRef<SolitaireState>(saved ? saved.state : fresh())
+const history: SolitaireState[] = saved ? saved.history.slice() : []
+const canUndo = ref(history.length > 0)
 const dealKey = ref(0)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const message = ref('')
 const finishing = ref(false)
-let counted = false
+let counted = !!saved
 
 // ── 計時：第一步才開始算；暫停選單打開時停住 ──
-const seconds = ref(0)
+const seconds = ref(saved ? saved.seconds : 0)
 let timer = 0
 function startClock() {
   if (timer) return
@@ -157,6 +165,14 @@ function newGame() {
   dealKey.value++
 }
 
+// ── 保存進度並退出 ──
+const canSave = computed(() => !state.value.won && !finishing.value && state.value.moves > 0)
+function saveAndExit() {
+  const data: Saved = { state: state.value, history: history.slice(-40), seconds: seconds.value }
+  emit('save', data)
+}
+if (saved && saved.state.moves > 0) startClock()
+
 const timePenalty = computed(() => Math.floor(seconds.value / 10) * 2)
 const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.value) : 0))
 </script>
@@ -182,7 +198,7 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
     <p v-if="message" :key="message" class="toast pop">{{ message }}</p>
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
-    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" />
+    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
     <Dialog :open="resultOpen" :title="T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
       <table class="score">

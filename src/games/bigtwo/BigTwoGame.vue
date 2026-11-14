@@ -3,7 +3,7 @@
 // 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
-import { pickOpponents } from '@/core/opponents'
+import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
@@ -25,8 +25,22 @@ import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup, type TableModel } from './tableLayout'
 
-const props = defineProps<{ game: GameDef; options: Record<string, string | boolean> }>()
-const emit = defineEmits<{ exit: [] }>()
+const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
+const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
+
+/** 「保存進度並退出」存的資料 */
+interface Saved {
+  state: BigTwoState
+  opponents: number[]
+  seed: number
+  rng: number
+  tableTotals: number[]
+  pile: PileGroup[]
+  discard: Card[]
+  passed: boolean[]
+  groupId: number
+}
+const saved = (props.resume ?? null) as Saved | null
 
 const options = { ...props.options } as unknown as BigTwoOptions
 const T = S.bigtwo
@@ -34,13 +48,13 @@ const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
-const opponents = pickOpponents(3)
+const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3)
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
-const tableTotals = ref([0, 0, 0, 0])
+const tableTotals = ref(saved ? saved.tableTotals.slice() : [0, 0, 0, 0])
 
-let seed = (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
-let rng = seedRng(seed)
+let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
+let rng = saved ? saved.rng : seedRng(seed)
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
@@ -50,22 +64,22 @@ const later = (fn: () => void, ms: number) => {
   timers.add(id)
 }
 
-const state = shallowRef<BigTwoState>(dealBigTwo(seed, options))
+const state = shallowRef<BigTwoState>(saved ? saved.state : dealBigTwo(seed, options))
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const selected = ref<Card[]>([])
 const message = ref('')
-const pile = ref<PileGroup[]>([])
+const pile = ref<PileGroup[]>(saved ? saved.pile : [])
 /** 牌堆裡最上面那一手以外的牌：套一層灰階，一眼看出現在要壓的是哪一手 */
 const olderPile = computed(() => new Set(pile.value.slice(0, -1).flatMap((g) => g.cards)))
-const discard = ref<Card[]>([])
+const discard = ref<Card[]>(saved ? saved.discard : [])
 const gathered = ref(true)
-const passed = reactive([false, false, false, false])
+const passed = reactive(saved ? saved.passed.slice() : [false, false, false, false])
 const moods = reactive<KidMood[]>(['idle', 'idle', 'idle', 'idle'])
 const caption = ref<{ id: number; who: string; text: string; bomb: boolean } | null>(null)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const scores = ref(scoreBigTwo(state.value))
-let groupId = 0
+let groupId = saved ? saved.groupId : 0
 
 // ── 版面與動畫 ──
 const stageEl = ref<HTMLElement>()
@@ -257,6 +271,22 @@ function newRound() {
   }, 52 * 7 + 480)
 }
 
+// ── 保存進度並退出 ──
+const canSave = computed(() => phase.value === 'play')
+function saveAndExit() {
+  // 剛好在「大家都過、要收牌」的空檔存：把桌上的牌當作已經收走
+  let p = pile.value
+  let d = discard.value
+  let ps = [...passed]
+  if (!state.value.table && p.length) {
+    d = [...d, ...p.flatMap((g) => g.cards)]
+    p = []
+    ps = [false, false, false, false]
+  }
+  const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng, tableTotals: tableTotals.value, pile: p, discard: d, passed: ps, groupId }
+  emit('save', data)
+}
+
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
 const canPass = computed(() => myTurn.value && state.value.table !== null)
@@ -386,7 +416,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.result.howTitle }}</Btn>
     </div>
 
-    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" />
+    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
     <Dialog :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" :tone="state.winner === ME ? 'red' : 'ink'" wide @close="resultOpen = false">
       <table class="score">

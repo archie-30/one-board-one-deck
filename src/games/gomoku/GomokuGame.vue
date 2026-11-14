@@ -2,7 +2,7 @@
 // 五子棋：你在左、對手在右，中間一張棋盤。棋子從各自的棋罐沿弧線飛到落點，落地時壓扁並泛起墨圈。
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { playSound } from '@/core/audio'
-import { pickOpponents } from '@/core/opponents'
+import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
@@ -21,8 +21,16 @@ import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
 import GomokuBoard from './GomokuBoard.vue'
 
-const props = defineProps<{ game: GameDef; options: Record<string, string | boolean> }>()
-const emit = defineEmits<{ exit: [] }>()
+const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
+const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
+
+/** 「保存進度並退出」存的資料 */
+interface Saved {
+  state: GomokuState
+  human: Player
+  opponent: number
+  rng: number
+}
 
 const options = { ...props.options } as unknown as GomokuOptions
 const T = S.gomoku
@@ -189,6 +197,22 @@ function pick(index: number) {
 function confirmMove() {
   if (myTurn.value && preview.value >= 0) void commit(preview.value, 0)
 }
+
+// ── 保存進度並退出／讀回存檔 ──
+const canSave = computed(() => phase.value === 'playing')
+function saveAndExit() {
+  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng }
+  emit('save', data)
+}
+if (props.resume) {
+  const d = props.resume as Saved
+  state.value = d.state
+  human.value = d.human
+  opponent.value = opponentById(d.opponent)
+  rng = d.rng
+  phase.value = 'playing'
+  if (state.value.turn !== human.value) scheduleCpu()
+}
 </script>
 
 <template>
@@ -229,7 +253,7 @@ function confirmMove() {
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
     <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" @done="startAfterRps" />
-    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" />
+    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
     <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>

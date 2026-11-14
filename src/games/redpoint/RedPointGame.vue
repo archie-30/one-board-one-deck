@@ -4,7 +4,7 @@
 // 兩張一起飛回自己的牌堆；接著牌堆最上面那張翻開，再決定去哪。
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
-import { pickOpponents } from '@/core/opponents'
+import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
@@ -25,19 +25,28 @@ import { CardStage, type Pose } from '../bigtwo/cardStage'
 import { makeLayout, type Layout } from '../bigtwo/tableLayout'
 import { onTop, rpPoses, rpSpots } from './layout'
 
-const props = defineProps<{ game: GameDef; options: Record<string, string | boolean> }>()
-const emit = defineEmits<{ exit: [] }>()
+const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
+const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
+
+/** 「保存進度並退出」存的資料 */
+interface Saved {
+  state: RedPointState
+  opponents: number[]
+  seed: number
+  rng: number
+}
+const saved = (props.resume ?? null) as Saved | null
 
 const T = S.redpoint
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
-const opponents = pickOpponents(3)
+const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3)
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
 
-let seed = (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
-let rng = seedRng(seed)
-const state = shallowRef<RedPointState>(dealRedPoint(seed))
+let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
+let rng = saved ? saved.rng : seedRng(seed)
+const state = shallowRef<RedPointState>(saved ? saved.state : dealRedPoint(seed))
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const busy = ref(true)
 const selected = ref<Card | null>(null)
@@ -137,7 +146,9 @@ async function deal() {
   sync(ALL, { stagger: 28, dur: 340, arc: 14, order: (c) => order.get(c) ?? 0 })
   if (!(await wait(28 * 28 + 520))) return
   phase.value = 'play'
-  void nextTurn()
+  // 讀回的存檔可能停在「出完牌、還沒翻牌」
+  if (state.value.phase === 'flip') void flipTop(state.value.turn)
+  else void nextTurn()
 }
 
 function act(action: RedPointAction) {
@@ -287,6 +298,13 @@ async function newRound() {
   void deal()
 }
 
+// ── 保存進度並退出 ──
+const canSave = computed(() => phase.value === 'play')
+function saveAndExit() {
+  const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng }
+  emit('save', data)
+}
+
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
 // 滑鼠移到自己的手牌上：桌上能跟它配的牌先淡淡亮起來（預覽），點下去才選起
@@ -394,7 +412,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.howTitle }}</Btn>
     </div>
 
-    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" />
+    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
     <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winners(state).includes(ME) ? 'red' : 'ink'" wide @close="resultOpen = false">
       <table class="score">

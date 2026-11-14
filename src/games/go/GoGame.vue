@@ -3,7 +3,7 @@
 // 雙方連續虛手後進入數地：電腦標出死棋與地盤，你可以點棋子修正，再確認結果。
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { playSound } from '@/core/audio'
-import { pickOpponents } from '@/core/opponents'
+import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
@@ -23,8 +23,18 @@ import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
 import GoBoard from './GoBoard.vue'
 
-const props = defineProps<{ game: GameDef; options: Record<string, string | boolean> }>()
-const emit = defineEmits<{ exit: [] }>()
+const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
+const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
+
+/** 「保存進度並退出」存的資料 */
+interface Saved {
+  state: GoState
+  human: Color
+  opponent: number
+  rng: number
+  phase: 'playing' | 'scoring'
+  dead: number[]
+}
 const T = S.go
 const size = (Number(props.options.size) || 19) as GoSize
 
@@ -242,6 +252,23 @@ function pick(index: number) {
 function confirmMove() {
   if (myTurn.value && preview.value >= 0) void act({ type: 'play', index: preview.value }, 0)
 }
+
+// ── 保存進度並退出／讀回存檔 ──
+const canSave = computed(() => phase.value === 'playing' || phase.value === 'scoring')
+function saveAndExit() {
+  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, phase: phase.value === 'scoring' ? 'scoring' : 'playing', dead: dead.value }
+  emit('save', data)
+}
+if (props.resume) {
+  const d = props.resume as Saved
+  state.value = d.state
+  human.value = d.human
+  opponent.value = opponentById(d.opponent)
+  rng = d.rng
+  dead.value = d.dead ?? []
+  phase.value = d.phase
+  if (d.phase === 'playing' && state.value.turn === ai.value) scheduleCpu()
+}
 // 虛手要按兩次：第一次按下變成「再按一次虛手」，2.5 秒內再按才真的虛手
 const passArmed = ref(false)
 let passTimer = 0
@@ -340,7 +367,7 @@ const resultLine = computed(() => {
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
     <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" @done="startAfterRps" />
-    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" />
+    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
     <Dialog :open="resignOpen" :title="T.resignAsk" :label="game.name" @close="resignOpen = false">
       <template #actions>
         <Btn tone="red" @click="resign">{{ T.resign }}</Btn>
