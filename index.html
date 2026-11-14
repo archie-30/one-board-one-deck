@@ -6,8 +6,45 @@
     <meta name="theme-color" content="#F4F0E6" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>One Board One Deck</title>
+    <style>
+      /* 開機加載畫面：JS 還沒載入就先出現，準備好後由 main.ts 淡出移除 */
+      html, body { margin: 0; height: 100%; background: #efe9dc; }
+      #boot { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #efe9dc; transition: opacity 360ms ease; }
+      #boot.done { opacity: 0; pointer-events: none; }
+      #boot .row { display: flex; align-items: flex-end; gap: 9vmin; height: 26vmin; }
+      #boot .card { position: relative; width: 14vmin; height: 19.6vmin; perspective: 60vmin; }
+      #boot .flip { position: absolute; inset: 0; transform-style: preserve-3d; animation: boot-flip 1.8s cubic-bezier(.6,0,.3,1) infinite; }
+      #boot .face, #boot .back { position: absolute; inset: 0; border: 0.6vmin solid #141414; border-radius: 1.4vmin; backface-visibility: hidden; box-shadow: 0.9vmin 0.9vmin 0 #141414; box-sizing: border-box; }
+      #boot .face { background: #fbf8f1; display: grid; place-items: center; }
+      #boot .face svg { width: 55%; }
+      #boot .back { background: #2340d9 radial-gradient(rgb(255 255 255 / .22) 18%, transparent 20%) 0 0 / 1.6vmin 1.6vmin; transform: rotateY(180deg); display: grid; place-items: center; }
+      #boot .back::after { content: ''; width: 4.6vmin; height: 4.6vmin; border-radius: 50%; background: #fbf8f1; border: 0.6vmin solid #141414; box-sizing: border-box; box-shadow: inset 0 0 0 1.2vmin #ff4a1c; }
+      #boot .stone-wrap { position: relative; width: 11vmin; height: 26vmin; }
+      #boot .stone { position: absolute; left: 0; bottom: 1.4vmin; width: 11vmin; height: 11vmin; border-radius: 50%; background: radial-gradient(circle at 34% 30%, #4a4844 0 12%, #141414 40%); animation: boot-hop 0.9s cubic-bezier(.3,0,.6,1) infinite; }
+      #boot .shade { position: absolute; left: 1vmin; bottom: 0; width: 9vmin; height: 2vmin; border-radius: 50%; background: rgb(20 20 20 / .18); animation: boot-shade 0.9s cubic-bezier(.3,0,.6,1) infinite; }
+      #boot .dots { position: absolute; left: 50%; top: calc(50% + 19vmin); transform: translateX(-50%); display: flex; gap: 2vmin; }
+      #boot .dots i { width: 1.8vmin; height: 1.8vmin; border-radius: 50%; background: #141414; opacity: .2; animation: boot-dot 1.2s infinite; }
+      #boot .dots i:nth-child(1) { background: #ff4a1c; }
+      #boot .dots i:nth-child(2) { animation-delay: .2s; background: #ffc21a; }
+      #boot .dots i:nth-child(3) { animation-delay: .4s; background: #2340d9; }
+      @keyframes boot-flip { 0%, 30% { transform: rotateY(0) } 50%, 80% { transform: rotateY(180deg) } 100% { transform: rotateY(360deg) } }
+      @keyframes boot-hop { 0%, 100% { transform: translateY(0) scale(1.12, .86) } 12% { transform: translateY(0) scale(1) } 50% { transform: translateY(-12vmin) scale(.96, 1.04) } 88% { transform: translateY(0) scale(1) } }
+      @keyframes boot-shade { 0%, 100% { transform: scale(1.1); opacity: 1 } 50% { transform: scale(.55); opacity: .45 } }
+      @keyframes boot-dot { 0%, 60%, 100% { opacity: .2; transform: translateY(0) } 25% { opacity: 1; transform: translateY(-0.8vmin) } }
+      @media (prefers-reduced-motion: reduce) { #boot * { animation: none !important; } #boot .dots i { opacity: 1; } }
+    </style>
   </head>
   <body>
+    <div id="boot" aria-hidden="true">
+      <div class="row">
+        <div class="card"><div class="flip">
+          <div class="face"><svg viewBox="0 0 20 20"><path fill="#ff4a1c" d="M10 18 2.6 10.6A4.3 4.3 0 0 1 10 4.6a4.3 4.3 0 0 1 7.4 6Z"/></svg></div>
+          <div class="back"></div>
+        </div></div>
+        <div class="stone-wrap"><div class="shade"></div><div class="stone"></div></div>
+      </div>
+      <div class="dots"><i></i><i></i><i></i></div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

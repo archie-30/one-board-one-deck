@@ -28,7 +28,8 @@ export interface SolLayout {
 
 export const CARD_RATIO = 108 / 78
 
-export function solLayout(W: number, H: number, safeLeft = 0, safeRight = 0): SolLayout {
+/** stockTop：牌堆最上緣（要在左上角選單按鈕的下面；按鈕會隨字級放大，所以由畫面量好傳進來） */
+export function solLayout(W: number, H: number, safeLeft = 0, safeRight = 0, stockTop = 66): SolLayout {
   const m = 14
   const left = m + safeLeft
   const right = W - m - safeRight
@@ -37,7 +38,7 @@ export function solLayout(W: number, H: number, safeLeft = 0, safeRight = 0): So
   let cw = gap / 1.14
   // 右邊一欄要放得下兩排收牌區＋約 150px 的資訊區（分數、時間、步數、按鈕）
   // 左邊一欄：最上面是選單按鈕（每個遊戲都在左上角同一個位置），下面才放牌堆與翻出來的牌（翻 3 張時往下錯開）
-  const STOCK_TOP = 66
+  const STOCK_TOP = stockTop
   const maxCw = Math.min((H - m - 150) / 2.08, (H - STOCK_TOP - 12) / 2.54) / CARD_RATIO
   if (cw > maxCw) {
     cw = maxCw
