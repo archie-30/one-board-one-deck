@@ -27,6 +27,7 @@ import {
 import type { GameDef } from '@/games/types'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
+import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import SolitaireTable from './SolitaireTable.vue'
@@ -291,6 +292,7 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
       </template>
     </Dialog>
 
+    <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
     <Dialog :open="resultOpen" :title="T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
