@@ -104,7 +104,7 @@ function tapCard(c: Card) {
   if (busy.value || solved.value) return
   const s = state.value
   if (s.hands[0].includes(c)) {
-    playSound('tap')
+    playSound('cardPick')
     selected.value = selected.value === c ? null : c
     sync()
   } else if (selected.value !== null && s.table.includes(c) && matches(selected.value, c)) void play(selected.value, c)

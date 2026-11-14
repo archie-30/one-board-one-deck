@@ -27,6 +27,7 @@ const finished = ref(false)
 const hand = ref<Card[]>([])
 const selected = ref<Card[]>([])
 const pile = ref<PileGroup[]>([])
+const olderPile = computed(() => new Set(pile.value.slice(0, -1).flatMap((g) => g.cards)))
 const lesson = computed(() => BIGTWO_LESSONS[step.value])
 const text = computed(() => T.tutorial[step.value])
 const used = computed(() => new Set([...hand.value, ...pile.value.flatMap((g) => g.cards)]))
@@ -92,7 +93,7 @@ onBeforeUnmount(() => {
 
 function tapCard(c: Card) {
   if (solved.value || !hand.value.includes(c)) return
-  playSound('tap')
+  playSound('cardPick')
   selected.value = selected.value.includes(c) ? selected.value.filter((x) => x !== c) : [...selected.value, c]
   sync()
 }
@@ -167,7 +168,7 @@ function next() {
       :key="c"
       :ref="(el) => stage.attach(c, el as HTMLElement | null)"
       class="sprite"
-      :class="{ mine: hand.includes(c), sel: selected.includes(c) }"
+      :class="{ mine: hand.includes(c), sel: selected.includes(c), old: olderPile.has(c) }"
       :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
       @click="tapCard(c)"
     >
@@ -273,5 +274,11 @@ function next() {
   flex-direction: column;
   gap: 0.5rem;
   z-index: 700;
+}
+.sprite .face {
+  transition: filter 360ms ease;
+}
+.sprite.old .face {
+  filter: grayscale(1) brightness(0.93) contrast(0.85);
 }
 </style>

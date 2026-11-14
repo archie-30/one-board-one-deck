@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // 大老二牌桌：你在下方，三位隨機入座的對手在左、上、右。
 // 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
-import { pickOpponents } from '@/core/opponents'
+import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
-import { chooseBigTwoAction, legalPlays, suggestPlay } from '@/engine/bigtwo/ai'
+import { chooseBigTwoAction } from '@/engine/bigtwo/ai'
 import { RANK_2, RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { identifyCombo, isBomb } from '@/engine/bigtwo/combos'
 import { applyBigTwo, checkPlay, dealBigTwo, scoreBigTwo, type BigTwoAction, type BigTwoState } from '@/engine/bigtwo/game'
@@ -25,8 +25,22 @@ import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup, type TableModel } from './tableLayout'
 
-const props = defineProps<{ game: GameDef; options: Record<string, string | boolean> }>()
-const emit = defineEmits<{ exit: [] }>()
+const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
+const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
+
+/** 「保存進度並退出」存的資料 */
+interface Saved {
+  state: BigTwoState
+  opponents: number[]
+  seed: number
+  rng: number
+  tableTotals: number[]
+  pile: PileGroup[]
+  discard: Card[]
+  passed: boolean[]
+  groupId: number
+}
+const saved = (props.resume ?? null) as Saved | null
 
 const options = { ...props.options } as unknown as BigTwoOptions
 const T = S.bigtwo
@@ -34,13 +48,13 @@ const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
-const opponents = pickOpponents(3)
+const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3)
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
-const tableTotals = ref([0, 0, 0, 0])
+const tableTotals = ref(saved ? saved.tableTotals.slice() : [0, 0, 0, 0])
 
-let seed = (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
-let rng = seedRng(seed)
+let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
+let rng = saved ? saved.rng : seedRng(seed)
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
@@ -50,20 +64,22 @@ const later = (fn: () => void, ms: number) => {
   timers.add(id)
 }
 
-const state = shallowRef<BigTwoState>(dealBigTwo(seed, options))
+const state = shallowRef<BigTwoState>(saved ? saved.state : dealBigTwo(seed, options))
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const selected = ref<Card[]>([])
 const message = ref('')
-const pile = ref<PileGroup[]>([])
-const discard = ref<Card[]>([])
+const pile = ref<PileGroup[]>(saved ? saved.pile : [])
+/** 牌堆裡最上面那一手以外的牌：套一層灰階，一眼看出現在要壓的是哪一手 */
+const olderPile = computed(() => new Set(pile.value.slice(0, -1).flatMap((g) => g.cards)))
+const discard = ref<Card[]>(saved ? saved.discard : [])
 const gathered = ref(true)
-const passed = reactive([false, false, false, false])
+const passed = reactive(saved ? saved.passed.slice() : [false, false, false, false])
 const moods = reactive<KidMood[]>(['idle', 'idle', 'idle', 'idle'])
 const caption = ref<{ id: number; who: string; text: string; bomb: boolean } | null>(null)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const scores = ref(scoreBigTwo(state.value))
-let groupId = 0
+let groupId = saved ? saved.groupId : 0
 
 // ── 版面與動畫 ──
 const stageEl = ref<HTMLElement>()
@@ -126,6 +142,7 @@ onBeforeUnmount(() => {
 // ── 遊戲流程 ──
 function deal() {
   phase.value = 'deal'
+  playSound('shuffle')
   gathered.value = false
   const hands = state.value.hands
   const order = new Map<Card, number>()
@@ -254,6 +271,22 @@ function newRound() {
   }, 52 * 7 + 480)
 }
 
+// ── 保存進度並退出 ──
+const canSave = computed(() => phase.value === 'play')
+function saveAndExit() {
+  // 剛好在「大家都過、要收牌」的空檔存：把桌上的牌當作已經收走
+  let p = pile.value
+  let d = discard.value
+  let ps = [...passed]
+  if (!state.value.table && p.length) {
+    d = [...d, ...p.flatMap((g) => g.cards)]
+    p = []
+    ps = [false, false, false, false]
+  }
+  const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng, tableTotals: tableTotals.value, pile: p, discard: d, passed: ps, groupId }
+  emit('save', data)
+}
+
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
 const canPass = computed(() => myTurn.value && state.value.table !== null)
@@ -271,7 +304,7 @@ const status = computed(() => {
 
 function tapCard(c: Card) {
   if (phase.value !== 'play' || !state.value.hands[ME].includes(c)) return
-  playSound('tap')
+  playSound('cardPick')
   message.value = ''
   selected.value = selected.value.includes(c) ? selected.value.filter((x) => x !== c) : [...selected.value, c]
   sync()
@@ -290,24 +323,30 @@ function playSelected() {
   act({ type: 'play', player: ME, cards })
 }
 
+// 過牌要按兩次：第一次按下變成「再按一次過牌」，2.5 秒內再按才真的過
+const passArmed = ref(false)
+let passTimer = 0
+function disarmPass() {
+  passArmed.value = false
+  window.clearTimeout(passTimer)
+}
 function pass() {
   if (!canPass.value) return
+  if (!passArmed.value) {
+    passArmed.value = true
+    playSound('tap')
+    window.clearTimeout(passTimer)
+    passTimer = window.setTimeout(() => (passArmed.value = false), 2500)
+    return
+  }
+  disarmPass()
   selected.value = []
   act({ type: 'pass', player: ME })
 }
-
-function hint() {
-  if (!myTurn.value) return
-  const cards = legalPlays(state.value).length ? suggestPlay(state.value) : null
-  if (!cards) {
-    message.value = T.noPlay
-    selected.value = []
-  } else {
-    message.value = ''
-    selected.value = cards
-  }
-  sync()
-}
+watch(canPass, (v) => {
+  if (!v) disarmPass()
+})
+onBeforeUnmount(() => window.clearTimeout(passTimer))
 
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 const doubleNotes = computed(() => {
@@ -349,7 +388,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         :key="c"
         :ref="(el) => stage.attach(c, el as HTMLElement | null)"
         class="sprite"
-        :class="{ mine: state.hands[ME].includes(c), sel: selected.includes(c) }"
+        :class="{ mine: state.hands[ME].includes(c), sel: selected.includes(c), old: olderPile.has(c) }"
         :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
         @click="tapCard(c)"
       >
@@ -369,16 +408,15 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     </p>
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
-    <div class="hint-btn"><Btn icon="bulb" size="sm" :disabled="!myTurn" @click="hint">{{ T.hint }}</Btn></div>
     <div class="actions">
       <template v-if="phase !== 'over'">
         <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</Btn>
-        <Btn class="rise" style="--i: 1" icon="pass" block :disabled="!canPass" @click="pass">{{ T.pass }}</Btn>
+        <Btn class="rise" style="--i: 1" icon="pass" block :tone="passArmed ? 'yellow' : 'plain'" :disabled="!canPass" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
       </template>
       <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.result.howTitle }}</Btn>
     </div>
 
-    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" />
+    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
     <Dialog :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" :tone="state.winner === ME ? 'red' : 'ink'" wide @close="resultOpen = false">
       <table class="score">
@@ -394,9 +432,11 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <tbody>
           <tr v-for="(s, p) in scores" :key="p" class="rise" :class="{ winner: p === state.winner }" :style="{ '--i': p + 2 }">
             <td class="who-cell">
-              <span class="mini"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" /></span>
-              <span class="t-black">{{ names[p] }}</span>
-              <Burst v-if="p === state.winner" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ T.result.winnerStamp }}</Burst>
+              <span class="who-in">
+                <span class="mini"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" /></span>
+                <span class="t-black">{{ names[p] }}</span>
+                <Burst v-if="p === state.winner" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ T.result.winnerStamp }}</Burst>
+              </span>
             </td>
             <td>{{ p === state.winner ? T.result.winner : s.twos ? T.result.leftWithTwos(s.cards, s.twos) : T.cardsLeft(s.cards) }}</td>
             <td>{{ p === state.winner ? '' : `×${s.multiplier}` }}</td>
@@ -588,12 +628,6 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   top: max(0.7rem, env(safe-area-inset-top));
   z-index: 700;
 }
-.hint-btn {
-  position: absolute;
-  left: max(5.4rem, env(safe-area-inset-left));
-  bottom: 0.7rem;
-  z-index: 700;
-}
 .actions {
   position: absolute;
   right: max(1rem, env(safe-area-inset-right));
@@ -630,6 +664,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   text-align: left;
 }
 .who-cell {
+  vertical-align: middle;
+}
+.who-in {
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -675,5 +712,12 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   .sprite.mine:hover {
     translate: 0 -7%;
   }
+}
+/* 被壓在下面的舊牌：變灰 */
+.sprite .face {
+  transition: filter 360ms ease;
+}
+.sprite.old .face {
+  filter: grayscale(1) brightness(0.93) contrast(0.85);
 }
 </style>

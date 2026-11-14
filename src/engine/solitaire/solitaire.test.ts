@@ -12,13 +12,15 @@ import {
   hint,
   nextFinishMove,
   valueOf,
+  scoreOf,
+  undoTo,
   type SolitaireAction,
   type SolitaireState,
 } from './rules'
 
 /** 空桌面，再依需要擺牌 */
 function empty(draw: 1 | 3 = 1): SolitaireState {
-  return { stock: [], waste: [], foundations: [[], [], [], []], tableau: Array.from({ length: 7 }, () => ({ down: [], up: [] })), draw, score: 0, moves: 0, recycles: 0, won: false }
+  return { stock: [], waste: [], foundations: [[], [], [], []], tableau: Array.from({ length: 7 }, () => ({ down: [], up: [] })), draw, score: 0, moves: 0, recycles: 0, penalty: 0, won: false }
 }
 function ok(s: SolitaireState, a: SolitaireAction): SolitaireState {
   const r = applySolitaire(s, a)
@@ -209,6 +211,26 @@ describe('接龍：點一下自動放、提示、自動收牌', () => {
     }
     expect(s.won).toBe(true)
     expect(s.score).toBe(520)
+  })
+})
+
+describe('接龍：復原扣分', () => {
+  it('復原回到上一步，並依難度扣分（簡單 20、困難 10），扣分會累積、分數不低於 0', () => {
+    const a = empty(1)
+    a.waste = [P('HA')]
+    const b = ok(a, { type: 'move', from: { pile: 'waste' }, to: { pile: 'foundation', slot: 0 } })
+    expect(scoreOf(b)).toBe(10)
+    const back = undoTo(a, b)
+    expect(back.waste).toEqual([P('HA')])
+    expect(back.penalty).toBe(20)
+    expect(scoreOf(back)).toBe(0)
+    const c = ok(back, { type: 'move', from: { pile: 'waste' }, to: { pile: 'foundation', slot: 0 } })
+    expect(c.penalty).toBe(20)
+    expect(scoreOf(c)).toBe(0)
+    const h = empty(3)
+    h.score = 50
+    expect(scoreOf(undoTo(h, h))).toBe(40)
+    expect(undoTo(h, undoTo(h, h)).penalty).toBe(20)
   })
 })
 

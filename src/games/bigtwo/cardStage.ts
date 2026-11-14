@@ -3,6 +3,8 @@
 // 每一幀直接改 transform，不經過 Vue，所以 52 張牌一起動也很順。
 // 這裡只負責動畫，不懂任何遊戲規則。
 
+import { reducedMotion } from '@/core/motion'
+
 export interface Pose {
   x: number
   y: number
@@ -55,7 +57,9 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 export class CardStage {
   private sprites = new Map<number, Sprite>()
   private raf = 0
-  private reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  private get reduced() {
+    return reducedMotion()
+  }
   /** 有牌落地時呼叫（拿來放音效） */
   onLand: ((id: number) => void) | null = null
 
@@ -68,6 +72,11 @@ export class CardStage {
 
   pose(id: number): Pose {
     return { ...this.sprite(id).cur }
+  }
+
+  /** 這張牌最後要停的姿勢（飛行中途也回傳終點，不會拿到翻面一半、壓扁一半的樣子） */
+  target(id: number): Pose {
+    return { ...this.sprite(id).to }
   }
 
   /** 讓一張牌移到新的姿勢 */

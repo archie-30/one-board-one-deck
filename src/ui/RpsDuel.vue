@@ -36,7 +36,7 @@ function choose(hand: RpsHand) {
   playSound('tap')
   window.setTimeout(() => {
     phase.value = 'show'
-    playSound(outcome.value === 0 ? 'pass' : 'stone')
+    playSound(outcome.value === 0 ? 'slide' : 'stone')
     moods.value = outcome.value === 0 ? ['shock', 'shock'] : outcome.value === 1 ? ['happy', 'sad'] : ['sad', 'happy']
     if (outcome.value === 0)
       window.setTimeout(() => {

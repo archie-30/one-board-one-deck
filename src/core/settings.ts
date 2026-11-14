@@ -14,6 +14,8 @@ interface Settings {
   games: Record<string, GamePrefs>
   /** 每個分類上次選的遊戲 */
   lastGame: Record<string, string>
+  /** 減少動畫（系統沒開「減少動態」時也可以在遊戲裡自己關） */
+  reduceMotion: boolean
 }
 
 interface Stats {
@@ -24,17 +26,22 @@ interface Stats {
   solitaire: { played: number; wins: number; best: number; fastest: number }
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {} }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false }))
 
-export const stats = reactive(
-  loadSave<Stats>('stats', {
-    gomoku: { wins: 0, losses: 0, draws: 0 },
-    bigtwo: { rounds: 0, wins: 0, totals: [0, 0, 0, 0] },
-    redpoint: { rounds: 0, wins: 0, best: 0 },
-    go: { wins: 0, losses: 0 },
-    solitaire: { played: 0, wins: 0, best: 0, fastest: 0 },
-  }),
-)
+const STATS_DEFAULT: Stats = {
+  gomoku: { wins: 0, losses: 0, draws: 0 },
+  bigtwo: { rounds: 0, wins: 0, totals: [0, 0, 0, 0] },
+  redpoint: { rounds: 0, wins: 0, best: 0 },
+  go: { wins: 0, losses: 0 },
+  solitaire: { played: 0, wins: 0, best: 0, fastest: 0 },
+}
+
+export const stats = reactive(loadSave<Stats>('stats', structuredClone(STATS_DEFAULT)))
+
+/** 清除所有戰績（設定頁用） */
+export function resetStats() {
+  Object.assign(stats, structuredClone(STATS_DEFAULT))
+}
 
 watch(settings, (v) => writeSave('settings', v), { deep: true })
 watch(stats, (v) => writeSave('stats', v), { deep: true })

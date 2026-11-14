@@ -1,23 +1,22 @@
 <script setup lang="ts">
-// 接龍對局：牌桌＋右下的分數、時間、步數，以及提示、復原、自動收牌。
+// 接龍對局：牌桌＋右下的分數、時間、步數，以及復原、自動收牌。
 // 規則都在引擎（applySolitaire），這裡只管流程、計時與存紀錄。
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
-import type { Card } from '@/engine/bigtwo/cards'
 import {
   applySolitaire,
   canAutoFinish,
-  cardsAt,
   dealSolitaire,
   finalScore,
-  hint,
   nextFinishMove,
+  scoreOf,
+  undoTo,
+  UNDO_PENALTY,
   type SolitaireAction,
   type SolitaireState,
-  type Target,
 } from '@/engine/solitaire/rules'
 import type { GameDef } from '@/games/types'
 import Btn from '@/ui/Btn.vue'
@@ -26,8 +25,16 @@ import GameMenu from '@/ui/GameMenu.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import SolitaireTable from './SolitaireTable.vue'
 
-const props = defineProps<{ game: GameDef; options: Record<string, string | boolean> }>()
-const emit = defineEmits<{ exit: [] }>()
+const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
+const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
+
+/** 「保存進度並退出」存的資料（復原紀錄只留最近 40 步） */
+interface Saved {
+  state: SolitaireState
+  history: SolitaireState[]
+  seconds: number
+}
+const saved = (props.resume ?? null) as Saved | null
 const T = S.solitaire
 
 const draw = computed(() => (props.options.difficulty === 'hard' ? 3 : 1))
@@ -36,20 +43,18 @@ function fresh(): SolitaireState {
   return dealSolitaire(seedRng(seed), draw.value)[0]
 }
 
-const state = shallowRef<SolitaireState>(fresh())
-const history: SolitaireState[] = []
-const canUndo = ref(false)
+const state = shallowRef<SolitaireState>(saved ? saved.state : fresh())
+const history: SolitaireState[] = saved ? saved.history.slice() : []
+const canUndo = ref(history.length > 0)
 const dealKey = ref(0)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const message = ref('')
-const hintCards = ref<Card[]>([])
-const hintSpot = ref<Target | 'stock' | null>(null)
 const finishing = ref(false)
-let counted = false
+let counted = !!saved
 
 // ── 計時：第一步才開始算；暫停選單打開時停住 ──
-const seconds = ref(0)
+const seconds = ref(saved ? saved.seconds : 0)
 let timer = 0
 function startClock() {
   if (timer) return
@@ -67,17 +72,13 @@ onBeforeUnmount(() => {
   window.clearTimeout(finishTimer)
 })
 const clock = computed(() => `${Math.floor(seconds.value / 60)}:${String(seconds.value % 60).padStart(2, '0')}`)
-const liveScore = computed(() => finalScore(state.value.score, seconds.value, false))
+const liveScore = computed(() => finalScore(scoreOf(state.value), seconds.value, false))
 
 let msgTimer = 0
 function say(text: string) {
   message.value = text
   window.clearTimeout(msgTimer)
   msgTimer = window.setTimeout(() => (message.value = ''), 1600)
-}
-function clearHint() {
-  hintCards.value = []
-  hintSpot.value = null
 }
 
 function act(action: SolitaireAction) {
@@ -89,7 +90,6 @@ function act(action: SolitaireAction) {
     playSound('error')
     return
   }
-  clearHint()
   history.push(state.value)
   canUndo.value = true
   state.value = r.state
@@ -98,32 +98,18 @@ function act(action: SolitaireAction) {
     counted = true
     stats.solitaire.played++
   }
-  if (action.type === 'draw') playSound('deal')
+  if (action.type === 'draw') playSound('flip')
+  else if (action.to.pile === 'foundation') playSound('collect')
   if (r.state.won) win()
 }
 
 function undo() {
   if (!history.length || finishing.value || state.value.won) return
   playSound('tap')
-  clearHint()
-  state.value = history.pop()!
+  // 復原要扣分（簡單、困難扣的不一樣）
+  state.value = undoTo(history.pop()!, state.value)
   canUndo.value = history.length > 0
-}
-
-function showHint() {
-  const h = hint(state.value)
-  playSound('tap')
-  if (!h) {
-    say(T.noMoves)
-    return
-  }
-  if (h.type === 'draw') {
-    hintCards.value = []
-    hintSpot.value = 'stock'
-  } else {
-    hintCards.value = cardsAt(state.value, h.from)
-    hintSpot.value = h.to
-  }
+  say(T.undoCost(UNDO_PENALTY[state.value.draw]))
 }
 
 // ── 自動收牌：一張一張飛上去 ──
@@ -131,7 +117,6 @@ let finishTimer = 0
 function autoFinish() {
   if (!canAutoFinish(state.value) || finishing.value) return
   finishing.value = true
-  clearHint()
   const step = () => {
     const m = nextFinishMove(state.value)
     if (!m) {
@@ -158,7 +143,7 @@ function autoFinish() {
 const total = ref(0)
 function win() {
   stopClock()
-  total.value = finalScore(state.value.score, seconds.value, true)
+  total.value = finalScore(scoreOf(state.value), seconds.value, true)
   stats.solitaire.wins++
   stats.solitaire.best = Math.max(stats.solitaire.best, total.value)
   if (!stats.solitaire.fastest || seconds.value < stats.solitaire.fastest) stats.solitaire.fastest = seconds.value
@@ -172,7 +157,6 @@ function newGame() {
   finishing.value = false
   menuOpen.value = false
   resultOpen.value = false
-  clearHint()
   history.length = 0
   canUndo.value = false
   seconds.value = 0
@@ -181,13 +165,21 @@ function newGame() {
   dealKey.value++
 }
 
+// ── 保存進度並退出 ──
+const canSave = computed(() => !state.value.won && !finishing.value && state.value.moves > 0)
+function saveAndExit() {
+  const data: Saved = { state: state.value, history: history.slice(-40), seconds: seconds.value }
+  emit('save', data)
+}
+if (saved && saved.state.moves > 0) startClock()
+
 const timePenalty = computed(() => Math.floor(seconds.value / 10) * 2)
 const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.value) : 0))
 </script>
 
 <template>
   <section class="game">
-    <SolitaireTable :state="state" :deal-key="dealKey" :interactive="!finishing && !state.won" :hint-cards="hintCards" :hint-spot="hintSpot" @action="act" @invalid="playSound('error')">
+    <SolitaireTable :state="state" :deal-key="dealKey" :interactive="!finishing && !state.won" @action="act" @invalid="playSound('error')">
       <template #default="{ layout: L }">
         <div class="hud" :style="{ left: `${L.hud.x}px`, top: `${L.hud.y}px`, width: `${L.hud.w}px` }">
           <dl class="nums">
@@ -197,7 +189,6 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
           </dl>
           <Btn v-if="canAutoFinish(state) || finishing" class="pop" tone="yellow" size="sm" block :disabled="finishing" @click="autoFinish">{{ T.autoFinish }}</Btn>
           <div v-else class="tools">
-            <Btn size="sm" block :disabled="state.won" @click="showHint">{{ T.hint }}</Btn>
             <Btn size="sm" block :disabled="!canUndo || state.won" @click="undo">{{ T.undo }}</Btn>
           </div>
         </div>
@@ -207,12 +198,13 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
     <p v-if="message" :key="message" class="toast pop">{{ message }}</p>
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
-    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" />
+    <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
     <Dialog :open="resultOpen" :title="T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
       <table class="score">
         <tbody>
           <tr class="rise" style="--i: 2"><td>{{ T.rowBase }}</td><td class="t-slab">{{ state.score }}</td></tr>
+          <tr v-if="state.penalty" class="rise" style="--i: 2"><td>{{ T.rowUndo }}</td><td class="t-slab">−{{ state.penalty }}</td></tr>
           <tr class="rise" style="--i: 3"><td>{{ T.rowTime(clock) }}</td><td class="t-slab">−{{ timePenalty }}</td></tr>
           <tr class="rise" style="--i: 4"><td>{{ T.rowBonus }}</td><td class="t-slab">+{{ bonus }}</td></tr>
           <tr class="rise total" style="--i: 5"><td class="t-black">{{ T.rowTotal }}</td><td class="t-slab red">{{ total }}</td></tr>

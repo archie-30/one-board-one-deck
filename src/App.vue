@@ -2,12 +2,13 @@
 import { onMounted, onUnmounted } from 'vue'
 import { back, replace, route, routeKey } from '@/core/nav'
 import { S } from '@/data/strings'
-import { resolveOptions } from '@/games/options'
 import { getGame } from '@/games/registry'
 import CategoryScreen from '@/screens/CategoryScreen.vue'
 import GameSettingsScreen from '@/screens/GameSettingsScreen.vue'
+import PlayScreen from '@/screens/PlayScreen.vue'
 import RulesScreen from '@/screens/RulesScreen.vue'
 import TitleScreen from '@/screens/TitleScreen.vue'
+import LaunchOverlay from '@/ui/LaunchOverlay.vue'
 
 function onKey(event: KeyboardEvent) {
   if (event.key === 'Escape' && route.value.name !== 'play' && route.value.name !== 'tutorial') back()
@@ -29,7 +30,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         @exit="back()"
         @play="replace({ name: 'play', gameId: route.gameId })"
       />
-      <component :is="getGame(route.gameId).component" v-else :key="routeKey" :game="getGame(route.gameId)" :options="resolveOptions(getGame(route.gameId))" @exit="back()" />
+      <PlayScreen v-else :key="routeKey" :game-id="route.gameId" />
+    <LaunchOverlay />
     <div class="rotate">{{ S.app.rotate }}</div>
   </main>
 </template>

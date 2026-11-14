@@ -24,7 +24,7 @@ function set(key: string, value: string | boolean) {
 </script>
 
 <template>
-  <Page :title="S.gameSettings.title" :label="game.name" num="04">
+  <Page :title="S.gameSettings.title" :label="game.name" num="04" :back-label="S.gameSettings.backApply">
     <div class="scroll-y h-full pr-[0.8rem]">
       <ul>
         <li v-for="(def, i) in game.settings" :key="def.key" class="item rise" :style="{ '--i': i * 0.6 }">

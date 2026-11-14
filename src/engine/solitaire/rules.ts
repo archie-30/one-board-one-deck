@@ -29,6 +29,8 @@ export interface SolitaireState {
   score: number
   moves: number
   recycles: number
+  /** 按「復原」累積扣掉的分數 */
+  penalty: number
   won: boolean
 }
 
@@ -42,6 +44,8 @@ export type SolitaireAction = { type: 'draw' } | { type: 'move'; from: Source; t
 export type SolitaireError = 'won' | 'empty' | 'badSource' | 'illegal'
 
 export const SCORE = { wasteToTableau: 5, toFoundation: 10, flip: 5, fromFoundation: -15, recycle1: -100, recycle3: -20 } as const
+/** 按一次「復原」扣的分數：簡單（翻 1 張）扣多一點，困難（翻 3 張）扣少一點 */
+export const UNDO_PENALTY: Record<DrawCount, number> = { 1: 20, 3: 10 }
 
 /** 接龍的點數：A = 1 … K = 13 */
 export function valueOf(card: Card): number {
@@ -58,7 +62,7 @@ export function createSolitaire(deck: readonly Card[], draw: DrawCount): Solitai
     const take = cards.splice(0, i + 1)
     tableau.push({ down: take.slice(0, -1), up: take.slice(-1) })
   }
-  return { stock: cards.reverse(), waste: [], foundations: [[], [], [], []], tableau, draw, score: 0, moves: 0, recycles: 0, won: false }
+  return { stock: cards.reverse(), waste: [], foundations: [[], [], [], []], tableau, draw, score: 0, moves: 0, recycles: 0, penalty: 0, won: false }
 }
 
 export function dealSolitaire(rng: RngState, draw: DrawCount): [SolitaireState, RngState] {
@@ -154,6 +158,14 @@ export function applySolitaire(state: SolitaireState, action: SolitaireAction): 
   s.moves++
   s.won = isWon(s)
   return { ok: true, state: s }
+}
+
+/** 目前的分數（移動得分扣掉復原的扣分，最低 0） */
+export const scoreOf = (s: SolitaireState): number => Math.max(0, s.score - s.penalty)
+
+/** 復原：回到上一步的狀態，但保留累積的扣分並再扣一次；步數照算 */
+export function undoTo(prev: SolitaireState, current: SolitaireState): SolitaireState {
+  return { ...prev, penalty: current.penalty + UNDO_PENALTY[current.draw], moves: current.moves + 1 }
 }
 
 /** 點一下時要把牌送去哪裡：能收就收，否則找第一個能接的桌面（先找有牌的、再找空的） */

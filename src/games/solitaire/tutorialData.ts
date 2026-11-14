@@ -18,6 +18,7 @@ function table(cols: Record<number, { down?: string[]; up?: string[] }>, stock: 
     score: 0,
     moves: 0,
     recycles: 0,
+    penalty: 0,
     won: false,
   }
 }

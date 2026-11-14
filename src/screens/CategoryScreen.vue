@@ -2,9 +2,11 @@
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
+import { startLaunch } from '@/core/launch'
+import { reducedMotion } from '@/core/motion'
 import { settings } from '@/core/settings'
 import { S } from '@/data/strings'
 import { gamesIn } from '@/games/registry'
@@ -12,41 +14,31 @@ import type { GameCategory } from '@/games/types'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import AppSettings from './AppSettings.vue'
 
 const props = defineProps<{ category: GameCategory }>()
 const games = computed(() => gamesIn(props.category))
 const n = computed(() => games.value.length)
 const start = games.value.findIndex((g) => g.id === settings.lastGame[props.category])
-/** 環形轉盤的「游標」：可以一直往同一個方向轉（不會在頭尾停住），實際選中的是 index */
-const cursor = ref(start >= 0 ? start : 0)
-const mod = (a: number, m: number) => ((a % m) + m) % m
-/** 三張以上排成一圈；只有兩張時排成一排、頭尾停住 */
-const ring = computed(() => n.value >= 3)
-const index = computed(() => mod(cursor.value, n.value))
+/** 目前選中的是第幾張。不繞圈：前面的模式疊在左邊、後面的疊在右邊，到頭尾就停住。 */
+const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 const hoverId = ref<string | null>(null)
+const settingsOpen = ref(false)
 const pad = (k: number) => String(k).padStart(2, '0')
 
-/** 轉到第 k 張（走最近的方向） */
+/** 換到第 k 張 */
 function show(k: number) {
-  let d: number
-  if (ring.value) {
-    d = mod(k - index.value + n.value / 2, n.value) - n.value / 2
-    d = Math.round(d)
-  } else d = Math.min(n.value - 1, Math.max(0, k)) - index.value
-  if (!d) return
-  turn(d)
+  const next = Math.min(n.value - 1, Math.max(0, k))
+  if (next === index.value) return
+  index.value = next
+  settings.lastGame[props.category] = games.value[next].id
+  playSound('slide')
 }
-/** 往右（+）或往左（−）轉幾格 */
-function turn(d: number) {
-  if (!ring.value) d = Math.min(n.value - 1, Math.max(0, index.value + d)) - index.value
-  if (!d) return
-  cursor.value += d
-  settings.lastGame[props.category] = games.value[index.value].id
-  playSound('card')
-}
+/** 往右（+）或往左（−）換幾張 */
+const turn = (d: number) => show(index.value + d)
 function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
-  if (name === 'play') playSound(props.category === 'cards' ? 'deal' : 'stone')
+  if (name === 'play') playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')
   go({ name, gameId: game.value.id })
 }
 
@@ -73,15 +65,14 @@ onBeforeUnmount(() => ro?.disconnect())
 
 /** 目前轉到的位置：整數 = 停在某張；拖曳時是小數（往左拖 = 往下一張轉） */
 const pos = computed(() => {
-  let p = cursor.value - dragX.value / (cardW.value * 0.75)
-  if (!ring.value) {
-    if (p < 0) p = p * 0.3
-    if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
-  }
+  let p = index.value - dragX.value / (cardW.value * 0.75)
+  // 頭尾拉不過去，會有一點阻力
+  if (p < 0) p = p * 0.3
+  if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
   return p
 })
 /** 第 k 張相對中間的位置：0 = 正中間，負的在左、正的在右 */
-const rel = (k: number) => (ring.value ? mod(k - pos.value + n.value / 2, n.value) - n.value / 2 : k - pos.value)
+const rel = (k: number) => k - pos.value
 
 function onDown(e: PointerEvent) {
   if (e.button !== undefined && e.button > 0) return
@@ -108,7 +99,7 @@ function onUp(e: PointerEvent) {
   }
   const target = Math.round(pos.value - Math.sign(dragX.value) * 0.25 * (Math.abs(dragX.value) > 30 ? 1 : 0))
   dragX.value = 0
-  turn(target - cursor.value)
+  show(target)
 }
 function tapCard(k: number) {
   if (k !== index.value) show(k)
@@ -123,12 +114,12 @@ function cardStyle(k: number) {
   const a = Math.abs(r)
   const sg = Math.sign(r)
   const w = cardW.value
-  // 像一圈環形的卡片：中間那張正面朝前；兩側的卡片往後退、轉個角度朝向中間
-  const x = sg * (Math.min(a, 1) * w * 0.42 + Math.max(0, a - 1) * w * 0.2)
+  // 中間那張正面朝前；前面的模式疊在左邊、後面的疊在右邊，往後退、轉個角度朝向中間
+  const x = sg * (Math.min(a, 1) * w * 0.42 + Math.max(0, a - 1) * w * 0.12)
   const z = -Math.min(a, 2) * w * 0.5
   const rot = -sg * Math.min(a, 1) * 52
-  // 環形時，快轉到背面（左右交界）的卡片淡出，不會看到它從一邊跳到另一邊
-  const op = ring.value ? Math.min(1, Math.max(0, (n.value / 2 - a) * 3)) : Math.max(0, 1 - Math.max(0, a - 1.6) * 2)
+  // 疊得太後面的就淡出
+  const op = Math.max(0, 1 - Math.max(0, a - 2.4) * 2)
   const style: Record<string, string | number> = {
     zIndex: 100 - Math.round(a * 10),
     opacity: op,
@@ -139,36 +130,22 @@ function cardStyle(k: number) {
   return style
 }
 
-// ── 點最前面的卡片（或按「開始遊戲」）：卡片放大到整個畫面，接著直接開始遊戲 ──
+// ── 點最前面的卡片（或按「開始遊戲」）：卡片放大到整個畫面，同時先把遊戲載好，接著直接開始遊戲 ──
 const cardEls: (HTMLElement | null)[] = []
-const zoomEl = ref<HTMLElement>()
-const zooming = ref<{ left: number; top: number; width: number; height: number } | null>(null)
+let launching = false
 async function launch() {
-  if (zooming.value) return
+  if (launching) return
   const el = cardEls[index.value]
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (!el || reduced) return open('play')
+  if (!el || reducedMotion()) return open('play')
+  launching = true
+  const g = game.value
   const r = el.getBoundingClientRect()
-  zooming.value = { left: r.left, top: r.top, width: r.width, height: r.height }
-  playSound(props.category === 'cards' ? 'deal' : 'stone')
-  await nextTick()
-  const z = zoomEl.value
-  if (!z) return open('play')
-  const ease = 'cubic-bezier(0.77, 0, 0.175, 1)'
-  const grow = z.animate(
-    [
-      { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, borderWidth: '0.14rem', borderRadius: '0.5rem' },
-      { left: '0px', top: '0px', width: `${window.innerWidth}px`, height: `${window.innerHeight}px`, borderWidth: '0rem', borderRadius: '0rem' },
-    ],
-    { duration: 520, easing: ease, fill: 'forwards' },
-  )
-  // 後半段：插圖淡掉、底色變回紙色，換到對局畫面時不會突然跳色
-  z.querySelector('.zoom-art')?.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.6)' }], { duration: 520, easing: 'ease-in', fill: 'forwards' })
-  const tone = getComputedStyle(z).backgroundColor
-  const paper = getComputedStyle(document.body).backgroundColor
-  z.animate([{ backgroundColor: tone }, { backgroundColor: tone, offset: 0.45 }, { backgroundColor: paper }], { duration: 640, easing: 'ease-out', fill: 'forwards' })
-  await grow.finished
-  window.setTimeout(() => go({ name: 'play', gameId: game.value.id }), 120)
+  const color = getComputedStyle(el.querySelector('.cover') ?? el).backgroundColor
+  playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')
+  // 放大的同時先下載遊戲畫面，兩件事都好了才換頁
+  const loader = (g.component as { __asyncLoader?: () => Promise<unknown> }).__asyncLoader
+  await Promise.all([startLaunch({ left: r.left, top: r.top, width: r.width, height: r.height }, color, g.cover), loader?.().catch(() => {})])
+  go({ name: 'play', gameId: g.id })
 }
 
 function onKey(e: KeyboardEvent) {
@@ -185,6 +162,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <IconBtn icon="back" :label="S.common.back" @click="back()" />
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
+      <IconBtn icon="gear" :label="S.appSettings.title" @click="settingsOpen = true" />
     </header>
     <div class="rule wipe" style="--i: 1" />
 
@@ -227,12 +205,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </button>
         </div>
         <div class="pager">
-          <button class="arrow prev" :disabled="!ring && index === 0" :aria-label="S.common.back" @click="turn(-1)"><Icon name="arrow" /></button>
+          <button class="arrow prev" :disabled="index === 0" :aria-label="S.common.back" @click="turn(-1)"><Icon name="arrow" /></button>
           <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
           <span class="dots">
             <button v-for="(g, k) in games" :key="g.id" class="dot" :class="{ on: k === index }" :aria-label="g.name" @click="show(k)" />
           </span>
-          <button class="arrow" :disabled="!ring && index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
+          <button class="arrow" :disabled="index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
         </div>
       </div>
 
@@ -253,10 +231,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </div>
       </aside>
     </div>
-    <!-- 放大中的卡片 -->
-    <div v-if="zooming" ref="zoomEl" class="zoom" :style="{ left: `${zooming.left}px`, top: `${zooming.top}px`, width: `${zooming.width}px`, height: `${zooming.height}px` }">
-      <span class="zoom-art"><component :is="game.cover" active /></span>
-    </div>
+    <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
+
   </section>
 </template>
 
@@ -573,21 +549,5 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   .arrow:hover:not(:disabled) {
     background: var(--color-yellow);
   }
-}
-.zoom {
-  position: fixed;
-  z-index: 3000;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 0.14rem solid var(--color-ink);
-  border-radius: 0.5rem;
-  background-color: var(--tone);
-  pointer-events: none;
-}
-.zoom-art {
-  display: block;
-  width: min(60vw, 30rem);
-  aspect-ratio: 200 / 130;
 }
 </style>
