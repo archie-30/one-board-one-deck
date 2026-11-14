@@ -7,10 +7,12 @@ import { DEFAULT_GOMOKU_OPTIONS as G } from '@/engine/gomoku/rules'
 import { DEFAULT_GO_OPTIONS as GO } from '@/engine/go/rules'
 import { stats } from '@/core/settings'
 import BigTwoCover from './covers/BigTwoCover.vue'
+import ChessCover from './covers/ChessCover.vue'
 import GoCover from './covers/GoCover.vue'
 import GomokuCover from './covers/GomokuCover.vue'
 import RedPointCover from './covers/RedPointCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
+import XiangqiCover from './covers/XiangqiCover.vue'
 import type { GameCategory, GameDef, SettingDef } from './types'
 
 const toggle = (key: string, text: { label: string; help: string }, def: boolean): SettingDef => ({
@@ -45,7 +47,7 @@ export const GAMES: GameDef[] = [
     players: S.bigtwo.players,
     cover: BigTwoCover,
     tags: S.bigtwo.tags,
-    record: () => S.bigtwo.record(stats.bigtwo.rounds, stats.bigtwo.wins, stats.bigtwo.totals[0] ?? 0),
+    best: () => stats.bigtwo.best,
     rulesIntro: S.bigtwo.rules,
     tutorial: defineAsyncComponent(() => import('./bigtwo/BigTwoTutorial.vue')),
     component: defineAsyncComponent(() => import('./bigtwo/BigTwoGame.vue')),
@@ -68,7 +70,7 @@ export const GAMES: GameDef[] = [
     players: S.redpoint.players,
     cover: RedPointCover,
     tags: S.redpoint.tags,
-    record: () => S.redpoint.record(stats.redpoint.rounds, stats.redpoint.wins, stats.redpoint.best),
+    best: () => stats.redpoint.best,
     rulesIntro: S.redpoint.rules,
     tutorial: defineAsyncComponent(() => import('./redpoint/RedPointTutorial.vue')),
     component: defineAsyncComponent(() => import('./redpoint/RedPointGame.vue')),
@@ -82,7 +84,7 @@ export const GAMES: GameDef[] = [
     players: S.solitaire.players,
     cover: SolitaireCover,
     tags: S.solitaire.tags,
-    record: () => S.solitaire.record(stats.solitaire.played, stats.solitaire.wins, stats.solitaire.best),
+    best: () => stats.solitaire.best,
     rulesIntro: S.solitaire.rules,
     tutorial: defineAsyncComponent(() => import('./solitaire/SolitaireTutorial.vue')),
     component: defineAsyncComponent(() => import('./solitaire/SolitaireGame.vue')),
@@ -96,7 +98,6 @@ export const GAMES: GameDef[] = [
     players: S.gomoku.players,
     cover: GomokuCover,
     tags: S.gomoku.tags,
-    record: () => S.gomoku.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws),
     rulesIntro: S.gomoku.rules,
     tutorial: defineAsyncComponent(() => import('./gomoku/GomokuTutorial.vue')),
     component: defineAsyncComponent(() => import('./gomoku/GomokuGame.vue')),
@@ -110,11 +111,36 @@ export const GAMES: GameDef[] = [
     players: S.go.players,
     cover: GoCover,
     tags: S.go.tags,
-    record: () => S.go.record(stats.go.wins, stats.go.losses),
     rulesIntro: S.go.rules,
     tutorial: defineAsyncComponent(() => import('./go/GoTutorial.vue')),
     component: defineAsyncComponent(() => import('./go/GoGame.vue')),
     settings: [choice('size', S.go.settings.size, String(GO.size))],
+  },
+  {
+    id: 'chess',
+    category: 'board',
+    name: S.chess.name,
+    summary: S.chess.summary,
+    players: S.chess.players,
+    cover: ChessCover,
+    tags: S.chess.tags,
+    rulesIntro: S.chess.rules,
+    tutorial: defineAsyncComponent(() => import('./chess/ChessTutorial.vue')),
+    component: defineAsyncComponent(() => import('./chess/ChessGame.vue')),
+    settings: [],
+  },
+  {
+    id: 'xiangqi',
+    category: 'board',
+    name: S.xiangqi.name,
+    summary: S.xiangqi.summary,
+    players: S.xiangqi.players,
+    cover: XiangqiCover,
+    tags: S.xiangqi.tags,
+    rulesIntro: S.xiangqi.rules,
+    tutorial: defineAsyncComponent(() => import('./xiangqi/XiangqiTutorial.vue')),
+    component: defineAsyncComponent(() => import('./xiangqi/XiangqiGame.vue')),
+    settings: [choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text')],
   },
 ]
 

@@ -19,7 +19,7 @@ defineProps<{ name: IconName }>()
     <path v-else-if="name === 'pencil'" d="M4 20l1-5L16 4l4 4L9 19zM13.5 6.5l4 4" />
     <path v-else-if="name === 'bulb'" d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c1 1 1.5 2 1.5 3.5h5c0-1.5.5-2.5 1.5-3.5A6 6 0 0 0 12 3z" />
     <path v-else-if="name === 'sound'" d="M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11" />
-    <g v-else-if="name === 'gear'"><circle cx="12" cy="12" r="3" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" /></g>
+    <g v-else-if="name === 'gear'"><path d="M18.94 10.08 L21.49 10.55 L21.49 13.45 L18.94 13.92 L18.26 15.55 L19.73 17.69 L17.69 19.73 L15.55 18.26 L13.92 18.94 L13.45 21.49 L10.55 21.49 L10.08 18.94 L8.45 18.26 L6.31 19.73 L4.27 17.69 L5.74 15.55 L5.06 13.92 L2.51 13.45 L2.51 10.55 L5.06 10.08 L5.74 8.45 L4.27 6.31 L6.31 4.27 L8.45 5.74 L10.08 5.06 L10.55 2.51 L13.45 2.51 L13.92 5.06 L15.55 5.74 L17.69 4.27 L19.73 6.31 L18.26 8.45Z" stroke-linejoin="round" /><circle cx="12" cy="12" r="3.2" /></g>
     <path v-else-if="name === 'rock'" d="M4 15c-1-4 1.5-8.5 6-9.5 4-1 9 1 10 5.5 1 4-2 8-7 8.5S5 18.5 4 15z" fill="currentColor" />
     <g v-else-if="name === 'paper'"><path d="M5 3h10l4 4v14H5z" /><path d="M8 11h8M8 15h8" /></g>
     <g v-else-if="name === 'scissors'"><circle cx="7" cy="18" r="3" /><circle cx="17" cy="18" r="3" /><path d="M8.5 15.5 17 3M15.5 15.5 7 3" /></g>

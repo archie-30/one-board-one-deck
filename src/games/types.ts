@@ -29,8 +29,8 @@ export interface GameDef {
   cover: Component
   /** 卡片上的小標籤，例如人數、一局多久 */
   tags: string[]
-  /** 大廳顯示的戰績一行字（沒有就不顯示） */
-  record?: () => string
+  /** 模式選單上大大顯示的最高分（沒有分數的玩法不填） */
+  best?: () => number
   /** 文字版規則說明 */
   rulesIntro: RuleSection[]
   /** 互動式教學的畫面 */

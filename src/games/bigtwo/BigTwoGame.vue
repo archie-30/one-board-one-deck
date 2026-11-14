@@ -20,7 +20,9 @@ import CardArt from '@/ui/art/Card.vue'
 import type { Mood as KidMood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
+import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
+import TurnGlow from '@/ui/TurnGlow.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup, type TableModel } from './tableLayout'
@@ -242,6 +244,7 @@ function finish() {
   stats.bigtwo.rounds++
   if (s.winner === ME) stats.bigtwo.wins++
   stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
+  stats.bigtwo.best = Math.max(stats.bigtwo.best, scores.value[ME].points)
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')
@@ -360,6 +363,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 
 <template>
   <section ref="stageEl" class="felt">
+    <!-- 輪到誰：那個人那一側淡淡亮起 -->
+    <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.winner < 0 && state.turn === p" />
     <!-- 桌面中央的框 -->
     <div class="table-box" :style="{ left: `${layout.pile.x - layout.cw * 3.1}px`, top: `${layout.pile.y - layout.cw * 1.25}px`, width: `${layout.cw * 6.2}px`, height: `${layout.cw * 2.5}px` }">
       <span class="t-label lab">TABLE</span>
@@ -416,6 +421,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.result.howTitle }}</Btn>
     </div>
 
+    <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
     <Dialog :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" :tone="state.winner === ME ? 'red' : 'ink'" wide @close="resultOpen = false">
@@ -461,6 +467,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 <style scoped>
 .felt {
   position: relative;
+  isolation: isolate;
   height: 100%;
   overflow: hidden;
 }

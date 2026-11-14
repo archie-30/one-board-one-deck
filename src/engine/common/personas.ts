@@ -61,18 +61,33 @@ export interface GoStyle {
   center: number
 }
 
+/** 西洋棋、象棋的打法（兩種棋共用） */
+export interface ChessStyle {
+  /** 往後算幾步（1～3）；越多越強 */
+  depth: number
+  /** 0～1：喜歡吃子、將軍、往前壓 */
+  attack: number
+  /** 0～1：重視保護自己的王（將帥）與棋子 */
+  safety: number
+  /** 0～1：在差不多好的幾步裡隨機挑的程度 */
+  noise: number
+  /** 0～1：隨手走一步的機率 */
+  blunder: number
+}
+
 export interface Persona {
   bigtwo: BigTwoStyle
   gomoku: GomokuStyle
   redpoint: RedPointStyle
   go: GoStyle
+  chess: ChessStyle
 }
 
 /**
  * 撿紅點與圍棋的打法由同一個人的個性推出來，所以 20 位對手在每款遊戲都各不相同：
  * 大老二的「會不會算、衝動、手滑」對應撿紅點；五子棋的「攻守、隨機、看不看得懂」對應圍棋。
  */
-function derive(bigtwo: BigTwoStyle, gomoku: GomokuStyle): Pick<Persona, 'redpoint' | 'go'> {
+function derive(bigtwo: BigTwoStyle, gomoku: GomokuStyle): Pick<Persona, 'redpoint' | 'go' | 'chess'> {
   const clamp = (v: number) => Math.max(0, Math.min(1, v))
   return {
     redpoint: { skill: bigtwo.skill, greed: clamp(bigtwo.aggression * 0.8 + (1 - bigtwo.hoard) * 0.2), blunder: bigtwo.blunder },
@@ -82,6 +97,14 @@ function derive(bigtwo: BigTwoStyle, gomoku: GomokuStyle): Pick<Persona, 'redpoi
       defense: clamp(gomoku.defense - 0.4),
       noise: gomoku.noise,
       center: gomoku.center,
+    },
+    // 西洋棋、象棋：會算的人算得深；五子棋的攻守比重對應愛不愛進攻
+    chess: {
+      depth: bigtwo.skill >= 0.75 && gomoku.sharp ? 3 : bigtwo.skill >= 0.4 ? 2 : 1,
+      attack: clamp(gomoku.attack - 0.4 + bigtwo.aggression * 0.3),
+      safety: clamp(gomoku.defense - 0.3),
+      noise: clamp(gomoku.noise * 0.8),
+      blunder: clamp(bigtwo.blunder * 1.5 + gomoku.blind),
     },
   }
 }

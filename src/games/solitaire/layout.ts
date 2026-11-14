@@ -35,9 +35,9 @@ export function solLayout(W: number, H: number, safeLeft = 0, safeRight = 0): So
   // 總寬 ≈ 10.44 個欄距；牌高也要讓右邊放得下兩排收牌區＋資訊
   let gap = (right - left) / 10.44
   let cw = gap / 1.14
-  // 右邊一欄要放得下兩排收牌區＋約 150px 的資訊區
-  // 左邊一欄：選單按鈕下面放牌堆與翻出來的牌（翻 3 張時往下錯開），也要放得下
-  const STOCK_TOP = 74
+  // 右邊一欄要放得下兩排收牌區＋約 150px 的資訊區（選單、分數、時間、步數、按鈕）
+  // 左邊一欄：牌堆與翻出來的牌（翻 3 張時往下錯開）要放得下；選單按鈕在右下的資訊區，不會壓到牌堆
+  const STOCK_TOP = m
   const maxCw = Math.min((H - m - 150) / 2.08, (H - STOCK_TOP - 12) / 2.54) / CARD_RATIO
   if (cw > maxCw) {
     cw = maxCw

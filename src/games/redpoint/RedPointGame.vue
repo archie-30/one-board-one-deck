@@ -19,7 +19,9 @@ import CardArt from '@/ui/art/Card.vue'
 import type { Mood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
+import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
+import TurnGlow from '@/ui/TurnGlow.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
 import { makeLayout, type Layout } from '../bigtwo/tableLayout'
@@ -368,6 +370,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 
 <template>
   <section ref="stageEl" class="felt">
+    <!-- 輪到誰：那個人那一側淡淡亮起 -->
+    <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.phase !== 'over' && state.turn === p" />
     <div class="table-box" :style="{ left: `${spots.box.x}px`, top: `${spots.box.y}px`, width: `${spots.box.w}px`, height: `${spots.box.h}px` }">
     </div>
     <span class="t-label pile-lab" :style="{ left: `${spots.pile.x}px`, top: `${spots.pile.y + layout.cw * 0.8}px` }">{{ T.pile }} · {{ state.pile.length }}</span>
@@ -412,6 +416,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.howTitle }}</Btn>
     </div>
 
+    <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
     <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winners(state).includes(ME) ? 'red' : 'ink'" wide @close="resultOpen = false">
@@ -451,6 +456,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 <style scoped>
 .felt {
   position: relative;
+  isolation: isolate;
   height: 100%;
   overflow: hidden;
 }
