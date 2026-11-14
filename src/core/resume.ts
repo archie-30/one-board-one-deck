@@ -24,3 +24,8 @@ export function setResume(gameId: string, data: unknown, options: Record<string,
 export function clearResume(gameId: string) {
   delete store[gameId]
 }
+
+/** 立刻寫進存檔（分頁要被關掉時，等不到平常的自動存檔） */
+export function flushResume() {
+  writeSave('resume', JSON.parse(JSON.stringify(store)))
+}

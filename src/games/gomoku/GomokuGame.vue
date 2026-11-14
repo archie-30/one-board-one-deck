@@ -52,7 +52,9 @@ const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
     timers.delete(id)
-    fn()
+    // 暫停中（選單打開）：電腦也停下來，等繼續再走
+    if (menuOpen.value) later(fn, 250)
+    else fn()
   }, ms)
   timers.add(id)
 }
@@ -140,6 +142,7 @@ function restart() {
 }
 
 async function commit(index: number, who: 0 | 1) {
+  if (who === 0) acted.value = true
   const error = canPlace(state.value, index)
   if (error) {
     message.value = T.errors[error]
@@ -201,11 +204,21 @@ function confirmMove() {
 }
 
 // ── 保存進度並退出／讀回存檔 ──
-const canSave = computed(() => phase.value === 'playing')
-function saveAndExit() {
+/** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
+const acted = ref(!!props.resume)
+const canSave = computed(() => phase.value === 'playing' && acted.value)
+/** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
+function snapshot(): Saved | null {
+  if (!canSave.value) return null
   const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng }
-  emit('save', data)
+  return data
 }
+function saveAndExit() {
+  const data = snapshot()
+  if (data) emit('save', data)
+}
+// 給外框用：切走分頁、離開視窗時自動暫停並存下進度
+defineExpose({ pause: () => (menuOpen.value = true), snapshot })
 if (props.resume) {
   const d = props.resume as Saved
   state.value = d.state
@@ -262,7 +275,7 @@ if (props.resume) {
 
     <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" @done="startAfterRps" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
-    <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>

@@ -61,7 +61,9 @@ const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
     timers.delete(id)
-    fn()
+    // 暫停中（選單打開）：電腦也停下來，等繼續再走
+    if (menuOpen.value) later(fn, 250)
+    else fn()
   }, ms)
   timers.add(id)
 }
@@ -275,8 +277,12 @@ function newRound() {
 }
 
 // ── 保存進度並退出 ──
-const canSave = computed(() => phase.value === 'play')
-function saveAndExit() {
+/** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
+const acted = ref(!!saved)
+const canSave = computed(() => phase.value === 'play' && acted.value)
+/** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
+function snapshot(): Saved | null {
+  if (!canSave.value) return null
   // 剛好在「大家都過、要收牌」的空檔存：把桌上的牌當作已經收走
   let p = pile.value
   let d = discard.value
@@ -287,8 +293,14 @@ function saveAndExit() {
     ps = [false, false, false, false]
   }
   const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng, tableTotals: tableTotals.value, pile: p, discard: d, passed: ps, groupId }
-  emit('save', data)
+  return data
 }
+function saveAndExit() {
+  const data = snapshot()
+  if (data) emit('save', data)
+}
+// 給外框用：切走分頁、離開視窗時自動暫停並存下進度
+defineExpose({ pause: () => (menuOpen.value = true), snapshot })
 
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
@@ -315,6 +327,7 @@ function tapCard(c: Card) {
 
 function playSelected() {
   if (!myTurn.value) return
+  acted.value = true
   const check = checkPlay(state.value, ME, selected.value)
   if (!check.ok) {
     message.value = T.errors[check.reason]
@@ -344,6 +357,7 @@ function pass() {
   }
   disarmPass()
   selected.value = []
+  acted.value = true
   act({ type: 'pass', player: ME })
 }
 watch(canPass, (v) => {
@@ -407,7 +421,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <span class="t-label by rise" style="--i: 2">{{ caption.who }}</span>
     </div>
 
-    <p class="status" :class="{ mine: myTurn && !message, warn: !!message }" :style="{ bottom: `${layout.cw * 1.62}px` }">
+    <p class="status" :class="{ mine: myTurn && !message, warn: !!message }" :style="{ bottom: `${layout.cw * 1.9}px` }">
       <span v-if="passed[ME]" class="stamp inline pop">{{ T.passed }}</span>
       {{ status }}
     </p>
@@ -424,7 +438,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" :tone="state.winner === ME ? 'red' : 'ink'" wide @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" :tone="state.winner === ME ? 'red' : 'ink'" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
@@ -511,15 +525,22 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   cursor: pointer;
 }
 /* 選起的牌：底下一條黃色 */
+/* 選起來的牌：朱紅色的外框＋一點點紅色的光，框輕輕一閃再穩住 */
 .sprite.sel::after {
   content: '';
   position: absolute;
-  left: 8%;
-  right: 4%;
-  bottom: -10%;
-  height: 6%;
-  background: var(--color-yellow);
-  border: 0.1rem solid var(--color-ink);
+  inset: -3% -4%;
+  border: 0.18rem solid var(--color-red);
+  border-radius: 10%;
+  box-shadow: 0 0.35rem 0.9rem rgb(255 74 28 / 0.28);
+  pointer-events: none;
+  animation: sel-in 260ms var(--ease-back) both;
+}
+@keyframes sel-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12);
+  }
 }
 .who {
   position: absolute;
@@ -615,7 +636,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   position: absolute;
   left: 0;
   right: 0;
-  z-index: 650;
+  /* 放在牌的下面一層：選起來的牌往上浮時，文字不會蓋住牌 */
+  z-index: 0;
   text-align: center;
   font-size: 1.05rem;
   font-weight: 900;

@@ -280,15 +280,22 @@ async function next() {
 .sprite.hit {
   cursor: pointer;
 }
+/* 選起來的牌：朱紅色的外框＋一點點紅色的光，框輕輕一閃再穩住 */
 .sprite.sel::after {
   content: '';
   position: absolute;
-  left: 8%;
-  right: 4%;
-  bottom: -10%;
-  height: 6%;
-  background: var(--color-yellow);
-  border: 0.1rem solid var(--color-ink);
+  inset: -3% -4%;
+  border: 0.18rem solid var(--color-red);
+  border-radius: 10%;
+  box-shadow: 0 0.35rem 0.9rem rgb(255 74 28 / 0.28);
+  pointer-events: none;
+  animation: sel-in 260ms var(--ease-back) both;
+}
+@keyframes sel-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12);
+  }
 }
 .sprite.hit::before {
   content: '';
@@ -302,9 +309,10 @@ async function next() {
   animation: hit 0.9s ease-in-out infinite;
   pointer-events: none;
 }
+/* 可以吃的牌：黃框輕輕放大、縮小（呼吸），不上下搖 */
 @keyframes hit {
   50% {
-    transform: translateY(-6%);
+    transform: scale(1.07);
   }
 }
 .me {

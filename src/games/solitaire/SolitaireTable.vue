@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // 接龍牌桌：畫出牌堆、收牌區、7 疊桌面，處理操作，把動作回報給上層。
-// 操作：按住拖到想放的地方；或先點一張牌（選起來），再點要放的那一疊。不會自動幫你決定放哪裡。
+// 操作：按住拖到想放的地方；或先點一張牌（選起來），再點要放的那一疊。
+// 桌面上已翻開的牌快速點兩下，會自動放到能放的地方（翻出來的牌堆不行）。
 // 每張牌都是獨立的精靈（沿用大老二的 cardStage），換位置時各自飛過去。
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
-import { canPlace, cardsAt, type SolitaireAction, type SolitaireState, type Source, type Target } from '@/engine/solitaire/rules'
+import { autoTarget, canPlace, cardsAt, type SolitaireAction, type SolitaireState, type Source, type Target } from '@/engine/solitaire/rules'
 import CardArt from '@/ui/art/Card.vue'
 import { SUIT_PATHS, isRedSuit } from '@/ui/art/suits'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
@@ -77,11 +78,12 @@ function dealAnimation() {
   window.clearTimeout(dealTimer)
   const { poses, where } = solPoses(L.value, props.state, salt)
   const order: Card[] = []
-  // 依真實發牌順序：一輪一輪往右發
-  for (let round = 0; round < 7; round++)
-    props.state.tableau.forEach((col, ci) => {
-      const all = [...col.down, ...col.up]
-      if (round >= ci && all[round - ci] !== undefined) order.push(all[round - ci])
+  // 依真實發牌順序：第 r 輪從第 r 疊發到最右邊，每疊發一張（第 r 疊的第 r 張是最上面那張）
+  const cols = props.state.tableau.map((col) => [...col.down, ...col.up])
+  const most = Math.max(0, ...cols.map((c) => c.length))
+  for (let round = 0; round < most; round++)
+    cols.forEach((all) => {
+      if (all[round] !== undefined) order.push(all[round])
     })
   for (const [c, pose] of poses) stage.move(c, { ...pose, x: L.value.stock.x, y: L.value.stock.y, r: 0, f: 0, z: 10 }, { instant: true })
   const step = 34
@@ -249,11 +251,24 @@ function onUp(e: PointerEvent) {
     d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
   }
 }
-/** 點一張翻開的牌：沒有選牌時選起它；已經選了，就把選的牌放到這張牌所在的那一疊 */
+/** 點一張翻開的牌：沒有選牌時選起它；已經選了，就把選的牌放到這張牌所在的那一疊。
+ *  桌面上的牌快速點兩下：自動放到能放的地方（能收就先收）；翻出來的牌堆、收牌區的牌不行。 */
+let lastTap = 0
 function tapCard(from: Source) {
   const sel = selected.value
+  const now = performance.now()
+  const double = now - lastTap < 380
+  lastTap = now
   if (sel && sameSource(sel, from)) {
     selected.value = null
+    if (double && from.pile === 'tableau') {
+      const to = autoTarget(props.state, from)
+      if (to) emit('action', { type: 'move', from, to })
+      else {
+        shake(cardsAt(props.state, from))
+        emit('invalid')
+      }
+    }
     return
   }
   if (sel) {
@@ -397,9 +412,10 @@ defineExpose({ layout: L })
   pointer-events: none;
   animation: hint 0.9s ease-in-out infinite;
 }
+/* 提示：黃框輕輕放大、縮小 */
 @keyframes hint {
   50% {
-    transform: translateY(-4%);
+    transform: scale(1.06);
   }
 }
 .cards {

@@ -4,7 +4,7 @@
 //   收牌區 4 疊：每疊固定一種花色（第 n 疊就是花色 n：梅花、方塊、紅心、黑桃），從 A 收到 K。全部收完就過關。
 //   計分（標準計分）：牌堆→桌面 +5、收一張 +10、翻開桌面的牌 +5、收牌區拿回桌面 -15、
 //   牌堆重翻：翻 1 張時第 1 輪之後每次 -100；翻 3 張時前 3 輪免費、之後每次 -20；分數不會低於 0。
-//   時間扣分與過關獎勵見 finalScore；復原、提示的扣分記在 penalty。
+//   不因為時間扣分；過關時才依花的時間給快速過關獎勵（見 finalScore）。復原、提示的扣分記在 penalty。
 import { fullDeck, isRed, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { shuffle, type RngState } from '@/engine/common/rng'
 import type { Result } from '@/engine/common/types'
@@ -346,8 +346,10 @@ export function nextFinishMove(s: SolitaireState): SolitaireAction | null {
   return { type: 'move', from: b.from, to: { pile: 'foundation', slot: b.slot } }
 }
 
-/** 最後的分數：每 10 秒扣 2 分；過關時若超過 30 秒，加 700000 ÷ 秒數 的時間獎勵 */
+/** 最後的分數：沒過關就是目前分數；過關再加快速過關獎勵 */
 export function finalScore(score: number, seconds: number, won: boolean): number {
-  const timed = Math.max(0, score - Math.floor(seconds / 10) * 2)
-  return won && seconds >= 30 ? timed + Math.floor(700000 / seconds) : timed
+  return won ? score + timeBonus(seconds) : score
 }
+
+/** 快速過關獎勵（標準算法：700000 ÷ 秒數；不到 30 秒的不給，避免數字失控）。時間只會加分，不會扣分 */
+export const timeBonus = (seconds: number): number => (seconds >= 30 ? Math.floor(700000 / seconds) : 0)

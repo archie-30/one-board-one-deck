@@ -89,6 +89,9 @@ function close() {
 
 <style scoped>
 .rows {
+  /* 右邊、下面留一點空間，開關和按鈕的實心陰影才不會被捲動區切掉 */
+  margin-right: 0.35rem;
+  padding-bottom: 0.25rem;
   border-top: 0.14rem solid var(--color-ink);
 }
 .row {
@@ -96,7 +99,7 @@ function close() {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.3rem 0;
+  padding: 0.3rem 0.1rem 0.3rem 0;
   border-bottom: 0.07rem solid var(--color-ink);
 }
 .row > :last-child {
@@ -112,8 +115,17 @@ function close() {
 .foot {
   display: flex;
   justify-content: space-between;
-  padding-top: 0.8rem;
+  margin-right: 0.35rem;
+  padding-top: 0.5rem;
   font-size: 0.75rem;
   color: var(--color-ink-2);
+}
+@media (max-height: 430px) {
+  .row {
+    padding: 0.2rem 0;
+  }
+  .help {
+    font-size: 0.62rem;
+  }
 }
 </style>

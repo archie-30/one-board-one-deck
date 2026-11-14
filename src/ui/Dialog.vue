@@ -1,14 +1,15 @@
 <script setup lang="ts">
 // 對話框：一塊有黑框與實心陰影的紙，上方一條色帶放小標籤。從下方升起並稍微過頭。
-defineProps<{ open: boolean; title?: string; label?: string; wide?: boolean; tone?: 'red' | 'blue' | 'yellow' | 'ink' }>()
+// flip：結算用——像翻一張牌一樣，從背面（分類色）翻到正面（跟進出遊戲的翻卡片呼應）。
+defineProps<{ open: boolean; title?: string; label?: string; wide?: boolean; tone?: 'red' | 'blue' | 'yellow' | 'ink'; flip?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 </script>
 
 <template>
-  <Transition name="dialog">
+  <Transition :name="flip ? 'dialog-flip' : 'dialog'">
     <div v-if="open" class="fixed inset-0 z-[900] grid place-items-center" role="dialog" aria-modal="true">
       <div class="backdrop absolute inset-0" @click="emit('close')" />
-      <div class="sheet relative flex max-h-[92vh] flex-col" :class="wide ? 'w-[36rem]' : 'w-[22rem]'">
+      <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip b-${tone ?? 'ink'}` : '']">
         <div class="band halftone" :class="`b-${tone ?? 'ink'}`"><span class="t-label">{{ label }}</span></div>
         <div class="body">
           <h2 v-if="title" class="t-black title"><span class="mask"><span>{{ title }}</span></span></h2>
@@ -87,5 +88,61 @@ const emit = defineEmits<{ close: [] }>()
 }
 .dialog-enter-from .sheet {
   transform: translateY(2.4rem);
+}
+/* 結算：像翻牌一樣翻過來。翻到一半前，蓋著一層分類色（牌背） */
+.dialog-flip-enter-active {
+  transition: opacity 200ms ease;
+}
+.dialog-flip-enter-active .sheet {
+  animation: card-flip 720ms var(--ease-out) both;
+}
+.dialog-flip-enter-active .sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background-color: var(--bg, var(--color-ink));
+  background-image: radial-gradient(rgb(251 248 241 / 0.18) 30%, transparent 32%);
+  background-size: 0.5rem 0.5rem;
+  animation: card-back 720ms linear both;
+  pointer-events: none;
+}
+.dialog-flip-leave-active {
+  transition: opacity 140ms ease;
+}
+.dialog-flip-enter-from,
+.dialog-flip-leave-to {
+  opacity: 0;
+}
+.sheet.flip.b-red {
+  --bg: var(--color-red);
+}
+.sheet.flip.b-blue {
+  --bg: var(--color-blue);
+}
+.sheet.flip.b-yellow {
+  --bg: var(--color-yellow);
+}
+@keyframes card-flip {
+  0% {
+    transform: perspective(1200px) translateY(2rem) rotateY(-180deg) scale(0.7);
+  }
+  55% {
+    transform: perspective(1200px) translateY(-0.3rem) rotateY(-80deg) scale(1.02);
+  }
+  100% {
+    transform: perspective(1200px) translateY(0) rotateY(0deg) scale(1);
+  }
+}
+/* 翻過一半（側面朝前）時，牌背的顏色消失、露出正面 */
+@keyframes card-back {
+  0%,
+  44% {
+    opacity: 1;
+  }
+  46%,
+  100% {
+    opacity: 0;
+  }
 }
 </style>

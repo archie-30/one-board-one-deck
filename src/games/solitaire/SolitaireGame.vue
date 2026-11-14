@@ -17,6 +17,7 @@ import {
   isStuck,
   dealSolitaire,
   finalScore,
+  timeBonus,
   scoreOf,
   undoTo,
   UNDO_PENALTY,
@@ -237,14 +238,21 @@ function newGame() {
 
 // ── 保存進度並退出 ──
 const canSave = computed(() => !state.value.won && !finishing.value && state.value.moves > 0)
-function saveAndExit() {
+/** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
+function snapshot(): Saved | null {
+  if (!canSave.value) return null
   const data: Saved = { state: state.value, history: history.slice(-40), seconds: seconds.value, initial }
-  emit('save', data)
+  return data
 }
+function saveAndExit() {
+  const data = snapshot()
+  if (data) emit('save', data)
+}
+// 給外框用：切走分頁、離開視窗時自動暫停並存下進度
+defineExpose({ pause: () => (menuOpen.value = true), snapshot })
 if (saved && saved.state.moves > 0) startClock()
 
-const timePenalty = computed(() => Math.floor(seconds.value / 10) * 2)
-const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.value) : 0))
+const bonus = computed(() => timeBonus(seconds.value))
 </script>
 
 <template>
@@ -262,7 +270,6 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
       <template #default="{ layout: L }">
         <div class="hud" :style="{ left: `${L.hud.x}px`, top: `${L.hud.y}px`, width: `${L.hud.w}px` }">
           <div class="head">
-            <IconBtn icon="menu" size="2.1rem" :label="S.common.menu" @click="menuOpen = true" />
             <div class="score-box">
               <span class="t-label">{{ T.score }}</span>
               <b class="t-slab red">{{ liveScore }}</b>
@@ -274,19 +281,21 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
           </dl>
           <Btn v-if="plan || finishing" class="pop" tone="yellow" size="sm" block :disabled="finishing || !ready" @click="autoFinish">{{ T.autoFinish }}</Btn>
           <div v-else class="tools">
-            <Btn size="sm" block :disabled="!ready || state.won" @click="showHint">{{ T.hintBtn(HINT_PENALTY[state.draw]) }}</Btn>
-            <Btn size="sm" block :disabled="!ready || !canUndo || state.won" @click="undo">{{ T.undoBtn(UNDO_PENALTY[state.draw]) }}</Btn>
+            <Btn size="sm" block :disabled="!ready || state.won" @click="showHint">{{ T.hint }}<small class="cost">−{{ HINT_PENALTY[state.draw] }}</small></Btn>
+            <Btn size="sm" block :disabled="!ready || !canUndo || state.won" @click="undo">{{ T.undo }}<small class="cost">−{{ UNDO_PENALTY[state.draw] }}</small></Btn>
           </div>
         </div>
       </template>
     </SolitaireTable>
 
     <p v-if="message" :key="message" class="toast pop">{{ message }}</p>
+    <!-- 選單按鈕：每個遊戲都在左上角同一個位置 -->
+    <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <Dialog :open="stuckOpen" :title="T.stuckTitle" :label="game.name" tone="yellow" @close="stuckOpen = false">
       <p class="text-[0.95rem]">{{ T.stuckLead }}</p>
       <template #actions>
-        <Btn v-if="canUndo" size="sm" icon="back" @click="stuckUndo">{{ T.undoBtn(UNDO_PENALTY[state.draw]) }}</Btn>
+        <Btn v-if="canUndo" size="sm" icon="back" @click="stuckUndo">{{ T.undo }}<small class="cost">−{{ UNDO_PENALTY[state.draw] }}</small></Btn>
         <Btn size="sm" icon="again" @click="replay">{{ T.replay }}</Btn>
         <Btn tone="red" icon="play" @click="newGame">{{ T.newGame }}</Btn>
       </template>
@@ -295,13 +304,12 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog :open="resultOpen" :title="T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
       <table class="score">
         <tbody>
           <tr class="rise" style="--i: 2"><td>{{ T.rowBase }}</td><td class="t-slab">{{ state.score }}</td></tr>
           <tr v-if="state.penalty" class="rise" style="--i: 2"><td>{{ T.rowPenalty }}</td><td class="t-slab">−{{ state.penalty }}</td></tr>
-          <tr class="rise" style="--i: 3"><td>{{ T.rowTime(clock) }}</td><td class="t-slab">−{{ timePenalty }}</td></tr>
-          <tr class="rise" style="--i: 4"><td>{{ T.rowBonus }}</td><td class="t-slab">+{{ bonus }}</td></tr>
+          <tr class="rise" style="--i: 4"><td>{{ T.rowBonus(clock) }}</td><td class="t-slab">+{{ bonus }}</td></tr>
           <tr class="rise total" style="--i: 5"><td class="t-black">{{ T.rowTotal }}</td><td class="t-slab red">{{ total }}</td></tr>
         </tbody>
       </table>
@@ -372,19 +380,31 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
   justify-content: center;
   padding: 0 0.3rem;
 }
+.corner {
+  position: absolute;
+  left: max(0.9rem, env(safe-area-inset-left));
+  top: max(0.7rem, env(safe-area-inset-top));
+  z-index: 700;
+}
+/* 跳出來的提示文字：沒有外框、小小的 */
 .toast {
   position: absolute;
   left: 50%;
-  bottom: 0.8rem;
+  bottom: 0.7rem;
   z-index: 800;
   translate: -50% 0;
-  border: 0.13rem solid var(--color-ink);
-  background: var(--color-card);
-  padding: 0.25rem 0.8rem;
-  box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
+  font-size: 0.78rem;
   font-weight: 900;
   color: var(--color-red);
+  text-shadow: 0 0 0.4rem var(--color-paper), 0 0 0.2rem var(--color-paper);
   pointer-events: none;
+}
+/* 按鈕上的扣分：小字 */
+.cost {
+  margin-left: 0.25rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+  opacity: 0.7;
 }
 .score {
   width: 100%;

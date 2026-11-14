@@ -4,6 +4,7 @@
 // 兩張一起飛回自己的牌堆；接著牌堆最上面那張翻開，再決定去哪。
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
+import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
@@ -69,7 +70,9 @@ function wait(ms: number): Promise<boolean> {
   return new Promise((resolve) => {
     const id = window.setTimeout(() => {
       timers.delete(id)
-      resolve(ep === epoch)
+      // 暫停中（選單打開）：等繼續再往下走
+      if (menuOpen.value && ep === epoch) void wait(250).then(resolve)
+      else resolve(ep === epoch)
     }, ms)
     timers.add(id)
   })
@@ -189,6 +192,7 @@ async function nextTurn() {
 
 /** 出一張牌：吃牌時先飛過去壓在目標上，再兩張一起收回；配不到就放到桌上 */
 async function playCard(player: number, card: Card, target: Card | undefined) {
+  if (player === ME) acted.value = true
   busy.value = true
   selected.value = null
   message.value = ''
@@ -277,8 +281,38 @@ function finish() {
   stats.redpoint.rounds++
   if (w.includes(ME)) stats.redpoint.wins++
   stats.redpoint.best = Math.max(stats.redpoint.best, scores.value[ME].points)
-  playSound(w.includes(ME) ? 'win' : 'lose')
-  void wait(900).then((ok) => ok && (resultOpen.value = true))
+  void countUp().then((ok) => {
+    if (!ok) return
+    playSound(w.includes(ME) ? 'win' : 'lose')
+    resultOpen.value = true
+  })
+}
+
+// ── 結算前的數牌：每個人撿到的紅牌一張張飛到桌子中間排成一列，旁邊的分數跟著一張張加上去 ──
+/** 數牌中各人的分數（null = 沒在數） */
+const tally = ref<number[] | null>(null)
+const countingRow = ref(-1)
+const rowY = (p: number) => spots.value.box.y + spots.value.box.h * (0.16 + p * 0.225)
+const rowX = (k: number) => spots.value.box.x + spots.value.box.w * 0.24 + k * layout.value.cw * 0.34
+async function countUp(): Promise<boolean> {
+  if (reducedMotion()) return true
+  if (!(await wait(700))) return false
+  tally.value = [0, 0, 0, 0]
+  const list = scores.value
+  for (let p = 0; p < 4; p++) {
+    countingRow.value = p
+    const reds = list[p].reds
+    for (let k = 0; k < reds.length; k++) {
+      const c = reds[k]
+      staged.set(c, { x: rowX(k), y: rowY(p), r: (Math.random() - 0.5) * 8, s: 0.52, f: 1, z: 900 + p * 30 + k })
+      sync([c], { dur: 320, arc: layout.value.cw * 0.4 })
+      if (!(await wait(140))) return false
+      tally.value = tally.value.map((v, i) => (i === p ? v + cardPoints(c) : v))
+    }
+    if (!(await wait(reds.length ? 380 : 200))) return false
+  }
+  countingRow.value = -1
+  return wait(700)
 }
 
 async function newRound() {
@@ -292,6 +326,8 @@ async function newRound() {
   moods.fill('idle')
   phase.value = 'deal'
   busy.value = true
+  tally.value = null
+  countingRow.value = -1
   gathered.value = true
   sync(ALL, { stagger: 7, dur: 360, arc: 0 })
   if (!(await wait(52 * 7 + 480))) return
@@ -301,11 +337,21 @@ async function newRound() {
 }
 
 // ── 保存進度並退出 ──
-const canSave = computed(() => phase.value === 'play')
-function saveAndExit() {
+/** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
+const acted = ref(!!saved)
+const canSave = computed(() => phase.value === 'play' && acted.value)
+/** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
+function snapshot(): Saved | null {
+  if (!canSave.value) return null
   const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng }
-  emit('save', data)
+  return data
 }
+function saveAndExit() {
+  const data = snapshot()
+  if (data) emit('save', data)
+}
+// 給外框用：切走分頁、離開視窗時自動暫停並存下進度
+defineExpose({ pause: () => (menuOpen.value = true), snapshot })
 
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
@@ -355,6 +401,7 @@ const status = computed(() => {
   if (message.value) return message.value
   const s = state.value
   if (phase.value === 'deal') return ''
+  if (phase.value === 'over' && countingRow.value >= 0) return T.counting
   if (phase.value === 'over') return winners(s).includes(ME) ? T.win : T.lose(names[winners(s)[0]])
   if (s.turn !== ME) return s.phase === 'flip' ? T.flipping(names[s.turn]) : T.waiting(names[s.turn])
   if (selected.value === null) return T.yourTurn
@@ -372,9 +419,16 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.phase !== 'over' && state.turn === p" />
+    <!-- 數牌：每一列一個人，左邊名字、右邊累加的分數 -->
+    <template v-if="tally && !resultOpen">
+      <div v-for="p in 4" :key="`tl${p}`" class="tally" :class="{ now: countingRow === p - 1 }" :style="{ left: `${spots.box.x + spots.box.w * 0.03}px`, width: `${spots.box.w * 0.94}px`, top: `${rowY(p - 1)}px` }">
+        <span class="t-black tn">{{ names[p - 1] }}</span>
+        <span :key="tally[p - 1]" class="t-slab tp pop">{{ tally[p - 1] }}</span>
+      </div>
+    </template>
     <div class="table-box" :style="{ left: `${spots.box.x}px`, top: `${spots.box.y}px`, width: `${spots.box.w}px`, height: `${spots.box.h}px` }">
     </div>
-    <span class="t-label pile-lab" :style="{ left: `${spots.pile.x}px`, top: `${spots.pile.y + layout.cw * 0.8}px` }">{{ T.pile }} · {{ state.pile.length }}</span>
+    <span v-if="!tally" class="t-label pile-lab" :style="{ left: `${spots.pile.x}px`, top: `${spots.pile.y + layout.cw * 0.8}px` }">{{ T.pile }} · {{ state.pile.length }}</span>
 
     <!-- 座位上的人＋目前的分數 -->
     <template v-for="(seat, p) in layout.seats" :key="p">
@@ -408,7 +462,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       </div>
     </div>
 
-    <p class="status" :class="{ mine: (myTurn || awaitFlip) && !message, warn: !!message && !awaitFlip }" :style="{ bottom: `${layout.cw * 1.62}px` }">{{ status }}</p>
+    <p class="status" :class="{ mine: (myTurn || awaitFlip) && !message, warn: !!message && !awaitFlip }" :style="{ bottom: `${layout.cw * 1.9}px` }">{{ status }}</p>
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions">
@@ -419,7 +473,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winners(state).includes(ME) ? 'red' : 'ink'" wide @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winners(state).includes(ME) ? 'red' : 'ink'" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
@@ -506,15 +560,22 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 .sprite.hit {
   cursor: pointer;
 }
+/* 選起來的牌：朱紅色的外框＋一點點紅色的光，框輕輕一閃再穩住 */
 .sprite.sel::after {
   content: '';
   position: absolute;
-  left: 8%;
-  right: 4%;
-  bottom: -10%;
-  height: 6%;
-  background: var(--color-yellow);
-  border: 0.1rem solid var(--color-ink);
+  inset: -3% -4%;
+  border: 0.18rem solid var(--color-red);
+  border-radius: 10%;
+  box-shadow: 0 0.35rem 0.9rem rgb(255 74 28 / 0.28);
+  pointer-events: none;
+  animation: sel-in 260ms var(--ease-back) both;
+}
+@keyframes sel-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12);
+  }
 }
 /* 可以吃的桌上牌：黃色粗框，輕輕上下跳 */
 .sprite.hit::before {
@@ -539,10 +600,37 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   background: rgb(255 194 26 / 0.45);
   pointer-events: none;
 }
+/* 可以吃的牌：黃框輕輕放大、縮小（呼吸），不上下搖 */
 @keyframes hit {
   50% {
-    transform: translateY(-6%);
+    transform: scale(1.07);
   }
+}
+/* 數牌：每一列的名字與分數；正在數的那一列亮起來 */
+.tally {
+  position: absolute;
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  translate: 0 -50%;
+  padding: 0 0.6rem;
+  pointer-events: none;
+  animation: rise 360ms var(--ease-out) both;
+}
+.tally .tn {
+  font-size: 0.85rem;
+  opacity: 0.45;
+  transition: opacity 200ms ease;
+}
+.tally .tp {
+  font-size: 1.4rem;
+  color: var(--color-red);
+  opacity: 0.45;
+}
+.tally.now .tn,
+.tally.now .tp {
+  opacity: 1;
 }
 .who {
   position: absolute;
@@ -610,16 +698,14 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   position: absolute;
   left: 0;
   right: 0;
-  z-index: 650;
+  /* 放在牌的下面一層：選起來的牌往上浮時，文字不會蓋住牌 */
+  z-index: 0;
   text-align: center;
   font-size: 1.05rem;
   font-weight: 900;
   line-height: 1.6;
   color: var(--color-ink-3);
   pointer-events: none;
-}
-.status::first-line {
-  background: var(--color-paper);
 }
 .status.mine {
   color: var(--color-ink);
