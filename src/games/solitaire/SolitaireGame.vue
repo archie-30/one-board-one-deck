@@ -1,22 +1,28 @@
 <script setup lang="ts">
-// 接龍對局：牌桌＋右下的分數、時間、步數，以及復原、自動收牌。
+// 接龍對局：牌桌＋右下的選單、分數、時間、步數，以及提示（扣分）、復原（扣分）、自動收牌、卡關時的選項。
 // 規則都在引擎（applySolitaire），這裡只管流程、計時與存紀錄。
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
+import type { Card } from '@/engine/bigtwo/cards'
 import {
   applySolitaire,
-  canAutoFinish,
+  cardsAt,
+  chargeHint,
+  finishPlan,
+  hint,
+  HINT_PENALTY,
+  isStuck,
   dealSolitaire,
   finalScore,
-  nextFinishMove,
   scoreOf,
   undoTo,
   UNDO_PENALTY,
   type SolitaireAction,
   type SolitaireState,
+  type Target,
 } from '@/engine/solitaire/rules'
 import type { GameDef } from '@/games/types'
 import Btn from '@/ui/Btn.vue'
@@ -33,6 +39,8 @@ interface Saved {
   state: SolitaireState
   history: SolitaireState[]
   seconds: number
+  /** 這一局剛發好牌的樣子（「重玩這一局」用） */
+  initial?: SolitaireState
 }
 const saved = (props.resume ?? null) as Saved | null
 const T = S.solitaire
@@ -43,14 +51,22 @@ function fresh(): SolitaireState {
   return dealSolitaire(seedRng(seed), draw.value)[0]
 }
 
+const finishing = ref(false)
 const state = shallowRef<SolitaireState>(saved ? saved.state : fresh())
+/** 這一局剛發好牌的樣子 */
+let initial: SolitaireState = saved?.initial ?? state.value
+const hintCards = ref<Card[]>([])
+const hintSpot = ref<Target | 'stock' | null>(null)
+const stuckOpen = ref(false)
+const ready = ref(false)
+/** 確定只靠收牌與翻牌堆就能收完：顯示「自動收牌」 */
+const plan = computed(() => (finishing.value ? null : finishPlan(state.value)))
 const history: SolitaireState[] = saved ? saved.history.slice() : []
 const canUndo = ref(history.length > 0)
 const dealKey = ref(0)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const message = ref('')
-const finishing = ref(false)
 let counted = !!saved
 
 // ── 計時：第一步才開始算；暫停選單打開時停住 ──
@@ -68,6 +84,7 @@ function stopClock() {
 }
 onBeforeUnmount(() => {
   stopClock()
+  window.clearTimeout(stuckTimer)
   window.clearTimeout(msgTimer)
   window.clearTimeout(finishTimer)
 })
@@ -93,6 +110,7 @@ function act(action: SolitaireAction) {
   history.push(state.value)
   canUndo.value = true
   state.value = r.state
+  clearHint()
   startClock()
   if (!counted) {
     counted = true
@@ -101,6 +119,44 @@ function act(action: SolitaireAction) {
   if (action.type === 'draw') playSound('flip')
   else if (action.to.pile === 'foundation') playSound('collect')
   if (r.state.won) win()
+  else checkStuck()
+}
+
+function clearHint() {
+  hintCards.value = []
+  hintSpot.value = null
+}
+/** 提示：標出一步可以走的牌，並扣分 */
+function showHint() {
+  if (finishing.value || state.value.won) return
+  const h = hint(state.value)
+  if (!h) return checkStuck(true)
+  playSound('tap')
+  state.value = chargeHint(state.value)
+  say(T.hintCost(HINT_PENALTY[state.value.draw]))
+  if (h.type === 'draw') {
+    hintCards.value = []
+    hintSpot.value = 'stock'
+  } else {
+    hintCards.value = cardsAt(state.value, h.from)
+    hintSpot.value = h.to
+  }
+}
+
+/** 卡關：已經沒有能讓局面前進的步，跳出選項 */
+let stuckTimer = 0
+function checkStuck(now = false) {
+  window.clearTimeout(stuckTimer)
+  if (!isStuck(state.value) || plan.value) return
+  stuckTimer = window.setTimeout(() => (stuckOpen.value = true), now ? 0 : 700)
+}
+function stuckUndo() {
+  stuckOpen.value = false
+  undo()
+}
+/** 重玩這一局：回到剛發好牌的樣子 */
+function replay() {
+  restartWith(structuredClone(initial))
 }
 
 function undo() {
@@ -109,33 +165,38 @@ function undo() {
   // 復原要扣分（簡單、困難扣的不一樣）
   state.value = undoTo(history.pop()!, state.value)
   canUndo.value = history.length > 0
+  clearHint()
   say(T.undoCost(UNDO_PENALTY[state.value.draw]))
 }
 
-// ── 自動收牌：一張一張飛上去 ──
+// ── 自動收牌：照著算好的步驟，一張一張收上去（需要時自動翻牌堆），收完就結算 ──
 let finishTimer = 0
 function autoFinish() {
-  if (!canAutoFinish(state.value) || finishing.value) return
+  const steps = plan.value
+  if (!steps || finishing.value) return
   finishing.value = true
+  clearHint()
+  let i = 0
   const step = () => {
-    const m = nextFinishMove(state.value)
-    if (!m) {
+    const a = steps[i++]
+    if (!a) {
       finishing.value = false
       return
     }
-    const r = applySolitaire(state.value, m)
+    const r = applySolitaire(state.value, a)
     if (!r.ok) {
       finishing.value = false
       return
     }
     history.push(state.value)
     state.value = r.state
+    playSound(a.type === 'draw' ? 'flip' : 'collect')
     if (r.state.won) {
       finishing.value = false
       win()
       return
     }
-    finishTimer = window.setTimeout(step, 110)
+    finishTimer = window.setTimeout(step, a.type === 'draw' ? 70 : 120)
   }
   step()
 }
@@ -151,24 +212,32 @@ function win() {
   window.setTimeout(() => (resultOpen.value = true), 900)
 }
 
-function newGame() {
+function restartWith(next: SolitaireState) {
   stopClock()
   window.clearTimeout(finishTimer)
+  window.clearTimeout(stuckTimer)
   finishing.value = false
   menuOpen.value = false
   resultOpen.value = false
+  stuckOpen.value = false
   history.length = 0
   canUndo.value = false
   seconds.value = 0
   counted = false
-  state.value = fresh()
+  clearHint()
+  ready.value = false
+  state.value = next
+  initial = next
   dealKey.value++
+}
+function newGame() {
+  restartWith(fresh())
 }
 
 // ── 保存進度並退出 ──
 const canSave = computed(() => !state.value.won && !finishing.value && state.value.moves > 0)
 function saveAndExit() {
-  const data: Saved = { state: state.value, history: history.slice(-40), seconds: seconds.value }
+  const data: Saved = { state: state.value, history: history.slice(-40), seconds: seconds.value, initial }
   emit('save', data)
 }
 if (saved && saved.state.moves > 0) startClock()
@@ -179,24 +248,48 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
 
 <template>
   <section class="game">
-    <SolitaireTable :state="state" :deal-key="dealKey" :interactive="!finishing && !state.won" @action="act" @invalid="playSound('error')">
+    <SolitaireTable
+      :state="state"
+      :deal-key="dealKey"
+      :interactive="!finishing && !state.won"
+      :hint-cards="hintCards"
+      :hint-spot="hintSpot"
+      @action="act"
+      @invalid="playSound('error')"
+      @ready="ready = true"
+    >
       <template #default="{ layout: L }">
         <div class="hud" :style="{ left: `${L.hud.x}px`, top: `${L.hud.y}px`, width: `${L.hud.w}px` }">
+          <div class="head">
+            <IconBtn icon="menu" size="2.1rem" :label="S.common.menu" @click="menuOpen = true" />
+            <div class="score-box">
+              <span class="t-label">{{ T.score }}</span>
+              <b class="t-slab red">{{ liveScore }}</b>
+            </div>
+          </div>
           <dl class="nums">
-            <div><dt class="t-label">{{ T.score }}</dt><dd class="t-slab red">{{ liveScore }}</dd></div>
             <div><dt class="t-label">{{ T.time }}</dt><dd class="t-slab">{{ clock }}</dd></div>
             <div><dt class="t-label">{{ T.moves }}</dt><dd class="t-slab">{{ state.moves }}</dd></div>
           </dl>
-          <Btn v-if="canAutoFinish(state) || finishing" class="pop" tone="yellow" size="sm" block :disabled="finishing" @click="autoFinish">{{ T.autoFinish }}</Btn>
+          <Btn v-if="plan || finishing" class="pop" tone="yellow" size="sm" block :disabled="finishing || !ready" @click="autoFinish">{{ T.autoFinish }}</Btn>
           <div v-else class="tools">
-            <Btn size="sm" block :disabled="!canUndo || state.won" @click="undo">{{ T.undo }}</Btn>
+            <Btn size="sm" block :disabled="!ready || state.won" @click="showHint">{{ T.hintBtn(HINT_PENALTY[state.draw]) }}</Btn>
+            <Btn size="sm" block :disabled="!ready || !canUndo || state.won" @click="undo">{{ T.undoBtn(UNDO_PENALTY[state.draw]) }}</Btn>
           </div>
         </div>
       </template>
     </SolitaireTable>
 
     <p v-if="message" :key="message" class="toast pop">{{ message }}</p>
-    <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
+
+    <Dialog :open="stuckOpen" :title="T.stuckTitle" :label="game.name" tone="yellow" @close="stuckOpen = false">
+      <p class="text-[0.95rem]">{{ T.stuckLead }}</p>
+      <template #actions>
+        <Btn v-if="canUndo" size="sm" icon="back" @click="stuckUndo">{{ T.undoBtn(UNDO_PENALTY[state.draw]) }}</Btn>
+        <Btn size="sm" icon="again" @click="replay">{{ T.replay }}</Btn>
+        <Btn tone="red" icon="play" @click="newGame">{{ T.newGame }}</Btn>
+      </template>
+    </Dialog>
 
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
@@ -204,7 +297,7 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
       <table class="score">
         <tbody>
           <tr class="rise" style="--i: 2"><td>{{ T.rowBase }}</td><td class="t-slab">{{ state.score }}</td></tr>
-          <tr v-if="state.penalty" class="rise" style="--i: 2"><td>{{ T.rowUndo }}</td><td class="t-slab">−{{ state.penalty }}</td></tr>
+          <tr v-if="state.penalty" class="rise" style="--i: 2"><td>{{ T.rowPenalty }}</td><td class="t-slab">−{{ state.penalty }}</td></tr>
           <tr class="rise" style="--i: 3"><td>{{ T.rowTime(clock) }}</td><td class="t-slab">−{{ timePenalty }}</td></tr>
           <tr class="rise" style="--i: 4"><td>{{ T.rowBonus }}</td><td class="t-slab">+{{ bonus }}</td></tr>
           <tr class="rise total" style="--i: 5"><td class="t-black">{{ T.rowTotal }}</td><td class="t-slab red">{{ total }}</td></tr>
@@ -224,12 +317,6 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
   position: relative;
   height: 100%;
 }
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 700;
-}
 .hud {
   position: absolute;
   z-index: 5;
@@ -237,11 +324,26 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
   flex-direction: column;
   gap: 0.55rem;
 }
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.score-box {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 0.14rem solid var(--color-ink);
+}
+.score-box b {
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
 .nums {
   display: grid;
   gap: 0.15rem;
-  border-top: 0.14rem solid var(--color-ink);
-  padding-top: 0.3rem;
 }
 .nums div {
   display: flex;

@@ -1,11 +1,13 @@
 <script setup lang="ts">
-// 接龍牌桌：畫出牌堆、收牌區、7 疊桌面，處理「點一下」與「按住拖曳」，把動作回報給上層。
+// 接龍牌桌：畫出牌堆、收牌區、7 疊桌面，處理操作，把動作回報給上層。
+// 操作：按住拖到想放的地方；或先點一張牌（選起來），再點要放的那一疊。不會自動幫你決定放哪裡。
 // 每張牌都是獨立的精靈（沿用大老二的 cardStage），換位置時各自飛過去。
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
-import { autoTarget, canPlace, cardsAt, type SolitaireAction, type SolitaireState, type Source, type Target } from '@/engine/solitaire/rules'
+import { canPlace, cardsAt, type SolitaireAction, type SolitaireState, type Source, type Target } from '@/engine/solitaire/rules'
 import CardArt from '@/ui/art/Card.vue'
+import { SUIT_PATHS, isRedSuit } from '@/ui/art/suits'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
 import { dropSpot, solLayout, solPoses, type SolLayout } from './layout'
 
@@ -22,7 +24,13 @@ const props = withDefaults(
   }>(),
   { interactive: true, hintCards: () => [], hintSpot: null, dealIn: true, dealKey: 0 },
 )
-const emit = defineEmits<{ action: [action: SolitaireAction]; invalid: [] }>()
+const emit = defineEmits<{ action: [action: SolitaireAction]; invalid: []; ready: [] }>()
+
+/** 發牌、翻牌的動畫還沒跑完時，不能操作 */
+const dealing = ref(false)
+const canAct = computed(() => props.interactive && !dealing.value)
+/** 點一下選起來的牌（再點要放的地方） */
+const selected = ref<Source | null>(null)
 
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 const salt = Math.floor(Math.random() * 997)
@@ -60,10 +68,12 @@ function sync(instant = false) {
   prevWhere = where
 }
 
-/** 發牌：先全部疊在牌堆位置，再一張一張飛到桌面 */
+/** 發牌：先全部蓋著疊在牌堆位置，一張一張蓋著飛到桌面；發完再把每疊最上面那張翻開；全部跑完才能操作 */
+let dealTimer = 0
 function dealAnimation() {
   playSound('shuffle')
-  dealingUntil = performance.now() + 2200
+  dealing.value = true
+  window.clearTimeout(dealTimer)
   const { poses, where } = solPoses(L.value, props.state, salt)
   const order: Card[] = []
   // 依真實發牌順序：一輪一輪往右發
@@ -72,15 +82,30 @@ function dealAnimation() {
       const all = [...col.down, ...col.up]
       if (round >= ci && all[round - ci] !== undefined) order.push(all[round - ci])
     })
-  for (const [c, pose] of poses) {
-    stage.move(c, { ...pose, x: L.value.stock.x, y: L.value.stock.y, r: 0, f: 0, z: 10 }, { instant: true })
-  }
+  for (const [c, pose] of poses) stage.move(c, { ...pose, x: L.value.stock.x, y: L.value.stock.y, r: 0, f: 0, z: 10 }, { instant: true })
+  const step = 34
+  const dealt = 120 + order.length * step + 360
+  dealingUntil = performance.now() + dealt
   order.forEach((c, k) => {
     const v = Math.random()
-    stage.move(c, poses.get(c)!, { delay: 120 + k * 32 + v * 18, dur: 320 * (0.9 + v * 0.2), arc: 14 + Math.random() * 12, flightZ: 600 + k, land: true })
+    stage.move(c, { ...poses.get(c)!, f: 0 }, { delay: 120 + k * step + v * 18, dur: 320 * (0.9 + v * 0.2), arc: 14 + Math.random() * 12, flightZ: 600 + k, land: true })
   })
   for (const [c, pose] of poses) if (!order.includes(c)) stage.move(c, pose, { instant: true })
   prevWhere = where
+  // 發完牌：每疊翻開的牌一張一張翻過來
+  const flips = props.state.tableau.flatMap((col) => col.up)
+  dealTimer = window.setTimeout(() => {
+    flips.forEach((c, k) => {
+      window.setTimeout(() => {
+        playSound('flip')
+        stage.move(c, poses.get(c)!, { dur: 260, arc: 8 })
+      }, k * 90)
+    })
+    dealTimer = window.setTimeout(() => {
+      dealing.value = false
+      emit('ready')
+    }, flips.length * 90 + 300)
+  }, dealt)
 }
 
 let observer: ResizeObserver | undefined
@@ -102,6 +127,7 @@ onMounted(() => {
   observer.observe(el)
 })
 onBeforeUnmount(() => {
+  window.clearTimeout(dealTimer)
   observer?.disconnect()
   stage.destroy()
   window.removeEventListener('pointermove', onMove)
@@ -111,6 +137,7 @@ onBeforeUnmount(() => {
 watch(
   () => [props.state, props.dealKey] as const,
   ([, key], [, oldKey]) => {
+    selected.value = null
     if (key !== oldKey) {
       prevWhere = new Map()
       if (props.dealIn) dealAnimation()
@@ -156,14 +183,19 @@ function local(e: PointerEvent) {
   return { x: e.clientX - r.left, y: e.clientY - r.top }
 }
 function onDown(c: Card, e: PointerEvent) {
-  if (!props.interactive || drag) return
+  if (!canAct.value || drag) return
   if (e.button !== undefined && e.button > 0) return
   const p = local(e)
   if (inStock(c)) {
     drag = { id: e.pointerId, from: 'stock', cards: [], base: [], x0: p.x, y0: p.y, moved: false }
   } else {
     const from = sourceOf(c)
-    if (!from) return
+    if (!from) {
+      // 點到蓋著的牌：當作點那一疊（有選起的牌就試著放過去）
+      const col = props.state.tableau.findIndex((t) => t.down.includes(c))
+      if (col >= 0) tapSpot({ pile: 'tableau', col })
+      return
+    }
     const cards = cardsAt(props.state, from)
     drag = { id: e.pointerId, from, cards, base: cards.map((k) => stage.target(k)), x0: p.x, y0: p.y, moved: false }
   }
@@ -189,20 +221,16 @@ function onUp(e: PointerEvent) {
   const d = drag
   drag = null
   if (d.from === 'stock') {
+    selected.value = null
     emit('action', { type: 'draw' })
     return
   }
   const from = d.from
   if (!d.moved) {
-    // 點一下：自動送到能放的地方
-    const to = autoTarget(props.state, from)
-    if (to) emit('action', { type: 'move', from, to })
-    else {
-      shake(d.cards)
-      emit('invalid')
-    }
+    tapCard(from)
     return
   }
+  selected.value = null
   const p = local(e)
   // 用拿著的那張牌的中心判斷放在哪裡
   const spot = dropSpot(L.value, props.state, d.base[0].x + (p.x - d.x0), d.base[0].y + (p.y - d.y0))
@@ -214,6 +242,42 @@ function onUp(e: PointerEvent) {
     d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
   }
 }
+/** 點一張翻開的牌：沒有選牌時選起它；已經選了，就把選的牌放到這張牌所在的那一疊 */
+function tapCard(from: Source) {
+  const sel = selected.value
+  if (sel && sameSource(sel, from)) {
+    selected.value = null
+    return
+  }
+  if (sel) {
+    const to: Target | null = from.pile === 'tableau' ? { pile: 'tableau', col: from.col } : from.pile === 'foundation' ? { pile: 'foundation', slot: from.slot } : null
+    if (to && !sameSpot(sel, to)) return tryMove(sel, to)
+  }
+  selected.value = from
+  playSound('cardPick')
+}
+/** 點空的位置（空的一疊、收牌區） */
+function tapSpot(to: Target) {
+  if (!canAct.value || !selected.value) return
+  tryMove(selected.value, to)
+}
+function tryMove(from: Source, to: Target) {
+  const cards = cardsAt(props.state, from)
+  selected.value = null
+  if (canPlace(props.state, cards, to) && !sameSpot(from, to)) emit('action', { type: 'move', from, to })
+  else {
+    shake(cards)
+    emit('invalid')
+  }
+}
+function sameSource(a: Source, b: Source) {
+  if (a.pile !== b.pile) return false
+  if (a.pile === 'tableau' && b.pile === 'tableau') return a.col === b.col && a.index === b.index
+  if (a.pile === 'foundation' && b.pile === 'foundation') return a.slot === b.slot
+  return true
+}
+const selectedCards = computed(() => new Set(selected.value ? cardsAt(props.state, selected.value) : []))
+
 function sameSpot(from: Source, to: Target) {
   if (from.pile === 'tableau' && to.pile === 'tableau') return from.col === to.col
   if (from.pile === 'foundation' && to.pile === 'foundation') return from.slot === to.slot
@@ -228,7 +292,8 @@ function shake(cards: Card[]) {
   })
 }
 function tapStockSlot() {
-  if (!props.interactive || props.state.stock.length) return
+  if (!canAct.value || props.state.stock.length) return
+  selected.value = null
   emit('action', { type: 'draw' })
 }
 
@@ -255,10 +320,11 @@ defineExpose({ layout: L })
       <svg viewBox="0 0 24 24" class="again" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </button>
     <div class="slot" :style="slot(L.waste)" />
-    <div v-for="(f, i) in L.foundations" :key="`f${i}`" class="slot found" :style="slot(f)">
-      <span class="t-slab">A</span>
-    </div>
-    <div v-for="(c, i) in L.cols" :key="`c${i}`" class="slot col" :style="slot(c)"><span class="t-slab">K</span></div>
+    <!-- 收牌區：每一格固定一種花色 -->
+    <button v-for="(f, i) in L.foundations" :key="`f${i}`" class="slot found" :class="{ red: isRedSuit(i) }" :style="slot(f)" :aria-label="`foundation ${i}`" @click="tapSpot({ pile: 'foundation', slot: i })">
+      <svg viewBox="0 0 24 24" class="suit" aria-hidden="true"><path :d="SUIT_PATHS[i]" /></svg>
+    </button>
+    <button v-for="(c, i) in L.cols" :key="`c${i}`" class="slot col" :style="slot(c)" :aria-label="`column ${i}`" @click="tapSpot({ pile: 'tableau', col: i })"><span class="t-slab">K</span></button>
     <div v-if="hintRect" class="hint-spot" :style="hintRect" />
 
     <div class="cards">
@@ -268,7 +334,7 @@ defineExpose({ layout: L })
         :key="c"
         :ref="(el) => stage.attach(c, el as HTMLElement | null)"
         class="sprite"
-        :class="{ grab: interactive && grabbable.has(c), stock: interactive && inStock(c), hit: hintSet.has(c) }"
+        :class="{ grab: canAct && grabbable.has(c), stock: canAct && inStock(c), hit: hintSet.has(c), sel: selectedCards.has(c) }"
         :style="{ width: `${L.cw}px`, height: `${L.ch}px`, marginLeft: `${-L.cw / 2}px`, marginTop: `${-L.ch / 2}px` }"
         @pointerdown="onDown(c, $event)"
       >
@@ -292,11 +358,11 @@ defineExpose({ layout: L })
   position: absolute;
   display: grid;
   place-items: center;
-  border: 0.13rem dashed rgb(20 20 20 / 0.28);
+  border: 0;
   border-radius: 0.45rem;
-  background: none;
+  background: rgb(20 20 20 / 0.05);
   padding: 0;
-  color: rgb(20 20 20 / 0.22);
+  color: rgb(20 20 20 / 0.18);
 }
 .stock-slot {
   cursor: pointer;
@@ -304,11 +370,13 @@ defineExpose({ layout: L })
 .again {
   width: 40%;
 }
-.found {
-  background-image: radial-gradient(rgb(20 20 20 / 0.1) 30%, transparent 32%);
-  background-size: 0.45rem 0.45rem;
+.suit {
+  width: 46%;
+  fill: currentColor;
 }
-.found span,
+.found.red {
+  color: rgb(255 74 28 / 0.32);
+}
 .col span {
   font-size: 1.3rem;
 }
@@ -369,6 +437,20 @@ defineExpose({ layout: L })
   background: var(--color-yellow);
   box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
   animation: hint 0.9s ease-in-out infinite;
+  pointer-events: none;
+}
+/* 點一下選起來的牌：往上浮、墊一條黃色 */
+.sprite.sel {
+  translate: 0 -6%;
+}
+.sprite.sel::before {
+  content: '';
+  position: absolute;
+  inset: -3% -6%;
+  z-index: -1;
+  border-radius: 10%;
+  background: var(--color-yellow);
+  box-shadow: 0 0 0 0.16rem var(--color-ink);
   pointer-events: none;
 }
 /* 滑鼠移到可以拿的牌上：浮起一點 */
