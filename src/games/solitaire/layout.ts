@@ -36,7 +36,9 @@ export function solLayout(W: number, H: number, safeLeft = 0, safeRight = 0): So
   let gap = (right - left) / 10.44
   let cw = gap / 1.14
   // 右邊一欄要放得下兩排收牌區＋約 150px 的資訊區
-  const maxCw = (H - m - 150) / 2.08 / CARD_RATIO
+  // 左邊一欄：選單按鈕下面放牌堆與翻出來的牌（翻 3 張時往下錯開），也要放得下
+  const STOCK_TOP = 74
+  const maxCw = Math.min((H - m - 150) / 2.08, (H - STOCK_TOP - 12) / 2.54) / CARD_RATIO
   if (cw > maxCw) {
     cw = maxCw
     gap = cw * 1.14
@@ -45,7 +47,7 @@ export function solLayout(W: number, H: number, safeLeft = 0, safeRight = 0): So
   const total = 8.6 * gap + 2.1 * cw
   const x0 = left + Math.max(0, (right - left - total) / 2) + cw / 2
   const top = m + ch / 2
-  const stock = { x: x0, y: 58 + ch / 2 }
+  const stock = { x: x0, y: STOCK_TOP + ch / 2 }
   const waste = { x: x0, y: stock.y + ch * 1.14 }
   const c0 = x0 + gap * 1.3
   const cols = Array.from({ length: 7 }, (_, i) => ({ x: c0 + i * gap, y: top }))

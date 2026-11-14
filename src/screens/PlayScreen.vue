@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 對局外框：開始前先看有沒有「保存進度並退出」留下的存檔。
 // 有的話先問要不要接著玩；遊戲要保存時，把它給的資料存起來再離開。
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { revealLaunch } from '@/core/launch'
 import { back } from '@/core/nav'
 import { clearResume, getResume, setResume } from '@/core/resume'
 import { S } from '@/data/strings'
@@ -31,6 +32,9 @@ function startNew() {
   clearResume(props.gameId)
   ready.value = true
 }
+// 對局畫面（或「要不要接著玩」的對話框）出現後，揭開進入遊戲的過場
+onMounted(() => requestAnimationFrame(() => requestAnimationFrame(revealLaunch)))
+
 function onSave(data: unknown) {
   setResume(props.gameId, data, options.value)
   back()

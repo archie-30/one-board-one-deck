@@ -1,14 +1,14 @@
 <script setup lang="ts">
-// 主畫面（標題＋選一邊）：左邊一欄是遊戲名稱，中間「撲克牌」、右邊「棋盤」兩塊大面板。
-// 滑鼠移上去：游標處先染一小圈顏色、圖微微動（預覽）。點一下：整塊染色、圖動起來；再點一下：進入模式選單。
+// 主畫面：左邊一欄是遊戲名稱，中間「撲克牌」、右邊「棋盤」兩塊大面板。
+// 滑鼠移上去：圖微微動（預覽）。點一下：從點的位置染上顏色、圖動起來，接著直接進入模式選單。
 import { ref } from 'vue'
+import { reducedMotion } from '@/core/motion'
 import { go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { VERSION } from '@/data/version'
 import BoardMini from '@/games/gomoku/BoardMini.vue'
 import type { GameCategory } from '@/games/types'
-import Burst from '@/ui/art/Burst.vue'
 import Card from '@/ui/art/Card.vue'
 import Icon from '@/ui/art/Icon.vue'
 import IconBtn from '@/ui/IconBtn.vue'
@@ -25,23 +25,16 @@ const fan = [
 ]
 
 function tap(side: GameCategory, event: MouseEvent) {
-  if (picked.value !== side) {
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-    origin.value = { x: `${event.clientX - rect.left}px`, y: `${event.clientY - rect.top}px` }
-    picked.value = side
-    playSound(side === 'cards' ? 'flip' : 'stone')
-    return
-  }
-  playSound('tap')
-  go({ name: 'category', category: side })
-}
-
-// 滑鼠移動時，讓預覽的色圈跟著游標（只在還沒選起時）
-function hover(side: GameCategory, event: PointerEvent) {
-  if (event.pointerType !== 'mouse' || picked.value === side) return
-  hovered.value = side
+  if (picked.value) return
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
   origin.value = { x: `${event.clientX - rect.left}px`, y: `${event.clientY - rect.top}px` }
+  picked.value = side
+  playSound(side === 'cards' ? 'flip' : 'stone')
+  // 顏色染開一點後就進入模式選單
+  window.setTimeout(() => go({ name: 'category', category: side }), reducedMotion() ? 0 : 340)
+}
+function hover(side: GameCategory, event: PointerEvent) {
+  if (event.pointerType === 'mouse') hovered.value = side
 }
 </script>
 
@@ -53,15 +46,12 @@ function hover(side: GameCategory, event: PointerEvent) {
         <span class="t-label rise" style="--i: 1">{{ VERSION.number }}</span>
       </header>
       <div class="rule wipe" style="--i: 1" />
-      <Burst class="badge pop" tone="red" size="4.2rem" style="--i: 7"><span class="whitespace-pre-line">{{ S.title.badge }}</span></Burst>
       <h1 class="t-black big">
         <span class="mask" style="--i: 1"><span>{{ S.title.line1 }}</span></span>
         <span class="mask" style="--i: 2"><span>{{ S.title.line2 }}</span></span>
       </h1>
-      <p class="lead rise" style="--i: 4">{{ S.title.lead }}</p>
       <div class="foot rise" style="--i: 5">
         <IconBtn icon="gear" :label="S.choose.settings" @click="settingsOpen = true" />
-        <p class="hint">{{ S.choose.lead }}</p>
       </div>
     </aside>
 
@@ -86,8 +76,7 @@ function hover(side: GameCategory, event: PointerEvent) {
         <BoardMini v-else :busy="picked === 'board' || hovered === 'board'" />
       </span>
       <span class="name t-black">{{ side === 'cards' ? S.choose.cards : S.choose.board }}</span>
-      <span class="sub">{{ side === 'cards' ? S.choose.cardsLead : S.choose.boardLead }}</span>
-      <span class="go"><span>{{ S.choose.again }}</span><Icon name="arrow" class="ar" /></span>
+      <span class="go"><Icon name="arrow" class="ar" /></span>
     </button>
 
     <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
@@ -116,12 +105,6 @@ function hover(side: GameCategory, event: PointerEvent) {
   margin-top: 0.35rem;
   background: var(--color-ink);
 }
-.badge {
-  position: absolute;
-  right: 0.9rem;
-  top: 2.6rem;
-  rotate: 12deg;
-}
 .big {
   display: flex;
   flex-direction: column;
@@ -131,20 +114,11 @@ function hover(side: GameCategory, event: PointerEvent) {
   letter-spacing: -0.05em;
   white-space: nowrap;
 }
-.lead {
-  margin-top: 0.6rem;
-  font-size: 0.85rem;
-  color: var(--color-ink-2);
-}
 .foot {
   display: flex;
   align-items: center;
   gap: 0.7rem;
   margin-top: 1rem;
-}
-.hint {
-  font-size: 0.75rem;
-  font-weight: 900;
 }
 .panel {
   position: relative;
@@ -182,17 +156,12 @@ function hover(side: GameCategory, event: PointerEvent) {
   clip-path: circle(150% at var(--ox) var(--oy));
 }
 /* 滑鼠預覽：游標處一小圈顏色跟著走 */
-.peek .flood {
-  clip-path: circle(3.2rem at var(--ox) var(--oy));
-  transition: clip-path 260ms var(--ease-out);
-}
 .peek .fc {
   --spread: 1.15;
 }
 
 .tag,
 .name,
-.sub,
 .go,
 .art {
   position: relative;
@@ -200,7 +169,6 @@ function hover(side: GameCategory, event: PointerEvent) {
 }
 .on .tag,
 .on .name,
-.on .sub,
 .on .go {
   color: var(--color-card);
 }
@@ -234,11 +202,6 @@ function hover(side: GameCategory, event: PointerEvent) {
 .off .art {
   opacity: 0.35;
 }
-.sub {
-  margin-top: 0.3rem;
-  font-size: 0.85rem;
-  color: var(--color-ink-2);
-}
 .go {
   display: flex;
   align-items: center;
@@ -253,10 +216,10 @@ function hover(side: GameCategory, event: PointerEvent) {
     opacity 200ms ease,
     transform 320ms var(--ease-out);
 }
-.on .go {
+.on .go,
+.peek .go {
   opacity: 1;
   transform: none;
-  transition-delay: 260ms;
 }
 .ar {
   width: 1rem;

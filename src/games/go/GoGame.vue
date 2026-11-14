@@ -3,6 +3,7 @@
 // 雙方連續虛手後進入數地：電腦標出死棋與地盤，你可以點棋子修正，再確認結果。
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { playSound } from '@/core/audio'
+import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
@@ -93,7 +94,7 @@ function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
   const el = flier.value
   const bowl = bowlEls.value[who]
   const host = sectionEl.value
-  if (!el || !bowl || !host || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve()
+  if (!el || !bowl || !host || reducedMotion()) return Promise.resolve()
   const base = host.getBoundingClientRect()
   const b = bowl.getBoundingClientRect()
   const to = pointOnScreen(index)

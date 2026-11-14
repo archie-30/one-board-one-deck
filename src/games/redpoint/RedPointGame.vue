@@ -426,9 +426,11 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <tbody>
           <tr v-for="(sc, p) in scores" :key="p" class="rise" :class="{ winner: winners(state).includes(p) }" :style="{ '--i': p + 2 }">
             <td class="who-cell">
-              <span class="mini"><Avatar :look="looks[p]" :mood="winners(state).includes(p) ? 'happy' : 'sad'" /></span>
-              <span class="t-black">{{ names[p] }}</span>
-              <Burst v-if="winners(state).includes(p)" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ S.bigtwo.result.winnerStamp }}</Burst>
+              <span class="who-in">
+                <span class="mini"><Avatar :look="looks[p]" :mood="winners(state).includes(p) ? 'happy' : 'sad'" /></span>
+                <span class="t-black">{{ names[p] }}</span>
+                <Burst v-if="winners(state).includes(p)" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ S.bigtwo.result.winnerStamp }}</Burst>
+              </span>
             </td>
             <td class="reds">
               <svg v-for="c in sc.reds" :key="c" viewBox="-2 -2 78 108" class="tiny"><CardArt :rank="rankText(c)" :suit="suitOf(c)" :shadow="false" /></svg>
@@ -655,6 +657,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   border-bottom: 0.07rem solid var(--color-ink);
 }
 .who-cell {
+  vertical-align: middle;
+}
+.who-in {
   display: flex;
   align-items: center;
   gap: 0.45rem;

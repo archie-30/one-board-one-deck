@@ -8,6 +8,7 @@ import GameSettingsScreen from '@/screens/GameSettingsScreen.vue'
 import PlayScreen from '@/screens/PlayScreen.vue'
 import RulesScreen from '@/screens/RulesScreen.vue'
 import TitleScreen from '@/screens/TitleScreen.vue'
+import LaunchOverlay from '@/ui/LaunchOverlay.vue'
 
 function onKey(event: KeyboardEvent) {
   if (event.key === 'Escape' && route.value.name !== 'play' && route.value.name !== 'tutorial') back()
@@ -30,6 +31,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         @play="replace({ name: 'play', gameId: route.gameId })"
       />
       <PlayScreen v-else :key="routeKey" :game-id="route.gameId" />
+    <LaunchOverlay />
     <div class="rotate">{{ S.app.rotate }}</div>
   </main>
 </template>

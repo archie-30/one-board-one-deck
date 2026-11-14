@@ -2,6 +2,7 @@
 // 換頁時使用瀏覽器的 View Transitions：整頁只做極短的淡入淡出，
 // 兩個畫面上都有的元素（view-transition-name 相同）會直接「變形」過去，例如選擇畫面的色塊變成大廳的色塊。
 import { computed, nextTick, reactive } from 'vue'
+import { reducedMotion } from './motion'
 import type { GameCategory } from '@/games/types'
 
 export type Route =
@@ -21,7 +22,7 @@ type VT = { startViewTransition?: (cb: () => Promise<void>) => unknown }
 
 function transition(change: () => void) {
   const doc = document as unknown as VT
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const reduced = reducedMotion()
   if (!doc.startViewTransition || reduced) return change()
   doc.startViewTransition(async () => {
     change()

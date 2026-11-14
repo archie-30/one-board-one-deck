@@ -2,6 +2,7 @@
 // 五子棋：你在左、對手在右，中間一張棋盤。棋子從各自的棋罐沿弧線飛到落點，落地時壓扁並泛起墨圈。
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { playSound } from '@/core/audio'
+import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
@@ -85,7 +86,7 @@ function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
   const el = flier.value
   const bowl = bowlEls.value[who]
   const host = sectionEl.value
-  if (!el || !bowl || !host || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return Promise.resolve()
+  if (!el || !bowl || !host || reducedMotion()) return Promise.resolve()
   const base = host.getBoundingClientRect()
   const b = bowl.getBoundingClientRect()
   const to = pointOnScreen(index)
@@ -245,7 +246,10 @@ if (props.resume) {
         <p class="hint">{{ myTurn && !message ? T.previewHint : '' }}</p>
       </div>
       <div class="act">
-        <Btn v-if="phase === 'over'" tone="ink" size="lg" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+        <template v-if="phase === 'over'">
+          <Btn tone="ink" size="lg" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+          <Btn class="mt-[0.5rem]" size="sm" icon="book" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
+        </template>
         <Btn v-else tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
       </div>
     </aside>
@@ -258,8 +262,9 @@ if (props.resume) {
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>
+        <Btn size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
-        <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
       </template>
     </Dialog>
   </section>

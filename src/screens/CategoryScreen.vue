@@ -2,9 +2,11 @@
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
+import { startLaunch } from '@/core/launch'
+import { reducedMotion } from '@/core/motion'
 import { settings } from '@/core/settings'
 import { S } from '@/data/strings'
 import { gamesIn } from '@/games/registry'
@@ -12,6 +14,7 @@ import type { GameCategory } from '@/games/types'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import AppSettings from './AppSettings.vue'
 
 const props = defineProps<{ category: GameCategory }>()
 const games = computed(() => gamesIn(props.category))
@@ -21,6 +24,7 @@ const start = games.value.findIndex((g) => g.id === settings.lastGame[props.cate
 const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 const hoverId = ref<string | null>(null)
+const settingsOpen = ref(false)
 const pad = (k: number) => String(k).padStart(2, '0')
 
 /** 換到第 k 張 */
@@ -126,36 +130,22 @@ function cardStyle(k: number) {
   return style
 }
 
-// ── 點最前面的卡片（或按「開始遊戲」）：卡片放大到整個畫面，接著直接開始遊戲 ──
+// ── 點最前面的卡片（或按「開始遊戲」）：卡片放大到整個畫面，同時先把遊戲載好，接著直接開始遊戲 ──
 const cardEls: (HTMLElement | null)[] = []
-const zoomEl = ref<HTMLElement>()
-const zooming = ref<{ left: number; top: number; width: number; height: number } | null>(null)
+let launching = false
 async function launch() {
-  if (zooming.value) return
+  if (launching) return
   const el = cardEls[index.value]
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (!el || reduced) return open('play')
+  if (!el || reducedMotion()) return open('play')
+  launching = true
+  const g = game.value
   const r = el.getBoundingClientRect()
-  zooming.value = { left: r.left, top: r.top, width: r.width, height: r.height }
+  const color = getComputedStyle(el.querySelector('.cover') ?? el).backgroundColor
   playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')
-  await nextTick()
-  const z = zoomEl.value
-  if (!z) return open('play')
-  const ease = 'cubic-bezier(0.77, 0, 0.175, 1)'
-  const grow = z.animate(
-    [
-      { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`, borderWidth: '0.14rem', borderRadius: '0.5rem' },
-      { left: '0px', top: '0px', width: `${window.innerWidth}px`, height: `${window.innerHeight}px`, borderWidth: '0rem', borderRadius: '0rem' },
-    ],
-    { duration: 520, easing: ease, fill: 'forwards' },
-  )
-  // 後半段：插圖淡掉、底色變回紙色，換到對局畫面時不會突然跳色
-  z.querySelector('.zoom-art')?.animate([{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(1.6)' }], { duration: 520, easing: 'ease-in', fill: 'forwards' })
-  const tone = getComputedStyle(z).backgroundColor
-  const paper = getComputedStyle(document.body).backgroundColor
-  z.animate([{ backgroundColor: tone }, { backgroundColor: tone, offset: 0.45 }, { backgroundColor: paper }], { duration: 640, easing: 'ease-out', fill: 'forwards' })
-  await grow.finished
-  window.setTimeout(() => go({ name: 'play', gameId: game.value.id }), 120)
+  // 放大的同時先下載遊戲畫面，兩件事都好了才換頁
+  const loader = (g.component as { __asyncLoader?: () => Promise<unknown> }).__asyncLoader
+  await Promise.all([startLaunch({ left: r.left, top: r.top, width: r.width, height: r.height }, color, g.cover), loader?.().catch(() => {})])
+  go({ name: 'play', gameId: g.id })
 }
 
 function onKey(e: KeyboardEvent) {
@@ -172,6 +162,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <IconBtn icon="back" :label="S.common.back" @click="back()" />
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
+      <IconBtn icon="gear" :label="S.appSettings.title" @click="settingsOpen = true" />
     </header>
     <div class="rule wipe" style="--i: 1" />
 
@@ -240,10 +231,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </div>
       </aside>
     </div>
-    <!-- 放大中的卡片 -->
-    <div v-if="zooming" ref="zoomEl" class="zoom" :style="{ left: `${zooming.left}px`, top: `${zooming.top}px`, width: `${zooming.width}px`, height: `${zooming.height}px` }">
-      <span class="zoom-art"><component :is="game.cover" active /></span>
-    </div>
+    <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
+
   </section>
 </template>
 
@@ -560,21 +549,5 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   .arrow:hover:not(:disabled) {
     background: var(--color-yellow);
   }
-}
-.zoom {
-  position: fixed;
-  z-index: 3000;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 0.14rem solid var(--color-ink);
-  border-radius: 0.5rem;
-  background-color: var(--tone);
-  pointer-events: none;
-}
-.zoom-art {
-  display: block;
-  width: min(60vw, 30rem);
-  aspect-ratio: 200 / 130;
 }
 </style>

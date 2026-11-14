@@ -432,9 +432,11 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <tbody>
           <tr v-for="(s, p) in scores" :key="p" class="rise" :class="{ winner: p === state.winner }" :style="{ '--i': p + 2 }">
             <td class="who-cell">
-              <span class="mini"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" /></span>
-              <span class="t-black">{{ names[p] }}</span>
-              <Burst v-if="p === state.winner" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ T.result.winnerStamp }}</Burst>
+              <span class="who-in">
+                <span class="mini"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" /></span>
+                <span class="t-black">{{ names[p] }}</span>
+                <Burst v-if="p === state.winner" class="pop" tone="red" size="1.9rem" style="--i: 6">{{ T.result.winnerStamp }}</Burst>
+              </span>
             </td>
             <td>{{ p === state.winner ? T.result.winner : s.twos ? T.result.leftWithTwos(s.cards, s.twos) : T.cardsLeft(s.cards) }}</td>
             <td>{{ p === state.winner ? '' : `×${s.multiplier}` }}</td>
@@ -662,6 +664,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   text-align: left;
 }
 .who-cell {
+  vertical-align: middle;
+}
+.who-in {
   display: flex;
   align-items: center;
   gap: 0.45rem;
