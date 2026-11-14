@@ -46,7 +46,7 @@ function onClick() {
   gap: 0.55rem;
   height: var(--h);
   padding: 0 1rem;
-  border: 0.13rem solid var(--color-ink);
+  border: 2px solid var(--color-ink);
   background: var(--bg);
   color: var(--fg);
   font-weight: 900;
@@ -122,9 +122,10 @@ function onClick() {
 }
 @media (hover: hover) and (pointer: fine) {
   /* 滑鼠移上去：按鈕往左上浮一點、陰影拉長 */
+  /* 用整數像素位移：小數位移會讓黑框在某些螢幕上看起來一邊變細 */
   .btn:hover:not(:disabled):not(:active) .face {
-    transform: translate(-0.07rem, -0.07rem);
-    box-shadow: calc(var(--sh) + 0.07rem) calc(var(--sh) + 0.07rem) 0 var(--color-ink);
+    transform: translate(-1px, -1px);
+    box-shadow: calc(var(--sh) + 1px) calc(var(--sh) + 1px) 0 var(--color-ink);
   }
   .btn:hover:not(:disabled) .ar {
     transform: translateX(0.25rem);

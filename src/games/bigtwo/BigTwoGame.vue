@@ -61,7 +61,9 @@ const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
     timers.delete(id)
-    fn()
+    // 暫停中（選單打開）：電腦也停下來，等繼續再走
+    if (menuOpen.value) later(fn, 250)
+    else fn()
   }, ms)
   timers.add(id)
 }
@@ -278,7 +280,9 @@ function newRound() {
 /** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
 const acted = ref(!!saved)
 const canSave = computed(() => phase.value === 'play' && acted.value)
-function saveAndExit() {
+/** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
+function snapshot(): Saved | null {
+  if (!canSave.value) return null
   // 剛好在「大家都過、要收牌」的空檔存：把桌上的牌當作已經收走
   let p = pile.value
   let d = discard.value
@@ -289,8 +293,14 @@ function saveAndExit() {
     ps = [false, false, false, false]
   }
   const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng, tableTotals: tableTotals.value, pile: p, discard: d, passed: ps, groupId }
-  emit('save', data)
+  return data
 }
+function saveAndExit() {
+  const data = snapshot()
+  if (data) emit('save', data)
+}
+// 給外框用：切走分頁、離開視窗時自動暫停並存下進度
+defineExpose({ pause: () => (menuOpen.value = true), snapshot })
 
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
@@ -515,15 +525,22 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   cursor: pointer;
 }
 /* 選起的牌：底下一條黃色 */
+/* 選起來的牌：朱紅色的外框＋一點點紅色的光，框輕輕一閃再穩住 */
 .sprite.sel::after {
   content: '';
   position: absolute;
-  left: 8%;
-  right: 4%;
-  bottom: -10%;
-  height: 6%;
-  background: var(--color-yellow);
-  border: 0.1rem solid var(--color-ink);
+  inset: -3% -4%;
+  border: 0.18rem solid var(--color-red);
+  border-radius: 10%;
+  box-shadow: 0 0.35rem 0.9rem rgb(255 74 28 / 0.28);
+  pointer-events: none;
+  animation: sel-in 260ms var(--ease-back) both;
+}
+@keyframes sel-in {
+  from {
+    opacity: 0;
+    transform: scale(1.12);
+  }
 }
 .who {
   position: absolute;

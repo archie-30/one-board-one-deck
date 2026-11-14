@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // 接龍牌桌：畫出牌堆、收牌區、7 疊桌面，處理操作，把動作回報給上層。
-// 操作：按住拖到想放的地方；或先點一張牌（選起來），再點要放的那一疊。不會自動幫你決定放哪裡。
+// 操作：按住拖到想放的地方；或先點一張牌（選起來），再點要放的那一疊。
+// 桌面上已翻開的牌快速點兩下，會自動放到能放的地方（翻出來的牌堆不行）。
 // 每張牌都是獨立的精靈（沿用大老二的 cardStage），換位置時各自飛過去。
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
-import { canPlace, cardsAt, type SolitaireAction, type SolitaireState, type Source, type Target } from '@/engine/solitaire/rules'
+import { autoTarget, canPlace, cardsAt, type SolitaireAction, type SolitaireState, type Source, type Target } from '@/engine/solitaire/rules'
 import CardArt from '@/ui/art/Card.vue'
 import { SUIT_PATHS, isRedSuit } from '@/ui/art/suits'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
@@ -250,11 +251,24 @@ function onUp(e: PointerEvent) {
     d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
   }
 }
-/** 點一張翻開的牌：沒有選牌時選起它；已經選了，就把選的牌放到這張牌所在的那一疊 */
+/** 點一張翻開的牌：沒有選牌時選起它；已經選了，就把選的牌放到這張牌所在的那一疊。
+ *  桌面上的牌快速點兩下：自動放到能放的地方（能收就先收）；翻出來的牌堆、收牌區的牌不行。 */
+let lastTap = 0
 function tapCard(from: Source) {
   const sel = selected.value
+  const now = performance.now()
+  const double = now - lastTap < 380
+  lastTap = now
   if (sel && sameSource(sel, from)) {
     selected.value = null
+    if (double && from.pile === 'tableau') {
+      const to = autoTarget(props.state, from)
+      if (to) emit('action', { type: 'move', from, to })
+      else {
+        shake(cardsAt(props.state, from))
+        emit('invalid')
+      }
+    }
     return
   }
   if (sel) {

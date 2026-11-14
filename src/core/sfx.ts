@@ -203,21 +203,20 @@ function woodKnock(b: Buf, t: number, rand: Rand, base: number, k = 1, dur = 0.1
 /** 棋子落在木頭棋盤上：石頭清脆的「喀」＋棋盤木頭的共鳴 */
 function stoneOnBoard(b: Buf, t: number, rand: Rand, k = 1) {
   const sr = b.sr
-  b.add(t, click(sr, rand, 6000, 0.0015), 0.8 * k)
+  b.add(t, click(sr, rand, 3800, 0.0015), 0.55 * k)
   b.add(
     t,
     modes(
       sr,
       0.3,
       [
-        // 石頭本身：高而短
-        { f: 2850, a: 0.7, d: 0.012 },
-        { f: 4300, a: 0.45, d: 0.008 },
-        { f: 6900, a: 0.25, d: 0.004 },
+        // 石頭本身：清脆但不刺耳（高頻壓低，避免像敲玻璃）
+        { f: 2200, a: 0.45, d: 0.008 },
+        { f: 3300, a: 0.18, d: 0.005 },
         // 棋盤木頭：中低頻，比較長
-        { f: 690, a: 0.65, d: 0.05 },
-        { f: 1120, a: 0.4, d: 0.035 },
-        { f: 240, a: 0.35, d: 0.07 },
+        { f: 690, a: 0.8, d: 0.05 },
+        { f: 1120, a: 0.45, d: 0.03 },
+        { f: 240, a: 0.45, d: 0.07 },
       ],
       rand,
       0.03,
@@ -228,21 +227,10 @@ function stoneOnBoard(b: Buf, t: number, rand: Rand, k = 1) {
 /** 兩顆棋子互相碰到的「喀」（棋罐裡、盒蓋裡） */
 function stoneTick(b: Buf, t: number, rand: Rand, k = 1) {
   const sr = b.sr
-  const f = 3600 + rand() * 2400
-  b.add(
-    t,
-    modes(
-      sr,
-      0.06,
-      [
-        { f, a: 1, d: 0.006 },
-        { f: f * 1.53, a: 0.5, d: 0.004 },
-      ],
-      rand,
-      0.04,
-    ),
-    k,
-  )
+  // 棋子互相碰撞：短促的「喀」，主要是被濾過的敲擊聲，只帶一點點音高（太純的高音聽起來像玻璃）
+  const f = 2000 + rand() * 900
+  b.add(t, hiss(sr, rand, 0.03, 'bp', f, 1.2, 0.0004, 0.004), k)
+  b.add(t, modes(sr, 0.04, [{ f, a: 0.35, d: 0.003 }], rand, 0.05), k)
 }
 /** 木琴的一個音 */
 function marimba(b: Buf, t: number, rand: Rand, f: number, k = 1, d = 0.35) {
@@ -269,9 +257,11 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
   let b: Buf
   switch (name) {
     case 'tap': {
-      b = new Buf(sr, 0.12)
-      woodKnock(b, 0, rand, 1250 + rand() * 120, 1, 0.1)
-      return b.normalize(0.35).data
+      // 按鈕：手指按下厚紙板的悶悶一聲（沒有高頻的「叮」）
+      b = new Buf(sr, 0.09)
+      b.add(0, hiss(sr, rand, 0.05, 'lp', 1500 + rand() * 300, 0.7, 0.0008, 0.008), 0.8)
+      b.add(0, modes(sr, 0.08, [{ f: 300 + rand() * 30, a: 1, d: 0.018 }, { f: 690, a: 0.35, d: 0.009 }], rand), 0.6)
+      return b.normalize(0.32).data
     }
     case 'slide': {
       b = new Buf(sr, 0.3)
@@ -346,8 +336,9 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
     case 'collect': {
       // 收到收牌區：拍上去，再一聲很小的「叮」
       b = new Buf(sr, 0.5)
+      // 收到收牌區：拍上去，再把牌推齊的一聲低沉的「咚」（不用高音的叮）
       cardSlap(b, 0, rand, 0.9)
-      marimba(b, 0.02, rand, 1567.98, 0.25, 0.12)
+      b.add(0.03, modes(sr, 0.14, [{ f: 220, a: 1, d: 0.03 }, { f: 520, a: 0.3, d: 0.012 }], rand), 0.45)
       return b.normalize(0.5).data
     }
     case 'pass': {

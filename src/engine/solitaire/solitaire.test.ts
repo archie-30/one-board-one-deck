@@ -246,11 +246,11 @@ describe('接龍：復原扣分', () => {
 })
 
 describe('接龍：最後分數', () => {
-  it('每 10 秒扣 2 分，不低於 0；過關且超過 30 秒有時間獎勵', () => {
-    expect(finalScore(100, 25, false)).toBe(96)
-    expect(finalScore(10, 600, false)).toBe(0)
-    expect(finalScore(520, 100, true)).toBe(500 + 7000)
-    expect(finalScore(520, 20, true)).toBe(516)
+  it('時間不會扣分；過關且花 30 秒以上才有快速過關獎勵（700000 ÷ 秒數）', () => {
+    expect(finalScore(100, 25, false)).toBe(100)
+    expect(finalScore(10, 6000, false)).toBe(10)
+    expect(finalScore(520, 100, true)).toBe(520 + 7000)
+    expect(finalScore(520, 20, true)).toBe(520)
   })
 })
 
