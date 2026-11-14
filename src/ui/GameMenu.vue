@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 對局中的選單：繼續、規則說明、重新開始、保存進度並退出、離開
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { S } from '@/data/strings'
 import type { GameDef } from '@/games/types'
 import Btn from './Btn.vue'
@@ -16,8 +16,24 @@ watch(
   () => props.open,
   (open) => {
     if (open) showRules.value = false
+    quitArmed.value = false
   },
 )
+
+// 「不保存，直接離開」要按兩次：第一次變成「再按一次離開」，2.5 秒內再按才離開
+const quitArmed = ref(false)
+let quitTimer = 0
+function quit() {
+  if (!props.canSave || quitArmed.value) {
+    window.clearTimeout(quitTimer)
+    emit('exit')
+    return
+  }
+  quitArmed.value = true
+  window.clearTimeout(quitTimer)
+  quitTimer = window.setTimeout(() => (quitArmed.value = false), 2500)
+}
+onBeforeUnmount(() => window.clearTimeout(quitTimer))
 </script>
 
 <template>
@@ -28,7 +44,7 @@ watch(
       <Btn class="rise" style="--i: 1" icon="book" block arrow @click="showRules = true">{{ S.lobby.rules }}</Btn>
       <Btn class="rise" style="--i: 1" icon="gear" block arrow @click="settingsOpen = true">{{ S.appSettings.title }}</Btn>
       <Btn class="rise" style="--i: 2" icon="again" block arrow @click="emit('restart')">{{ S.common.restart }}</Btn>
-      <Btn class="rise" style="--i: 2" icon="exit" block arrow @click="emit('exit')">{{ canSave ? S.common.quitNoSave : S.common.quit }}</Btn>
+      <Btn class="rise" style="--i: 2" icon="exit" block arrow :tone="quitArmed ? 'yellow' : 'plain'" @click="quit">{{ quitArmed ? S.common.quitConfirm : canSave ? S.common.quitNoSave : S.common.quit }}</Btn>
       <Btn v-if="canSave" class="rise wide-row" style="--i: 3" tone="yellow" icon="check" block arrow @click="emit('saveExit')">{{ S.common.saveExit }}</Btn>
     </div>
     <template v-if="showRules" #actions>

@@ -242,6 +242,7 @@ function finish() {
   stats.bigtwo.rounds++
   if (s.winner === ME) stats.bigtwo.wins++
   stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
+  stats.bigtwo.best = Math.max(stats.bigtwo.best, scores.value[ME].points)
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')

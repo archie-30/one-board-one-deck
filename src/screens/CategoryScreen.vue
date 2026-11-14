@@ -7,13 +7,15 @@ import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
-import { settings } from '@/core/settings'
+import { gamePrefs, settings } from '@/core/settings'
 import { S } from '@/data/strings'
+import { resolveOptions } from '@/games/options'
 import { gamesIn } from '@/games/registry'
 import type { GameCategory } from '@/games/types'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import Tabs from '@/ui/Tabs.vue'
 import AppSettings from './AppSettings.vue'
 
 const props = defineProps<{ category: GameCategory }>()
@@ -25,6 +27,22 @@ const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 const hoverId = ref<string | null>(null)
 const settingsOpen = ref(false)
+
+/** 難度這類常用設定：直接在這裡選，不用進「規則設定」 */
+const quick = computed(() => {
+  const d = game.value.settings.find((x) => x.key === 'difficulty')
+  return d && d.type === 'choice' ? d : null
+})
+const quickTick = ref(0)
+const quickValue = computed(() => {
+  void quickTick.value
+  return quick.value ? String(resolveOptions(game.value)[quick.value.key]) : ''
+})
+function setQuick(v: string) {
+  if (!quick.value) return
+  gamePrefs(game.value.id).options[quick.value.key] = v
+  quickTick.value++
+}
 const pad = (k: number) => String(k).padStart(2, '0')
 
 /** 換到第 k 張 */
@@ -118,8 +136,8 @@ function cardStyle(k: number) {
   const x = sg * (Math.min(a, 1) * w * 0.42 + Math.max(0, a - 1) * w * 0.12)
   const z = -Math.min(a, 2) * w * 0.5
   const rot = -sg * Math.min(a, 1) * 52
-  // 疊得太後面的就淡出
-  const op = Math.max(0, 1 - Math.max(0, a - 2.4) * 2)
+  // 左右最多各看得到兩張；更後面的淡出，改用灰色陰影表示「還有」
+  const op = Math.max(0, Math.min(1, (2.6 - a) * 1.7))
   const style: Record<string, string | number> = {
     zIndex: 100 - Math.round(a * 10),
     opacity: op,
@@ -178,6 +196,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           @pointerup="onUp"
           @pointercancel="onUp"
         >
+          <span v-if="index > 2" class="more left" />
+          <span v-if="games.length - 1 - index > 2" class="more right" />
           <button
             v-for="(g, k) in games"
             :id="`mode-${g.id}`"
@@ -219,15 +239,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <p class="t-label rise">{{ game.players }}</p>
           <h2 class="t-black name"><span class="mask"><span>{{ game.name }}</span></span></h2>
           <p class="summary rise" style="--i: 2">{{ game.summary }}</p>
+          <p v-if="game.best" class="best rise" style="--i: 3">
+            <span class="t-label">{{ S.lobby.best }}</span>
+            <b class="t-slab">{{ game.best() }}</b>
+          </p>
+          <div v-if="quick" class="quick rise" style="--i: 3">
+            <span class="t-label">{{ quick.label }}</span>
+            <Tabs :choices="quick.choices" :value="quickValue" @change="setQuick" />
+          </div>
+          <p v-if="quick" class="quick-help rise" style="--i: 3">{{ quick.help }}</p>
         </div>
         <div class="acts">
           <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="launch">{{ S.lobby.start }}</Btn>
           <div class="minor rise" style="--i: 4">
             <button class="link" @click="open('tutorial')"><span>{{ S.lobby.tutorial }}</span><Icon name="arrow" class="ar" /></button>
             <button class="link" @click="open('rules')"><span>{{ S.lobby.rules }}</span><Icon name="arrow" class="ar" /></button>
-            <button v-if="game.settings.length" class="link" @click="open('settings')"><span>{{ S.lobby.settings }}</span><Icon name="arrow" class="ar" /></button>
+            <button v-if="game.settings.some((d) => d.key !== quick?.key)" class="link" @click="open('settings')"><span>{{ S.lobby.settings }}</span><Icon name="arrow" class="ar" /></button>
           </div>
-          <p v-if="game.record" :key="game.id" class="t-label record rise" style="--i: 5">{{ game.record() }}</p>
         </div>
       </aside>
     </div>
@@ -523,9 +551,44 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .link:active {
   color: var(--color-card);
 }
-.record {
+.best {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
+}
+.best b {
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--color-red);
+}
+.quick-help {
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
   color: var(--color-ink-3);
-  letter-spacing: 0.1em;
+}
+/* 左右還有更多卡片時：在那一側加一片灰色漸淡的陰影 */
+.more {
+  position: absolute;
+  top: 6%;
+  bottom: 6%;
+  z-index: 1;
+  width: 3.2rem;
+  pointer-events: none;
+}
+.more.left {
+  left: -0.4rem;
+  background: linear-gradient(90deg, rgb(20 20 20 / 0.22), transparent);
+}
+.more.right {
+  right: -0.4rem;
+  background: linear-gradient(270deg, rgb(20 20 20 / 0.22), transparent);
+}
+.quick {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.6rem;
 }
 @media (hover: hover) and (pointer: fine) {
   /* 滑鼠移到後面的卡片上：那張往上探出來一點（預覽） */
