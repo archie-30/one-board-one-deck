@@ -12,6 +12,9 @@ import {
   hint,
   nextFinishMove,
   valueOf,
+  chargeHint,
+  finishPlan,
+  isStuck,
   scoreOf,
   undoTo,
   type SolitaireAction,
@@ -58,16 +61,22 @@ describe('接龍：翻牌堆', () => {
     expect(b.waste).toEqual([P('S4'), P('S3')])
     expect(b.stock).toEqual([])
   })
-  it('牌堆翻完再按一次：翻過的牌整疊翻回去，順序不變；翻 1 張扣 100、翻 3 張扣 20，不低於 0', () => {
+  it('牌堆翻完再按一次：翻過的牌整疊翻回去，順序不變；第一輪重翻不扣分', () => {
     let s = { ...empty(1), stock: [P('S3'), P('S4'), P('S5')], score: 150 }
     s = ok(ok(ok(s, { type: 'draw' }), { type: 'draw' }), { type: 'draw' })
     const r = ok(s, { type: 'draw' })
     expect(r.stock).toEqual([P('S3'), P('S4'), P('S5')])
     expect(r.waste).toEqual([])
-    expect(r.score).toBe(50)
+    expect(r.score).toBe(150)
     expect(r.recycles).toBe(1)
-    expect(ok(r.stock.length ? { ...r, stock: [], waste: [P('S3')] } : r, { type: 'draw' }).score).toBe(0)
-    expect(ok({ ...empty(3), waste: [P('S3')], score: 50 }, { type: 'draw' }).score).toBe(30)
+  })
+  it('重翻扣分：翻 1 張第 2 次起每次 -100；翻 3 張前 3 次免費、第 4 次起每次 -20；不低於 0', () => {
+    const one = { ...empty(1), waste: [P('S3')], score: 150, recycles: 1 }
+    expect(ok(one, { type: 'draw' }).score).toBe(50)
+    expect(ok({ ...one, score: 60 }, { type: 'draw' }).score).toBe(0)
+    const three = { ...empty(3), waste: [P('S3')], score: 50, recycles: 2 }
+    expect(ok(three, { type: 'draw' }).score).toBe(50)
+    expect(ok({ ...three, recycles: 3 }, { type: 'draw' }).score).toBe(30)
   })
   it('牌堆和翻出來的都空了：不能再翻', () => {
     expect(applySolitaire(empty(), { type: 'draw' })).toEqual({ ok: false, reason: 'empty' })
@@ -126,15 +135,17 @@ describe('接龍：桌面往下接', () => {
 })
 
 describe('接龍：收牌區', () => {
-  it('空的收牌區只能放 A；之後同花色依序往上，一次一張', () => {
+  it('每疊收牌區固定一種花色（梅花 0、方塊 1、紅心 2、黑桃 3）；空的只能放該花色的 A，之後依序往上，一次一張', () => {
     const s = empty()
-    expect(canPlace(s, [P('H2')], { pile: 'foundation', slot: 0 })).toBe(false)
-    expect(canPlace(s, [P('HA')], { pile: 'foundation', slot: 0 })).toBe(true)
-    s.foundations[0] = [P('HA')]
-    expect(canPlace(s, [P('H2')], { pile: 'foundation', slot: 0 })).toBe(true)
-    expect(canPlace(s, [P('D2')], { pile: 'foundation', slot: 0 })).toBe(false)
-    expect(canPlace(s, [P('H3')], { pile: 'foundation', slot: 0 })).toBe(false)
-    expect(canPlace(s, [P('H2'), P('SA')], { pile: 'foundation', slot: 0 })).toBe(false)
+    expect(canPlace(s, [P('H2')], { pile: 'foundation', slot: 2 })).toBe(false)
+    expect(canPlace(s, [P('HA')], { pile: 'foundation', slot: 2 })).toBe(true)
+    expect(canPlace(s, [P('HA')], { pile: 'foundation', slot: 0 })).toBe(false)
+    expect(canPlace(s, [P('SA')], { pile: 'foundation', slot: 3 })).toBe(true)
+    s.foundations[2] = [P('HA')]
+    expect(canPlace(s, [P('H2')], { pile: 'foundation', slot: 2 })).toBe(true)
+    expect(canPlace(s, [P('D2')], { pile: 'foundation', slot: 2 })).toBe(false)
+    expect(canPlace(s, [P('H3')], { pile: 'foundation', slot: 2 })).toBe(false)
+    expect(canPlace(s, [P('H2'), P('SA')], { pile: 'foundation', slot: 2 })).toBe(false)
   })
   it('計分：牌堆→桌面 +5、收牌 +10、收牌區拿回桌面 -15', () => {
     const s = empty()
@@ -145,10 +156,10 @@ describe('接龍：收牌區', () => {
     r = ok(r, { type: 'move', from: { pile: 'waste' }, to: { pile: 'foundation', slot: 2 } })
     expect(r.score).toBe(15)
     const t = empty()
-    t.foundations[0] = [P('HA'), P('H2'), P('H3'), P('H4'), P('H5'), P('H6'), P('H7'), P('H8')]
+    t.foundations[2] = [P('HA'), P('H2'), P('H3'), P('H4'), P('H5'), P('H6'), P('H7'), P('H8')]
     t.tableau[0].up = [P('S9')]
     t.score = 20
-    expect(ok(t, { type: 'move', from: { pile: 'foundation', slot: 0 }, to: { pile: 'tableau', col: 0 } }).score).toBe(5)
+    expect(ok(t, { type: 'move', from: { pile: 'foundation', slot: 2 }, to: { pile: 'tableau', col: 0 } }).score).toBe(5)
   })
   it('四疊都收到 K 就過關，過關後不能再動', () => {
     const s = empty()
@@ -166,10 +177,10 @@ describe('接龍：收牌區', () => {
 describe('接龍：點一下自動放、提示、自動收牌', () => {
   it('點一下：能收就先收，不然找能接的桌面，最後才考慮空位', () => {
     const s = empty()
-    s.foundations[0] = [P('HA')]
+    s.foundations[2] = [P('HA')]
     s.tableau[0].up = [P('H2')]
     s.tableau[1].up = [P('S3')]
-    expect(autoTarget(s, { pile: 'tableau', col: 0, index: 0 })).toEqual({ pile: 'foundation', slot: 0 })
+    expect(autoTarget(s, { pile: 'tableau', col: 0, index: 0 })).toEqual({ pile: 'foundation', slot: 2 })
     const t = empty()
     t.tableau[0].up = [P('SK')]
     t.tableau[0].down = [P('C2')]
@@ -218,13 +229,13 @@ describe('接龍：復原扣分', () => {
   it('復原回到上一步，並依難度扣分（簡單 20、困難 10），扣分會累積、分數不低於 0', () => {
     const a = empty(1)
     a.waste = [P('HA')]
-    const b = ok(a, { type: 'move', from: { pile: 'waste' }, to: { pile: 'foundation', slot: 0 } })
+    const b = ok(a, { type: 'move', from: { pile: 'waste' }, to: { pile: 'foundation', slot: 2 } })
     expect(scoreOf(b)).toBe(10)
     const back = undoTo(a, b)
     expect(back.waste).toEqual([P('HA')])
     expect(back.penalty).toBe(20)
     expect(scoreOf(back)).toBe(0)
-    const c = ok(back, { type: 'move', from: { pile: 'waste' }, to: { pile: 'foundation', slot: 0 } })
+    const c = ok(back, { type: 'move', from: { pile: 'waste' }, to: { pile: 'foundation', slot: 2 } })
     expect(c.penalty).toBe(20)
     expect(scoreOf(c)).toBe(0)
     const h = empty(3)
@@ -240,5 +251,62 @@ describe('接龍：最後分數', () => {
     expect(finalScore(10, 600, false)).toBe(0)
     expect(finalScore(520, 100, true)).toBe(500 + 7000)
     expect(finalScore(520, 20, true)).toBe(516)
+  })
+})
+
+describe('接龍：提示扣分、自動收牌、卡關', () => {
+  it('看一次提示扣分（簡單 15、困難 10）', () => {
+    expect(chargeHint(empty(1)).penalty).toBe(15)
+    expect(chargeHint(chargeHint(empty(3))).penalty).toBe(20)
+  })
+  it('桌面還有蓋著的牌：不能自動收牌', () => {
+    const s = empty()
+    s.tableau[0].down = [P('C2')]
+    s.tableau[0].up = [P('CA')]
+    expect(finishPlan(s)).toBeNull()
+  })
+  it('牌都翻開、只靠收牌和翻牌堆就能收完：給出整套步驟，照做會過關', () => {
+    let s = empty(1)
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+    // 黑桃、紅心在桌面（由 K 往下），梅花、方塊在牌堆
+    s.tableau[0].up = ranks.slice().reverse().map((r) => P('S' + r))
+    s.tableau[1].up = ranks.slice().reverse().map((r) => P('H' + r))
+    s.stock = [...ranks.map((r) => P('C' + r)), ...ranks.map((r) => P('D' + r))].reverse()
+    const plan = finishPlan(s)
+    expect(plan).not.toBeNull()
+    for (const a of plan!) s = ok(s, a)
+    expect(s.won).toBe(true)
+  })
+  it('收不完（要收的牌被壓在別張下面）：不給自動收牌；換個順序就可以', () => {
+    const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
+    const base = empty()
+    base.foundations = ['C', 'D', 'H', 'S'].map((x) => ranks.map((r) => P(x + r)))
+    base.foundations[0] = base.foundations[0].slice(0, 11)
+    base.foundations[3] = base.foundations[3].slice(0, 11)
+    const stuck = structuredClone(base)
+    stuck.tableau[0].up = [P('CQ'), P('SK')]
+    stuck.tableau[1].up = [P('SQ'), P('CK')]
+    expect(finishPlan(stuck)).toBeNull()
+    const fine = structuredClone(base)
+    fine.tableau[0].up = [P('SK'), P('CQ')]
+    fine.tableau[1].up = [P('CK'), P('SQ')]
+    expect(finishPlan(fine)?.length).toBe(4)
+  })
+  it('卡關：沒有任何能讓局面前進的步', () => {
+    const s = empty()
+    s.tableau[0].down = [P('D5')]
+    s.tableau[0].up = [P('S9')]
+    s.tableau[1].down = [P('C5')]
+    s.tableau[1].up = [P('C9')]
+    s.stock = [P('H3')]
+    expect(isStuck(s)).toBe(true)
+    // 牌堆裡有一張能放上桌面：沒卡關
+    expect(isStuck({ ...s, stock: [P('H8')] })).toBe(false)
+    // 有 A 可以收：沒卡關
+    expect(isStuck({ ...s, waste: [P('CA')] })).toBe(false)
+    // 搬一串能翻開蓋著的牌：沒卡關
+    const t = structuredClone(s)
+    t.tableau[2].up = [P('H10')]
+    expect(isStuck(t)).toBe(false)
   })
 })
