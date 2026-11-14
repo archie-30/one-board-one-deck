@@ -18,6 +18,7 @@ import Stone from '@/ui/art/Stone.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
+import TurnGlow from '@/ui/TurnGlow.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
 import GomokuBoard from './GomokuBoard.vue'
@@ -218,6 +219,9 @@ if (props.resume) {
 
 <template>
   <section ref="sectionEl" class="gm">
+    <!-- 輪到誰：那個人那一側淡淡亮起 -->
+    <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
+    <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
@@ -273,6 +277,7 @@ if (props.resume) {
 <style scoped>
 .gm {
   position: relative;
+  isolation: isolate;
   display: flex;
   height: 100%;
   align-items: stretch;

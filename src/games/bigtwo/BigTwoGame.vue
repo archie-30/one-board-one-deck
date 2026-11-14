@@ -22,6 +22,7 @@ import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
+import TurnGlow from '@/ui/TurnGlow.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup, type TableModel } from './tableLayout'
@@ -362,6 +363,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 
 <template>
   <section ref="stageEl" class="felt">
+    <!-- 輪到誰：那個人那一側淡淡亮起 -->
+    <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.winner < 0 && state.turn === p" />
     <!-- 桌面中央的框 -->
     <div class="table-box" :style="{ left: `${layout.pile.x - layout.cw * 3.1}px`, top: `${layout.pile.y - layout.cw * 1.25}px`, width: `${layout.cw * 6.2}px`, height: `${layout.cw * 2.5}px` }">
       <span class="t-label lab">TABLE</span>
@@ -464,6 +467,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 <style scoped>
 .felt {
   position: relative;
+  isolation: isolate;
   height: 100%;
   overflow: hidden;
 }
