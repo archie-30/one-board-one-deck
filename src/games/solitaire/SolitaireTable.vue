@@ -70,6 +70,7 @@ function sync(instant = false) {
 
 /** 發牌：先全部蓋著疊在牌堆位置，一張一張蓋著飛到桌面；發完再把每疊最上面那張翻開；全部跑完才能操作 */
 let dealTimer = 0
+let resyncAfterDeal = false
 function dealAnimation() {
   playSound('shuffle')
   dealing.value = true
@@ -103,6 +104,10 @@ function dealAnimation() {
     })
     dealTimer = window.setTimeout(() => {
       dealing.value = false
+      if (resyncAfterDeal) {
+        resyncAfterDeal = false
+        sync(true)
+      }
       emit('ready')
     }, flips.length * 90 + 300)
   }, dealt)
@@ -118,7 +123,9 @@ onMounted(() => {
     if (now === size) return
     size = now
     L.value = solLayout(el.clientWidth, el.clientHeight)
-    sync(true)
+    // 發牌途中不要把牌直接擺到終點（會提早翻開），等發完再重排
+    if (dealing.value) resyncAfterDeal = true
+    else sync(true)
   }
   L.value = solLayout(el.clientWidth, el.clientHeight)
   if (props.dealIn) dealAnimation()

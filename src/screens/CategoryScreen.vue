@@ -150,19 +150,18 @@ function cardStyle(k: number) {
 
 // ── 點最前面的卡片（或按「開始遊戲」）：卡片放大到整個畫面，同時先把遊戲載好，接著直接開始遊戲 ──
 const cardEls: (HTMLElement | null)[] = []
-let launching = false
+const launching = ref(false)
 async function launch() {
-  if (launching) return
+  if (launching.value) return
   const el = cardEls[index.value]
   if (!el || reducedMotion()) return open('play')
-  launching = true
+  launching.value = true
   const g = game.value
-  const r = el.getBoundingClientRect()
   const color = getComputedStyle(el.querySelector('.cover') ?? el).backgroundColor
   playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')
   // 放大的同時先下載遊戲畫面，兩件事都好了才換頁
   const loader = (g.component as { __asyncLoader?: () => Promise<unknown> }).__asyncLoader
-  await Promise.all([startLaunch({ left: r.left, top: r.top, width: r.width, height: r.height }, color, g.cover), loader?.().catch(() => {})])
+  await Promise.all([startLaunch(el, color, g.name, g.players), loader?.().catch(() => {})])
   go({ name: 'play', gameId: g.id })
 }
 
@@ -204,7 +203,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :key="g.id"
             :ref="(el) => (cardEls[k] = el as HTMLElement | null)"
             class="card"
-            :class="{ front: k === index, peek: hoverId === g.id && k !== index }"
+            :class="{ front: k === index, peek: hoverId === g.id && k !== index, lifted: launching && k === index }"
             :style="cardStyle(k)"
             role="option"
             :aria-selected="k === index"
@@ -239,15 +238,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <p class="t-label rise">{{ game.players }}</p>
           <h2 class="t-black name"><span class="mask"><span>{{ game.name }}</span></span></h2>
           <p class="summary rise" style="--i: 2">{{ game.summary }}</p>
-          <p v-if="game.best" class="best rise" style="--i: 3">
-            <span class="t-label">{{ S.lobby.best }}</span>
-            <b class="t-slab">{{ game.best() }}</b>
-          </p>
-          <div v-if="quick" class="quick rise" style="--i: 3">
-            <span class="t-label">{{ quick.label }}</span>
-            <Tabs :choices="quick.choices" :value="quickValue" @change="setQuick" />
+          <div v-if="game.best || quick" class="stats rise" style="--i: 3">
+            <p v-if="game.best" class="best">
+              <span class="t-label">{{ S.lobby.best }}</span>
+              <b class="t-slab">{{ game.best() }}</b>
+            </p>
+            <div v-if="quick" class="quick" :title="quick.help">
+              <span class="t-label">{{ quick.label }}</span>
+              <Tabs :choices="quick.choices" :value="quickValue" @change="setQuick" />
+            </div>
           </div>
-          <p v-if="quick" class="quick-help rise" style="--i: 3">{{ quick.help }}</p>
         </div>
         <div class="acts">
           <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="launch">{{ S.lobby.start }}</Btn>
@@ -352,6 +352,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .card.front {
   box-shadow: 0.4rem 0.45rem 0 var(--color-ink);
   cursor: grab;
+}
+/* 進入遊戲時，這張卡片已經被「拿起來」（過場層有一份複製） */
+.card.lifted {
+  visibility: hidden;
 }
 /* 越後面的卡片蓋上越濃的紙色 */
 .card::after {
@@ -491,7 +495,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .name {
   margin-top: 0.1rem;
-  font-size: 3.2rem;
+  font-size: 2.7rem;
   line-height: 1;
   letter-spacing: -0.04em;
 }
@@ -551,11 +555,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .link:active {
   color: var(--color-card);
 }
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.4rem 1.4rem;
+  margin-top: 0.5rem;
+}
 .best {
   display: flex;
   align-items: baseline;
-  gap: 0.6rem;
-  margin-top: 0.5rem;
+  gap: 0.5rem;
 }
 .best b {
   font-size: 2.4rem;
@@ -587,8 +597,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .quick {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
-  margin-top: 0.6rem;
+  gap: 0.6rem;
 }
 @media (hover: hover) and (pointer: fine) {
   /* 滑鼠移到後面的卡片上：那張往上探出來一點（預覽） */
