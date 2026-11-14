@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 圍棋：你在左、對手在右，中間棋盤。先猜拳決定黑白；棋子從棋罐飛到落點，被提掉的子往上飄走。
 // 雙方連續虛手後進入數地：電腦標出死棋與地盤，你可以點棋子修正，再確認結果。
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
@@ -156,6 +156,8 @@ async function act(action: GoAction, who: 0 | 1) {
     playSound('stone')
     message.value = ''
     if (r.state.lastCaptured.length) {
+      // 被提的子掉進盒蓋
+      window.setTimeout(() => playSound('capture'), 160)
       captured.value = { key: r.state.moves, color: other(mover), points: r.state.lastCaptured }
       flash(who, 'happy')
       flash(who === 0 ? 1 : 0, r.state.lastCaptured.length >= 3 ? 'shock' : 'sad')
@@ -222,7 +224,7 @@ function pick(index: number) {
     const isDead = set.has(index)
     for (const s of g) isDead ? set.delete(s) : set.add(s)
     dead.value = [...set]
-    playSound('tap')
+    playSound('stonePick')
     return
   }
   if (!myTurn.value) return
@@ -234,15 +236,39 @@ function pick(index: number) {
   }
   message.value = ''
   preview.value = index
-  playSound('tap')
+  playSound('stonePick')
 }
 
 function confirmMove() {
   if (myTurn.value && preview.value >= 0) void act({ type: 'play', index: preview.value }, 0)
 }
+// 虛手要按兩次：第一次按下變成「再按一次虛手」，2.5 秒內再按才真的虛手
+const passArmed = ref(false)
+let passTimer = 0
 function pass() {
-  if (myTurn.value) void act({ type: 'pass' }, 0)
+  if (!myTurn.value) return
+  if (!passArmed.value) {
+    passArmed.value = true
+    playSound('tap')
+    window.clearTimeout(passTimer)
+    passTimer = window.setTimeout(() => (passArmed.value = false), 2500)
+    return
+  }
+  passArmed.value = false
+  window.clearTimeout(passTimer)
+  void act({ type: 'pass' }, 0)
 }
+watch(
+  () => myTurn.value,
+  (v) => {
+    if (!v) {
+      passArmed.value = false
+      window.clearTimeout(passTimer)
+    }
+  },
+)
+onBeforeUnmount(() => window.clearTimeout(passTimer))
+
 function resign() {
   resignOpen.value = false
   if (phase.value === 'playing' && state.value.turn === human.value) void act({ type: 'resign' }, 0)
@@ -272,7 +298,7 @@ const resultLine = computed(() => {
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>
       <p v-if="phase !== 'rps'" class="t-label tg">{{ colorName(human) }} · {{ T.captured(state.captures[human]) }}</p>
       <div class="small-acts">
-        <Btn size="sm" :disabled="!myTurn" @click="pass">{{ T.pass }}</Btn>
+        <Btn size="sm" :tone="passArmed ? 'yellow' : 'plain'" :disabled="!myTurn" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
         <Btn size="sm" :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
       </div>
     </aside>

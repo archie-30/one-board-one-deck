@@ -126,6 +126,7 @@ onBeforeUnmount(() => {
 // ── 流程 ──
 async function deal() {
   phase.value = 'deal'
+  playSound('shuffle')
   busy.value = true
   gathered.value = false
   const s = state.value
@@ -205,6 +206,7 @@ async function flipTop(player: number) {
   const top = s.pile[0]
   const S2 = spots.value
   staged.set(top, { x: S2.reveal.x, y: S2.reveal.y, r: 4, s: 0.95, f: 1, z: 650 })
+  playSound('flip')
   sync([top], { dur: 380, arc: 16 })
   if (!(await wait(620))) return
   const targets = targetsFor(state.value, top)
@@ -307,7 +309,7 @@ function tapCard(c: Card) {
   }
   if (!myTurn.value) return
   if (s.hands[ME].includes(c)) {
-    playSound('tap')
+    playSound('cardPick')
     message.value = ''
     selected.value = selected.value === c ? null : c
     sync()

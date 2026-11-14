@@ -30,9 +30,10 @@ const stageEl = ref<HTMLElement>()
 const L = shallowRef<SolLayout>(solLayout(844, 390))
 const stage = new CardStage()
 let lastLand = 0
+let dealingUntil = 0
 stage.onLand = () => {
   const now = performance.now()
-  if (now - lastLand > 45) playSound('card')
+  if (now - lastLand > 45) playSound(now < dealingUntil ? 'deal' : 'card')
   lastLand = now
 }
 
@@ -61,6 +62,8 @@ function sync(instant = false) {
 
 /** 發牌：先全部疊在牌堆位置，再一張一張飛到桌面 */
 function dealAnimation() {
+  playSound('shuffle')
+  dealingUntil = performance.now() + 2200
   const { poses, where } = solPoses(L.value, props.state, salt)
   const order: Card[] = []
   // 依真實發牌順序：一輪一輪往右發
@@ -162,7 +165,7 @@ function onDown(c: Card, e: PointerEvent) {
     const from = sourceOf(c)
     if (!from) return
     const cards = cardsAt(props.state, from)
-    drag = { id: e.pointerId, from, cards, base: cards.map((k) => stage.pose(k)), x0: p.x, y0: p.y, moved: false }
+    drag = { id: e.pointerId, from, cards, base: cards.map((k) => stage.target(k)), x0: p.x, y0: p.y, moved: false }
   }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
@@ -218,7 +221,8 @@ function sameSpot(from: Source, to: Target) {
 }
 function shake(cards: Card[]) {
   cards.forEach((c, k) => {
-    const b = stage.pose(c)
+    // 用終點姿勢來抖：牌還在飛（翻面中）時被點，也不會卡在變形的樣子
+    const b = stage.target(c)
     stage.move(c, { ...b, x: b.x + 6, r: b.r + 3 }, { dur: 70, delay: k * 20 })
     window.setTimeout(() => stage.move(c, b, { dur: 160 }), 80 + k * 20)
   })

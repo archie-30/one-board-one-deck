@@ -36,7 +36,7 @@ function act(a: SolitaireAction) {
   if (lesson.value.done(r.state)) {
     solved.value = true
     playSound('win')
-  } else if (a.type === 'draw') playSound('deal')
+  } else if (a.type === 'draw') playSound('flip')
 }
 
 function next() {

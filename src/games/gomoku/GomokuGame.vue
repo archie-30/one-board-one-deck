@@ -183,7 +183,7 @@ function pick(index: number) {
   }
   message.value = ''
   preview.value = index
-  playSound('tap')
+  playSound('stonePick')
 }
 
 function confirmMove() {

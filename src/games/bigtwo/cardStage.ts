@@ -70,6 +70,11 @@ export class CardStage {
     return { ...this.sprite(id).cur }
   }
 
+  /** 這張牌最後要停的姿勢（飛行中途也回傳終點，不會拿到翻面一半、壓扁一半的樣子） */
+  target(id: number): Pose {
+    return { ...this.sprite(id).to }
+  }
+
   /** 讓一張牌移到新的姿勢 */
   move(id: number, to: Pose, opts: MoveOpts = {}) {
     const s = this.sprite(id)

@@ -17,36 +17,24 @@ const props = defineProps<{ category: GameCategory }>()
 const games = computed(() => gamesIn(props.category))
 const n = computed(() => games.value.length)
 const start = games.value.findIndex((g) => g.id === settings.lastGame[props.category])
-/** 環形轉盤的「游標」：可以一直往同一個方向轉（不會在頭尾停住），實際選中的是 index */
-const cursor = ref(start >= 0 ? start : 0)
-const mod = (a: number, m: number) => ((a % m) + m) % m
-/** 三張以上排成一圈；只有兩張時排成一排、頭尾停住 */
-const ring = computed(() => n.value >= 3)
-const index = computed(() => mod(cursor.value, n.value))
+/** 目前選中的是第幾張。不繞圈：前面的模式疊在左邊、後面的疊在右邊，到頭尾就停住。 */
+const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 const hoverId = ref<string | null>(null)
 const pad = (k: number) => String(k).padStart(2, '0')
 
-/** 轉到第 k 張（走最近的方向） */
+/** 換到第 k 張 */
 function show(k: number) {
-  let d: number
-  if (ring.value) {
-    d = mod(k - index.value + n.value / 2, n.value) - n.value / 2
-    d = Math.round(d)
-  } else d = Math.min(n.value - 1, Math.max(0, k)) - index.value
-  if (!d) return
-  turn(d)
+  const next = Math.min(n.value - 1, Math.max(0, k))
+  if (next === index.value) return
+  index.value = next
+  settings.lastGame[props.category] = games.value[next].id
+  playSound('slide')
 }
-/** 往右（+）或往左（−）轉幾格 */
-function turn(d: number) {
-  if (!ring.value) d = Math.min(n.value - 1, Math.max(0, index.value + d)) - index.value
-  if (!d) return
-  cursor.value += d
-  settings.lastGame[props.category] = games.value[index.value].id
-  playSound('card')
-}
+/** 往右（+）或往左（−）換幾張 */
+const turn = (d: number) => show(index.value + d)
 function open(name: 'play' | 'tutorial' | 'rules' | 'settings') {
-  if (name === 'play') playSound(props.category === 'cards' ? 'deal' : 'stone')
+  if (name === 'play') playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')
   go({ name, gameId: game.value.id })
 }
 
@@ -73,15 +61,14 @@ onBeforeUnmount(() => ro?.disconnect())
 
 /** 目前轉到的位置：整數 = 停在某張；拖曳時是小數（往左拖 = 往下一張轉） */
 const pos = computed(() => {
-  let p = cursor.value - dragX.value / (cardW.value * 0.75)
-  if (!ring.value) {
-    if (p < 0) p = p * 0.3
-    if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
-  }
+  let p = index.value - dragX.value / (cardW.value * 0.75)
+  // 頭尾拉不過去，會有一點阻力
+  if (p < 0) p = p * 0.3
+  if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
   return p
 })
 /** 第 k 張相對中間的位置：0 = 正中間，負的在左、正的在右 */
-const rel = (k: number) => (ring.value ? mod(k - pos.value + n.value / 2, n.value) - n.value / 2 : k - pos.value)
+const rel = (k: number) => k - pos.value
 
 function onDown(e: PointerEvent) {
   if (e.button !== undefined && e.button > 0) return
@@ -108,7 +95,7 @@ function onUp(e: PointerEvent) {
   }
   const target = Math.round(pos.value - Math.sign(dragX.value) * 0.25 * (Math.abs(dragX.value) > 30 ? 1 : 0))
   dragX.value = 0
-  turn(target - cursor.value)
+  show(target)
 }
 function tapCard(k: number) {
   if (k !== index.value) show(k)
@@ -123,12 +110,12 @@ function cardStyle(k: number) {
   const a = Math.abs(r)
   const sg = Math.sign(r)
   const w = cardW.value
-  // 像一圈環形的卡片：中間那張正面朝前；兩側的卡片往後退、轉個角度朝向中間
-  const x = sg * (Math.min(a, 1) * w * 0.42 + Math.max(0, a - 1) * w * 0.2)
+  // 中間那張正面朝前；前面的模式疊在左邊、後面的疊在右邊，往後退、轉個角度朝向中間
+  const x = sg * (Math.min(a, 1) * w * 0.42 + Math.max(0, a - 1) * w * 0.12)
   const z = -Math.min(a, 2) * w * 0.5
   const rot = -sg * Math.min(a, 1) * 52
-  // 環形時，快轉到背面（左右交界）的卡片淡出，不會看到它從一邊跳到另一邊
-  const op = ring.value ? Math.min(1, Math.max(0, (n.value / 2 - a) * 3)) : Math.max(0, 1 - Math.max(0, a - 1.6) * 2)
+  // 疊得太後面的就淡出
+  const op = Math.max(0, 1 - Math.max(0, a - 2.4) * 2)
   const style: Record<string, string | number> = {
     zIndex: 100 - Math.round(a * 10),
     opacity: op,
@@ -150,7 +137,7 @@ async function launch() {
   if (!el || reduced) return open('play')
   const r = el.getBoundingClientRect()
   zooming.value = { left: r.left, top: r.top, width: r.width, height: r.height }
-  playSound(props.category === 'cards' ? 'deal' : 'stone')
+  playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')
   await nextTick()
   const z = zoomEl.value
   if (!z) return open('play')
@@ -227,12 +214,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </button>
         </div>
         <div class="pager">
-          <button class="arrow prev" :disabled="!ring && index === 0" :aria-label="S.common.back" @click="turn(-1)"><Icon name="arrow" /></button>
+          <button class="arrow prev" :disabled="index === 0" :aria-label="S.common.back" @click="turn(-1)"><Icon name="arrow" /></button>
           <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
           <span class="dots">
             <button v-for="(g, k) in games" :key="g.id" class="dot" :class="{ on: k === index }" :aria-label="g.name" @click="show(k)" />
           </span>
-          <button class="arrow" :disabled="!ring && index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
+          <button class="arrow" :disabled="index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
         </div>
       </div>
 

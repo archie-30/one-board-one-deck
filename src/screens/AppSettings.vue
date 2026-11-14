@@ -19,7 +19,7 @@ const levels = [
 const current = computed(() => levels.reduce((a, b) => (Math.abs(Number(b.value) - settings.volume) < Math.abs(Number(a.value) - settings.volume) ? b : a)).value)
 function setVolume(v: string) {
   settings.volume = Number(v)
-  playSound('stone')
+  playSound('tap')
 }
 </script>
 

@@ -29,7 +29,7 @@ function tap(side: GameCategory, event: MouseEvent) {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
     origin.value = { x: `${event.clientX - rect.left}px`, y: `${event.clientY - rect.top}px` }
     picked.value = side
-    playSound(side === 'cards' ? 'card' : 'stone')
+    playSound(side === 'cards' ? 'flip' : 'stone')
     return
   }
   playSound('tap')

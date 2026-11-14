@@ -38,7 +38,7 @@ function pick(index: number) {
   if (solved.value || state.value.board[index] !== 0) return
   if (index === preview.value) return confirmMove()
   preview.value = index
-  playSound('tap')
+  playSound('stonePick')
 }
 
 function confirmMove() {
