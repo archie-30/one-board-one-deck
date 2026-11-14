@@ -23,6 +23,7 @@ export type SfxName =
   | 'stone'
   | 'stonePick'
   | 'capture'
+  | 'piece'
 
 // ── 基本工具 ──
 function makeRand(seed: number) {
@@ -369,6 +370,26 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
       b.add(0, hiss(sr, rand, 0.15, 'bp', 4500, 0.8, 0.01, 0.04), 0.06)
       return b.normalize(0.32).data
     }
+    case 'piece': {
+      // 西洋棋、象棋走子：木頭棋子（底下貼著絨布）放在木頭棋盤上，比較悶的「叩」
+      b = new Buf(sr, 0.22)
+      b.add(0, hiss(sr, rand, 0.03, 'lp', 1800, 0.8, 0.0008, 0.006), 0.5)
+      b.add(
+        0.001,
+        modes(
+          sr,
+          0.2,
+          [
+            { f: 420 + rand() * 40, a: 1, d: 0.035 },
+            { f: 980, a: 0.45, d: 0.018 },
+            { f: 1850, a: 0.2, d: 0.008 },
+          ],
+          rand,
+          0.03,
+        ),
+      )
+      return b.normalize(0.55).data
+    }
     case 'capture': {
       // 提子：被提的子一顆顆丟進盒蓋
       b = new Buf(sr, 0.5)
@@ -383,4 +404,4 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
   }
 }
 
-export const SFX_NAMES: SfxName[] = ['tap', 'slide', 'error', 'win', 'lose', 'shuffle', 'deal', 'card', 'flip', 'cardPick', 'collect', 'pass', 'stone', 'stonePick', 'capture']
+export const SFX_NAMES: SfxName[] = ['tap', 'slide', 'error', 'win', 'lose', 'shuffle', 'deal', 'card', 'flip', 'cardPick', 'collect', 'pass', 'stone', 'stonePick', 'capture', 'piece']

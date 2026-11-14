@@ -7,10 +7,12 @@ import { DEFAULT_GOMOKU_OPTIONS as G } from '@/engine/gomoku/rules'
 import { DEFAULT_GO_OPTIONS as GO } from '@/engine/go/rules'
 import { stats } from '@/core/settings'
 import BigTwoCover from './covers/BigTwoCover.vue'
+import ChessCover from './covers/ChessCover.vue'
 import GoCover from './covers/GoCover.vue'
 import GomokuCover from './covers/GomokuCover.vue'
 import RedPointCover from './covers/RedPointCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
+import XiangqiCover from './covers/XiangqiCover.vue'
 import type { GameCategory, GameDef, SettingDef } from './types'
 
 const toggle = (key: string, text: { label: string; help: string }, def: boolean): SettingDef => ({
@@ -113,6 +115,32 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./go/GoTutorial.vue')),
     component: defineAsyncComponent(() => import('./go/GoGame.vue')),
     settings: [choice('size', S.go.settings.size, String(GO.size))],
+  },
+  {
+    id: 'chess',
+    category: 'board',
+    name: S.chess.name,
+    summary: S.chess.summary,
+    players: S.chess.players,
+    cover: ChessCover,
+    tags: S.chess.tags,
+    rulesIntro: S.chess.rules,
+    tutorial: defineAsyncComponent(() => import('./chess/ChessTutorial.vue')),
+    component: defineAsyncComponent(() => import('./chess/ChessGame.vue')),
+    settings: [],
+  },
+  {
+    id: 'xiangqi',
+    category: 'board',
+    name: S.xiangqi.name,
+    summary: S.xiangqi.summary,
+    players: S.xiangqi.players,
+    cover: XiangqiCover,
+    tags: S.xiangqi.tags,
+    rulesIntro: S.xiangqi.rules,
+    tutorial: defineAsyncComponent(() => import('./xiangqi/XiangqiTutorial.vue')),
+    component: defineAsyncComponent(() => import('./xiangqi/XiangqiGame.vue')),
+    settings: [choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text')],
   },
 ]
 

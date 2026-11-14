@@ -24,6 +24,8 @@ interface Stats {
   redpoint: { rounds: number; wins: number; best: number }
   go: { wins: number; losses: number }
   solitaire: { played: number; wins: number; best: number; fastest: number }
+  chess: { wins: number; losses: number; draws: number }
+  xiangqi: { wins: number; losses: number; draws: number }
 }
 
 export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false }))
@@ -34,6 +36,8 @@ const STATS_DEFAULT: Stats = {
   redpoint: { rounds: 0, wins: 0, best: 0 },
   go: { wins: 0, losses: 0 },
   solitaire: { played: 0, wins: 0, best: 0, fastest: 0 },
+  chess: { wins: 0, losses: 0, draws: 0 },
+  xiangqi: { wins: 0, losses: 0, draws: 0 },
 }
 
 export const stats = reactive(loadSave<Stats>('stats', structuredClone(STATS_DEFAULT)))

@@ -13,7 +13,7 @@ import type { Mood as KidMood } from './art/look'
 import Btn from './Btn.vue'
 import Dialog from './Dialog.vue'
 
-defineProps<{ open: boolean; opponent: Opponent }>()
+defineProps<{ open: boolean; opponent: Opponent; lead?: string }>()
 const emit = defineEmits<{ done: [playerWins: boolean] }>()
 
 let rng = seedRng(Date.now())
@@ -56,7 +56,7 @@ function finish() {
 
 <template>
   <Dialog :open="open" :title="S.rps.title" label="ROCK · PAPER · SCISSORS" tone="blue" wide>
-    <p class="text-[0.85rem] text-ink-2">{{ S.rps.lead }}</p>
+    <p class="text-[0.85rem] text-ink-2">{{ lead ?? S.rps.lead }}</p>
     <div class="duel">
       <div class="side">
         <span v-if="phase === 'show'" :key="`m${round}`" class="reveal pop"><Icon :name="mine" /></span>
