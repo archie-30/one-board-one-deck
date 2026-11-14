@@ -2,7 +2,8 @@
 // 對局外框：開始前先看有沒有「保存進度並退出」留下的存檔。
 // 有的話先問要不要接著玩；遊戲要保存時，把它給的資料存起來再離開。
 import { onMounted, ref } from 'vue'
-import { revealLaunch } from '@/core/launch'
+import { revealLaunch, startExit } from '@/core/launch'
+import { reducedMotion } from '@/core/motion'
 import { back } from '@/core/nav'
 import { clearResume, getResume, setResume } from '@/core/resume'
 import { S } from '@/data/strings'
@@ -37,12 +38,24 @@ onMounted(() => requestAnimationFrame(() => requestAnimationFrame(revealLaunch))
 
 function onSave(data: unknown) {
   setResume(props.gameId, data, options.value)
+  void leave()
+}
+
+/** 離開遊戲：色塊蓋住畫面 → 回到模式選單 → 卡片翻回去、飛回卡片堆（跟進場的翻卡片呼應） */
+let leaving = false
+async function leave() {
+  if (leaving) return
+  leaving = true
+  if (reducedMotion()) return back()
+  const css = getComputedStyle(document.documentElement)
+  const color = css.getPropertyValue(game.category === 'cards' ? '--color-red' : '--color-blue').trim()
+  await startExit(game.id, color, game.name, game.players)
   back()
 }
 </script>
 
 <template>
-  <component :is="game.component" v-if="ready" :game="game" :options="options" :resume="resume" @exit="back()" @save="onSave" />
+  <component :is="game.component" v-if="ready" :game="game" :options="options" :resume="resume" @exit="leave" @save="onSave" />
   <Dialog v-else open :title="S.common.resumeTitle" :label="game.name" tone="yellow" @close="back()">
     <p class="text-ink-2">{{ S.common.resumeLead(when) }}</p>
     <p class="mt-[0.3rem] text-[0.8rem] text-ink-3">{{ S.common.resumeNewNote }}</p>

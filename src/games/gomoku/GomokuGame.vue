@@ -140,6 +140,7 @@ function restart() {
 }
 
 async function commit(index: number, who: 0 | 1) {
+  if (who === 0) acted.value = true
   const error = canPlace(state.value, index)
   if (error) {
     message.value = T.errors[error]
@@ -201,7 +202,9 @@ function confirmMove() {
 }
 
 // ── 保存進度並退出／讀回存檔 ──
-const canSave = computed(() => phase.value === 'playing')
+/** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
+const acted = ref(!!props.resume)
+const canSave = computed(() => phase.value === 'playing' && acted.value)
 function saveAndExit() {
   const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng }
   emit('save', data)
@@ -262,7 +265,7 @@ if (props.resume) {
 
     <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" @done="startAfterRps" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
-    <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>

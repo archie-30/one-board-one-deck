@@ -5,7 +5,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
-import { startLaunch } from '@/core/launch'
+import { launch as launchFx, startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { gamePrefs, settings } from '@/core/settings'
 import { S } from '@/data/strings'
@@ -133,15 +133,16 @@ function cardStyle(k: number) {
   const sg = Math.sign(r)
   const w = cardW.value
   // 中間那張正面朝前；前面的模式疊在左邊、後面的疊在右邊，往後退、轉個角度朝向中間
-  const x = sg * (Math.min(a, 1) * w * 0.42 + Math.max(0, a - 1) * w * 0.12)
-  const z = -Math.min(a, 2) * w * 0.5
+  // 第一張側卡露出約四成、第二張再往外露出一截，兩張都看得到
+  const x = sg * (Math.min(a, 1) * w * 0.42 + Math.max(0, Math.min(a, 2) - 1) * w * 0.27 + Math.max(0, a - 2) * w * 0.12)
+  const z = -Math.min(a, 2.5) * w * 0.45
   const rot = -sg * Math.min(a, 1) * 52
   // 左右最多各看得到兩張；更後面的淡出，改用灰色陰影表示「還有」
   const op = Math.max(0, Math.min(1, (2.6 - a) * 1.7))
   const style: Record<string, string | number> = {
     zIndex: 100 - Math.round(a * 10),
     opacity: op,
-    '--fade': Math.min(0.8, a * 0.72),
+    '--fade': Math.min(0.78, a * 0.5),
     transform: `translateX(-50%) translateX(${x}px) translateZ(${z}px) rotateY(${rot}deg)`,
   }
   if (dragging.value) style.transition = 'none'
@@ -195,6 +196,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           @pointerup="onUp"
           @pointercancel="onUp"
         >
+          <!-- 左右各露兩張側卡；那一側還有第三張以後的卡片時，才在外側加一團淡淡的灰色影子 -->
           <span v-if="index > 2" class="more left" />
           <span v-if="games.length - 1 - index > 2" class="more right" />
           <button
@@ -203,7 +205,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :key="g.id"
             :ref="(el) => (cardEls[k] = el as HTMLElement | null)"
             class="card"
-            :class="{ front: k === index, peek: hoverId === g.id && k !== index, lifted: launching && k === index }"
+            :class="{ front: k === index, peek: hoverId === g.id && k !== index, lifted: (launching && k === index) || (launchFx.active && launchFx.mode === 'exit' && launchFx.gameId === g.id) }"
             :style="cardStyle(k)"
             role="option"
             :aria-selected="k === index"
@@ -577,22 +579,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-size: 0.7rem;
   color: var(--color-ink-3);
 }
-/* 左右還有更多卡片時：在那一側加一片灰色漸淡的陰影 */
+/* 還有更多卡片時：在那一側最外面加一團柔和的灰色影子（像後面還疊著卡片） */
 .more {
   position: absolute;
-  top: 6%;
-  bottom: 6%;
+  top: 12%;
+  bottom: 12%;
   z-index: 1;
-  width: 3.2rem;
+  width: 4.5rem;
+  border-radius: 50%;
+  filter: blur(10px);
   pointer-events: none;
 }
 .more.left {
-  left: -0.4rem;
-  background: linear-gradient(90deg, rgb(20 20 20 / 0.22), transparent);
+  left: -2.6rem;
+  background: radial-gradient(ellipse at 70% 50%, rgb(20 20 20 / 0.2), transparent 70%);
 }
 .more.right {
-  right: -0.4rem;
-  background: linear-gradient(270deg, rgb(20 20 20 / 0.22), transparent);
+  right: -2.6rem;
+  background: radial-gradient(ellipse at 30% 50%, rgb(20 20 20 / 0.2), transparent 70%);
 }
 .quick {
   display: flex;

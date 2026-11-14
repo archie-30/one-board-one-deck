@@ -295,7 +295,7 @@ const bonus = computed(() => (seconds.value >= 30 ? Math.floor(700000 / seconds.
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog :open="resultOpen" :title="T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
       <table class="score">
         <tbody>
           <tr class="rise" style="--i: 2"><td>{{ T.rowBase }}</td><td class="t-slab">{{ state.score }}</td></tr>

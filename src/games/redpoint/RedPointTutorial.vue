@@ -302,9 +302,10 @@ async function next() {
   animation: hit 0.9s ease-in-out infinite;
   pointer-events: none;
 }
+/* 可以吃的牌：黃框輕輕放大、縮小（呼吸），不上下搖 */
 @keyframes hit {
   50% {
-    transform: translateY(-6%);
+    transform: scale(1.07);
   }
 }
 .me {

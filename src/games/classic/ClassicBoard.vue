@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 西洋棋與象棋共用的棋盤：
-//   西洋棋：8 × 8 格子，棋子放在格子中間；米白與亮黃相間。
+//   西洋棋：8 × 8 格子，棋子放在格子中間；黑白相間（深色格是炭黑色，棋子外圍有一圈米白描邊，黑棋放在深色格上也看得清楚）。
 //   象棋：9 × 10 交叉點，中間楚河漢界、兩邊九宮畫斜線；棋子是圓形木子寫中文字（或圖示）。
 // 只負責畫：選起的棋子、能走的位置（圓點）、上一步、被將軍的王、教學提示、滑鼠預覽的半透明棋子；
 // 點了哪裡回報給上層。走子動畫：上一步走過去的棋子從原位滑過來、落地壓扁一下。
@@ -86,6 +86,9 @@ function onMove(e: PointerEvent) {
 }
 
 const files = 'abcdefgh'
+/** 西洋棋深色格 */
+const DARK = '#4b4843'
+const haloId = `halo-${Math.random().toString(36).slice(2, 8)}`
 const lightSq = (r: number, c: number) => (r + c) % 2 === 0
 </script>
 
@@ -94,11 +97,23 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
     <!-- 底板：黑色實心陰影＋黑框 -->
     <rect x="1.7" y="2.1" :width="W - 1" :height="H - 1" fill="var(--color-ink)" />
     <rect x="0.5" y="0.5" :width="W - 1.6" :height="H - 1.6" :fill="chess ? 'var(--color-card)' : 'var(--color-yellow)'" stroke="var(--color-ink)" stroke-width="0.9" />
+    <defs>
+      <!-- 棋子外圍的一圈米白描邊 -->
+      <filter :id="haloId" x="-20%" y="-20%" width="140%" height="140%">
+        <feMorphology in="SourceAlpha" operator="dilate" radius="1.8" result="grow" />
+        <feFlood flood-color="#fbf8f1" />
+        <feComposite in2="grow" operator="in" result="ring" />
+        <feMerge>
+          <feMergeNode in="ring" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
 
     <!-- 西洋棋：格子與座標 -->
     <template v-if="chess">
       <template v-for="r in 8" :key="`r${r}`">
-        <rect v-for="c in 8" :key="`c${c}`" :x="PAD + (c - 1) * CELL" :y="PAD + (r - 1) * CELL" :width="CELL" :height="CELL" :fill="lightSq(r - 1, c - 1) ? 'var(--color-card)' : 'var(--color-yellow)'" />
+        <rect v-for="c in 8" :key="`c${c}`" :x="PAD + (c - 1) * CELL" :y="PAD + (r - 1) * CELL" :width="CELL" :height="CELL" :fill="lightSq(r - 1, c - 1) ? 'var(--color-card)' : DARK" />
       </template>
       <rect :x="PAD" :y="PAD" :width="CELL * 8" :height="CELL * 8" fill="none" stroke="var(--color-ink)" stroke-width="0.6" />
       <text v-for="c in 8" :key="`f${c}`" :x="PAD + (c - 0.5) * CELL" :y="H - 1.6" class="coord">{{ files[flip ? 8 - c : c - 1] }}</text>
@@ -134,29 +149,33 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
 
     <!-- 棋子 -->
     <g v-for="{ p, i } in pieces" :key="i === lastTo ? `${i}-${moveKey}` : `${i}`" class="piece" :class="{ moved: i === lastTo }" :style="i === lastTo ? { '--dx': `${moveFrom.dx}px`, '--dy': `${moveFrom.dy}px` } : undefined">
-      <PieceIcon v-if="chess" :kind="p" :light="isUpper(p)" :x="px(i)" :y="py(i) + 0.2" :size="9.2" />
+     <g class="lift" :class="{ picked: i === selected }">
+      <!-- 選起時腳下的影子 -->
+      <ellipse v-if="i === selected" :cx="px(i)" :cy="py(i) + (chess ? 3.9 : 3.6)" :rx="chess ? 3.6 : 4" ry="0.9" class="shade" />
+      <PieceIcon v-if="chess" :kind="p" :light="isUpper(p)" :x="px(i)" :y="py(i) + 0.2" :size="9.2" :filter="`url(#${haloId})`" />
       <template v-else>
         <circle :cx="px(i) + 0.5" :cy="py(i) + 0.6" r="4.4" fill="var(--color-ink)" />
         <circle :cx="px(i)" :cy="py(i)" r="4.4" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="0.6" />
         <circle :cx="px(i)" :cy="py(i)" r="3.5" fill="none" :stroke="isUpper(p) ? 'var(--color-red)' : 'var(--color-ink)'" stroke-width="0.35" />
         <text v-if="pieceStyle === 'text'" :x="px(i)" :y="py(i) + 1.75" class="xq" :fill="isUpper(p) ? 'var(--color-red)' : 'var(--color-ink)'">{{ xqName(p) }}</text>
-        <PieceIcon v-else :kind="p" :color="isUpper(p) ? 'var(--color-red)' : 'var(--color-ink)'" :x="px(i)" :y="py(i) + 0.1" :size="5.6" />
+        <PieceIcon v-else set="xiangqi" :kind="p" :color="isUpper(p) ? 'var(--color-red)' : 'var(--color-ink)'" :x="px(i)" :y="py(i) + 0.1" :size="6" />
       </template>
+     </g>
     </g>
 
     <!-- 滑鼠預覽：半透明的棋子 -->
     <g v-if="ghost && ghost.index >= 0" class="ghost">
-      <PieceIcon v-if="chess" :kind="ghost.piece" :light="isUpper(ghost.piece)" :x="px(ghost.index)" :y="py(ghost.index) + 0.2" :size="9.2" />
+      <PieceIcon v-if="chess" :kind="ghost.piece" color="#d9d3c6" :x="px(ghost.index)" :y="py(ghost.index) + 0.2" :size="9.2" />
       <template v-else>
         <circle :cx="px(ghost.index)" :cy="py(ghost.index)" r="4.4" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="0.6" />
         <text v-if="pieceStyle === 'text'" :x="px(ghost.index)" :y="py(ghost.index) + 1.75" class="xq" :fill="isUpper(ghost.piece) ? 'var(--color-red)' : 'var(--color-ink)'">{{ xqName(ghost.piece) }}</text>
-        <PieceIcon v-else :kind="ghost.piece" :color="isUpper(ghost.piece) ? 'var(--color-red)' : 'var(--color-ink)'" :x="px(ghost.index)" :y="py(ghost.index) + 0.1" :size="5.6" />
+        <PieceIcon v-else set="xiangqi" :kind="ghost.piece" :color="isUpper(ghost.piece) ? 'var(--color-red)' : 'var(--color-ink)'" :x="px(ghost.index)" :y="py(ghost.index) + 0.1" :size="6" />
       </template>
     </g>
 
     <!-- 能走的位置：空格是小圓點，能吃子是圓圈 -->
     <template v-for="t in targets" :key="`t${t}`">
-      <circle v-if="!board[t]" :cx="px(t)" :cy="py(t)" r="1.5" class="dot" />
+      <circle v-if="!board[t] && t !== ghost?.index" :cx="px(t)" :cy="py(t)" r="1.5" class="dot" />
       <circle v-else :cx="px(t)" :cy="py(t)" r="4.9" class="ring" />
     </template>
   </svg>
@@ -263,7 +282,39 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
   }
 }
 .ghost {
-  opacity: 0.35;
+  opacity: 0.8;
   pointer-events: none;
+}
+/* 選起棋子：往上跳一下再停在半空，腳下出現影子 */
+.lift {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform 200ms var(--ease-out);
+}
+.lift.picked {
+  animation: hop 380ms var(--ease-back) both;
+}
+@keyframes hop {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-2.6px) scale(1.14, 1.1);
+  }
+  100% {
+    transform: translateY(-1.4px) scale(1.1);
+  }
+}
+.shade {
+  fill: rgb(20 20 20 / 0.35);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: shade-in 380ms var(--ease-out) both;
+}
+@keyframes shade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
 }
 </style>

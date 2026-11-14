@@ -77,11 +77,12 @@ function dealAnimation() {
   window.clearTimeout(dealTimer)
   const { poses, where } = solPoses(L.value, props.state, salt)
   const order: Card[] = []
-  // 依真實發牌順序：一輪一輪往右發
-  for (let round = 0; round < 7; round++)
-    props.state.tableau.forEach((col, ci) => {
-      const all = [...col.down, ...col.up]
-      if (round >= ci && all[round - ci] !== undefined) order.push(all[round - ci])
+  // 依真實發牌順序：第 r 輪從第 r 疊發到最右邊，每疊發一張（第 r 疊的第 r 張是最上面那張）
+  const cols = props.state.tableau.map((col) => [...col.down, ...col.up])
+  const most = Math.max(0, ...cols.map((c) => c.length))
+  for (let round = 0; round < most; round++)
+    cols.forEach((all) => {
+      if (all[round] !== undefined) order.push(all[round])
     })
   for (const [c, pose] of poses) stage.move(c, { ...pose, x: L.value.stock.x, y: L.value.stock.y, r: 0, f: 0, z: 10 }, { instant: true })
   const step = 34
@@ -397,9 +398,10 @@ defineExpose({ layout: L })
   pointer-events: none;
   animation: hint 0.9s ease-in-out infinite;
 }
+/* 提示：黃框輕輕放大、縮小 */
 @keyframes hint {
   50% {
-    transform: translateY(-4%);
+    transform: scale(1.06);
   }
 }
 .cards {

@@ -4,8 +4,12 @@
 //   2. 卡片翻面，背面是分類色＋網點＋遊戲名稱
 //   3. 背面從卡片大小展開成整個畫面
 //   4. 等對局畫面準備好：名稱往上飄走，色塊由下往上捲起，露出遊戲
+// 離開遊戲（反過來）：
+//   1. 色塊由上往下蓋滿畫面，名稱從下面浮上來
+//   2. 換回模式選單後，色塊縮成卡片背面的大小
+//   3. 卡片翻回正面，再飛回卡片堆裡原本的位置
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { endLaunch, launch, notifyGrown, onReveal } from '@/core/launch'
+import { endLaunch, launch, notifyCovered, notifyGrown, onReveal } from '@/core/launch'
 
 const flipper = ref<HTMLElement>()
 const front = ref<HTMLElement>()
@@ -19,6 +23,7 @@ watch(
   () => launch.key,
   async () => {
     if (!launch.active) return
+    if (launch.mode === 'exit') return runExit()
     showFill.value = false
     await nextTick()
     const f = flipper.value
@@ -65,6 +70,64 @@ watch(
   },
 )
 
+// ── 離開遊戲 ──
+const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()))
+async function runExit() {
+  showFill.value = true
+  await nextTick()
+  const fl = fill.value
+  if (!fl) return notifyCovered()
+  const W = window.innerWidth
+  const H = window.innerHeight
+  // 1. 由上往下蓋滿
+  fl.querySelector('.name')?.animate([{ transform: 'translateY(30%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 360, delay: 160, easing: easeOut, fill: 'both' })
+  await fl.animate([{ clipPath: 'inset(0 0 100% 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 440, easing: ease, fill: 'forwards' }).finished
+  notifyCovered()
+  // 2. 等模式選單出現，找到那張卡片
+  let card: HTMLElement | null = null
+  for (let i = 0; i < 40 && !card; i++) {
+    await nextFrame()
+    card = document.getElementById(`mode-${launch.gameId}`)
+  }
+  if (!card) return finishExit()
+  await nextFrame()
+  await nextFrame()
+  const r = card.getBoundingClientRect()
+  const scale = Math.min((H * 0.72) / r.height, (W * 0.5) / r.width)
+  const w = r.width * scale
+  const h = r.height * scale
+  fl.querySelector('.name')?.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.8)' }], { duration: 420, easing: ease, fill: 'forwards' })
+  await fl.animate([{ clipPath: 'inset(0px 0px round 0rem)' }, { clipPath: `inset(${(H - h) / 2}px ${(W - w) / 2}px round 0.6rem)` }], { duration: 440, easing: ease, fill: 'forwards' }).finished
+  // 3. 換成一張真的卡片（背面朝上），翻回正面，飛回原位
+  launch.rect = { left: r.left, top: r.top, width: r.width, height: r.height }
+  showFill.value = false
+  await nextTick()
+  const f = flipper.value
+  const host = front.value
+  if (!f || !host) return finishExit()
+  host.replaceChildren()
+  const clone = card.cloneNode(true) as HTMLElement
+  clone.removeAttribute('style')
+  clone.classList.remove('lifted', 'peek')
+  clone.classList.add('launch-clone')
+  host.appendChild(clone)
+  const dx = W / 2 - (r.left + r.width / 2)
+  const dy = H / 2 - (r.top + r.height / 2)
+  await f.animate(
+    [
+      { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotateY(180deg) rotateZ(0deg)` },
+      { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotateY(0deg) rotateZ(2deg)`, offset: 0.55 },
+      { transform: 'translate(0, 0) scale(1) rotateY(0deg) rotateZ(0deg)' },
+    ],
+    { duration: 820, easing: ease, fill: 'forwards' },
+  ).finished
+  finishExit()
+}
+function finishExit() {
+  showFill.value = false
+  endLaunch()
+}
+
 async function reveal() {
   window.clearTimeout(safety)
   const fl = fill.value
@@ -87,7 +150,7 @@ onBeforeUnmount(() => onReveal(null))
         <b class="t-black nm">{{ launch.name }}</b>
       </div>
     </div>
-    <div v-if="showFill" ref="fill" class="fill halftone">
+    <div v-if="showFill" ref="fill" class="fill halftone" :style="launch.mode === 'exit' ? { clipPath: 'inset(0 0 100% 0)' } : undefined">
       <div class="name">
         <span class="t-label lb">{{ launch.label }}</span>
         <b class="t-black nm big">{{ launch.name }}</b>

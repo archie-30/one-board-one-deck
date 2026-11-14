@@ -148,6 +148,7 @@ function restart() {
 }
 
 async function act(action: GoAction, who: 0 | 1) {
+  if (who === 0) acted.value = true
   if (action.type === 'play') {
     const check = tryPlay(state.value, action.index)
     if (!check.ok) {
@@ -256,7 +257,9 @@ function confirmMove() {
 }
 
 // ── 保存進度並退出／讀回存檔 ──
-const canSave = computed(() => phase.value === 'playing' || phase.value === 'scoring')
+/** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
+const acted = ref(!!props.resume)
+const canSave = computed(() => (phase.value === 'playing' || phase.value === 'scoring') && acted.value)
 function saveAndExit() {
   const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, phase: phase.value === 'scoring' ? 'scoring' : 'playing', dead: dead.value }
   emit('save', data)
@@ -379,7 +382,7 @@ const resultLine = computed(() => {
         <Btn @click="resignOpen = false">{{ S.common.cancel }}</Btn>
       </template>
     </Dialog>
-    <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="score.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="score.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ resultLine }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.go.wins, stats.go.losses) }}</p>
       <template #actions>

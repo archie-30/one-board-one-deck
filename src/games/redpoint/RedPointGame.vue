@@ -189,6 +189,7 @@ async function nextTurn() {
 
 /** 出一張牌：吃牌時先飛過去壓在目標上，再兩張一起收回；配不到就放到桌上 */
 async function playCard(player: number, card: Card, target: Card | undefined) {
+  if (player === ME) acted.value = true
   busy.value = true
   selected.value = null
   message.value = ''
@@ -301,7 +302,9 @@ async function newRound() {
 }
 
 // ── 保存進度並退出 ──
-const canSave = computed(() => phase.value === 'play')
+/** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
+const acted = ref(!!saved)
+const canSave = computed(() => phase.value === 'play' && acted.value)
 function saveAndExit() {
   const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng }
   emit('save', data)
@@ -408,7 +411,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       </div>
     </div>
 
-    <p class="status" :class="{ mine: (myTurn || awaitFlip) && !message, warn: !!message && !awaitFlip }" :style="{ bottom: `${layout.cw * 1.62}px` }">{{ status }}</p>
+    <p class="status" :class="{ mine: (myTurn || awaitFlip) && !message, warn: !!message && !awaitFlip }" :style="{ bottom: `${layout.cw * 1.9}px` }">{{ status }}</p>
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions">
@@ -419,7 +422,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winners(state).includes(ME) ? 'red' : 'ink'" wide @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winners(state).includes(ME) ? 'red' : 'ink'" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
@@ -539,9 +542,10 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   background: rgb(255 194 26 / 0.45);
   pointer-events: none;
 }
+/* 可以吃的牌：黃框輕輕放大、縮小（呼吸），不上下搖 */
 @keyframes hit {
   50% {
-    transform: translateY(-6%);
+    transform: scale(1.07);
   }
 }
 .who {
@@ -610,16 +614,14 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   position: absolute;
   left: 0;
   right: 0;
-  z-index: 650;
+  /* 放在牌的下面一層：選起來的牌往上浮時，文字不會蓋住牌 */
+  z-index: 0;
   text-align: center;
   font-size: 1.05rem;
   font-weight: 900;
   line-height: 1.6;
   color: var(--color-ink-3);
   pointer-events: none;
-}
-.status::first-line {
-  background: var(--color-paper);
 }
 .status.mine {
   color: var(--color-ink);

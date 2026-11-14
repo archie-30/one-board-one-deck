@@ -112,6 +112,7 @@ function restart() {
 }
 
 function commit(m: ClassicMove, who: 0 | 1) {
+  if (who === 0) acted.value = true
   const before = A.captured(state.value).length
   const r = A.apply(state.value, m)
   if (!r.ok) {
@@ -208,7 +209,9 @@ function resign() {
 }
 
 // ── 保存進度並退出 ──
-const canSave = computed(() => phase.value === 'playing')
+/** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
+const acted = ref(!!saved)
+const canSave = computed(() => phase.value === 'playing' && acted.value)
 function saveAndExit() {
   const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng }
   emit('save', data)
@@ -234,7 +237,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
           <template v-else>
             <circle cx="20" cy="20" r="17" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="2.4" />
             <text v-if="options.pieceStyle !== 'icon'" x="20" y="27.5" class="tk-t" :fill="p === p.toUpperCase() ? 'var(--color-red)' : 'var(--color-ink)'">{{ xqName(p) }}</text>
-            <PieceIcon v-else :kind="p" :color="p === p.toUpperCase() ? 'var(--color-red)' : 'var(--color-ink)'" :size="24" />
+            <PieceIcon v-else set="xiangqi" :kind="p" :color="p === p.toUpperCase() ? 'var(--color-red)' : 'var(--color-ink)'" :size="26" />
           </template>
         </svg>
       </div>
@@ -275,7 +278,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
           <template v-else>
             <circle cx="20" cy="20" r="17" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="2.4" />
             <text v-if="options.pieceStyle !== 'icon'" x="20" y="27.5" class="tk-t" :fill="p === p.toUpperCase() ? 'var(--color-red)' : 'var(--color-ink)'">{{ xqName(p) }}</text>
-            <PieceIcon v-else :kind="p" :color="p === p.toUpperCase() ? 'var(--color-red)' : 'var(--color-ink)'" :size="24" />
+            <PieceIcon v-else set="xiangqi" :kind="p" :color="p === p.toUpperCase() ? 'var(--color-red)' : 'var(--color-ink)'" :size="26" />
           </template>
         </svg>
       </div>
@@ -314,7 +317,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
       </template>
     </Dialog>
 
-    <Dialog :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winnerSeat === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winnerSeat === human ? 'red' : 'ink'" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ reason }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
       <template #actions>
