@@ -30,7 +30,8 @@ export interface GameDef {
   /** 卡片上的小標籤，例如人數、一局多久 */
   tags: string[]
   /** 模式選單上大大顯示的最高分（沒有分數的玩法不填） */
-  best?: () => number
+  /** 模式選單上顯示的最高分（依目前選的規則，例如難度） */
+  best?: (options: Record<string, string | boolean>) => number
   /** 文字版規則說明 */
   rulesIntro: RuleSection[]
   /** 互動式教學的畫面 */

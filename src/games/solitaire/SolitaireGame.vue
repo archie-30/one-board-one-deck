@@ -3,7 +3,7 @@
 // 規則都在引擎（applySolitaire），這裡只管流程、計時與存紀錄。
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
-import { stats } from '@/core/settings'
+import { bestAt, recordBest, stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import {
@@ -177,7 +177,7 @@ function win() {
   stopClock()
   total.value = finalScore(scoreOf(state.value), seconds.value, true)
   stats.solitaire.wins++
-  stats.solitaire.best = Math.max(stats.solitaire.best, total.value)
+  recordBest('solitaire', String(props.options.difficulty ?? 'easy'), total.value)
   if (!stats.solitaire.fastest || seconds.value < stats.solitaire.fastest) stats.solitaire.fastest = seconds.value
   playSound('win')
   window.setTimeout(() => (resultOpen.value = true), 900)
@@ -278,7 +278,7 @@ const bonus = computed(() => timeBonus(seconds.value))
           <tr class="rise total" style="--i: 5"><td class="t-black">{{ T.rowTotal }}</td><td class="t-slab red">{{ total }}</td></tr>
         </tbody>
       </table>
-      <p class="t-label best rise" style="--i: 6">{{ T.best(stats.solitaire.best) }}</p>
+      <p class="t-label best rise" style="--i: 6">{{ T.best(bestAt('solitaire', String(props.options.difficulty ?? 'easy'))) }}</p>
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn tone="red" icon="again" @click="newGame">{{ S.common.again }}</Btn>

@@ -5,7 +5,8 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch 
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { stats } from '@/core/settings'
+import { recordBest, stats } from '@/core/settings'
+import { asLevel, bigtwoAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { chooseBigTwoAction } from '@/engine/bigtwo/ai'
@@ -50,6 +51,8 @@ const saved = (props.resume ?? null) as Saved | null
 const options = { ...props.options } as unknown as BigTwoOptions
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
+/** 難度：只決定電腦多強 */
+const level = asLevel(props.options.difficulty)
 const T = S.bigtwo
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
@@ -173,7 +176,7 @@ function nextTurn() {
   if (s.turn === ME) return
   const opp = opponents[s.turn - 1]
   moods[s.turn] = 'think'
-  const st = opp.persona.bigtwo
+  const st = bigtwoAt(opp.persona.bigtwo, level)
   const think = 850 + st.skill * 700 + (1 - st.aggression) * 450 + Math.random() * 550
   later(() => {
     let action: BigTwoAction
@@ -252,7 +255,7 @@ function finish() {
   stats.bigtwo.rounds++
   if (s.winner === ME) stats.bigtwo.wins++
   stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
-  stats.bigtwo.best = Math.max(stats.bigtwo.best, scores.value[ME].points)
+  recordBest('bigtwo', level, scores.value[ME].points)
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')

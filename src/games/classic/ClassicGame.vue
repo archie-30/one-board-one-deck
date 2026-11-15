@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
+import { asLevel, chessAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng, type RngState } from '@/engine/common/rng'
@@ -32,6 +33,8 @@ const T = A.kind === 'chess' ? S.chess : S.xiangqi
 const record = A.kind === 'chess' ? stats.chess : stats.xiangqi
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
+/** 難度：只決定電腦多強 */
+const level = asLevel(props.options.difficulty)
 
 /** 「保存進度並退出」存的資料 */
 interface Saved {
@@ -167,7 +170,7 @@ function flash(who: 0 | 1, mood: Mood) {
 function scheduleCpu() {
   thinking.value = true
   moods.value = [moods.value[0], 'think']
-  const st = opponent.value.persona.chess
+  const st = chessAt(opponent.value.persona.chess, level)
   later(() => {
     let m: ClassicMove | null
     ;[m, rng] = A.choose(state.value, st, rng)

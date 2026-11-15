@@ -44,6 +44,11 @@ function setQuick(v: string) {
   gamePrefs(game.value.id).options[quick.value.key] = v
   quickTick.value++
 }
+/** 最高分：跟著目前選的難度變 */
+const bestNow = computed(() => {
+  void quickTick.value
+  return game.value.best ? game.value.best(resolveOptions(game.value)) : 0
+})
 const pad = (k: number) => String(k).padStart(2, '0')
 
 /** 換到第 k 張 */
@@ -245,7 +250,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <div v-if="game.best || quick" class="stats rise" style="--i: 3">
             <p v-if="game.best" class="best">
               <span class="t-label">{{ S.lobby.best }}</span>
-              <b class="t-slab">{{ game.best() }}</b>
+              <b :key="`${game.id}-${quickValue}`" class="t-slab pop">{{ bestNow }}</b>
             </p>
             <div v-if="quick" class="quick" :title="quick.help">
               <span class="t-label">{{ quick.label }}</span>

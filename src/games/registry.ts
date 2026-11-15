@@ -5,7 +5,8 @@ import { S } from '@/data/strings'
 import { DEFAULT_BIGTWO_OPTIONS as B } from '@/engine/bigtwo/options'
 import { DEFAULT_GOMOKU_OPTIONS as G } from '@/engine/gomoku/rules'
 import { DEFAULT_GO_OPTIONS as GO } from '@/engine/go/rules'
-import { stats } from '@/core/settings'
+import { bestAt, stats } from '@/core/settings'
+import { DEFAULT_LEVEL } from '@/engine/common/difficulty'
 import BigTwoCover from './covers/BigTwoCover.vue'
 import ChessCover from './covers/ChessCover.vue'
 import GoCover from './covers/GoCover.vue'
@@ -36,6 +37,7 @@ const choice = (
 })
 
 const timer = () => toggle('timer', S.common.timer, true)
+const level = () => choice('difficulty', S.common.level, DEFAULT_LEVEL)
 /** 規則說明最後面加一段「倒數計時」 */
 const TR = S.common.timerRules
 const withTimer = (rules: RuleSection[], body: string[]): RuleSection[] => [...rules, { title: TR.title, body }]
@@ -51,11 +53,12 @@ export const GAMES: GameDef[] = [
     players: S.bigtwo.players,
     cover: BigTwoCover,
     tags: S.bigtwo.tags,
-    best: () => stats.bigtwo.best,
+    best: (o) => bestAt('bigtwo', String(o.difficulty ?? DEFAULT_LEVEL)),
     rulesIntro: withTimer(S.bigtwo.rules, [...TR.cards, TR.bigtwo]),
     tutorial: defineAsyncComponent(() => import('./bigtwo/BigTwoTutorial.vue')),
     component: defineAsyncComponent(() => import('./bigtwo/BigTwoGame.vue')),
     settings: [
+      level(),
       choice('suitOrder', bs.suitOrder, B.suitOrder),
       choice('straightRule', bs.straightRule, B.straightRule),
       toggle('straightFlushSpecial', bs.straightFlushSpecial, B.straightFlushSpecial),
@@ -90,7 +93,7 @@ export const GAMES: GameDef[] = [
     players: S.solitaire.players,
     cover: SolitaireCover,
     tags: S.solitaire.tags,
-    best: () => stats.solitaire.best,
+    best: (o) => bestAt('solitaire', String(o.difficulty ?? 'easy')),
     rulesIntro: S.solitaire.rules,
     tutorial: defineAsyncComponent(() => import('./solitaire/SolitaireTutorial.vue')),
     component: defineAsyncComponent(() => import('./solitaire/SolitaireGame.vue')),
@@ -107,7 +110,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.gomoku.rules, [...TR.board]),
     tutorial: defineAsyncComponent(() => import('./gomoku/GomokuTutorial.vue')),
     component: defineAsyncComponent(() => import('./gomoku/GomokuGame.vue')),
-    settings: [toggle('forbidden', gs.forbidden, G.forbidden), toggle('overlineWins', gs.overlineWins, G.overlineWins), timer()],
+    settings: [level(), toggle('forbidden', gs.forbidden, G.forbidden), toggle('overlineWins', gs.overlineWins, G.overlineWins), timer()],
   },
   {
     id: 'go',
@@ -120,7 +123,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.go.rules, [...TR.board, TR.go]),
     tutorial: defineAsyncComponent(() => import('./go/GoTutorial.vue')),
     component: defineAsyncComponent(() => import('./go/GoGame.vue')),
-    settings: [choice('size', S.go.settings.size, String(GO.size)), timer()],
+    settings: [level(), choice('size', S.go.settings.size, String(GO.size)), timer()],
   },
   {
     id: 'chess',
@@ -133,7 +136,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.chess.rules, [...TR.board, TR.check]),
     tutorial: defineAsyncComponent(() => import('./chess/ChessTutorial.vue')),
     component: defineAsyncComponent(() => import('./chess/ChessGame.vue')),
-    settings: [timer()],
+    settings: [level(), timer()],
   },
   {
     id: 'xiangqi',
@@ -146,7 +149,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.xiangqi.rules, [...TR.board, TR.check]),
     tutorial: defineAsyncComponent(() => import('./xiangqi/XiangqiTutorial.vue')),
     component: defineAsyncComponent(() => import('./xiangqi/XiangqiGame.vue')),
-    settings: [choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text'), timer()],
+    settings: [level(), choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text'), timer()],
   },
 ]
 

@@ -5,6 +5,7 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
+import { asLevel, gomokuAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
@@ -39,6 +40,8 @@ interface Saved {
 const options = { ...props.options } as unknown as GomokuOptions
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
+/** 難度：只決定電腦多強 */
+const level = asLevel(props.options.difficulty)
 const T = S.gomoku
 
 const state = ref<GomokuState>(createGomoku(options))
@@ -180,7 +183,7 @@ function finish() {
 
 function scheduleCpu() {
   moods.value = ['idle', 'think']
-  const st = opponent.value.persona.gomoku
+  const st = gomokuAt(opponent.value.persona.gomoku, level)
   const think = 900 + (1 - st.noise) * 700 + Math.random() * 600
   later(() => {
     let move: number

@@ -6,6 +6,7 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
+import { asLevel, goAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
@@ -42,6 +43,8 @@ interface Saved {
 const T = S.go
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
+/** 難度：只決定電腦多強 */
+const level = asLevel(props.options.difficulty)
 const size = (Number(props.options.size) || 19) as GoSize
 
 const state = ref<GoState>(createGo({ size }))
@@ -205,7 +208,7 @@ function flash(who: 0 | 1, mood: Mood) {
 
 function scheduleCpu() {
   moods.value = [moods.value[0], 'think']
-  const st = opponent.value.persona.go
+  const st = goAt(opponent.value.persona.go, level)
   later(() => {
     let a: GoAction
     ;[a, rng] = chooseGoMove(state.value, st, rng)
