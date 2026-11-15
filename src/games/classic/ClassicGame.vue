@@ -328,7 +328,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
       </div>
     </aside>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" />
+    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" @save-exit="saveAndExit" />
 
     <!-- 兵升變 -->

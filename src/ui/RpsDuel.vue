@@ -16,7 +16,7 @@ import TurnTimer from './TurnTimer.vue'
 
 // seconds：要在幾秒內出拳（0 = 不計時），時間到沒出拳就算輸
 const props = withDefaults(defineProps<{ open: boolean; opponent: Opponent; lead?: string; seconds?: number }>(), { seconds: 0 })
-const emit = defineEmits<{ done: [playerWins: boolean] }>()
+const emit = defineEmits<{ done: [playerWins: boolean]; back: [] }>()
 
 let rng = seedRng(Date.now())
 const phase = ref<'pick' | 'shake' | 'show'>('pick')
@@ -94,6 +94,7 @@ function finish() {
     </div>
     <template #actions>
       <template v-if="phase !== 'show' || outcome === 0">
+        <Btn class="back" icon="back" size="sm" :disabled="phase !== 'pick'" @click="emit('back')">{{ S.common.resumeBack }}</Btn>
         <button v-for="hand in RPS_HANDS" :key="hand" class="hand" :disabled="phase !== 'pick'" @click="choose(hand)">
           <span class="ic"><Icon :name="hand" /></span>
           <span class="t-black">{{ S.rps[hand] }}</span>
@@ -201,6 +202,10 @@ function finish() {
 .hand:active:not(:disabled) {
   transform: translate(0.2rem, 0.2rem);
   box-shadow: none;
+}
+.back {
+  align-self: center;
+  margin-right: 0.6rem;
 }
 .hand:disabled {
   opacity: 0.4;

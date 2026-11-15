@@ -292,7 +292,7 @@ if (props.resume) {
 
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" />
+    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
     <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
