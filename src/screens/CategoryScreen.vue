@@ -26,6 +26,8 @@ const start = games.value.findIndex((g) => g.id === settings.lastGame[props.cate
 const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 const hoverId = ref<string | null>(null)
+/** 從遊戲退回來：卡片堆不播進場上浮（過場層要量卡片的位置讓卡片飛回去，位置必須一開始就是定位） */
+const returning = launchFx.active && launchFx.mode === 'exit'
 const settingsOpen = ref(false)
 
 /** 難度這類常用設定：直接在這裡選，不用進「規則設定」 */
@@ -189,6 +191,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div
           ref="deckEl"
           class="deck"
+          :class="{ settled: returning }"
           role="listbox"
           :aria-activedescendant="`mode-${game.id}`"
           @pointerdown="onDown"
@@ -323,6 +326,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   animation: rise 520ms var(--ease-out) 80ms both;
 }
 /* 3D 透視：兩側的卡片轉個角度往後退 */
+.deck.settled {
+  animation: none;
+}
 .deck {
   perspective: 900px;
   perspective-origin: 50% 45%;
