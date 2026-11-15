@@ -7,7 +7,7 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
-import { asLevel, goAt } from '@/engine/common/difficulty'
+import { asLevel, extraThink, goAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
@@ -221,13 +221,13 @@ function flash(who: 0 | 1, mood: Mood) {
 
 function scheduleCpu() {
   moods.value = [moods.value[0], 'think']
-  const st = goAt(opponent.value.persona.go, level)
+  const st = goAt(opponent.value.persona.go, level, opponent.value.id)
   later(() => {
     let a: GoAction
     ;[a, rng] = chooseGoMove(state.value, st, rng)
     moods.value = [moods.value[0], 'idle']
     void act(a, 1)
-  }, 650 + st.skill * 500 + Math.random() * 500)
+  }, 650 + st.skill * 500 + extraThink(level) + Math.random() * 500)
 }
 
 function endGame() {

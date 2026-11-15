@@ -7,7 +7,7 @@ import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordBest, stats } from '@/core/settings'
-import { asLevel, bigtwoAt } from '@/engine/common/difficulty'
+import { asLevel, bigtwoAt, extraThink } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { chooseBigTwoAction } from '@/engine/bigtwo/ai'
@@ -178,8 +178,8 @@ function nextTurn() {
   if (s.turn === ME) return
   const opp = opponents[s.turn - 1]
   moods[s.turn] = 'think'
-  const st = bigtwoAt(opp.persona.bigtwo, level)
-  const think = 850 + st.skill * 700 + (1 - st.aggression) * 450 + Math.random() * 550
+  const st = bigtwoAt(opp.persona.bigtwo, level, opp.id)
+  const think = 850 + st.skill * 700 + (1 - st.aggression) * 450 + extraThink(level) * 0.5 + Math.random() * 550
   later(() => {
     let action: BigTwoAction
     ;[action, rng] = chooseBigTwoAction(state.value, st, rng)

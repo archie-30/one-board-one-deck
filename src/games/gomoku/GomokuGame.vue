@@ -6,7 +6,7 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
-import { asLevel, gomokuAt } from '@/engine/common/difficulty'
+import { asLevel, extraThink, gomokuAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
@@ -196,8 +196,8 @@ function finish() {
 
 function scheduleCpu() {
   moods.value = ['idle', 'think']
-  const st = gomokuAt(opponent.value.persona.gomoku, level)
-  const think = 900 + (1 - st.noise) * 700 + Math.random() * 600
+  const st = gomokuAt(opponent.value.persona.gomoku, level, opponent.value.id)
+  const think = 900 + (1 - st.noise) * 700 + extraThink(level) + Math.random() * 600
   later(() => {
     let move: number
     ;[move, rng] = chooseGomokuMove(state.value, st, rng)

@@ -56,7 +56,7 @@ function negamax<S, M>(ctx: Ctx<S, M>, s: S, depth: number, alpha: number, beta:
   ctx.nodes++
   const ms = ctx.g.moves(s)
   if (!ms.length) return ctx.g.noMoves(s) + (ctx.g.noMoves(s) < 0 ? ply : -ply)
-  if (depth <= 0) return quiesce(ctx, s, alpha, beta, 3)
+  if (depth <= 0) return quiesce(ctx, s, alpha, beta, ctx.style.quiet ?? 3)
   let best = -Infinity
   for (const m of order(ctx, s, ms)) {
     const v = -negamax(ctx, ctx.g.play(s, m), depth - 1, -beta, -alpha, ply + 1)
@@ -79,7 +79,7 @@ export function chooseMove<S, M>(g: SearchGame<S, M>, s: S, style: ChessStyle, r
     ;[k, rng] = nextInt(rng, ms.length)
     return [ms[k], rng]
   }
-  const ctx: Ctx<S, M> = { g, style, nodes: 0, limit }
+  const ctx: Ctx<S, M> = { g, style, nodes: 0, limit: style.nodes ?? limit }
   const depth = Math.max(1, Math.min(3, Math.round(style.depth)))
   const margin = 15 + style.noise * 90
   const scored: { m: M; v: number }[] = []

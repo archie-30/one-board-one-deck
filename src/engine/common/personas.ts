@@ -35,6 +35,8 @@ export interface GomokuStyle {
   center: number
   /** 0～1：漏看對手「下一手就贏」的機率 */
   blind: number
+  /** 先試下前幾名、看對手最好的回應再決定（0 = 不看對手怎麼回）；沒填是 0 */
+  look?: number
 }
 
 /** 撿紅點的打法 */
@@ -73,6 +75,10 @@ export interface ChessStyle {
   noise: number
   /** 0～1：隨手走一步的機率 */
   blunder: number
+  /** 算到最後一層後，還要把吃來吃去算完幾步（0 = 不算，常常看不到對方吃回來）；沒填是 3 */
+  quiet?: number
+  /** 一步最多想多少個局面；沒填是 60000 */
+  nodes?: number
 }
 
 export interface Persona {

@@ -7,7 +7,7 @@ import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
-import { asLevel, chessAt } from '@/engine/common/difficulty'
+import { asLevel, chessAt, extraThink } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng, type RngState } from '@/engine/common/rng'
@@ -184,14 +184,14 @@ function flash(who: 0 | 1, mood: Mood) {
 function scheduleCpu() {
   thinking.value = true
   moods.value = [moods.value[0], 'think']
-  const st = chessAt(opponent.value.persona.chess, level)
+  const st = chessAt(opponent.value.persona.chess, level, opponent.value.id)
   later(() => {
     let m: ClassicMove | null
     ;[m, rng] = A.choose(state.value, st, rng)
     thinking.value = false
     moods.value = [moods.value[0], 'idle']
     if (m) commit(m, 1)
-  }, 450 + st.depth * 250 + Math.random() * 400)
+  }, 450 + st.depth * 250 + extraThink(level) + Math.random() * 400)
 }
 
 /** 結束：wait 毫秒後翻出結算（認輸時確認視窗剛關，不要再停太久，看起來才不會卡住） */
