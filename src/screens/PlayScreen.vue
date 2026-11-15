@@ -84,10 +84,12 @@ async function leave(saved = false) {
 
 <template>
   <component :is="game.component" v-if="ready" ref="gameRef" :game="game" :options="options" :resume="resume" @exit="leave()" @save="onSave" />
-  <Dialog v-else open :title="S.common.resumeTitle" :label="game.name" tone="yellow" @close="back()">
+  <Dialog v-else open :title="S.common.resumeTitle" :label="game.name" tone="yellow" @close="leave(true)">
     <p class="text-ink-2">{{ S.common.resumeLead(when) }}</p>
     <p class="mt-[0.3rem] text-[0.8rem] text-ink-3">{{ S.common.resumeNewNote }}</p>
     <template #actions>
+      <!-- 回上一頁：存檔留著，回到模式選單 -->
+      <Btn icon="back" size="sm" @click="leave(true)">{{ S.common.resumeBack }}</Btn>
       <Btn icon="again" size="sm" @click="startNew">{{ S.common.resumeNew }}</Btn>
       <Btn tone="red" icon="play" arrow @click="continueSaved">{{ S.common.resumeContinue }}</Btn>
     </template>

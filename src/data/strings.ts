@@ -55,6 +55,7 @@ export const S = {
     resumeLead: (when: string) => `有一份 ${when} 保存的進度。`,
     resumeContinue: '繼續上次的進度',
     resumeNew: '重新開一局',
+    resumeBack: '回上一頁',
     resumeNewNote: '重新開一局，上次的進度就會刪掉。',
     again: '再來一局',
     next: '下一步',

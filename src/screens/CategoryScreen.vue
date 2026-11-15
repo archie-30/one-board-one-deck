@@ -2,7 +2,7 @@
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
@@ -49,6 +49,32 @@ const bestNow = computed(() => {
   void quickTick.value
   return game.value.best ? game.value.best(resolveOptions(game.value)) : 0
 })
+/** 最高分跳數：每次顯示（換卡片、換難度、回到選單）都從 0 往上數到最高分；沒有最高分就是 0 */
+const bestShown = ref(0)
+let countRaf = 0
+watch(
+  [bestNow, () => game.value.id],
+  ([to]) => {
+    cancelAnimationFrame(countRaf)
+    bestShown.value = 0
+    if (!to || reducedMotion()) {
+      bestShown.value = to
+      return
+    }
+    // 分數越大數得越久一點（0.6～1.1 秒），先快後慢
+    const dur = Math.min(1100, 600 + Math.log10(to + 1) * 120)
+    // 等右邊的元件浮出來（約 0.25 秒）再開始數，才看得到從 0 開始
+    const t0 = performance.now() + 250
+    const step = (now: number) => {
+      const p = Math.min(1, Math.max(0, (now - t0) / dur))
+      bestShown.value = Math.round(to * (1 - Math.pow(1 - p, 3)))
+      if (p < 1) countRaf = requestAnimationFrame(step)
+    }
+    countRaf = requestAnimationFrame(step)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => cancelAnimationFrame(countRaf))
 const pad = (k: number) => String(k).padStart(2, '0')
 
 /** 換到第 k 張 */
@@ -255,7 +281,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <div v-if="game.best || quick" class="stats rise" style="--i: 3">
             <p v-if="game.best" class="best">
               <span class="t-label">{{ S.lobby.best }}</span>
-              <b :key="`${game.id}-${quickValue}`" class="t-slab pop">{{ bestNow }}</b>
+              <b class="t-slab">{{ bestShown }}</b>
             </p>
             <div v-if="quick" class="quick" :title="quick.help">
               <span class="t-label">{{ quick.label }}</span>
@@ -601,6 +627,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 0.5rem;
 }
 .best b {
+  /* 跳數時每個數字一樣寬，才不會左右晃 */
+  font-variant-numeric: tabular-nums;
   font-size: 2.4rem;
   line-height: 1;
   color: var(--color-red);
