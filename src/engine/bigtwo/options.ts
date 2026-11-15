@@ -24,6 +24,8 @@ export interface BigTwoOptions {
   dragon: boolean
   /** 同花是否算牌型 */
   allowFlush: boolean
+  /** 兩對：兩個對子＋一張（五張牌型），只能接兩對，比大的那一對 */
+  allowTwoPair: boolean
   /** 計分：剩 10 張以上加倍 */
   doubleOverTen: boolean
   /** 計分：手上每剩一張 2 再加倍 */
@@ -39,6 +41,7 @@ export const DEFAULT_BIGTWO_OPTIONS: BigTwoOptions = {
   allowSmallStraight: false,
   dragon: false,
   allowFlush: false,
+  allowTwoPair: false,
   doubleOverTen: true,
   doubleTwos: true,
 }

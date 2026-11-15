@@ -71,6 +71,7 @@ export const GAMES: GameDef[] = [
       toggle('allowTriple', bs.allowTriple, B.allowTriple),
       toggle('allowSmallStraight', bs.allowSmallStraight, B.allowSmallStraight),
       toggle('allowFlush', bs.allowFlush, B.allowFlush),
+      toggle('allowTwoPair', bs.allowTwoPair, B.allowTwoPair),
       toggle('dragon', bs.dragon, B.dragon),
       toggle('doubleOverTen', bs.doubleOverTen, B.doubleOverTen, { group: 'score' }),
       toggle('doubleTwos', bs.doubleTwos, B.doubleTwos, { group: 'score' }),

@@ -7,6 +7,7 @@ export type ComboType =
   | 'pair'
   | 'triple'
   | 'smallStraight'
+  | 'twoPair'
   | 'straight'
   | 'flush'
   | 'fullHouse'
@@ -22,6 +23,7 @@ export interface Combo {
 
 /** 五張牌型之間的大小順序 */
 const FIVE_CLASS: Partial<Record<ComboType, number>> = {
+  twoPair: 0.5,
   straight: 1,
   flush: 2,
   fullHouse: 3,
@@ -114,6 +116,12 @@ export function identifyCombo(cardsIn: readonly Card[], opts: BigTwoOptions): Co
 
   if (groups[0][1] === 4) return { type: 'four', cards, key: [groups[0][0]] }
   if (groups[0][1] === 3 && groups[1][1] === 2) return { type: 'fullHouse', cards, key: [groups[0][0]] }
+  // 兩對（規則選項）：比大的那一對的點數，一樣大再比那一對裡最大的花色
+  if (opts.allowTwoPair && groups[0][1] === 2 && groups[1][1] === 2) {
+    const high = Math.max(groups[0][0], groups[1][0])
+    const top = Math.max(...cards.filter((c) => rankOf(c) === high).map(sp))
+    return { type: 'twoPair', cards, key: [high, top] }
+  }
 
   const sameSuit = cards.every((c) => suitOf(c) === suitOf(cards[0]))
   const straight = straightKey(cards, opts)
