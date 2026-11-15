@@ -54,7 +54,6 @@ describe('大老二：牌型判定', () => {
   it('關閉同花順後，同花順只當一般順子', () => {
     const o = { ...D, straightFlushSpecial: false }
     expect(combo('H5 H6 H7 H8 H9', o)?.type).toBe('straight')
-    expect(beats('C8 D8 H8 S3 C3', 'H5 H6 H7 H8 H9', { ...o, fiveCrossType: true })).toBe(true)
     expect(beats('C8 D8 H8 S3 C3', 'H5 H6 H7 H8 H9', o)).toBe(false)
   })
 })
@@ -97,16 +96,11 @@ describe('大老二：壓牌', () => {
     expect(beats('H3 H4 H5 H6 H7', 'C2 D2 H2 S2 CA')).toBe(true)
     expect(beats('C2 D2 H2 S2 CA', 'H3 H4 H5 H6 H7')).toBe(false)
   })
-  it('開啟「五張牌型可以互壓」：順子 < 葫蘆 < 鐵支 < 同花順', () => {
-    const o = { ...D, fiveCrossType: true }
-    expect(beats('C3 D3 H3 S4 C4', 'C2 D3 H4 S5 C6', o)).toBe(true)
-    expect(beats('C2 D3 H4 S5 C6', 'C3 D3 H3 S4 C4', o)).toBe(false)
-  })
-  it('開啟同花＋互壓時：順子 < 同花 < 葫蘆', () => {
-    const o = { ...D, allowFlush: true, fiveCrossType: true }
-    expect(beats('H3 H6 H7 H8 HK', 'C2 D3 H4 S5 C6', o)).toBe(true)
-    expect(beats('C3 D3 H3 S4 C4', 'H3 H6 H7 H8 HK', o)).toBe(true)
+  it('同花（開啟時）也只能同花接同花', () => {
+    const o = { ...D, allowFlush: true }
     expect(beats('S3 S6 S7 S8 SA', 'H4 H6 H7 H8 HK', o)).toBe(true)
+    expect(beats('H3 H6 H7 H8 HK', 'C2 D3 H4 S5 C6', o)).toBe(false)
+    expect(beats('C3 D3 H3 S4 C4', 'H3 H6 H7 H8 HK', o)).toBe(false)
   })
   it('葫蘆比三條的點數、鐵支比四條的點數', () => {
     expect(beats('C3 D3 H3 S2 C2', 'C4 D4 H4 S5 C5')).toBe(false)
