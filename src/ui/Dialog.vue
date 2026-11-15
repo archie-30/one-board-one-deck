@@ -7,7 +7,8 @@ const emit = defineEmits<{ close: [] }>()
 </script>
 
 <template>
-  <Transition :name="flip ? 'dialog-flip' : cover ? 'dialog-cover' : 'dialog'">
+  <!-- 明確給動畫長度：Vue 只看最外層的淡入（0.2 秒）就以為結束了，會把裡面還在轉的紙片硬切到定位（看起來像卡一下） -->
+  <Transition :name="flip ? 'dialog-flip' : cover ? 'dialog-cover' : 'dialog'" :duration="flip ? { enter: 780, leave: 290 } : cover ? { enter: 330, leave: 230 } : { enter: 430, leave: 230 }">
     <div v-if="open" class="fixed inset-0 z-[900] grid place-items-center" role="dialog" aria-modal="true">
       <div class="backdrop absolute inset-0" :class="{ cover }" @click="emit('close')" />
       <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip back-${tone ?? 'ink'}` : '']">
@@ -141,7 +142,9 @@ const emit = defineEmits<{ close: [] }>()
   transition: opacity 200ms ease;
 }
 .dialog-flip-enter-active .sheet {
-  animation: card-flip 720ms var(--ease-out) both;
+  will-change: transform;
+  /* 一條曲線一路轉到底（以前分兩段各自減速，轉到一半會先停一下再加速，看起來像卡頓）；最後稍微轉過頭再回正 */
+  animation: card-flip 760ms cubic-bezier(0.45, 0.6, 0.3, 1.04) both;
 }
 .dialog-flip-enter-active .sheet::after {
   content: '';
@@ -151,7 +154,7 @@ const emit = defineEmits<{ close: [] }>()
   background-color: var(--bg, var(--color-ink));
   background-image: radial-gradient(rgb(251 248 241 / 0.18) 30%, transparent 32%);
   background-size: 0.5rem 0.5rem;
-  animation: card-back 720ms linear both;
+  animation: card-back 760ms linear both;
   pointer-events: none;
 }
 .dialog-flip-leave-active {
@@ -180,23 +183,21 @@ const emit = defineEmits<{ close: [] }>()
   --bg: var(--color-yellow);
 }
 @keyframes card-flip {
-  0% {
+  from {
     transform: perspective(1200px) translateY(2rem) rotateY(-180deg) scale(0.7);
   }
-  55% {
-    transform: perspective(1200px) translateY(-0.3rem) rotateY(-80deg) scale(1.02);
-  }
-  100% {
+  to {
     transform: perspective(1200px) translateY(0) rotateY(0deg) scale(1);
   }
 }
-/* 翻過一半（側面朝前）時，牌背的顏色消失、露出正面 */
+/* 側面朝前（轉了一半）的那一刻，牌背的顏色消失、露出正面。
+   上面那條曲線在整段時間的 28.8% 轉到一半，所以在這裡切換 */
 @keyframes card-back {
   0%,
-  44% {
+  28% {
     opacity: 1;
   }
-  46%,
+  29.5%,
   100% {
     opacity: 0;
   }
