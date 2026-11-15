@@ -196,7 +196,8 @@ function nextTurn() {
   const opp = opponents[s.turn - 1]
   moods[s.turn] = 'think'
   const st = bigtwoAt(opp.persona.bigtwo, level, opp.id)
-  const think = 850 + st.skill * 700 + (1 - st.aggression) * 450 + extraThink(level) * 0.5 + Math.random() * 550
+  // 電腦每一手想一下再出：約 1.5～3.8 秒（會算的、愛保留的想比較久；困難再多想一點）
+  const think = 1400 + st.skill * 800 + (1 - st.aggression) * 500 + extraThink(level) * 0.5 + Math.random() * 700
   later(() => {
     let action: BigTwoAction
     ;[action, rng] = chooseBigTwoAction(state.value, st, rng)
