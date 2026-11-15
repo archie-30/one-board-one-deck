@@ -51,7 +51,10 @@ const finishing = ref(false)
 const state = shallowRef<SolitaireState>(saved ? saved.state : fresh())
 /** 這一局剛發好牌的樣子 */
 let initial: SolitaireState = saved?.initial ?? state.value
-const stuckOpen = ref(false)
+/** 卡關了：「返回」下面浮出「卡關並結算」 */
+const stuck = ref(false)
+/** 已經按「卡關並結算」結束這一局 */
+const ended = ref(false)
 const ready = ref(false)
 /** 確定只靠收牌與翻牌堆就能收完：顯示「自動收牌」 */
 const plan = computed(() => (finishing.value ? null : finishPlan(state.value)))
@@ -116,29 +119,40 @@ function act(action: SolitaireAction) {
 }
 
 
-/** 卡關：已經沒有能讓局面前進的步，跳出選項 */
+/** 卡關：已經沒有能讓局面前進的步。不跳視窗，「返回」下面浮出「卡關並結算」 */
 let stuckTimer = 0
 function checkStuck(now = false) {
   window.clearTimeout(stuckTimer)
+  stuck.value = false
   if (!isStuck(state.value) || plan.value) return
-  stuckTimer = window.setTimeout(() => (stuckOpen.value = true), now ? 0 : 700)
+  stuckTimer = window.setTimeout(() => (stuck.value = true), now ? 0 : 700)
 }
-function stuckUndo() {
-  stuckOpen.value = false
-  undo()
+/** 發完牌（或讀回存檔）可以操作時：讀回的局面可能本來就卡關了 */
+function onReady() {
+  ready.value = true
+  checkStuck()
 }
-/** 重玩這一局：回到剛發好牌的樣子 */
-function replay() {
-  restartWith(structuredClone(initial))
+/** 卡關並結算：這一局到此為止，照目前的分數結算（沒過關，沒有快速過關獎勵） */
+function settleStuck() {
+  if (!stuck.value || ended.value) return
+  ended.value = true
+  stuck.value = false
+  stopClock()
+  total.value = finalScore(scoreOf(state.value), seconds.value, false)
+  recordBest('solitaire', String(props.options.difficulty ?? 'easy'), total.value)
+  playSound('lose')
+  window.setTimeout(() => (resultOpen.value = true), 500)
 }
 
 function undo() {
-  if (!history.length || finishing.value || state.value.won) return
+  if (!history.length || finishing.value || state.value.won || ended.value) return
   playSound('tap')
   // 復原要扣分（簡單、困難扣的不一樣）
   state.value = undoTo(history.pop()!, state.value)
   canUndo.value = history.length > 0
   say(T.undoCost(UNDO_PENALTY[state.value.draw]))
+  // 退回去之後通常又有步可以走：收起「卡關並結算」，必要時再判斷一次
+  checkStuck()
 }
 
 // ── 自動收牌：照著算好的步驟，一張一張收上去（需要時自動翻牌堆），收完就結算 ──
@@ -190,7 +204,8 @@ function restartWith(next: SolitaireState) {
   finishing.value = false
   menuOpen.value = false
   resultOpen.value = false
-  stuckOpen.value = false
+  stuck.value = false
+  ended.value = false
   history.length = 0
   canUndo.value = false
   seconds.value = 0
@@ -205,7 +220,7 @@ function newGame() {
 }
 
 // ── 保存進度並退出 ──
-const canSave = computed(() => !state.value.won && !finishing.value && state.value.moves > 0)
+const canSave = computed(() => !state.value.won && !ended.value && !finishing.value && state.value.moves > 0)
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
@@ -217,7 +232,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => !state.value.won && !resultOpen.value && (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => !state.value.won && !ended.value && !resultOpen.value && (menuOpen.value = true), snapshot })
 if (saved && saved.state.moves > 0) startClock()
 
 const bonus = computed(() => timeBonus(seconds.value))
@@ -228,10 +243,10 @@ const bonus = computed(() => timeBonus(seconds.value))
     <SolitaireTable
       :state="state"
       :deal-key="dealKey"
-      :interactive="!finishing && !state.won"
+      :interactive="!finishing && !state.won && !ended"
       @action="act"
       @invalid="playSound('error')"
-      @ready="ready = true"
+      @ready="onReady"
     >
       <template #default="{ layout: L }">
         <div class="hud" :style="{ left: `${L.hud.x}px`, top: `${L.hud.y}px`, width: `${L.hud.w}px` }">
@@ -247,8 +262,14 @@ const bonus = computed(() => timeBonus(seconds.value))
           </dl>
           <Btn v-if="plan || finishing" class="pop" tone="yellow" size="sm" block :disabled="finishing || !ready" @click="autoFinish">{{ T.autoFinish }}</Btn>
           <div v-else class="tools">
-            <Btn size="sm" block :disabled="!ready || !canUndo || state.won" @click="undo">{{ T.undo }}<small class="cost">−{{ UNDO_PENALTY[state.draw] }}</small></Btn>
+            <Btn size="sm" block :disabled="!ready || !canUndo || state.won || ended" @click="undo">{{ T.undo }}<small class="cost">−{{ UNDO_PENALTY[state.draw] }}</small></Btn>
           </div>
+          <!-- 卡關：從「返回」下面滑出來，輕輕晃動提醒 -->
+          <Transition name="stuck">
+            <div v-if="stuck" class="stuck">
+              <Btn tone="red" size="sm" block @click="settleStuck">{{ T.stuckSettle }}</Btn>
+            </div>
+          </Transition>
         </div>
       </template>
     </SolitaireTable>
@@ -257,24 +278,15 @@ const bonus = computed(() => timeBonus(seconds.value))
     <!-- 選單按鈕：每個遊戲都在左上角同一個位置 -->
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
-    <Dialog :open="stuckOpen" :title="T.stuckTitle" :label="game.name" tone="yellow" @close="stuckOpen = false">
-      <p class="text-[0.95rem]">{{ T.stuckLead }}</p>
-      <template #actions>
-        <Btn v-if="canUndo" size="sm" icon="back" @click="stuckUndo">{{ T.undo }}<small class="cost">−{{ UNDO_PENALTY[state.draw] }}</small></Btn>
-        <Btn size="sm" icon="again" @click="replay">{{ T.replay }}</Btn>
-        <Btn tone="red" icon="play" @click="newGame">{{ T.newGame }}</Btn>
-      </template>
-    </Dialog>
-
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog flip :open="resultOpen" :title="T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="ended ? T.stuckResult : T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
       <table class="score">
         <tbody>
           <tr class="rise" style="--i: 2"><td>{{ T.rowBase }}</td><td class="t-slab">{{ state.score }}</td></tr>
           <tr v-if="state.penalty" class="rise" style="--i: 2"><td>{{ T.rowPenalty }}</td><td class="t-slab">−{{ state.penalty }}</td></tr>
-          <tr class="rise" style="--i: 4"><td>{{ T.rowBonus(clock) }}</td><td class="t-slab">+{{ bonus }}</td></tr>
+          <tr v-if="!ended" class="rise" style="--i: 4"><td>{{ T.rowBonus(clock) }}</td><td class="t-slab">+{{ bonus }}</td></tr>
           <tr class="rise total" style="--i: 5"><td class="t-black">{{ T.rowTotal }}</td><td class="t-slab red">{{ total }}</td></tr>
         </tbody>
       </table>
@@ -317,8 +329,10 @@ const bonus = computed(() => timeBonus(seconds.value))
   line-height: 1.2;
 }
 .nums {
+  /* 時間、步數並排一行，留出空間給卡關時出現的按鈕 */
   display: grid;
-  gap: 0.15rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
 }
 .nums div {
   display: flex;
@@ -332,6 +346,48 @@ const bonus = computed(() => timeBonus(seconds.value))
 }
 .red {
   color: var(--color-red);
+}
+/* 卡關並結算：從返回下面滑出來，按鈕輕輕左右晃一下、停一會兒再晃（提醒但不吵） */
+.stuck {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.stuck :deep(.btn) {
+  animation: nudge-x 2.4s ease-in-out 0.5s infinite;
+}
+@keyframes nudge-x {
+  0%,
+  70%,
+  100% {
+    transform: none;
+  }
+  76% {
+    transform: translateX(-0.18rem) rotate(-1.5deg);
+  }
+  82% {
+    transform: translateX(0.18rem) rotate(1.5deg);
+  }
+  88% {
+    transform: translateX(-0.1rem);
+  }
+}
+.stuck-enter-active {
+  transition:
+    opacity 260ms ease,
+    transform 420ms var(--ease-back),
+    clip-path 360ms var(--ease-out);
+}
+.stuck-leave-active {
+  transition: opacity 160ms ease;
+}
+.stuck-enter-from {
+  opacity: 0;
+  transform: translateY(-0.9rem);
+  clip-path: inset(0 0 100% 0);
+}
+.stuck-leave-to {
+  opacity: 0;
 }
 .tools {
   display: flex;

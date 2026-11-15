@@ -10,7 +10,7 @@ const emit = defineEmits<{ close: [] }>()
   <Transition :name="flip ? 'dialog-flip' : 'dialog'">
     <div v-if="open" class="fixed inset-0 z-[900] grid place-items-center" role="dialog" aria-modal="true">
       <div class="backdrop absolute inset-0" :class="{ cover }" @click="emit('close')" />
-      <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip b-${tone ?? 'ink'}` : '']">
+      <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip back-${tone ?? 'ink'}` : '']">
         <div class="band halftone" :class="`b-${tone ?? 'ink'}`"><span class="t-label">{{ label }}</span></div>
         <div class="body">
           <h2 v-if="title" class="t-black title"><span class="mask"><span>{{ title }}</span></span></h2>
@@ -120,13 +120,13 @@ const emit = defineEmits<{ close: [] }>()
 .dialog-flip-leave-to {
   opacity: 0;
 }
-.sheet.flip.b-red {
+.sheet.flip.back-red {
   --bg: var(--color-red);
 }
-.sheet.flip.b-blue {
+.sheet.flip.back-blue {
   --bg: var(--color-blue);
 }
-.sheet.flip.b-yellow {
+.sheet.flip.back-yellow {
   --bg: var(--color-yellow);
 }
 @keyframes card-flip {
