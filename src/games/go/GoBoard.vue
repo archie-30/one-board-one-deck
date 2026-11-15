@@ -19,8 +19,10 @@ const props = withDefaults(
     area?: readonly Point[] | null
     dead?: readonly number[]
     highlights?: readonly number[]
+    /** 悔棋：被提掉又回來的子（從原位冒回來） */
+    revived?: { key: number; points: readonly number[] } | null
   }>(),
-  { lastMove: -2, preview: -1, previewColor: 1, interactive: true, captured: null, area: null, dead: () => [], highlights: () => [] },
+  { revived: null, lastMove: -2, preview: -1, previewColor: 1, interactive: true, captured: null, area: null, dead: () => [], highlights: () => [] },
 )
 const emit = defineEmits<{ pick: [index: number] }>()
 
@@ -91,8 +93,13 @@ const ghost = computed(() => {
 
     <circle v-for="h in highlights" :key="`t${h}`" :cx="px(h)" :cy="py(h)" r="4.8" class="target" />
 
-    <circle v-if="lastMove >= 0" :key="`rip${lastMove}`" :cx="px(lastMove)" :cy="py(lastMove)" r="4.6" class="ripple" />
-    <g v-for="s in stones" :key="s.index" class="stone" :class="{ fresh: s.index === lastMove, dead: deadSet.has(s.index) }">
+    <circle v-if="lastMove >= 0 && !revived" :key="`rip${lastMove}`" :cx="px(lastMove)" :cy="py(lastMove)" r="4.6" class="ripple" />
+    <g
+      v-for="s in stones"
+      :key="revived?.points.includes(s.index) ? `${s.index}-r${revived.key}` : s.index"
+      class="stone"
+      :class="{ fresh: s.index === lastMove && !revived, revive: !!revived?.points.includes(s.index), dead: deadSet.has(s.index) }"
+    >
       <Stone :cx="px(s.index)" :cy="py(s.index)" :r="R" :black="s.color === 1" />
     </g>
     <rect v-if="lastMove >= 0 && !area" :x="px(lastMove) - 1.2" :y="py(lastMove) - 1.2" width="2.4" height="2.4" fill="var(--color-red)" />
@@ -148,6 +155,15 @@ const ghost = computed(() => {
 @keyframes land {
   from {
     transform: scale(1.22, 0.8);
+  }
+}
+.stone.revive {
+  animation: revive 320ms var(--ease-back) both;
+}
+@keyframes revive {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
   }
 }
 .stone.dead {

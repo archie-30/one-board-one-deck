@@ -25,7 +25,7 @@ export interface Seat {
   label: { x: number; y: number; align: 'left' | 'center' | 'right' }
   /** 「過」印章的位置 */
   stamp: { x: number; y: number }
-  /** 這一輪剛出的牌（小張）擺在哪：中心點 */
+  /** 這一輪剛出的牌（小張）擺在哪：中心點（你的在頭像右邊、手牌左邊；左右兩家在名字下面；上家在牌背右邊） */
   last: { x: number; y: number }
 }
 
@@ -53,10 +53,10 @@ export function makeLayout(W: number, H: number): Layout {
     H,
     cw,
     seats: [
-      { kid: { x: cw * 0.8, y: H - 8, w: cw * 0.9 }, label: { x: cw * 0.8, y: H - cw - 12, align: 'center' }, stamp: { x: W / 2, y: H - cw * 1.95 }, last: { x: cw * 0.95, y: H - cw * 1.6 } },
-      { kid: { x: W - cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: W - cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: W - cw * 2.2, y: H * 0.3 }, last: { x: W - cw * 0.85, y: H * 0.4 + cw * 1.05 } },
+      { kid: { x: cw * 0.8, y: H - 8, w: cw * 0.9 }, label: { x: cw * 0.8, y: H - cw - 12, align: 'center' }, stamp: { x: W / 2, y: H - cw * 1.95 }, last: { x: cw * 2.25, y: H - cw * 0.95 } },
+      { kid: { x: W - cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: W - cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: W - cw * 2.2, y: H * 0.3 }, last: { x: W - cw * 1.05, y: H * 0.4 + cw * 1.05 } },
       { kid: { x: W / 2 - cw * 1.75, y: cw * 1.02, w: kw * 0.85 }, label: { x: W / 2 - cw * 2.35, y: cw * 0.3, align: 'right' }, stamp: { x: W / 2 + cw * 0.6, y: cw * 0.95 }, last: { x: W / 2 + cw * 2.55, y: cw * 0.62 } },
-      { kid: { x: cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: cw * 2.2, y: H * 0.3 }, last: { x: cw * 0.85, y: H * 0.4 + cw * 1.05 } },
+      { kid: { x: cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: cw * 2.2, y: H * 0.3 }, last: { x: cw * 1.05, y: H * 0.4 + cw * 1.05 } },
     ],
     pile: { x: W / 2, y: H * 0.42 },
     // 棄牌堆：在 TABLE 框裡的左側（框是 pile ± 3.1 張寬、± 1.25 張寬）

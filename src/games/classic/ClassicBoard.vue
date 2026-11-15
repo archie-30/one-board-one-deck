@@ -30,8 +30,10 @@ const props = withDefaults(
     moveKey?: number
     /** 這一格的棋子能不能拖（沒給就不能拖） */
     canDrag?: ((index: number) => boolean) | null
+    /** 悔棋：這幾步倒著播（棋子從 to 滑回 from，被吃的子在 to 冒回來）；只在 moveKey 等於 plies 時有效 */
+    rewind?: { moves: { from: number; to: number }[]; plies: number; key: number } | null
   }>(),
-  { canDrag: null, flip: false, selected: -1, targets: () => [], lastMove: null, checkSq: -1, hints: () => [], ghost: null, pieceStyle: 'text', interactive: true, moveKey: 0 },
+  { canDrag: null, rewind: null, flip: false, selected: -1, targets: () => [], lastMove: null, checkSq: -1, hints: () => [], ghost: null, pieceStyle: 'text', interactive: true, moveKey: 0 },
 )
 const emit = defineEmits<{ pick: [index: number]; hover: [index: number]; grab: [index: number]; drop: [from: number, to: number] }>()
 
@@ -158,9 +160,21 @@ const drawn = computed(() => {
   if (f < 0) return pieces.value
   return [...pieces.value.filter((x) => x.i !== f), ...pieces.value.filter((x) => x.i === f)]
 })
+/** 悔棋倒帶中（局面還沒再動過） */
+const rewinding = computed(() => (props.rewind && props.rewind.plies === props.moveKey ? props.rewind : null))
+const rewindFrom = (i: number) => rewinding.value?.moves.find((m) => m.from === i) ?? null
+const revived = (i: number) => !!rewinding.value?.moves.some((m) => m.to === i) && !rewindFrom(i)
+function pieceKey(i: number) {
+  if (rewinding.value && (rewindFrom(i) || revived(i))) return `${i}-r${rewinding.value.key}`
+  return i === lastTo.value ? `${i}-${props.moveKey}` : `${i}`
+}
 function pieceTf(i: number) {
   const d = drag.value
   if (d?.moving && d.from === i) return { transform: `translate(${d.dx}px, ${d.dy}px)` }
+  if (rewinding.value) {
+    const m = rewindFrom(i)
+    return m ? { '--dx': `${px(m.to) - px(i)}px`, '--dy': `${py(m.to) - py(i)}px` } : undefined
+  }
   if (i === lastTo.value && props.moveKey !== noSlideKey.value) return { '--dx': `${moveFrom.value.dx}px`, '--dy': `${moveFrom.value.dy}px` }
   return undefined
 }
@@ -230,7 +244,7 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
     </template>
 
     <!-- 上一步：起點與終點淡淡標出 -->
-    <template v-if="lastMove">
+    <template v-if="lastMove && !rewinding">
       <rect v-for="i in [lastMove.from, lastMove.to]" :key="`lm${i}`" :x="px(i) - 4.6" :y="py(i) - 4.6" width="9.2" height="9.2" rx="1" class="last" />
     </template>
     <!-- 教學提示、選起的子、被將軍 -->
@@ -241,9 +255,13 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
     <!-- 棋子 -->
     <g
       v-for="{ p, i } in drawn"
-      :key="i === lastTo ? `${i}-${moveKey}` : `${i}`"
+      :key="pieceKey(i)"
       class="piece"
-      :class="{ moved: i === lastTo && moveKey !== noSlideKey, dragging: drag?.moving && drag.from === i }"
+      :class="{
+        moved: rewinding ? !!rewindFrom(i) : i === lastTo && moveKey !== noSlideKey,
+        revive: !!rewinding && revived(i),
+        dragging: drag?.moving && drag.from === i,
+      }"
       :style="pieceTf(i)"
     >
      <g>
@@ -367,6 +385,18 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
   pointer-events: none;
 }
 /* 拖著的棋子跟著手指走（稍微放大一點，看得出拿起來了） */
+/* 悔棋：被吃掉的子在原位冒回來（等棋子滑回去一點再出現） */
+.piece.revive {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: revive 320ms var(--ease-back) 180ms both;
+}
+@keyframes revive {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
 .piece.dragging {
   animation: none;
 }

@@ -386,8 +386,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <!-- 桌面中央的框 -->
     <!-- 每個人這一輪剛出的牌（小張；一輪結束就清掉） -->
     <template v-for="(seat, p) in layout.seats" :key="`last${p}`">
-      <div v-if="Array.isArray(state.lastMoves[p])" :key="`last${p}-${(state.lastMoves[p] as number[]).join('.')}`" class="last-play pop" :style="{ left: `${seat.last.x}px`, top: `${seat.last.y}px`, '--w': `${layout.cw * 0.55}px` }">
-        <svg v-for="c in (state.lastMoves[p] as number[])" :key="c" viewBox="-2 -2 78 108" class="mini"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" /></svg>
+      <div v-if="Array.isArray(state.lastMoves[p])" :key="`last${p}-${(state.lastMoves[p] as number[]).join('.')}`" class="last-play pop" :style="{ left: `${seat.last.x}px`, top: `${seat.last.y}px`, '--w': `${layout.cw * 0.72}px` }">
+        <svg v-for="c in (state.lastMoves[p] as number[])" :key="c" viewBox="-2 -2 78 108" class="lp-card"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" /></svg>
       </div>
     </template>
     <div class="table-box" :style="{ left: `${layout.pile.x - layout.cw * 3.1}px`, top: `${layout.pile.y - layout.cw * 1.25}px`, width: `${layout.cw * 6.2}px`, height: `${layout.cw * 2.5}px` }">
@@ -502,12 +502,12 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   translate: -50% -50%;
   pointer-events: none;
 }
-.last-play .mini {
+.last-play .lp-card {
   width: var(--w);
   filter: drop-shadow(0.06rem 0.08rem 0 rgb(20 20 20 / 0.5));
 }
-.last-play .mini + .mini {
-  margin-left: calc(var(--w) * -0.5);
+.last-play .lp-card + .lp-card {
+  margin-left: calc(var(--w) * -0.66);
 }
 .table-box {
   position: absolute;

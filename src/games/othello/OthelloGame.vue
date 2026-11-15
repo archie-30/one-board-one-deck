@@ -61,6 +61,9 @@ const moods = ref<[KidMood, KidMood]>(['idle', 'idle'])
 /** 悔棋：每局一次，退回玩家上一步之前的局面 */
 const undoFrom = shallowRef<OthelloState | null>(null)
 const undoUsed = ref(false)
+/** 悔棋時翻回去的子（做翻面動畫）；之後一有人下就清掉 */
+const undoFlip = ref<number[] | null>(null)
+const undoTick = ref(0)
 let rng = seedRng(Date.now())
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
@@ -102,8 +105,8 @@ function pointOnScreen(index: number) {
   return { x: rect.left + (rect.width * (10 + x * 10)) / total, y: rect.top + (rect.height * (10 + y * 10)) / total, d: (rect.width * 7.8) / total }
 }
 
-/** 棋子從 who 的棋罐飛到 index，飛完才真的落子 */
-function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
+/** 棋子從 who 的棋罐飛到 index，飛完才真的落子；back = 反過來從 index 飛回棋罐（悔棋） */
+function fly(who: 0 | 1, index: number, black: boolean, back = false): Promise<void> {
   const el = flier.value
   const bowl = bowlEls.value[who]
   const host = sectionEl.value
@@ -121,14 +124,12 @@ function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
   el.style.height = `${to.d}px`
   el.style.display = 'block'
   flying.value = true
-  const anim = el.animate(
-    [
-      { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(0.9)` },
-      { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2 - lift}px) translate(-50%, -50%) scale(1.4)`, offset: 0.5 },
-      { transform: `translate(${x1}px, ${y1}px) translate(-50%, -50%) scale(1)` },
-    ],
-    { duration: 420, easing: 'cubic-bezier(0.3, 0.6, 0.35, 1)' },
-  )
+  const frames = [
+    { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(0.9)` },
+    { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2 - lift}px) translate(-50%, -50%) scale(1.4)`, offset: 0.5 },
+    { transform: `translate(${x1}px, ${y1}px) translate(-50%, -50%) scale(1)` },
+  ]
+  const anim = el.animate(back ? frames.reverse().map((f, i) => ({ ...f, offset: i / 2 })) : frames, { duration: back ? 380 : 420, easing: 'cubic-bezier(0.3, 0.6, 0.35, 1)' })
   return anim.finished.then(() => {
     el.style.display = 'none'
     flying.value = false
@@ -189,6 +190,7 @@ async function commit(index: number, who: 0 | 1) {
   const r = applyOthello(state.value, { type: 'play', index })
   if (!r.ok) return
   if (who === 0) undoFrom.value = before
+  undoFlip.value = null
   state.value = r.state
   playSound('stone')
   after(before)
@@ -253,6 +255,7 @@ function onTimeout() {
   const r = applyOthello(state.value, { type: 'timeout' })
   if (!r.ok) return
   undoFrom.value = before
+  undoFlip.value = null
   state.value = r.state
   playSound('error')
   after(before)
@@ -260,18 +263,37 @@ function onTimeout() {
 }
 
 const canUndo = computed(() => phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value)
-/** 悔棋：電腦還在想就停下來，局面退回玩家上一步之前 */
-function undo() {
+/** 悔棋：電腦還在想就停下來；剛下的子飛回各自的棋罐（電腦的先回去），被翻過的子再翻回來，局面退回玩家上一步之前 */
+async function undo() {
   if (!canUndo.value || !undoFrom.value) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
-  state.value = undoFrom.value
+  const prev = undoFrom.value
   undoFrom.value = null
   undoUsed.value = true
   preview.value = -1
   message.value = ''
   moods.value = ['idle', 'idle']
-  playSound('stonePick')
+  const cur = state.value
+  const placed: number[] = []
+  const flipped: number[] = []
+  cur.board.forEach((c, i) => {
+    if (c !== 0 && prev.board[i] === 0) placed.push(i)
+    else if (c !== 0 && prev.board[i] !== c) flipped.push(i)
+  })
+  placed.sort((a, b) => (cur.board[a] === ai.value ? 0 : 1) - (cur.board[b] === ai.value ? 0 : 1))
+  for (const idx of placed) {
+    const color = state.value.board[idx]
+    const board = state.value.board.slice()
+    board[idx] = 0
+    state.value = { ...state.value, board, lastMove: -2, lastFlipped: [] }
+    playSound('stonePick')
+    await fly(color === human.value ? 0 : 1, idx, color === 1, true)
+  }
+  undoFlip.value = flipped
+  undoTick.value++
+  state.value = prev
+  if (flipped.length) window.setTimeout(() => playSound('stonePick'), 120)
 }
 
 function confirmMove() {
@@ -328,9 +350,9 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
     <div ref="boardEl" class="board-wrap">
       <OthelloBoard
         :board="state.board"
-        :last-move="state.lastMove"
-        :flipped="state.lastFlipped"
-        :move-key="state.moves"
+        :flipped="undoFlip ?? state.lastFlipped"
+        :last-move="undoFlip ? -1 : state.lastMove"
+        :move-key="state.moves * 100 + undoTick"
         :hints="hints"
         :preview="preview"
         :preview-color="human"
@@ -358,7 +380,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
         </template>
         <template v-else>
           <Btn tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
-          <UndoBtn class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" @undo="undo" />
+          <UndoBtn class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" @undo="void undo()" />
         </template>
       </div>
     </aside>
