@@ -11,6 +11,7 @@ import BigTwoCover from './covers/BigTwoCover.vue'
 import ChessCover from './covers/ChessCover.vue'
 import GoCover from './covers/GoCover.vue'
 import GomokuCover from './covers/GomokuCover.vue'
+import OthelloCover from './covers/OthelloCover.vue'
 import RedPointCover from './covers/RedPointCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
@@ -130,6 +131,19 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./go/GoTutorial.vue')),
     component: defineAsyncComponent(() => import('./go/GoGame.vue')),
     settings: [level(), choice('size', S.go.settings.size, String(GO.size)), timer()],
+  },
+  {
+    id: 'othello',
+    category: 'board',
+    name: S.othello.name,
+    summary: S.othello.summary,
+    players: S.othello.players,
+    cover: OthelloCover,
+    tags: S.othello.tags,
+    rulesIntro: withTimer(S.othello.rules, [...TR.board, TR.othello]),
+    tutorial: defineAsyncComponent(() => import('./othello/OthelloTutorial.vue')),
+    component: defineAsyncComponent(() => import('./othello/OthelloGame.vue')),
+    settings: [level(), timer()],
   },
   {
     id: 'chess',
