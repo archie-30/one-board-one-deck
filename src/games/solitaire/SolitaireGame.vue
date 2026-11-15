@@ -1,19 +1,14 @@
 <script setup lang="ts">
-// 接龍對局：牌桌＋右下的選單、分數、時間、步數，以及提示（扣分）、復原（扣分）、自動收牌、卡關時的選項。
+// 接龍對局：牌桌＋右下的分數、時間、步數，以及返回（扣分）、自動收牌、卡關時的選項。
 // 規則都在引擎（applySolitaire），這裡只管流程、計時與存紀錄。
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
-import type { Card } from '@/engine/bigtwo/cards'
 import {
   applySolitaire,
-  cardsAt,
-  chargeHint,
   finishPlan,
-  hint,
-  HINT_PENALTY,
   isStuck,
   dealSolitaire,
   finalScore,
@@ -23,7 +18,6 @@ import {
   UNDO_PENALTY,
   type SolitaireAction,
   type SolitaireState,
-  type Target,
 } from '@/engine/solitaire/rules'
 import type { GameDef } from '@/games/types'
 import Btn from '@/ui/Btn.vue'
@@ -57,8 +51,6 @@ const finishing = ref(false)
 const state = shallowRef<SolitaireState>(saved ? saved.state : fresh())
 /** 這一局剛發好牌的樣子 */
 let initial: SolitaireState = saved?.initial ?? state.value
-const hintCards = ref<Card[]>([])
-const hintSpot = ref<Target | 'stock' | null>(null)
 const stuckOpen = ref(false)
 const ready = ref(false)
 /** 確定只靠收牌與翻牌堆就能收完：顯示「自動收牌」 */
@@ -112,7 +104,6 @@ function act(action: SolitaireAction) {
   history.push(state.value)
   canUndo.value = true
   state.value = r.state
-  clearHint()
   startClock()
   if (!counted) {
     counted = true
@@ -124,26 +115,6 @@ function act(action: SolitaireAction) {
   else checkStuck()
 }
 
-function clearHint() {
-  hintCards.value = []
-  hintSpot.value = null
-}
-/** 提示：標出一步可以走的牌，並扣分 */
-function showHint() {
-  if (finishing.value || state.value.won) return
-  const h = hint(state.value)
-  if (!h) return checkStuck(true)
-  playSound('tap')
-  state.value = chargeHint(state.value)
-  say(T.hintCost(HINT_PENALTY[state.value.draw]))
-  if (h.type === 'draw') {
-    hintCards.value = []
-    hintSpot.value = 'stock'
-  } else {
-    hintCards.value = cardsAt(state.value, h.from)
-    hintSpot.value = h.to
-  }
-}
 
 /** 卡關：已經沒有能讓局面前進的步，跳出選項 */
 let stuckTimer = 0
@@ -167,7 +138,6 @@ function undo() {
   // 復原要扣分（簡單、困難扣的不一樣）
   state.value = undoTo(history.pop()!, state.value)
   canUndo.value = history.length > 0
-  clearHint()
   say(T.undoCost(UNDO_PENALTY[state.value.draw]))
 }
 
@@ -177,7 +147,6 @@ function autoFinish() {
   const steps = plan.value
   if (!steps || finishing.value) return
   finishing.value = true
-  clearHint()
   let i = 0
   const step = () => {
     const a = steps[i++]
@@ -226,7 +195,6 @@ function restartWith(next: SolitaireState) {
   canUndo.value = false
   seconds.value = 0
   counted = false
-  clearHint()
   ready.value = false
   state.value = next
   initial = next
@@ -261,8 +229,6 @@ const bonus = computed(() => timeBonus(seconds.value))
       :state="state"
       :deal-key="dealKey"
       :interactive="!finishing && !state.won"
-      :hint-cards="hintCards"
-      :hint-spot="hintSpot"
       @action="act"
       @invalid="playSound('error')"
       @ready="ready = true"
@@ -281,7 +247,6 @@ const bonus = computed(() => timeBonus(seconds.value))
           </dl>
           <Btn v-if="plan || finishing" class="pop" tone="yellow" size="sm" block :disabled="finishing || !ready" @click="autoFinish">{{ T.autoFinish }}</Btn>
           <div v-else class="tools">
-            <Btn size="sm" block :disabled="!ready || state.won" @click="showHint">{{ T.hint }}<small class="cost">−{{ HINT_PENALTY[state.draw] }}</small></Btn>
             <Btn size="sm" block :disabled="!ready || !canUndo || state.won" @click="undo">{{ T.undo }}<small class="cost">−{{ UNDO_PENALTY[state.draw] }}</small></Btn>
           </div>
         </div>

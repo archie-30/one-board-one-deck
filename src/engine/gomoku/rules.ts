@@ -212,3 +212,9 @@ export function placeStone(state: GomokuState, index: number): Result<GomokuStat
     },
   }
 }
+
+/** 時間到被跳過：這一手不下，換對方 */
+export function skipTurn(state: GomokuState): GomokuState {
+  if (state.winner !== 0) return state
+  return { ...state, turn: state.turn === 1 ? 2 : 1 }
+}

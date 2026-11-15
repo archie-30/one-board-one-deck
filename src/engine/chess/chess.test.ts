@@ -151,3 +151,24 @@ describe('西洋棋：電腦對手', () => {
     }
   }, 120000)
 })
+
+describe('西洋棋：時間到被跳過', () => {
+  it('這一步不走、換對方，吃過路兵的機會失效', () => {
+    const s = play(createChess(), 'e2e4')
+    expect(s.ep).toBe(at('e3'))
+    const r = applyChess(s, { type: 'timeout' })
+    if (!r.ok) throw new Error(r.reason)
+    expect(r.state.turn).toBe('w')
+    expect(r.state.ep).toBe(-1)
+    expect(r.state.status).toBe('playing')
+    expect(r.state.board).toEqual(s.board)
+  })
+  it('被將軍時逾時：直接算輸', () => {
+    const s = fromBoard('k...r...' + '.'.repeat(48) + '....K...', 'w')
+    expect(inCheck(s, 'w')).toBe(true)
+    const r = applyChess(s, { type: 'timeout' })
+    if (!r.ok) throw new Error(r.reason)
+    expect(r.state.status).toBe('timeout')
+    expect(r.state.winner).toBe('b')
+  })
+})

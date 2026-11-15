@@ -2,7 +2,7 @@
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
@@ -26,6 +26,8 @@ const start = games.value.findIndex((g) => g.id === settings.lastGame[props.cate
 const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 const hoverId = ref<string | null>(null)
+/** 從遊戲退回來：卡片堆不播進場上浮（過場層要量卡片的位置讓卡片飛回去，位置必須一開始就是定位） */
+const returning = launchFx.active && launchFx.mode === 'exit'
 const settingsOpen = ref(false)
 
 /** 難度這類常用設定：直接在這裡選，不用進「規則設定」 */
@@ -80,6 +82,23 @@ onMounted(() => {
   if (deckEl.value) ro.observe(deckEl.value)
 })
 onBeforeUnmount(() => ro?.disconnect())
+
+// ── 停在某張卡片上時，封面的小動畫循環播放：播完停一下 → 收回 → 再播 ──
+const playing = ref(true)
+let loopTimer = 0
+function loopCover() {
+  window.clearTimeout(loopTimer)
+  playing.value = true
+  if (reducedMotion()) return
+  const tick = () => {
+    playing.value = !playing.value
+    loopTimer = window.setTimeout(tick, playing.value ? 2600 : 700)
+  }
+  loopTimer = window.setTimeout(tick, 2600)
+}
+onMounted(loopCover)
+watch(index, loopCover)
+onBeforeUnmount(() => window.clearTimeout(loopTimer))
 
 /** 目前轉到的位置：整數 = 停在某張；拖曳時是小數（往左拖 = 往下一張轉） */
 const pos = computed(() => {
@@ -189,6 +208,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div
           ref="deckEl"
           class="deck"
+          :class="{ settled: returning }"
           role="listbox"
           :aria-activedescendant="`mode-${game.id}`"
           @pointerdown="onDown"
@@ -214,7 +234,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             @pointerenter="$event.pointerType === 'mouse' && (hoverId = g.id)"
             @pointerleave="hoverId = null"
           >
-            <span class="cover halftone"><component :is="g.cover" :active="k === index || hoverId === g.id" /></span>
+            <span class="cover halftone"><component :is="g.cover" :active="(k === index && (playing || dragging)) || hoverId === g.id" /></span>
             <span class="info">
               <span class="t-slab no">{{ pad(k + 1) }}</span>
               <span class="nm t-black">{{ g.name }}</span>
@@ -323,6 +343,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   animation: rise 520ms var(--ease-out) 80ms both;
 }
 /* 3D 透視：兩側的卡片轉個角度往後退 */
+.deck.settled {
+  animation: none;
+}
 .deck {
   perspective: 900px;
   perspective-origin: 50% 45%;

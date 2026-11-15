@@ -255,3 +255,28 @@ describe('大老二：AI', () => {
     expect(run(5)).toEqual(run(5))
   })
 })
+
+describe('大老二：時間到被跳過', () => {
+  const hands = () => createBigTwo([parseCards('C3 D4 H5'), parseCards('C6 D7'), parseCards('S8 H9'), parseCards('CJ DQ')])
+  it('輪到自己首出時逾時：改由下一位首出，梅花 3 的限制取消', () => {
+    const r = applyBigTwo(hands(), { type: 'timeout', player: 0 })
+    if (!r.ok) throw new Error(r.reason)
+    expect(r.state.turn).toBe(1)
+    expect(r.state.table).toBeNull()
+    expect(r.state.firstTurn).toBe(false)
+    expect(r.state.lastMoves[0]).toBe('pass')
+    expect(applyBigTwo(r.state, { type: 'play', player: 1, cards: parseCards('D7') }).ok).toBe(true)
+  })
+  it('桌上有牌時逾時：等於過牌', () => {
+    const s = applyBigTwo(hands(), { type: 'play', player: 0, cards: parseCards('C3') })
+    if (!s.ok) throw new Error(s.reason)
+    const r = applyBigTwo(s.state, { type: 'timeout', player: 1 })
+    if (!r.ok) throw new Error(r.reason)
+    expect(r.state.turn).toBe(2)
+    expect(r.state.passCount).toBe(1)
+    expect(r.state.table?.player).toBe(0)
+  })
+  it('不是自己的回合不能逾時', () => {
+    expect(applyBigTwo(hands(), { type: 'timeout', player: 2 }).ok).toBe(false)
+  })
+})

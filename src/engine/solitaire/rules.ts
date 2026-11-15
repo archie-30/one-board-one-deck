@@ -3,8 +3,8 @@
 //   桌面往下接：顏色紅黑交錯、點數少 1；空的一疊只能放 K。
 //   收牌區 4 疊：每疊固定一種花色（第 n 疊就是花色 n：梅花、方塊、紅心、黑桃），從 A 收到 K。全部收完就過關。
 //   計分（標準計分）：牌堆→桌面 +5、收一張 +10、翻開桌面的牌 +5、收牌區拿回桌面 -15、
-//   牌堆重翻：翻 1 張時第 1 輪之後每次 -100；翻 3 張時前 3 輪免費、之後每次 -20；分數不會低於 0。
-//   不因為時間扣分；過關時才依花的時間給快速過關獎勵（見 finalScore）。復原、提示的扣分記在 penalty。
+//   牌堆重翻：翻 1 張時第 1 輪免費、翻 3 張時前 3 輪免費，之後每次 -15（採用常見計分裡最寬鬆的一種）；分數不會低於 0。
+//   不因為時間扣分；過關時才依花的時間給快速過關獎勵（見 finalScore）。「返回」的扣分記在 penalty。
 import { fullDeck, isRed, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { shuffle, type RngState } from '@/engine/common/rng'
 import type { Result } from '@/engine/common/types'
@@ -44,11 +44,9 @@ export type Target = { pile: 'tableau'; col: number } | { pile: 'foundation'; sl
 export type SolitaireAction = { type: 'draw' } | { type: 'move'; from: Source; to: Target }
 export type SolitaireError = 'won' | 'empty' | 'badSource' | 'illegal'
 
-export const SCORE = { wasteToTableau: 5, toFoundation: 10, flip: 5, fromFoundation: -15, recycle1: -100, recycle3: -20 } as const
+export const SCORE = { wasteToTableau: 5, toFoundation: 10, flip: 5, fromFoundation: -15, recycle: -15 } as const
 /** 按一次「復原」扣的分數：簡單（翻 1 張）扣多一點，困難（翻 3 張）扣少一點 */
 export const UNDO_PENALTY: Record<DrawCount, number> = { 1: 20, 3: 10 }
-/** 看一次「提示」扣的分數 */
-export const HINT_PENALTY: Record<DrawCount, number> = { 1: 15, 3: 10 }
 
 /** 接龍的點數：A = 1 … K = 13 */
 export function valueOf(card: Card): number {
@@ -127,7 +125,7 @@ export function applySolitaire(state: SolitaireState, action: SolitaireAction): 
       s.waste = []
       s.recycles++
       const free = s.draw === 1 ? 1 : 3
-      if (s.recycles > free) s.score = Math.max(0, s.score + (s.draw === 1 ? SCORE.recycle1 : SCORE.recycle3))
+      if (s.recycles > free) s.score = Math.max(0, s.score + SCORE.recycle)
     } else return { ok: false, reason: 'empty' }
     s.moves++
     return { ok: true, state: s }
@@ -173,7 +171,6 @@ export function undoTo(prev: SolitaireState, current: SolitaireState): Solitaire
 }
 
 /** 看提示：記一次扣分 */
-export const chargeHint = (s: SolitaireState): SolitaireState => ({ ...s, penalty: s.penalty + HINT_PENALTY[s.draw] })
 
 /** 收牌區每一疊固定的花色 */
 export const foundationSlot = (card: Card): number => suitOf(card)

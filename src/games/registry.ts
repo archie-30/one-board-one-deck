@@ -13,7 +13,7 @@ import GomokuCover from './covers/GomokuCover.vue'
 import RedPointCover from './covers/RedPointCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
-import type { GameCategory, GameDef, SettingDef } from './types'
+import type { GameCategory, GameDef, RuleSection, SettingDef } from './types'
 
 const toggle = (key: string, text: { label: string; help: string }, def: boolean): SettingDef => ({
   key,
@@ -35,6 +35,10 @@ const choice = (
   choices: Object.entries(text.choices).map(([value, label]) => ({ value, label })),
 })
 
+const timer = () => toggle('timer', S.common.timer, true)
+/** 規則說明最後面加一段「倒數計時」 */
+const TR = S.common.timerRules
+const withTimer = (rules: RuleSection[], body: string[]): RuleSection[] => [...rules, { title: TR.title, body }]
 const bs = S.bigtwo.settings
 const gs = S.gomoku.settings
 
@@ -48,7 +52,7 @@ export const GAMES: GameDef[] = [
     cover: BigTwoCover,
     tags: S.bigtwo.tags,
     best: () => stats.bigtwo.best,
-    rulesIntro: S.bigtwo.rules,
+    rulesIntro: withTimer(S.bigtwo.rules, [...TR.cards, TR.bigtwo]),
     tutorial: defineAsyncComponent(() => import('./bigtwo/BigTwoTutorial.vue')),
     component: defineAsyncComponent(() => import('./bigtwo/BigTwoGame.vue')),
     settings: [
@@ -60,6 +64,7 @@ export const GAMES: GameDef[] = [
       toggle('allowFlush', bs.allowFlush, B.allowFlush),
       toggle('doubleOverTen', bs.doubleOverTen, B.doubleOverTen),
       toggle('doubleTwos', bs.doubleTwos, B.doubleTwos),
+      timer(),
     ],
   },
   {
@@ -71,10 +76,10 @@ export const GAMES: GameDef[] = [
     cover: RedPointCover,
     tags: S.redpoint.tags,
     best: () => stats.redpoint.best,
-    rulesIntro: S.redpoint.rules,
+    rulesIntro: withTimer(S.redpoint.rules, [...TR.cards, TR.redpoint]),
     tutorial: defineAsyncComponent(() => import('./redpoint/RedPointTutorial.vue')),
     component: defineAsyncComponent(() => import('./redpoint/RedPointGame.vue')),
-    settings: [],
+    settings: [timer()],
   },
   {
     id: 'solitaire',
@@ -98,10 +103,10 @@ export const GAMES: GameDef[] = [
     players: S.gomoku.players,
     cover: GomokuCover,
     tags: S.gomoku.tags,
-    rulesIntro: S.gomoku.rules,
+    rulesIntro: withTimer(S.gomoku.rules, [...TR.board]),
     tutorial: defineAsyncComponent(() => import('./gomoku/GomokuTutorial.vue')),
     component: defineAsyncComponent(() => import('./gomoku/GomokuGame.vue')),
-    settings: [toggle('forbidden', gs.forbidden, G.forbidden), toggle('overlineWins', gs.overlineWins, G.overlineWins)],
+    settings: [toggle('forbidden', gs.forbidden, G.forbidden), toggle('overlineWins', gs.overlineWins, G.overlineWins), timer()],
   },
   {
     id: 'go',
@@ -111,10 +116,10 @@ export const GAMES: GameDef[] = [
     players: S.go.players,
     cover: GoCover,
     tags: S.go.tags,
-    rulesIntro: S.go.rules,
+    rulesIntro: withTimer(S.go.rules, [...TR.board, TR.go]),
     tutorial: defineAsyncComponent(() => import('./go/GoTutorial.vue')),
     component: defineAsyncComponent(() => import('./go/GoGame.vue')),
-    settings: [choice('size', S.go.settings.size, String(GO.size))],
+    settings: [choice('size', S.go.settings.size, String(GO.size)), timer()],
   },
   {
     id: 'chess',
@@ -124,10 +129,10 @@ export const GAMES: GameDef[] = [
     players: S.chess.players,
     cover: ChessCover,
     tags: S.chess.tags,
-    rulesIntro: S.chess.rules,
+    rulesIntro: withTimer(S.chess.rules, [...TR.board, TR.check]),
     tutorial: defineAsyncComponent(() => import('./chess/ChessTutorial.vue')),
     component: defineAsyncComponent(() => import('./chess/ChessGame.vue')),
-    settings: [],
+    settings: [timer()],
   },
   {
     id: 'xiangqi',
@@ -137,10 +142,10 @@ export const GAMES: GameDef[] = [
     players: S.xiangqi.players,
     cover: XiangqiCover,
     tags: S.xiangqi.tags,
-    rulesIntro: S.xiangqi.rules,
+    rulesIntro: withTimer(S.xiangqi.rules, [...TR.board, TR.check]),
     tutorial: defineAsyncComponent(() => import('./xiangqi/XiangqiTutorial.vue')),
     component: defineAsyncComponent(() => import('./xiangqi/XiangqiGame.vue')),
-    settings: [choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text')],
+    settings: [choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text'), timer()],
   },
 ]
 

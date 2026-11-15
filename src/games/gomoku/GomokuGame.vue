@@ -9,7 +9,7 @@ import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { chooseGomokuMove } from '@/engine/gomoku/ai'
-import { canPlace, createGomoku, placeStone, toXY, type GomokuOptions, type GomokuState, type Player } from '@/engine/gomoku/rules'
+import { canPlace, createGomoku, placeStone, skipTurn, toXY, type GomokuOptions, type GomokuState, type Player } from '@/engine/gomoku/rules'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
 import Bowl from '@/ui/art/Bowl.vue'
@@ -19,6 +19,8 @@ import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
+import TurnTimer from '@/ui/TurnTimer.vue'
+import { TURN_SECONDS } from '@/data/timer'
 import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
 import GomokuBoard from './GomokuBoard.vue'
@@ -35,6 +37,8 @@ interface Saved {
 }
 
 const options = { ...props.options } as unknown as GomokuOptions
+/** 規則設定的「倒數計時」 */
+const timed = props.options.timer !== false
 const T = S.gomoku
 
 const state = ref<GomokuState>(createGomoku(options))
@@ -199,6 +203,17 @@ function pick(index: number) {
   playSound('stonePick')
 }
 
+/** 時間到：這一手跳過，換對方 */
+function onTimeout() {
+  if (!myTurn.value) return
+  acted.value = true
+  preview.value = -1
+  state.value = skipTurn(state.value)
+  message.value = S.common.timedOut
+  playSound('error')
+  scheduleCpu()
+}
+
 function confirmMove() {
   if (myTurn.value && preview.value >= 0) void commit(preview.value, 0)
 }
@@ -235,6 +250,7 @@ if (props.resume) {
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
+    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
@@ -273,7 +289,7 @@ if (props.resume) {
 
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" @done="startAfterRps" />
+    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
     <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>

@@ -192,6 +192,16 @@ button {
   animation-delay: calc(var(--i, 0) * 60ms);
 }
 
+/* 開機加載畫面還在時，主畫面的進場動畫先停在起點；接手時主畫面的插圖先藏起來（由加載畫面飛過來的那份代替） */
+.booting .rise,
+.booting .mask > span,
+.booting .wipe {
+  animation-play-state: paused;
+}
+.boot-handoff .home .art {
+  visibility: hidden;
+}
+
 /* 遊戲設定裡的「減少動畫」 */
 .reduce-motion *,
 .reduce-motion *::before,

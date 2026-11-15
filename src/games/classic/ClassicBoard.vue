@@ -144,14 +144,12 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
     </template>
     <!-- 教學提示、選起的子、被將軍 -->
     <circle v-for="h in hints" :key="`h${h}`" :cx="px(h)" :cy="py(h)" r="4.9" class="hint" />
-    <rect v-if="selected >= 0" :x="px(selected) - 4.8" :y="py(selected) - 4.8" width="9.6" height="9.6" rx="1.2" class="sel" />
+    <rect v-if="selected >= 0" :key="`sel${selected}`" :x="px(selected) - 4.8" :y="py(selected) - 4.8" width="9.6" height="9.6" rx="1.2" class="sel" />
     <circle v-if="checkSq >= 0" :cx="px(checkSq)" :cy="py(checkSq)" r="4.8" class="check" />
 
     <!-- 棋子 -->
     <g v-for="{ p, i } in pieces" :key="i === lastTo ? `${i}-${moveKey}` : `${i}`" class="piece" :class="{ moved: i === lastTo }" :style="i === lastTo ? { '--dx': `${moveFrom.dx}px`, '--dy': `${moveFrom.dy}px` } : undefined">
-     <g class="lift" :class="{ picked: i === selected }">
-      <!-- 選起時腳下的影子 -->
-      <ellipse v-if="i === selected" :cx="px(i)" :cy="py(i) + (chess ? 3.9 : 3.6)" :rx="chess ? 3.6 : 4" ry="0.9" class="shade" />
+     <g>
       <PieceIcon v-if="chess" :kind="p" :light="isUpper(p)" :x="px(i)" :y="py(i) + 0.2" :size="9.2" :filter="`url(#${haloId})`" />
       <template v-else>
         <circle :cx="px(i) + 0.5" :cy="py(i) + 0.6" r="4.4" fill="var(--color-ink)" />
@@ -215,10 +213,27 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
 .last {
   fill: rgb(255 74 28 / 0.16);
 }
+/* 選起的棋子：棋子本身不動，外框從大縮進來，之後輕輕放大縮小（呼吸） */
 .sel {
   fill: none;
   stroke: var(--color-red);
   stroke-width: 0.8;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation:
+    sel-in 280ms var(--ease-back) both,
+    sel-breathe 1.4s ease-in-out 280ms infinite;
+}
+@keyframes sel-in {
+  from {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+@keyframes sel-breathe {
+  50% {
+    transform: scale(1.08);
+  }
 }
 .check {
   fill: rgb(255 74 28 / 0.4);
@@ -284,37 +299,5 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
 .ghost {
   opacity: 0.8;
   pointer-events: none;
-}
-/* 選起棋子：往上跳一下再停在半空，腳下出現影子 */
-.lift {
-  transform-box: fill-box;
-  transform-origin: 50% 100%;
-  transition: transform 200ms var(--ease-out);
-}
-.lift.picked {
-  animation: hop 380ms var(--ease-back) both;
-}
-@keyframes hop {
-  0% {
-    transform: translateY(0) scale(1);
-  }
-  45% {
-    transform: translateY(-2.6px) scale(1.14, 1.1);
-  }
-  100% {
-    transform: translateY(-1.4px) scale(1.1);
-  }
-}
-.shade {
-  fill: rgb(20 20 20 / 0.35);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: shade-in 380ms var(--ease-out) both;
-}
-@keyframes shade-in {
-  from {
-    opacity: 0;
-    transform: scale(0.5);
-  }
 }
 </style>

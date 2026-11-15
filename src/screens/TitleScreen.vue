@@ -41,9 +41,10 @@ function hover(side: GameCategory, event: PointerEvent) {
 <template>
   <section class="choose home">
     <aside class="intro">
-      <header class="top">
-        <span class="t-label rise">{{ S.title.label }}</span>
-        <span class="t-label rise" style="--i: 1">{{ VERSION.number }}</span>
+      <!-- 招牌：ONE BOARD／ONE DECK 兩行大字 -->
+      <header class="brand t-slab" :aria-label="S.title.label">
+        <span class="mask"><span>{{ S.title.brand[0] }}</span></span>
+        <span class="mask" style="--i: 1"><span class="red">{{ S.title.brand[1] }}</span></span>
       </header>
       <div class="rule wipe" style="--i: 1" />
       <h1 class="t-black big">
@@ -52,6 +53,7 @@ function hover(side: GameCategory, event: PointerEvent) {
       </h1>
       <div class="foot rise" style="--i: 5">
         <IconBtn icon="gear" :label="S.choose.settings" @click="settingsOpen = true" />
+        <span class="t-label ver">{{ VERSION.number }}</span>
       </div>
     </aside>
 
@@ -96,9 +98,19 @@ function hover(side: GameCategory, event: PointerEvent) {
   flex-direction: column;
   padding: 0.9rem 1.2rem 1rem max(1.6rem, env(safe-area-inset-left));
 }
-.top {
+.brand {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  font-size: 1.55rem;
+  line-height: 0.98;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.brand .red {
+  color: var(--color-red);
+}
+.ver {
+  color: var(--color-ink-3);
 }
 .rule {
   height: 0.22rem;

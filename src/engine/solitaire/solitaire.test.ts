@@ -12,7 +12,6 @@ import {
   hint,
   nextFinishMove,
   valueOf,
-  chargeHint,
   finishPlan,
   isStuck,
   scoreOf,
@@ -70,13 +69,13 @@ describe('接龍：翻牌堆', () => {
     expect(r.score).toBe(150)
     expect(r.recycles).toBe(1)
   })
-  it('重翻扣分：翻 1 張第 2 次起每次 -100；翻 3 張前 3 次免費、第 4 次起每次 -20；不低於 0', () => {
+  it('重翻扣分：翻 1 張第 2 次起、翻 3 張第 4 次起，每次 -15；不低於 0', () => {
     const one = { ...empty(1), waste: [P('S3')], score: 150, recycles: 1 }
-    expect(ok(one, { type: 'draw' }).score).toBe(50)
-    expect(ok({ ...one, score: 60 }, { type: 'draw' }).score).toBe(0)
+    expect(ok(one, { type: 'draw' }).score).toBe(135)
+    expect(ok({ ...one, score: 10 }, { type: 'draw' }).score).toBe(0)
     const three = { ...empty(3), waste: [P('S3')], score: 50, recycles: 2 }
     expect(ok(three, { type: 'draw' }).score).toBe(50)
-    expect(ok({ ...three, recycles: 3 }, { type: 'draw' }).score).toBe(30)
+    expect(ok({ ...three, recycles: 3 }, { type: 'draw' }).score).toBe(35)
   })
   it('牌堆和翻出來的都空了：不能再翻', () => {
     expect(applySolitaire(empty(), { type: 'draw' })).toEqual({ ok: false, reason: 'empty' })
@@ -254,11 +253,7 @@ describe('接龍：最後分數', () => {
   })
 })
 
-describe('接龍：提示扣分、自動收牌、卡關', () => {
-  it('看一次提示扣分（簡單 15、困難 10）', () => {
-    expect(chargeHint(empty(1)).penalty).toBe(15)
-    expect(chargeHint(chargeHint(empty(3))).penalty).toBe(20)
-  })
+describe('接龍：提示、自動收牌、卡關', () => {
   it('桌面還有蓋著的牌：不能自動收牌', () => {
     const s = empty()
     s.tableau[0].down = [P('C2')]
