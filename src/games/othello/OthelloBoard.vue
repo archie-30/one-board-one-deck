@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 黑白棋棋盤：8 × 8 鈷藍格子、黑框、右下實心陰影。棋子放在格子中間。
+// 黑白棋棋盤：8 × 8 綠色格子（常見的黑白棋綠）、黑框、右下實心陰影。棋子放在格子中間。
 // 只負責畫與回報點了哪一格：能下的位置（小點）、預覽、上一手、被夾到的子一顆顆翻面（離落點越遠越晚翻）。
 // 座標系：每格 10，邊距 5。
 import { computed, ref } from 'vue'
@@ -75,7 +75,7 @@ const ghost = computed(() => {
 <template>
   <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${total} ${total}`" @click="onClick" @pointermove="onMove" @pointerleave="hoverAt = -1">
     <rect x="2" y="2.4" :width="total - 1" :height="total - 1" fill="var(--color-ink)" />
-    <rect x="0.5" y="0.5" :width="total - 1.6" :height="total - 1.6" fill="var(--color-blue)" stroke="var(--color-ink)" stroke-width="0.9" />
+    <rect x="0.5" y="0.5" :width="total - 1.6" :height="total - 1.6" fill="#2e8b57" stroke="var(--color-ink)" stroke-width="0.9" />
     <g stroke="var(--color-ink)" stroke-width="0.4">
       <line v-for="i in N + 1" :key="`h${i}`" :x1="PAD" :x2="total - PAD" :y1="PAD + (i - 1) * CELL" :y2="PAD + (i - 1) * CELL" />
       <line v-for="i in N + 1" :key="`v${i}`" :y1="PAD" :y2="total - PAD" :x1="PAD + (i - 1) * CELL" :x2="PAD + (i - 1) * CELL" />
