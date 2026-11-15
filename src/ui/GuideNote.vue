@@ -4,6 +4,21 @@ import { S } from '@/data/strings'
 import Icon from './art/Icon.vue'
 
 defineProps<{ step: number; total: number; text: string; ok?: string; solved?: boolean; misses?: number }>()
+
+/**
+ * 把一段說明拆成好讀的幾行：每一句（。！？）一行；冒號後面還有一段說明的，冒號後也換行。
+ * 文字本身不用手動加換行，所有遊戲的教學都一樣。
+ */
+function lines(t: string): string[] {
+  return t
+    .split(/(?<=[。！？])/)
+    .flatMap((s) => {
+      const i = s.indexOf('：')
+      return i > 0 && s.length - i > 10 ? [s.slice(0, i + 1), s.slice(i + 1)] : [s]
+    })
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
 </script>
 
 <template>
@@ -12,8 +27,8 @@ defineProps<{ step: number; total: number; text: string; ok?: string; solved?: b
       <span class="t-label">{{ S.tutorial.title }}</span>
       <span class="t-slab n">{{ String(step + 1).padStart(2, '0') }}<small>/{{ String(total).padStart(2, '0') }}</small></span>
     </div>
-    <p class="text">{{ text }}</p>
-    <p v-if="solved && ok" class="ok rise"><span class="tick"><Icon name="check" /></span>{{ ok }}</p>
+    <p class="text"><span v-for="(l, i) in lines(text)" :key="i" class="ln">{{ l }}</span></p>
+    <p v-if="solved && ok" class="ok rise"><span class="tick"><Icon name="check" /></span><span><span v-for="(l, i) in lines(ok)" :key="i" class="ln">{{ l }}</span></span></p>
     <p v-else-if="misses" :key="misses" class="miss rise">{{ S.tutorial.tryAgain }}</p>
   </div>
 </template>
@@ -40,10 +55,16 @@ defineProps<{ step: number; total: number; text: string; ok?: string; solved?: b
   font-size: 0.65rem;
   opacity: 0.6;
 }
+.ln {
+  display: block;
+}
+.ln + .ln {
+  margin-top: 0.1rem;
+}
 .text {
-  padding: 0.6rem 0.9rem 0;
-  font-size: 0.98rem;
-  line-height: 1.65;
+  padding: 0.5rem 0.9rem 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
   text-wrap: pretty;
 }
 .ok,
