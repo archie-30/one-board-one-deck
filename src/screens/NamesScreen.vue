@@ -1,7 +1,9 @@
 <script setup lang="ts">
-// 幫電腦取名字：20 位對手各一格。改完（離開輸入框或按 Enter）就存；留空＝自動取名；不能跟別人重複。
-import { ref, watch } from 'vue'
+// 幫電腦取名字：20 位對手各一格。改完（離開輸入框或按 Enter）就存；留空＝用預設名字；不能跟別人重複。
+// 恢復預設：有改過的名字，字一個個從下面翻上來換成預設名字（由上往下一格格接著換）。
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { playSound } from '@/core/audio'
+import { reducedMotion } from '@/core/motion'
 import { opponentNames, resetOpponentNames, setOpponentName } from '@/core/names'
 import { NAME_MAX_WIDTH } from '@/data/namePool'
 import { OPPONENTS } from '@/data/names'
@@ -29,10 +31,22 @@ function commit(i: number) {
   } else if (clash.value === i) clash.value = -1
   drafts.value[i] = opponentNames.names[i]
 }
+/** 恢復預設時正在換字的格子（第幾個開始換） */
+const swapping = ref(new Map<number, number>())
+const swapKey = ref(0)
+let swapTimer = 0
 function reset() {
+  const before = opponentNames.names.slice()
   resetOpponentNames()
   clash.value = -1
+  const changed = opponentNames.names.map((n, i) => (n !== before[i] ? i : -1)).filter((i) => i >= 0)
+  if (!changed.length || reducedMotion()) return
+  swapping.value = new Map(changed.map((i, order) => [i, order]))
+  swapKey.value++
+  window.clearTimeout(swapTimer)
+  swapTimer = window.setTimeout(() => (swapping.value = new Map()), changed.length * 60 + 6 * 45 + 420)
 }
+onBeforeUnmount(() => window.clearTimeout(swapTimer))
 </script>
 
 <template>
@@ -43,8 +57,10 @@ function reset() {
           <span class="av"><Avatar :look="o.look" /></span>
           <label class="field">
             <span class="t-label no">{{ String(i + 1).padStart(2, '0') }} · {{ o.tag }}</span>
+            <span class="box">
             <input
               v-model="drafts[i]"
+              :class="{ hide: swapping.has(i) }"
               class="t-black"
               type="text"
               :maxlength="NAME_MAX_WIDTH"
@@ -55,6 +71,11 @@ function reset() {
               @blur="commit(i)"
               @keydown.enter="($event.target as HTMLInputElement).blur()"
             />
+            <!-- 恢復預設：新名字一個字一個字從下面翻上來 -->
+            <span v-if="swapping.has(i)" :key="`sw${swapKey}`" class="swap t-black" aria-hidden="true">
+              <span v-for="(ch, k) in [...opponentNames.names[i]]" :key="k" class="ch" :style="{ '--d': `${swapping.get(i)! * 60 + k * 45}ms` }">{{ ch }}</span>
+            </span>
+            </span>
           </label>
           <span v-if="clash === i" class="warn">{{ S.names.duplicate }}</span>
         </li>
@@ -103,6 +124,10 @@ function reset() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.box {
+  position: relative;
+  display: block;
+}
 input {
   width: 100%;
   border: 0.13rem solid var(--color-ink);
@@ -119,6 +144,30 @@ input:focus {
 input::placeholder {
   color: var(--color-ink-3);
   font-weight: 500;
+}
+input.hide {
+  color: transparent;
+}
+.swap {
+  position: absolute;
+  inset: 0.13rem;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 0 0.32rem;
+  font-size: 1rem;
+  pointer-events: none;
+}
+.ch {
+  display: inline-block;
+  white-space: pre;
+  animation: ch-up 380ms var(--ease-back) var(--d) both;
+}
+@keyframes ch-up {
+  from {
+    opacity: 0;
+    transform: translateY(110%) rotate(8deg);
+  }
 }
 .clash input {
   border-color: var(--color-red);

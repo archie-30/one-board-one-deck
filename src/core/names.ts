@@ -1,5 +1,5 @@
 // 電腦對手的名字：玩家可以自己取（主畫面「幫電腦取名字」）。存檔 obod.names.v1。
-// 規則：20 個名字不能重複；留空就從名字庫抽一個；有不雅字眼的直接換成名字庫的名字（不提示）；長度有上限。
+// 規則：20 個名字不能重複；「恢復預設」回到固定的 20 個預設名字；留空就用那一位的預設名字（被別人用掉了才從名字庫抽）；有不雅字眼的直接換成名字庫的名字（不提示）；長度有上限。
 import { reactive, watch } from 'vue'
 import { BLOCKED_WORDS, NAME_MAX_WIDTH, NAME_POOL } from '@/data/namePool'
 import { OPPONENTS } from '@/data/names'
@@ -55,19 +55,14 @@ export function setOpponentName(i: number, raw: string): SetNameResult {
   const others = new Set(opponentNames.names.filter((_, k) => k !== i))
   let name = cleanName(raw)
   if (name && others.has(name)) return 'duplicate'
-  if (!name || isBlocked(name)) name = draw(others)
+  if (!name || isBlocked(name)) name = others.has(DEFAULTS[i]) ? draw(others) : DEFAULTS[i]
   opponentNames.names[i] = name
   return 'ok'
 }
 
-/** 恢復預設：20 個都從名字庫重新抽（不重複） */
+/** 恢復預設：回到固定的 20 個預設名字 */
 export function resetOpponentNames() {
-  const taken = new Set<string>()
-  opponentNames.names = opponentNames.names.map(() => {
-    const n = draw(taken)
-    taken.add(n)
-    return n
-  })
+  opponentNames.names = DEFAULTS.slice()
 }
 
 export const opponentName = (id: number): string => opponentNames.names[id] ?? DEFAULTS[id]
