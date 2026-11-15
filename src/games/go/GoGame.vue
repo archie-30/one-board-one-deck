@@ -2,7 +2,7 @@
 // 圍棋：你在左、對手在右，中間棋盤。先猜拳決定黑白；棋子從棋罐飛到落點，被提掉的子往上飄走。
 // 雙方連續虛手後進入數地：電腦標出死棋與地盤，你可以點棋子修正，再確認結果。
 import { useGrace } from '@/core/grace'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
@@ -27,6 +27,7 @@ import TurnTimer from '@/ui/TurnTimer.vue'
 import { TURN_SECONDS } from '@/data/timer'
 import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
+import UndoBtn from '@/ui/UndoBtn.vue'
 import GoBoard from './GoBoard.vue'
 
 const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
@@ -40,6 +41,8 @@ interface Saved {
   rng: number
   phase: 'playing' | 'scoring'
   dead: number[]
+  undoFrom?: GoState | null
+  undoUsed?: boolean
 }
 const T = S.go
 /** 規則設定的「倒數計時」 */
@@ -62,6 +65,9 @@ const dead = ref<number[]>([])
 const moods = ref<[Mood, Mood]>(['idle', 'idle'])
 const captured = ref<{ key: number; color: 1 | 2; points: number[] } | null>(null)
 let rng = seedRng(Date.now())
+/** 悔棋：每局一次，退回玩家上一步之前的局面 */
+const undoFrom = shallowRef<GoState | null>(null)
+const undoUsed = ref(false)
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
@@ -137,6 +143,8 @@ function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
 function startAfterRps(playerWins: boolean) {
   human.value = playerWins ? 1 : 2
   state.value = createGo({ size })
+  undoFrom.value = null
+  undoUsed.value = false
   phase.value = 'playing'
   if (!playerWins) scheduleCpu()
 }
@@ -154,6 +162,8 @@ function restart() {
   dead.value = []
   captured.value = null
   moods.value = ['idle', 'idle']
+  undoFrom.value = null
+  undoUsed.value = false
   phase.value = 'rps'
 }
 
@@ -171,8 +181,10 @@ async function act(action: GoAction, who: 0 | 1) {
     await fly(who, action.index, state.value.turn === 1)
   }
   const mover = state.value.turn
+  const before = state.value
   const r = applyGo(state.value, action)
   if (!r.ok) return
+  if (who === 0 && action.type !== 'resign') undoFrom.value = before
   state.value = r.state
   preview.value = -1
   if (action.type === 'play') {
@@ -262,6 +274,22 @@ function pick(index: number) {
   playSound('stonePick')
 }
 
+const canUndo = computed(() => phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value)
+/** 悔棋：電腦還在想就停下來，局面退回玩家上一步之前 */
+function undo() {
+  if (!canUndo.value || !undoFrom.value) return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  state.value = undoFrom.value
+  undoFrom.value = null
+  undoUsed.value = true
+  preview.value = -1
+  message.value = ''
+  captured.value = null
+  moods.value = ['idle', 'idle']
+  playSound('stonePick')
+}
+
 function confirmMove() {
   if (myTurn.value && preview.value >= 0) void act({ type: 'play', index: preview.value }, 0)
 }
@@ -273,7 +301,7 @@ const canSave = computed(() => (phase.value === 'playing' || phase.value === 'sc
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
-  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, phase: phase.value === 'scoring' ? 'scoring' : 'playing', dead: dead.value }
+  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, phase: phase.value === 'scoring' ? 'scoring' : 'playing', dead: dead.value, undoFrom: undoFrom.value, undoUsed: undoUsed.value }
   return data
 }
 function saveAndExit() {
@@ -289,6 +317,8 @@ if (props.resume) {
   opponent.value = opponentById(d.opponent)
   rng = d.rng
   dead.value = d.dead ?? []
+  undoFrom.value = d.undoFrom ?? null
+  undoUsed.value = d.undoUsed ?? false
   phase.value = d.phase
   if (d.phase === 'playing' && state.value.turn === ai.value) scheduleCpu()
 }
@@ -362,6 +392,7 @@ const resultLine = computed(() => {
       <div class="small-acts">
         <Btn size="sm" :tone="passArmed ? 'yellow' : 'plain'" :disabled="!myTurn" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
         <Btn size="sm" :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
+        <UndoBtn :disabled="!canUndo" :used="undoUsed" @undo="undo" />
       </div>
     </aside>
 
@@ -514,6 +545,8 @@ const resultLine = computed(() => {
 }
 .small-acts {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.4rem;
   margin-top: 0.6rem;
 }

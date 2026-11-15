@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 五子棋：你在左、對手在右，中間一張棋盤。棋子從各自的棋罐沿弧線飛到落點，落地時壓扁並泛起墨圈。
 import { useGrace } from '@/core/grace'
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
@@ -25,6 +25,7 @@ import TurnTimer from '@/ui/TurnTimer.vue'
 import { TURN_SECONDS } from '@/data/timer'
 import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
+import UndoBtn from '@/ui/UndoBtn.vue'
 import GomokuBoard from './GomokuBoard.vue'
 
 const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
@@ -36,6 +37,8 @@ interface Saved {
   human: Player
   opponent: number
   rng: number
+  undoFrom?: GomokuState | null
+  undoUsed?: boolean
 }
 
 const options = { ...props.options } as unknown as GomokuOptions
@@ -56,6 +59,9 @@ const resultOpen = ref(false)
 const flying = ref(false)
 const moods = ref<[KidMood, KidMood]>(['idle', 'idle'])
 let rng = seedRng(Date.now())
+/** 悔棋：每局一次，退回玩家上一步之前的局面 */
+const undoFrom = shallowRef<GomokuState | null>(null)
+const undoUsed = ref(false)
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
@@ -132,6 +138,8 @@ function startAfterRps(playerWins: boolean) {
   preview.value = -1
   message.value = ''
   moods.value = ['idle', 'idle']
+  undoFrom.value = null
+  undoUsed.value = false
   phase.value = 'playing'
   if (!playerWins) scheduleCpu()
 }
@@ -146,6 +154,8 @@ function restart() {
   preview.value = -1
   message.value = ''
   moods.value = ['idle', 'idle']
+  undoFrom.value = null
+  undoUsed.value = false
   phase.value = 'rps'
 }
 
@@ -159,9 +169,11 @@ async function commit(index: number, who: 0 | 1) {
   }
   preview.value = -1
   message.value = ''
+  const before = state.value
   await fly(who, index, state.value.turn === 1)
   const result = placeStone(state.value, index)
   if (!result.ok) return
+  if (who === 0) undoFrom.value = before
   state.value = result.state
   playSound('stone')
   if (result.state.winner !== 0) finish()
@@ -212,10 +224,26 @@ function onTimeout() {
   if (!myTurn.value) return
   acted.value = true
   preview.value = -1
+  undoFrom.value = state.value
   state.value = skipTurn(state.value)
   message.value = S.common.timedOut
   playSound('error')
   scheduleCpu()
+}
+
+const canUndo = computed(() => phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value)
+/** 悔棋：電腦還在想就停下來，局面退回玩家上一步之前 */
+function undo() {
+  if (!canUndo.value || !undoFrom.value) return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  state.value = undoFrom.value
+  undoFrom.value = null
+  undoUsed.value = true
+  preview.value = -1
+  message.value = ''
+  moods.value = ['idle', 'idle']
+  playSound('stonePick')
 }
 
 function confirmMove() {
@@ -229,7 +257,7 @@ const canSave = computed(() => phase.value === 'playing' && acted.value)
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
-  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng }
+  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, undoFrom: undoFrom.value, undoUsed: undoUsed.value }
   return data
 }
 function saveAndExit() {
@@ -244,6 +272,8 @@ if (props.resume) {
   human.value = d.human
   opponent.value = opponentById(d.opponent)
   rng = d.rng
+  undoFrom.value = d.undoFrom ?? null
+  undoUsed.value = d.undoUsed ?? false
   phase.value = 'playing'
   if (state.value.turn !== human.value) scheduleCpu()
 }
@@ -288,7 +318,10 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
           <Btn tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
           <Btn class="mt-[0.5rem]" size="sm" icon="book" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
         </template>
-        <Btn v-else tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
+        <template v-else>
+          <Btn tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
+          <UndoBtn class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" @undo="undo" />
+        </template>
       </div>
     </aside>
 
