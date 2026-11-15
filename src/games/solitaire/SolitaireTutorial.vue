@@ -83,12 +83,6 @@ function next() {
   position: relative;
   height: 100%;
 }
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 700;
-}
 .guide {
   position: absolute;
   bottom: 0.8rem;

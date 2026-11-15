@@ -232,12 +232,6 @@ async function next() {
   height: 100%;
   overflow: hidden;
 }
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 700;
-}
 .table-box {
   position: absolute;
   border: 0.14rem solid var(--color-ink);

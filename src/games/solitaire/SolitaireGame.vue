@@ -345,12 +345,6 @@ const bonus = computed(() => timeBonus(seconds.value))
   justify-content: center;
   padding: 0 0.3rem;
 }
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 700;
-}
 /* 跳出來的提示文字：沒有外框、小小的 */
 .toast {
   position: absolute;

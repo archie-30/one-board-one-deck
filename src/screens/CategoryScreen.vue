@@ -179,8 +179,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <section class="mode" :class="`c-${category}`">
+    <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="back()" /></div>
     <header class="head">
-      <IconBtn icon="back" :label="S.common.back" @click="back()" />
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
       <IconBtn icon="gear" :label="S.appSettings.title" @click="settingsOpen = true" />
@@ -270,10 +270,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <style scoped>
 .mode {
+  position: relative;
   display: flex;
   height: 100%;
   flex-direction: column;
-  padding: 0.8rem max(1.6rem, env(safe-area-inset-right)) 1rem max(1.4rem, env(safe-area-inset-left));
+  padding: max(0.7rem, env(safe-area-inset-top)) max(1.6rem, env(safe-area-inset-right)) 1rem max(1.4rem, env(safe-area-inset-left));
 }
 .mode.c-cards {
   --tone: var(--color-red);
@@ -283,8 +284,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .head {
   display: flex;
+  min-height: 2.4rem;
   align-items: center;
   gap: 0.9rem;
+  /* 左邊讓出左上角返回鍵的位置（返回鍵和遊戲裡的選單鍵在同一個地方） */
+  padding-left: calc(0.9rem + 2.4rem + 0.9rem - max(1.4rem, env(safe-area-inset-left)) + max(0.9rem, env(safe-area-inset-left)) - 0.9rem);
 }
 .title {
   font-size: 2rem;

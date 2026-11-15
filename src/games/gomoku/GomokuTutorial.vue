@@ -109,12 +109,6 @@ function next() {
   gap: 1.2rem;
   padding: 0.6rem max(1.2rem, env(safe-area-inset-right)) 0.6rem max(1.2rem, env(safe-area-inset-left));
 }
-.corner {
-  position: absolute;
-  left: max(0.8rem, env(safe-area-inset-left));
-  top: max(0.6rem, env(safe-area-inset-top));
-  z-index: 5;
-}
 .side {
   display: flex;
   width: 8rem;

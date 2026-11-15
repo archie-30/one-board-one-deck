@@ -425,12 +425,6 @@ const resultLine = computed(() => {
   gap: 1.2rem;
   padding: 0.6rem max(1.2rem, env(safe-area-inset-right)) 0.6rem max(1.2rem, env(safe-area-inset-left));
 }
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 5;
-}
 .board-wrap {
   height: 100%;
   aspect-ratio: 1;

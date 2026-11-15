@@ -748,12 +748,6 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 .status.warn {
   color: var(--color-red);
 }
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 700;
-}
 .actions {
   position: absolute;
   right: max(1rem, env(safe-area-inset-right));
