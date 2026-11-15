@@ -1,18 +1,19 @@
 <script setup lang="ts">
 // 圍棋：你在左、對手在右，中間棋盤。先猜拳決定黑白；棋子從棋罐飛到落點，被提掉的子往上飄走。
 // 雙方連續虛手後進入數地：電腦標出死棋與地盤，你可以點棋子修正，再確認結果。
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useGrace } from '@/core/grace'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
-import { asLevel, goAt } from '@/engine/common/difficulty'
+import { asLevel, extraThink, goAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { chooseGoMove } from '@/engine/go/ai'
 import { estimateDead } from '@/engine/go/playout'
-import { applyGo, createGo, groupAt, other, scoreGo, toXY, tryPlay, type Color, type GoAction, type GoSize, type GoState } from '@/engine/go/rules'
+import { applyGo, createGo, groupAt, other, resumeGo, scoreGo, toXY, tryPlay, type Color, type GoAction, type GoSize, type GoState } from '@/engine/go/rules'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
 import Bowl from '@/ui/art/Bowl.vue'
@@ -26,6 +27,7 @@ import TurnTimer from '@/ui/TurnTimer.vue'
 import { TURN_SECONDS } from '@/data/timer'
 import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
+import UndoBtn from '@/ui/UndoBtn.vue'
 import GoBoard from './GoBoard.vue'
 
 const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
@@ -39,6 +41,9 @@ interface Saved {
   rng: number
   phase: 'playing' | 'scoring'
   dead: number[]
+  aiDead?: number[]
+  undoFrom?: GoState | null
+  undoUsed?: boolean
 }
 const T = S.go
 /** 規則設定的「倒數計時」 */
@@ -58,9 +63,15 @@ const resultOpen = ref(false)
 const resignOpen = ref(false)
 const flying = ref(false)
 const dead = ref<number[]>([])
+/** 對方（電腦）判斷的死棋；你標的比這個對你更有利時，對方不同意 */
+const aiDead = ref<number[]>([])
+const disputed = ref(false)
 const moods = ref<[Mood, Mood]>(['idle', 'idle'])
 const captured = ref<{ key: number; color: 1 | 2; points: number[] } | null>(null)
 let rng = seedRng(Date.now())
+/** 悔棋：每局一次，退回玩家上一步之前的局面 */
+const undoFrom = shallowRef<GoState | null>(null)
+const undoUsed = ref(false)
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
@@ -136,6 +147,8 @@ function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
 function startAfterRps(playerWins: boolean) {
   human.value = playerWins ? 1 : 2
   state.value = createGo({ size })
+  undoFrom.value = null
+  undoUsed.value = false
   phase.value = 'playing'
   if (!playerWins) scheduleCpu()
 }
@@ -153,6 +166,8 @@ function restart() {
   dead.value = []
   captured.value = null
   moods.value = ['idle', 'idle']
+  undoFrom.value = null
+  undoUsed.value = false
   phase.value = 'rps'
 }
 
@@ -170,8 +185,10 @@ async function act(action: GoAction, who: 0 | 1) {
     await fly(who, action.index, state.value.turn === 1)
   }
   const mover = state.value.turn
+  const before = state.value
   const r = applyGo(state.value, action)
   if (!r.ok) return
+  if (who === 0 && action.type !== 'resign') undoFrom.value = before
   state.value = r.state
   preview.value = -1
   if (action.type === 'play') {
@@ -208,13 +225,13 @@ function flash(who: 0 | 1, mood: Mood) {
 
 function scheduleCpu() {
   moods.value = [moods.value[0], 'think']
-  const st = goAt(opponent.value.persona.go, level)
+  const st = goAt(opponent.value.persona.go, level, opponent.value.id)
   later(() => {
     let a: GoAction
     ;[a, rng] = chooseGoMove(state.value, st, rng)
     moods.value = [moods.value[0], 'idle']
     void act(a, 1)
-  }, 650 + st.skill * 500 + Math.random() * 500)
+  }, 650 + st.skill * 500 + extraThink(level) + Math.random() * 500)
 }
 
 function endGame() {
@@ -223,11 +240,47 @@ function endGame() {
   // 先讓畫面顯示「開始算地」，再做比較花時間的死棋判斷
   later(() => {
     ;[dead.value, rng] = estimateDead(state.value, rng)
+    aiDead.value = dead.value
+    disputed.value = false
     phase.value = 'scoring'
   }, 450)
 }
 
+/** 從你的角度看領先幾子 */
+const lead = (marks: readonly number[]) => {
+  const sc = scoreGo(state.value, marks)
+  return human.value === 1 ? sc.black - sc.white : sc.white - sc.black
+}
+/** 確認結果：你標的死活對你比較有利，對方就不同意，要繼續下完來證明 */
+function confirmScore() {
+  if (lead(dead.value) > lead(aiDead.value) + 0.01) {
+    disputed.value = true
+    message.value = T.disagree(opponent.value.name)
+    moods.value = ['idle', 'shock']
+    playSound('error')
+    return
+  }
+  finish()
+}
+/** 有爭議時改照對方的判斷結算 */
+function acceptOpponent() {
+  dead.value = aiDead.value
+  finish()
+}
+/** 回到對局繼續下（由對方先下） */
+function resumePlay() {
+  state.value = resumeGo(state.value, ai.value)
+  dead.value = []
+  aiDead.value = []
+  disputed.value = false
+  message.value = T.resumed(opponent.value.name)
+  moods.value = ['idle', 'idle']
+  phase.value = 'playing'
+  scheduleCpu()
+}
+
 function finish() {
+  message.value = ''
   phase.value = 'over'
   const win = score.value.winner === human.value
   if (win) stats.go.wins++
@@ -246,6 +299,8 @@ function pick(index: number) {
     const isDead = set.has(index)
     for (const s of g) isDead ? set.delete(s) : set.add(s)
     dead.value = [...set]
+    disputed.value = false
+    if (message.value) message.value = ''
     playSound('stonePick')
     return
   }
@@ -261,6 +316,22 @@ function pick(index: number) {
   playSound('stonePick')
 }
 
+const canUndo = computed(() => phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value)
+/** 悔棋：電腦還在想就停下來，局面退回玩家上一步之前 */
+function undo() {
+  if (!canUndo.value || !undoFrom.value) return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  state.value = undoFrom.value
+  undoFrom.value = null
+  undoUsed.value = true
+  preview.value = -1
+  message.value = ''
+  captured.value = null
+  moods.value = ['idle', 'idle']
+  playSound('stonePick')
+}
+
 function confirmMove() {
   if (myTurn.value && preview.value >= 0) void act({ type: 'play', index: preview.value }, 0)
 }
@@ -272,7 +343,7 @@ const canSave = computed(() => (phase.value === 'playing' || phase.value === 'sc
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
-  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, phase: phase.value === 'scoring' ? 'scoring' : 'playing', dead: dead.value }
+  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, phase: phase.value === 'scoring' ? 'scoring' : 'playing', dead: dead.value, aiDead: aiDead.value, undoFrom: undoFrom.value, undoUsed: undoUsed.value }
   return data
 }
 function saveAndExit() {
@@ -288,9 +359,13 @@ if (props.resume) {
   opponent.value = opponentById(d.opponent)
   rng = d.rng
   dead.value = d.dead ?? []
+  aiDead.value = d.aiDead ?? d.dead ?? []
+  undoFrom.value = d.undoFrom ?? null
+  undoUsed.value = d.undoUsed ?? false
   phase.value = d.phase
   if (d.phase === 'playing' && state.value.turn === ai.value) scheduleCpu()
 }
+const grace = useGrace(props.options, state, () => state.value.turn === human.value)
 // 虛手要按兩次：第一次按下變成「再按一次虛手」，2.5 秒內再按才真的虛手
 const passArmed = ref(false)
 let passTimer = 0
@@ -347,7 +422,7 @@ const resultLine = computed(() => {
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
-    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying && !(grace && state.turn === human)" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
@@ -360,6 +435,7 @@ const resultLine = computed(() => {
       <div class="small-acts">
         <Btn size="sm" :tone="passArmed ? 'yellow' : 'plain'" :disabled="!myTurn" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
         <Btn size="sm" :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
+        <UndoBtn :disabled="!canUndo" :used="undoUsed" @undo="undo" />
       </div>
     </aside>
 
@@ -391,7 +467,11 @@ const resultLine = computed(() => {
         <p class="hint">{{ phase === 'scoring' ? T.scoringLead : myTurn && !message ? T.previewHint : '' }}</p>
       </div>
       <div class="act">
-        <Btn v-if="phase === 'scoring'" tone="red" size="lg" arrow block @click="finish">{{ T.confirm }}</Btn>
+        <template v-if="phase === 'scoring'">
+          <Btn v-if="disputed" tone="red" block @click="resumePlay">{{ T.resume }}</Btn>
+          <Btn v-else tone="red" size="lg" arrow block @click="confirmScore">{{ T.confirm }}</Btn>
+          <Btn class="mt-[0.5rem]" size="sm" block @click="disputed ? acceptOpponent() : resumePlay()">{{ disputed ? T.byOpponent : T.resume }}</Btn>
+        </template>
         <Btn v-else-if="phase === 'over'" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
         <Btn v-else tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
       </div>
@@ -399,7 +479,7 @@ const resultLine = computed(() => {
 
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" />
+    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
     <Dialog :open="resignOpen" :title="T.resignAsk" :label="game.name" @close="resignOpen = false">
       <template #actions>
@@ -512,6 +592,8 @@ const resultLine = computed(() => {
 }
 .small-acts {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.4rem;
   margin-top: 0.6rem;
 }

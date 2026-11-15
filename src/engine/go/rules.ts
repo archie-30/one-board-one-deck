@@ -179,6 +179,15 @@ export interface GoScore {
 }
 
 /** 數子法計分。dead 是要當作死棋提掉的子 */
+/**
+ * 數地時對死活有爭議：照中國規則，繼續下完來證明（數子法把死棋提掉不會吃虧）。
+ * 回到對局、連續虛手歸零，由 first 先下。
+ */
+export function resumeGo(state: GoState, first: Color): GoState {
+  if (state.resigned) return state
+  return { ...state, phase: 'play', passes: 0, turn: first, lastCaptured: [] }
+}
+
 export function scoreGo(state: GoState, dead: readonly number[] = []): GoScore {
   const { size } = state
   const board = state.board.slice()

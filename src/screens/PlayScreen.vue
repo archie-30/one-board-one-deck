@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // 對局外框：開始前先看有沒有「保存進度並退出」留下的存檔。
 // 有的話先問要不要接著玩；遊戲要保存時，把它給的資料存起來再離開。
-import { settings } from '@/core/settings'
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { gamePrefs, settings } from '@/core/settings'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { revealLaunch, startExit } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { back } from '@/core/nav'
+import { GRACE_AFTER_MS } from '@/core/grace'
 import { clearResume, flushResume, getResume, setResume } from '@/core/resume'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
@@ -18,6 +19,15 @@ const game = getGame(props.gameId)
 const saved = getResume(props.gameId)
 
 const options = ref(resolveOptions(game))
+// 暫停選單裡改了「不影響公平」的選項（例如棋子樣式）：馬上套用到這一局；其他選項要下一局才生效
+watch(
+  () => gamePrefs(game.id).options,
+  () => {
+    const now = resolveOptions(game)
+    for (const d of game.settings) if (d.live && options.value[d.key] !== now[d.key]) options.value = { ...options.value, [d.key]: now[d.key] }
+  },
+  { deep: true },
+)
 const resume = ref<unknown>(null)
 const ready = ref(!saved)
 
@@ -25,7 +35,7 @@ const when = saved ? new Date(saved.savedAt).toLocaleString('zh-TW', { month: 'n
 
 function continueSaved() {
   if (!saved) return
-  options.value = { ...options.value, ...saved.options }
+  options.value = { ...options.value, ...saved.options, graceFirst: Date.now() - saved.savedAt > GRACE_AFTER_MS }
   resume.value = saved.data
   clearResume(props.gameId)
   ready.value = true
@@ -41,7 +51,7 @@ function autoPause() {
   if (!g || leaving || !settings.autoPause) return
   g.pause?.()
   const data = g.snapshot?.() ?? null
-  if (data) setResume(props.gameId, data, options.value)
+  if (data) setResume(props.gameId, data, keep())
   else clearResume(props.gameId)
   flushResume()
 }
@@ -62,8 +72,13 @@ onBeforeUnmount(() => {
 // 對局畫面（或「要不要接著玩」的對話框）出現後，揭開進入遊戲的過場
 onMounted(() => requestAnimationFrame(() => requestAnimationFrame(revealLaunch)))
 
+/** 存檔時不留「第一步不限時」的記號（下次接著玩再依存檔時間決定） */
+function keep() {
+  const { graceFirst: _, ...rest } = options.value
+  return rest
+}
 function onSave(data: unknown) {
-  setResume(props.gameId, data, options.value)
+  setResume(props.gameId, data, keep())
   void leave(true)
 }
 

@@ -7,6 +7,7 @@ defineProps<{ name: IconName }>()
 <template>
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">
     <path v-if="name === 'back'" d="M10 5 3 12l7 7M3.5 12H21" />
+    <path v-else-if="name === 'home'" d="M3 11.5 12 4l9 7.5M5.5 9.5V20h5v-5.5h3V20h5V9.5" />
     <path v-else-if="name === 'arrow'" d="M14 5l7 7-7 7M20.5 12H3" />
     <path v-else-if="name === 'menu'" d="M3 6h18M3 12h18M3 18h12" />
     <path v-else-if="name === 'close'" d="M5 5l14 14M19 5 5 19" />

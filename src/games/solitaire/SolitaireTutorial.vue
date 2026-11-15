@@ -56,7 +56,7 @@ function next() {
   <section class="st">
     <SolitaireTable :state="state" :deal-key="dealKey" :deal-in="false" :interactive="!solved && !finished" :hint-cards="hinted.cards" :hint-spot="hinted.spot" @action="act" @invalid="misses++">
       <template #default="{ layout: L }">
-        <div class="guide" :style="{ left: `${L.cols[0].x - L.cw / 2}px`, width: `${L.cols[6].x - L.cols[0].x + L.cw}px`, top: `${L.cols[0].y + L.ch * 1.55}px` }">
+        <div class="guide" :style="{ left: `${L.cols[0].x - L.cw / 2}px`, width: `${L.cols[6].x - L.cols[0].x + L.cw}px` }">
           <div class="note">
             <GuideNote v-if="!finished" :step="step" :total="SOL_LESSONS.length" :text="text.text" :ok="text.ok" :solved="solved" :misses="misses" />
             <div v-else>

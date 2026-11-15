@@ -21,6 +21,9 @@ const STRAIGHT_RANKS: number[][] = [
   ...Array.from({ length: 8 }, (_, i) => [i, i + 1, i + 2, i + 3, i + 4]),
 ]
 
+/** 小順（三張連號）可能的點數組合 */
+const SMALL_STRAIGHT_RANKS: number[][] = [[RANK_A, RANK_2, 0], [RANK_2, 0, 1], ...Array.from({ length: 10 }, (_, i) => [i, i + 1, i + 2])]
+
 /** 列出手牌能組出的所有合法牌型 */
 export function listCombos(hand: readonly Card[], opts: BigTwoOptions): Combo[] {
   const byRank = new Map<number, Card[]>()
@@ -51,6 +54,15 @@ export function listCombos(hand: readonly Card[], opts: BigTwoOptions): Combo[] 
     let partial: Card[][] = [[]]
     for (const g of groups) partial = partial.flatMap((p) => g.map((c) => [...p, c]))
     for (const cards of partial) push(cards)
+  }
+  if (opts.allowSmallStraight) {
+    for (const ranks of SMALL_STRAIGHT_RANKS) {
+      const groups = ranks.map((r) => byRank.get(r) ?? [])
+      if (groups.some((g) => g.length === 0)) continue
+      let partial: Card[][] = [[]]
+      for (const g of groups) partial = partial.flatMap((p) => g.map((c) => [...p, c]))
+      for (const cards of partial) push(cards)
+    }
   }
   if (opts.allowFlush) {
     for (let suit = 0; suit < 4; suit++) {

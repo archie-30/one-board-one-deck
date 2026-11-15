@@ -3,7 +3,8 @@
 // hot：特別的那一格（例如難度「挑戰」），選中時改塗朱紅到橘色的漸層
 import { playSound } from '@/core/audio'
 
-defineProps<{ choices: { value: string; label: string }[]; value: string; hot?: string }>()
+// even：每格一樣寬，字太長就在格子裡換行（選項文字很長時用，不會一格被擠到下一排）
+defineProps<{ choices: { value: string; label: string }[]; value: string; hot?: string; even?: boolean }>()
 const emit = defineEmits<{ change: [value: string] }>()
 function pick(v: string) {
   playSound('tap')
@@ -12,7 +13,7 @@ function pick(v: string) {
 </script>
 
 <template>
-  <div class="tabs" role="radiogroup">
+  <div class="tabs" :class="{ even }" :style="even ? { gridTemplateColumns: `repeat(${choices.length}, 1fr)` } : undefined" role="radiogroup">
     <button v-for="c in choices" :key="c.value" class="tab" :class="{ on: c.value === value, hot: c.value === hot }" role="radio" :aria-checked="c.value === value" @click="c.value !== value && pick(c.value)">
       <span class="fill" />
       <span class="relative">{{ c.label }}</span>
@@ -41,6 +42,15 @@ function pick(v: string) {
 }
 .tab:last-child {
   border-right: 0;
+}
+.tabs.even {
+  display: grid;
+}
+.even .tab {
+  white-space: normal;
+  line-height: 1.3;
+  padding: 0.35rem 0.5rem;
+  text-align: center;
 }
 .fill {
   position: absolute;

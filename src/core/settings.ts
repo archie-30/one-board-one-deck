@@ -29,6 +29,7 @@ interface Stats {
   solitaire: { played: number; wins: number; best: number; fastest: number; bestBy: Record<string, number> }
   chess: { wins: number; losses: number; draws: number }
   xiangqi: { wins: number; losses: number; draws: number }
+  othello: { wins: number; losses: number; draws: number }
 }
 
 export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true }))
@@ -41,6 +42,7 @@ const STATS_DEFAULT: Stats = {
   solitaire: { played: 0, wins: 0, best: 0, fastest: 0, bestBy: {} },
   chess: { wins: 0, losses: 0, draws: 0 },
   xiangqi: { wins: 0, losses: 0, draws: 0 },
+  othello: { wins: 0, losses: 0, draws: 0 },
 }
 
 export const stats = reactive(loadSave<Stats>('stats', structuredClone(STATS_DEFAULT)))

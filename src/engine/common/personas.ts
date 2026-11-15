@@ -35,6 +35,8 @@ export interface GomokuStyle {
   center: number
   /** 0～1：漏看對手「下一手就贏」的機率 */
   blind: number
+  /** 先試下前幾名、看對手最好的回應再決定（0 = 不看對手怎麼回）；沒填是 0 */
+  look?: number
 }
 
 /** 撿紅點的打法 */
@@ -73,6 +75,30 @@ export interface ChessStyle {
   noise: number
   /** 0～1：隨手走一步的機率 */
   blunder: number
+  /** 算到最後一層後，還要把吃來吃去算完幾步（0 = 不算，常常看不到對方吃回來）；沒填是 3 */
+  quiet?: number
+  /** 一步最多想多少個局面；沒填是 60000 */
+  nodes?: number
+}
+
+/** 黑白棋的打法 */
+export interface OthelloStyle {
+  /** 往後算幾步 */
+  depth: number
+  /** 0～1：看重搶角、不碰角旁邊的程度 */
+  corner: number
+  /** 0～1：看重「自己能下的地方比對方多」 */
+  mobility: number
+  /** 0～1：貪心，想一次翻很多子 */
+  greed: number
+  /** 0～1：在差不多好的幾步裡隨機挑的程度 */
+  noise: number
+  /** 0～1：隨手下一步的機率 */
+  blunder: number
+  /** 剩下幾個空格以內直接算到底（0 = 不算） */
+  solve?: number
+  /** 一步最多想多少個局面；沒填是 40000 */
+  nodes?: number
 }
 
 export interface Persona {
@@ -81,13 +107,14 @@ export interface Persona {
   redpoint: RedPointStyle
   go: GoStyle
   chess: ChessStyle
+  othello: OthelloStyle
 }
 
 /**
  * 撿紅點與圍棋的打法由同一個人的個性推出來，所以 20 位對手在每款遊戲都各不相同：
  * 大老二的「會不會算、衝動、手滑」對應撿紅點；五子棋的「攻守、隨機、看不看得懂」對應圍棋。
  */
-function derive(bigtwo: BigTwoStyle, gomoku: GomokuStyle): Pick<Persona, 'redpoint' | 'go' | 'chess'> {
+function derive(bigtwo: BigTwoStyle, gomoku: GomokuStyle): Pick<Persona, 'redpoint' | 'go' | 'chess' | 'othello'> {
   const clamp = (v: number) => Math.max(0, Math.min(1, v))
   return {
     redpoint: { skill: bigtwo.skill, greed: clamp(bigtwo.aggression * 0.8 + (1 - bigtwo.hoard) * 0.2), blunder: bigtwo.blunder },
@@ -105,6 +132,15 @@ function derive(bigtwo: BigTwoStyle, gomoku: GomokuStyle): Pick<Persona, 'redpoi
       safety: clamp(gomoku.defense - 0.3),
       noise: clamp(gomoku.noise * 0.8),
       blunder: clamp(bigtwo.blunder * 1.5 + gomoku.blind),
+    },
+    // 黑白棋：會算的人看重位置與行動力，衝動的人愛一次翻很多子
+    othello: {
+      depth: bigtwo.skill >= 0.75 ? 3 : bigtwo.skill >= 0.4 ? 2 : 1,
+      corner: clamp(0.3 + bigtwo.skill * 0.5 + (gomoku.defense - 1) * 0.3),
+      mobility: clamp(bigtwo.skill * 0.8 + bigtwo.hoard * 0.2),
+      greed: clamp(bigtwo.aggression * 0.6 + (1 - bigtwo.skill) * 0.4),
+      noise: clamp(gomoku.noise * 0.8),
+      blunder: clamp(bigtwo.blunder * 1.5),
     },
   }
 }

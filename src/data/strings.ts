@@ -7,6 +7,7 @@ export const S = {
     rotate: '請把裝置轉成橫向',
   },
   common: {
+    home: '回到主畫面',
     /** 規則設定裡的「倒數計時」開關（牌類、棋類共用） */
     timer: {
       label: '倒數計時',
@@ -27,6 +28,7 @@ export const S = {
         '時間到還沒出，這一手就直接跳過，換下一位。',
         '可以在「規則設定」裡把倒數計時關掉。',
       ],
+      othello: '黑白棋：被跳過就換對方下；如果對方沒地方下，就再輪到你。',
       bigtwo: '大老二：桌上有牌時被跳過等於過牌；輪到你首出時被跳過，改由下一位首出（第一手要有梅花 3 的限制也取消）。',
       redpoint: '撿紅點：出牌時被跳過＝這一回合不出牌也不翻牌；翻牌時還沒選要吃哪張就時間到，翻出的牌留在桌上不吃。',
       board: [
@@ -47,7 +49,10 @@ export const S = {
     restart: '重新開始',
     quit: '離開對局',
     quitNoSave: '離開並認輸',
-    quitConfirm: '再按一次認輸離開',
+    quitConfirm: '再按一次確認',
+    undo: '悔棋',
+    undoConfirm: '再按一次悔棋',
+    undoUsed: '已悔過棋',
     viewBoard: '查看棋盤',
     showResult: '看結果',
     saveExit: '保存進度並退出',
@@ -83,9 +88,17 @@ export const S = {
     cardsTag: '01 — CARDS',
     boardTag: '02 — BOARD',
     cardsLead: '大老二、撿紅點、接龍',
-    boardLead: '五子棋、圍棋、西洋棋、象棋',
+    boardLead: '五子棋、圍棋、黑白棋、西洋棋、象棋',
     again: '再點一下進入',
     settings: '設定',
+  },
+  names: {
+    open: '幫電腦取名字',
+    title: '幫電腦取名字',
+    auto: '留空＝自動取名',
+    duplicate: '名字重複了，換一個吧',
+    reset: '恢復預設',
+    note: '改完就自動存。留空的會自動取名；恢復預設會重新取一輪名字。',
   },
   category: {
     cards: { title: '撲克牌', lead: '一副 52 張的牌。' },
@@ -138,6 +151,10 @@ export const S = {
     backApply: '返回並套用',
     reset: '恢復預設',
     note: '改動會從下一局開始套用。',
+    groups: { rules: '規則', score: '計分', other: '其他' },
+    /** 暫停選單裡：會影響這一局公平的選項 */
+    lockedNow: '請在局外設定',
+    liveNote: '反灰的選項會影響這一局的公平，請在局外（模式選單的「規則設定」）調整。',
   },
   rules: {
     title: '規則說明',
@@ -165,6 +182,80 @@ export const S = {
     play: '開始對局',
   },
 
+  othello: {
+    name: '黑白棋',
+    summary: '夾住對方的棋子翻成自己的顏色，最後子多的人獲勝。',
+    players: '你 對 1 位對手',
+    tags: ['2 人', '約 8 分鐘'],
+    black: '黑棋',
+    white: '白棋',
+    yourTurn: '輪到你',
+    cpuTurn: (name: string) => `${name}思考中…`,
+    place: '落子',
+    resultLabel: 'GAME OVER',
+    previewHint: '點有小點的格子，再按「落子」',
+    skipped: (name: string) => `${name}沒地方下，輪空一次`,
+    win: '你贏了',
+    lose: (name: string) => `${name}贏了`,
+    draw: '和局',
+    resultLead: (b: number, w: number) => `黑 ${b} 子　白 ${w} 子`,
+    record: (w: number, l: number, d: number) => `累計　勝 ${w}　負 ${l}　和 ${d}`,
+    errors: {
+      occupied: '這裡已經有棋子了',
+      noFlip: '這裡夾不到對方的棋子，不能下',
+      over: '這一局已經結束',
+      out: '不能下在棋盤外',
+    },
+    rules: [
+      {
+        title: '怎麼玩',
+        body: [
+          '棋盤是 8 × 8 的格子，棋子下在格子裡。一開始中間放好黑白各兩顆。',
+          '每一局開始前先和對手猜拳，贏的人拿黑棋先下，之後輪流。',
+          '下的棋子要和自己另一顆棋子，把對方的棋子「夾」在中間（橫、直、斜都可以，中間不能有空格）。夾到的棋子全部翻成你的顏色。',
+          '一顆都夾不到的地方不能下。輪到你時，能下的格子會出現小點。',
+        ],
+      },
+      {
+        title: '輪空與結束',
+        body: [
+          '輪到你卻沒有任何地方能下，就自動輪空，換對方下。',
+          '雙方都沒地方下（通常是棋盤下滿了），這局就結束。',
+          '數棋子，子多的人贏；一樣多就是和局。',
+        ],
+      },
+      {
+        title: '小訣竅',
+        body: [
+          '四個角最重要：角上的棋子永遠不會被翻回去。',
+          '角旁邊的格子（尤其是斜對角那一格）很危險，下了常常會把角送給對方。',
+          '一開始不必急著翻很多子，讓自己「能下的地方」比對方多，比較容易贏。',
+        ],
+      },
+      {
+        title: '操作',
+        body: ['點一下有小點的格子是「預覽」，位置對了再按「落子」，或再點一次同一格。'],
+      },
+    ],
+    tutorial: [
+      {
+        text: '黑棋先下。下的棋子要和自己的棋子把白棋夾在中間。點發亮的格子，再按「落子」。',
+        ok: '夾在中間的白棋翻成黑的了。',
+      },
+      {
+        text: '一次可以往好幾個方向夾。找出能同時翻兩個方向的位置。',
+        ok: '橫的、斜的一起翻過來了。',
+      },
+      {
+        text: '角最重要：角上的棋子永遠不會被翻回去。把角搶下來。',
+        ok: '搶到角了。要小心別下在角旁邊，把角送給對方。',
+      },
+      {
+        text: '夾不到任何棋子的地方不能下。只有出現小點的格子可以下，試著下一手。',
+        ok: '沒地方下時會自動輪空；雙方都沒地方下就結束，子多的人贏。',
+      },
+    ],
+  },
   gomoku: {
     name: '五子棋',
     summary: '先把五顆棋連成一線的人獲勝。',
@@ -270,7 +361,6 @@ export const S = {
     record: (rounds: number, wins: number, total: number) => `打了 ${rounds} 局　贏 ${wins} 局　總分 ${total > 0 ? '+' : ''}${total}`,
     play: '出牌',
     pass: '過牌',
-    passConfirm: '再按一次過牌',
     passed: '過',
     yourTurn: '輪到你',
     yourLead: '輪到你，可以出任何牌型',
@@ -282,6 +372,7 @@ export const S = {
       single: '單張',
       pair: '對子',
       triple: '三條',
+      smallStraight: '小順',
       straight: '順子',
       flush: '同花',
       fullHouse: '葫蘆',
@@ -339,6 +430,14 @@ export const S = {
       bombBeatsAll: {
         label: '鐵支可壓任何牌',
         help: '開啟時鐵支和同花順可以壓單張、對子等任何牌型。關閉後只能壓五張的牌型。',
+      },
+      allowSmallStraight: {
+        label: '小順（三張連號）',
+        help: '開啟後三張連號（例如 3-4-5）也能出，叫「小順」，只能用更大的小順壓。A23、234 的大小跟著「順子的 A 與 2」。',
+      },
+      dragon: {
+        label: '一條龍直接贏',
+        help: '開啟後，發牌時拿到 3 到 2 十三種點數各一張（一條龍）的人直接獲勝。',
       },
       allowTriple: {
         label: '可單出三條',
@@ -422,7 +521,7 @@ export const S = {
       },
       {
         title: '操作',
-        body: ['點牌選取，再點一次取消。選好按「出牌」。要過牌時按兩次「過牌」（按第一次會變成「再按一次過牌」，避免按錯）。'],
+        body: ['點牌選取，再點一次取消。選好按「出牌」。要過牌時按「過牌」。'],
       },
     ],
     tutorial: [
@@ -462,6 +561,12 @@ export const S = {
     players: '你 對 3 位對手',
     tags: ['4 人', '約 4 分鐘'],
     record: (rounds: number, wins: number, best: number) => `打了 ${rounds} 局　贏 ${wins} 局　最高 ${best} 分`,
+    settings: {
+      hints: {
+        label: '提示可以吃的牌',
+        help: '開啟後，選起手牌時桌上能吃的牌會亮起藍框（滑鼠移到手牌上也會先顯示）。翻牌後要選吃哪一張時一定會亮。',
+      },
+    },
     yourTurn: '輪到你：選一張手牌',
     pickTarget: '能配兩張，點桌上要吃的那張',
     flipPick: '翻到的牌能配兩張，點桌上要吃的那張',
@@ -820,7 +925,7 @@ export const S = {
     cpuTurn: (name: string) => `${name}思考中…`,
     place: '落子',
     pass: '虛手',
-    passConfirm: '再按一次虛手',
+    passConfirm: '再按一次',
     resign: '認輸',
     passed: (name: string) => `${name}虛手`,
     bothPassed: '雙方都虛手了，開始算地',
@@ -828,8 +933,12 @@ export const S = {
     captured: (n: number) => `提 ${n}`,
     resultLabel: 'GAME OVER',
     scoring: '數地',
-    scoringLead: '畫叉的是電腦判斷的死棋，會被提掉算給對方。不對的話點那塊棋切換。',
+    scoringLead: '畫叉的是對方判斷的死棋，會被提掉算給對方。不對的話點那塊棋切換。',
     confirm: '確認結果',
+    disagree: (name: string) => `${name}不同意你標的死活。有爭議就繼續下，把死棋真的提掉來證明。`,
+    resume: '繼續下完',
+    byOpponent: '照對方的判斷',
+    resumed: (name: string) => `繼續對局，${name}先下`,
     win: '你贏了',
     lose: (name: string) => `${name}贏了`,
     margin: (n: number) => `贏 ${n} 子`,
@@ -883,7 +992,9 @@ export const S = {
         title: '結束與算分',
         body: [
           '覺得沒有好棋可以下時按兩次「虛手」（按第一次會變成「再按一次虛手」，避免按錯）。雙方連續虛手，這局就結束。也可以按「認輸」。',
-          '結束時，電腦會自動判斷已經救不回來的「死棋」並提掉；你覺得判斷錯了可以點那塊棋修正。',
+          '結束時，對方會標出他覺得已經救不回來的「死棋」；你覺得判斷錯了可以點那塊棋修正。',
+          '如果你標的死活對你比較有利，對方會不同意。照正式規則，有爭議就「繼續下完」：回到對局（對方先下），把死棋真的提掉來證明；用數子法，在自己地盤裡提子不會吃虧。也可以改照對方的判斷結算。',
+          '兩塊棋互相包圍、誰先去緊氣誰就被吃的「雙活」：兩邊都不算死，中間共用的空點不算給任何人。',
           '用中國規則「數子法」：你的棋子＋只被你圍住的空點，就是你的分數。',
           '黑棋先下比較佔便宜，所以白棋加 7.5 子（貼目）。分數多的人贏，因為有 0.5 所以不會和局。',
         ],

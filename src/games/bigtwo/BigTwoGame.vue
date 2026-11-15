@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // 大老二牌桌：你在下方，三位隨機入座的對手在左、上、右。
 // 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { useGrace } from '@/core/grace'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordBest, stats } from '@/core/settings'
-import { asLevel, bigtwoAt } from '@/engine/common/difficulty'
+import { asLevel, bigtwoAt, extraThink } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { chooseBigTwoAction } from '@/engine/bigtwo/ai'
@@ -77,6 +78,7 @@ const later = (fn: () => void, ms: number) => {
 }
 
 const state = shallowRef<BigTwoState>(saved ? saved.state : dealBigTwo(seed, options))
+const grace = useGrace(props.options, state, () => state.value.turn === 0)
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const selected = ref<Card[]>([])
 const message = ref('')
@@ -176,8 +178,8 @@ function nextTurn() {
   if (s.turn === ME) return
   const opp = opponents[s.turn - 1]
   moods[s.turn] = 'think'
-  const st = bigtwoAt(opp.persona.bigtwo, level)
-  const think = 850 + st.skill * 700 + (1 - st.aggression) * 450 + Math.random() * 550
+  const st = bigtwoAt(opp.persona.bigtwo, level, opp.id)
+  const think = 850 + st.skill * 700 + (1 - st.aggression) * 450 + extraThink(level) * 0.5 + Math.random() * 550
   later(() => {
     let action: BigTwoAction
     ;[action, rng] = chooseBigTwoAction(state.value, st, rng)
@@ -348,23 +350,9 @@ function playSelected() {
   act({ type: 'play', player: ME, cards })
 }
 
-// 過牌要按兩次：第一次按下變成「再按一次過牌」，2.5 秒內再按才真的過
-const passArmed = ref(false)
-let passTimer = 0
-function disarmPass() {
-  passArmed.value = false
-  window.clearTimeout(passTimer)
-}
+// 過牌：按一下就過（大老二不用二次確認）
 function pass() {
   if (!canPass.value) return
-  if (!passArmed.value) {
-    passArmed.value = true
-    playSound('tap')
-    window.clearTimeout(passTimer)
-    passTimer = window.setTimeout(() => (passArmed.value = false), 2500)
-    return
-  }
-  disarmPass()
   selected.value = []
   acted.value = true
   act({ type: 'pass', player: ME })
@@ -372,7 +360,6 @@ function pass() {
 /** 時間到：這一手跳過（桌上有牌＝過牌；輪到你首出＝改由下一位首出） */
 function onTimeout() {
   if (!myTurn.value) return
-  disarmPass()
   selected.value = []
   acted.value = true
   if (act({ type: 'timeout', player: ME })) {
@@ -380,10 +367,6 @@ function onTimeout() {
     message.value = S.common.timedOut
   }
 }
-watch(canPass, (v) => {
-  if (!v) disarmPass()
-})
-onBeforeUnmount(() => window.clearTimeout(passTimer))
 
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 const doubleNotes = computed(() => {
@@ -399,8 +382,14 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.winner < 0 && state.turn === p" />
-    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0 && !(grace && state.turn === 0)" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 桌面中央的框 -->
+    <!-- 每個人這一輪剛出的牌（小張；一輪結束就清掉） -->
+    <template v-for="(seat, p) in layout.seats" :key="`last${p}`">
+      <div v-if="Array.isArray(state.lastMoves[p])" :key="`last${p}-${(state.lastMoves[p] as number[]).join('.')}`" class="last-play pop" :style="{ left: `${seat.last.x}px`, top: `${seat.last.y}px`, '--w': `${layout.cw * 0.55}px` }">
+        <svg v-for="c in (state.lastMoves[p] as number[])" :key="c" viewBox="-2 -2 78 108" class="mini"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" /></svg>
+      </div>
+    </template>
     <div class="table-box" :style="{ left: `${layout.pile.x - layout.cw * 3.1}px`, top: `${layout.pile.y - layout.cw * 1.25}px`, width: `${layout.cw * 6.2}px`, height: `${layout.cw * 2.5}px` }">
       <span class="t-label lab">TABLE</span>
     </div>
@@ -451,7 +440,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <div class="actions">
       <template v-if="phase !== 'over'">
         <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</Btn>
-        <Btn class="rise" style="--i: 1" icon="pass" block :tone="passArmed ? 'yellow' : 'plain'" :disabled="!canPass" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
+        <Btn class="rise" style="--i: 1" icon="pass" block :disabled="!canPass" @click="pass">{{ T.pass }}</Btn>
       </template>
       <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.result.howTitle }}</Btn>
     </div>
@@ -505,6 +494,20 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   isolation: isolate;
   height: 100%;
   overflow: hidden;
+}
+.last-play {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.last-play .mini {
+  width: var(--w);
+  filter: drop-shadow(0.06rem 0.08rem 0 rgb(20 20 20 / 0.5));
+}
+.last-play .mini + .mini {
+  margin-left: calc(var(--w) * -0.5);
 }
 .table-box {
   position: absolute;

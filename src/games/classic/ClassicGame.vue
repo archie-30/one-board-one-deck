@@ -2,11 +2,12 @@
 // 西洋棋、象棋共用的對局畫面：你在左、對手在右，中間一張棋盤。
 // 開局猜拳決定誰先走（西洋棋贏的人拿白、象棋贏的人拿紅）；玩家那一方永遠在棋盤下方。
 // 操作：點自己的棋子 → 能走的位置出現圓點 → 點那個位置走過去。西洋棋兵到底線時跳出升變選擇。
+import { useGrace } from '@/core/grace'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
-import { asLevel, chessAt } from '@/engine/common/difficulty'
+import { asLevel, chessAt, extraThink } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng, type RngState } from '@/engine/common/rng'
@@ -20,6 +21,7 @@ import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
+import UndoBtn from '@/ui/UndoBtn.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
 import TurnTimer from '@/ui/TurnTimer.vue'
 import { TURN_SECONDS } from '@/data/timer'
@@ -42,11 +44,14 @@ interface Saved {
   human: Seat
   opponent: number
   rng: number
+  undoFrom?: St | null
+  undoUsed?: boolean
 }
 const saved = (props.resume ?? null) as Saved | null
 
 const state = shallowRef<St>(saved ? saved.state : A.create())
 const human = ref<Seat>(saved ? saved.human : 0)
+const grace = useGrace(props.options, state, () => A.turn(state.value) === human.value)
 const opponent = ref(saved ? opponentById(saved.opponent) : pickOpponents(1)[0])
 const phase = ref<'rps' | 'playing' | 'over'>(saved ? 'playing' : 'rps')
 const selected = ref(-1)
@@ -59,6 +64,9 @@ const promoAsk = ref<{ from: number; to: number } | null>(null)
 const thinking = ref(false)
 const moods = ref<[Mood, Mood]>(['idle', 'idle'])
 let rng: RngState = saved ? saved.rng : seedRng(Date.now())
+/** 悔棋：每局一次，退回玩家上一步之前的局面 */
+const undoFrom = shallowRef<St | null>(saved?.undoFrom ?? null)
+const undoUsed = ref(saved?.undoUsed ?? false)
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
@@ -100,6 +108,8 @@ const ghost = computed(() => {
 function startAfterRps(playerWins: boolean) {
   human.value = playerWins ? 0 : 1
   state.value = A.create()
+  undoFrom.value = null
+  undoUsed.value = false
   phase.value = 'playing'
   if (!playerWins) scheduleCpu()
 }
@@ -117,6 +127,8 @@ function restart() {
   message.value = ''
   thinking.value = false
   moods.value = ['idle', 'idle']
+  undoFrom.value = null
+  undoUsed.value = false
   phase.value = 'rps'
 }
 
@@ -129,6 +141,7 @@ function commit(m: ClassicMove, who: 0 | 1) {
     playSound('error')
     return false
   }
+  if (who === 0) undoFrom.value = state.value
   state.value = r.state
   selected.value = -1
   message.value = ''
@@ -147,6 +160,7 @@ function onTimeout() {
   acted.value = true
   selected.value = -1
   promoAsk.value = null
+  undoFrom.value = state.value
   state.value = A.skip(state.value)
   playSound('error')
   if (A.over(state.value)) return finish()
@@ -170,14 +184,14 @@ function flash(who: 0 | 1, mood: Mood) {
 function scheduleCpu() {
   thinking.value = true
   moods.value = [moods.value[0], 'think']
-  const st = chessAt(opponent.value.persona.chess, level)
+  const st = chessAt(opponent.value.persona.chess, level, opponent.value.id)
   later(() => {
     let m: ClassicMove | null
     ;[m, rng] = A.choose(state.value, st, rng)
     thinking.value = false
     moods.value = [moods.value[0], 'idle']
     if (m) commit(m, 1)
-  }, 450 + st.depth * 250 + Math.random() * 400)
+  }, 450 + st.depth * 250 + extraThink(level) + Math.random() * 400)
 }
 
 /** 結束：wait 毫秒後翻出結算（認輸時確認視窗剛關，不要再停太久，看起來才不會卡住） */
@@ -216,10 +230,39 @@ function pick(i: number) {
   }
   commit({ from: selected.value, to: i }, 0)
 }
+/** 拖曳：只能拖自己的棋子 */
+const canDrag = (i: number) => myTurn.value && !!board.value[i] && A.seatOf(board.value[i]) === human.value
+function grab(i: number) {
+  if (!canDrag(i)) return
+  if (selected.value !== i) playSound('piecePick')
+  selected.value = i
+  message.value = ''
+}
+/** 拖到能走的格子放開就走；放在不能走的地方，棋子回原位、保持選起 */
+function drop(from: number, to: number) {
+  if (!myTurn.value || selected.value !== from) return
+  if (targets.value.includes(to)) pick(to)
+}
 function promote(promo: Promo) {
   const ask = promoAsk.value
   promoAsk.value = null
   if (ask) commit({ ...ask, promo }, 0)
+}
+const canUndo = computed(() => phase.value === 'playing' && !!undoFrom.value && !undoUsed.value)
+/** 悔棋：電腦還在想就停下來，局面退回玩家上一步之前 */
+function undo() {
+  if (!canUndo.value || !undoFrom.value) return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  thinking.value = false
+  state.value = undoFrom.value
+  undoFrom.value = null
+  undoUsed.value = true
+  selected.value = -1
+  promoAsk.value = null
+  message.value = ''
+  moods.value = ['idle', 'idle']
+  playSound('piecePick')
 }
 function resign() {
   resignOpen.value = false
@@ -238,7 +281,7 @@ const canSave = computed(() => phase.value === 'playing' && acted.value)
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
-  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng }
+  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, undoFrom: undoFrom.value, undoUsed: undoUsed.value }
   return data
 }
 function saveAndExit() {
@@ -259,7 +302,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && A.turn(state) === human" />
     <TurnGlow side="right" :on="phase === 'playing' && A.turn(state) !== human" />
-    <TurnTimer v-if="timed" :side="A.turn(state) === human ? 'left' : 'right'" :active="phase === 'playing'" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="A.turn(state) === human ? 'left' : 'right'" :active="phase === 'playing' && !(grace && A.turn(state) === human)" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
@@ -293,7 +336,10 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
         :piece-style="options.pieceStyle === 'icon' ? 'icon' : 'text'"
         :interactive="myTurn"
         :move-key="A.plies(state)"
+        :can-drag="canDrag"
         @pick="pick"
+        @grab="grab"
+        @drop="drop"
         @hover="(i) => (hoverAt = i)"
       />
     </div>
@@ -324,11 +370,14 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
           <Btn tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
           <Btn class="mt-[0.5rem]" size="sm" icon="book" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
         </template>
-        <Btn v-else size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
+        <template v-else>
+          <UndoBtn block :disabled="!canUndo" :used="undoUsed" @undo="undo" />
+          <Btn class="mt-[0.5rem]" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
+        </template>
       </div>
     </aside>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" />
+    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" @save-exit="saveAndExit" />
 
     <!-- 兵升變 -->

@@ -2,6 +2,7 @@
 // 撿紅點牌桌：你在下方，三位隨機入座的對手在左、上、右。
 // 每張牌都是獨立的精靈（沿用大老二的 cardStage）：出牌時飛到桌上或壓到要吃的牌上，
 // 兩張一起飛回自己的牌堆；接著牌堆最上面那張翻開，再決定去哪。
+import { useGrace } from '@/core/grace'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
@@ -55,6 +56,7 @@ const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
 let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
 let rng = saved ? saved.rng : seedRng(seed)
 const state = shallowRef<RedPointState>(saved ? saved.state : dealRedPoint(seed))
+const grace = useGrace(props.options, state, () => state.value.turn === 0)
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const busy = ref(true)
 const selected = ref<Card | null>(null)
@@ -369,6 +371,8 @@ defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menu
 const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
 // 滑鼠移到自己的手牌上：桌上能跟它配的牌先淡淡亮起來（預覽），點下去才選起
 const hoverCard = ref<Card | null>(null)
+/** 規則設定的「提示可以吃的牌」（預設關）；翻牌後要選吃哪張時一定會亮 */
+const showHints = props.options.hints === true
 const peekHits = computed<Card[]>(() => {
   const c = hoverCard.value
   if (c === null || !myTurn.value || selected.value !== null || !state.value.hands[ME].includes(c)) return []
@@ -440,7 +444,8 @@ const status = computed(() => {
   if (phase.value === 'over' && countingRow.value >= 0) return T.counting
   if (phase.value === 'over') return winners(s).includes(ME) ? T.win : T.lose(names[winners(s)[0]])
   if (s.turn !== ME) return s.phase === 'flip' ? T.flipping(names[s.turn]) : T.waiting(names[s.turn])
-  if (selected.value === null) return T.yourTurn
+  // 沒開提示：不說這張會不會吃到
+  if (selected.value === null || !showHints) return T.yourTurn
   return hits.value.length ? (hits.value.length >= 2 ? T.pickTarget : T.willTake) : T.willDiscard
 })
 const resultTitle = computed(() => {
@@ -455,7 +460,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.phase !== 'over' && state.turn === p" />
-    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.phase !== 'over'" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.phase !== 'over' && !(grace && state.turn === 0)" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 數牌：每一列一個人，左邊名字、右邊累加的分數 -->
     <template v-if="tally && !resultOpen">
       <div v-for="p in 4" :key="`tl${p}`" class="tally" :class="{ now: countingRow === p - 1 }" :style="{ left: `${spots.box.x + spots.box.w * 0.03}px`, width: `${spots.box.w * 0.94}px`, top: `${rowY(p - 1)}px` }">
@@ -464,6 +469,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       </div>
     </template>
     <div class="table-box" :style="{ left: `${spots.box.x}px`, top: `${spots.box.y}px`, width: `${spots.box.w}px`, height: `${spots.box.h}px` }">
+      <span class="t-label lab">TABLE</span>
     </div>
     <span v-if="!tally" class="t-label pile-lab" :style="{ left: `${spots.pile.x}px`, top: `${spots.pile.y + layout.cw * 0.8}px` }">{{ T.pile }} · {{ state.pile.length }}</span>
 
@@ -488,7 +494,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         :key="c"
         :ref="(el) => stage.attach(c, el as HTMLElement | null)"
         class="sprite"
-        :class="{ mine: state.hands[ME].includes(c), sel: selected === c, hit: hits.includes(c), peekhit: peekHits.includes(c), red: isRed(c) }"
+        :class="{ mine: state.hands[ME].includes(c), sel: selected === c, hit: (showHints || awaitFlip) && hits.includes(c), peekhit: showHints && peekHits.includes(c), red: isRed(c) }"
         :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
         @click="tapCard(c)"
         @pointerenter="$event.pointerType === 'mouse' && (hoverCard = c)"
@@ -563,6 +569,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   left: 0.5rem;
   top: -0.55rem;
   padding: 0 0.4rem;
+  background: var(--color-paper);
 }
 .pile-lab {
   position: absolute;

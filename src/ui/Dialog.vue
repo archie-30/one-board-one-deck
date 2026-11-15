@@ -7,7 +7,7 @@ const emit = defineEmits<{ close: [] }>()
 </script>
 
 <template>
-  <Transition :name="flip ? 'dialog-flip' : 'dialog'">
+  <Transition :name="flip ? 'dialog-flip' : cover ? 'dialog-cover' : 'dialog'">
     <div v-if="open" class="fixed inset-0 z-[900] grid place-items-center" role="dialog" aria-modal="true">
       <div class="backdrop absolute inset-0" :class="{ cover }" @click="emit('close')" />
       <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip back-${tone ?? 'ink'}` : '']">
@@ -81,6 +81,40 @@ const emit = defineEmits<{ close: [] }>()
 }
 .dialog-enter-active {
   transition: opacity 160ms ease;
+}
+/* 暫停（整片蓋住）：遮罩很快蓋上（看不到後面的牌桌在半透明裡閃），紙片再升上來 */
+.dialog-cover-enter-active {
+  transition: opacity 320ms linear;
+}
+.dialog-cover-enter-from {
+  opacity: 0.99;
+}
+.dialog-cover-enter-active .backdrop {
+  transition: opacity 90ms ease-out;
+}
+.dialog-cover-enter-from .backdrop {
+  opacity: 0;
+}
+.dialog-cover-enter-active .sheet {
+  transition:
+    transform 320ms var(--ease-back),
+    opacity 160ms ease;
+}
+.dialog-cover-enter-from .sheet {
+  opacity: 0;
+  transform: translateY(1.6rem);
+}
+.dialog-cover-leave-active {
+  transition: opacity 220ms ease;
+}
+.dialog-cover-leave-active .sheet {
+  transition: transform 220ms var(--ease-in-out);
+}
+.dialog-cover-leave-to {
+  opacity: 0;
+}
+.dialog-cover-leave-to .sheet {
+  transform: translateY(1.8rem) scale(0.96);
 }
 .dialog-enter-active .sheet {
   transition: transform 420ms var(--ease-back);

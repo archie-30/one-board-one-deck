@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 規則設定：畫面完全由註冊表的 settings 產生
+// 規則設定：畫面完全由註冊表的 settings 產生（依分組排；難度在模式選單上選，不列在這裡）
 import { computed } from 'vue'
 import { gamePrefs } from '@/core/settings'
 import { S } from '@/data/strings'
@@ -7,64 +7,31 @@ import { resolveOptions } from '@/games/options'
 import { getGame } from '@/games/registry'
 import Btn from '@/ui/Btn.vue'
 import Page from '@/ui/Page.vue'
-import Tabs from '@/ui/Tabs.vue'
+import RuleOptions from '@/ui/RuleOptions.vue'
 
 const props = defineProps<{ gameId: string }>()
 const game = computed(() => getGame(props.gameId))
 const prefs = computed(() => gamePrefs(props.gameId))
 const values = computed(() => resolveOptions(game.value))
-const dirty = computed(() => game.value.settings.some((d) => values.value[d.key] !== d.default))
-const onOff = [
-  { value: 'on', label: S.common.on },
-  { value: 'off', label: S.common.off },
-]
+const shown = computed(() => game.value.settings.filter((d) => d.key !== 'difficulty'))
+const dirty = computed(() => shown.value.some((d) => values.value[d.key] !== d.default))
 function set(key: string, value: string | boolean) {
   prefs.value.options[key] = value
+}
+/** 恢復預設：只動這一頁上的選項（難度保留） */
+function reset() {
+  for (const d of shown.value) delete prefs.value.options[d.key]
 }
 </script>
 
 <template>
   <Page :title="S.gameSettings.title" :label="game.name" num="04" :back-label="S.gameSettings.backApply">
     <div class="scroll-y h-full pr-[0.8rem]">
-      <ul>
-        <li v-for="(def, i) in game.settings" :key="def.key" class="item rise" :style="{ '--i': i * 0.6 }">
-          <div class="min-w-0 flex-1">
-            <p class="t-black text-[1rem] leading-snug">
-              {{ def.label }}<span v-if="values[def.key] !== def.default" class="dot" />
-            </p>
-            <p class="text-[0.78rem] leading-snug text-ink-2">{{ def.help }}</p>
-          </div>
-          <Tabs v-if="def.type === 'choice'" :choices="def.choices" :value="String(values[def.key])" :hot="def.key === 'difficulty' ? 'master' : undefined" class="ctl" @change="(v) => set(def.key, v)" />
-          <Tabs v-else :choices="onOff" :value="values[def.key] ? 'on' : 'off'" class="ctl" @change="(v) => set(def.key, v === 'on')" />
-        </li>
-      </ul>
+      <RuleOptions :game="game" :values="values" @set="set" />
     </div>
     <template #foot>
       <p class="text-[0.75rem] text-ink-2">{{ S.gameSettings.note }}</p>
-      <Btn icon="again" size="sm" :disabled="!dirty" @click="prefs.options = {}">{{ S.gameSettings.reset }}</Btn>
+      <Btn icon="again" size="sm" :disabled="!dirty" @click="reset">{{ S.gameSettings.reset }}</Btn>
     </template>
   </Page>
 </template>
-
-<style scoped>
-.item {
-  display: flex;
-  align-items: center;
-  gap: 1.4rem;
-  padding: 0.55rem 0;
-  border-bottom: 0.08rem solid var(--color-ink);
-}
-.ctl {
-  flex-shrink: 0;
-  max-width: 26rem;
-  justify-content: flex-end;
-}
-.dot {
-  display: inline-block;
-  width: 0.45rem;
-  height: 0.45rem;
-  margin-left: 0.35rem;
-  background: var(--color-red);
-  vertical-align: middle;
-}
-</style>
