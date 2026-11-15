@@ -56,13 +56,13 @@ onBeforeUnmount(() => window.clearTimeout(quitTimer))
       <RuleOptions :game="game" :values="options" lock-unsafe @set="setOption" />
     </div>
     <div v-else class="menu pt-[0.3rem]">
-      <Btn class="rise wide-row" tone="red" icon="play" block arrow @click="emit('close')">{{ S.common.resume }}</Btn>
-      <Btn class="rise" style="--i: 1" icon="book" block arrow @click="showRules = true">{{ S.lobby.rules }}</Btn>
-      <Btn v-if="hasOptions" class="rise" style="--i: 1" icon="pencil" block arrow @click="showOptions = true">{{ S.lobby.settings }}</Btn>
-      <Btn class="rise" style="--i: 1" icon="gear" block arrow @click="settingsOpen = true">{{ S.appSettings.title }}</Btn>
-      <Btn class="rise" style="--i: 2" icon="again" block arrow @click="emit('restart')">{{ S.common.restart }}</Btn>
-      <Btn class="rise" :class="{ 'wide-row': hasOptions }" style="--i: 2" icon="exit" block arrow :tone="quitArmed ? 'yellow' : 'plain'" @click="quit">{{ quitArmed ? S.common.quitConfirm : canSave ? S.common.quitNoSave : S.common.quit }}</Btn>
-      <Btn v-if="canSave" class="rise wide-row" style="--i: 3" tone="yellow" icon="check" block arrow @click="emit('saveExit')">{{ S.common.saveExit }}</Btn>
+      <Btn class="wide-row" tone="red" icon="play" block arrow @click="emit('close')">{{ S.common.resume }}</Btn>
+      <Btn icon="book" block arrow @click="showRules = true">{{ S.lobby.rules }}</Btn>
+      <Btn v-if="hasOptions" class="" icon="pencil" block arrow @click="showOptions = true">{{ S.lobby.settings }}</Btn>
+      <Btn icon="gear" block arrow @click="settingsOpen = true">{{ S.appSettings.title }}</Btn>
+      <Btn icon="again" block arrow @click="emit('restart')">{{ S.common.restart }}</Btn>
+      <Btn :class="{ 'wide-row': hasOptions }" icon="exit" block arrow :tone="quitArmed ? 'yellow' : 'plain'" @click="quit">{{ quitArmed ? S.common.quitConfirm : canSave ? S.common.quitNoSave : S.common.quit }}</Btn>
+      <Btn v-if="canSave" class="wide-row" tone="yellow" icon="check" block arrow @click="emit('saveExit')">{{ S.common.saveExit }}</Btn>
     </div>
     <template v-if="showRules || showOptions" #actions>
       <Btn icon="back" size="sm" @click="(showRules = false), (showOptions = false)">{{ S.common.back }}</Btn>
