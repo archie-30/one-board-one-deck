@@ -1,11 +1,8 @@
 // 音效的「原料」：每個聲音都用程式一個取樣點一個取樣點算出來（不用任何外部音檔）。
 // 這個檔案是純計算，不碰瀏覽器，所以也能在電腦上直接算出來檢查波形。
 //
-// 做法：
-//   - 紙牌：寬頻雜訊經過濾波（紙張摩擦、拍擊的「沙」聲），不帶音高
-//   - 木頭、棋子：碰撞模型——接觸時間決定清脆或沉悶，材質的損耗決定共振多快消失（木頭很快、不會像玻璃）
-//   - 木琴（贏、輸、和局）：基音＋4 倍泛音
-// 每個聲音可以給不同的 seed，做出幾個稍微不一樣的版本輪流播放，聽起來才不會像機器。
+// 做法：棋子、紙牌、敲桌等碰撞聲，照真實錄音量到的頻譜形狀與衰減速度合成（見下方「碰撞聲」）；
+// 摩擦聲用頻帶噪音；贏、輸、和局用木琴。
 
 export type SfxName =
   // 介面
@@ -121,83 +118,147 @@ function noise(n: number, rand: Rand): Float32Array {
   return a
 }
 
-/** 套上包絡：attack 秒內升起，之後以 decay 秒為時間常數指數衰減 */
-function env(x: Float32Array, sr: number, attack: number, decay: number): Float32Array {
-  const A = Math.max(1, attack * sr)
-  for (let i = 0; i < x.length; i++) {
-    const t = i / sr
-    const up = i < A ? i / A : 1
-    x[i] *= up * Math.exp(-Math.max(0, t - attack) / decay)
+// ── 碰撞聲：依「真實錄音量到的頻譜形狀與衰減速度」合成 ──
+// 量了開源遊戲裡實際錄下來的聲音（lichess 西洋棋、KaTrain／Sabaki 圍棋、KDE KPat 紙牌、ESC-50 敲木門），
+// 發現棋子、紙牌的聲音都是「極短、帶頻譜形狀的噪音爆音」：各頻段大多幾毫秒就衰減掉，不是一直響的音。
+// 所以這裡把聲音拆成 18 個 1/3 八度的頻段（283 Hz～14 kHz），每個頻段一段濾過的噪音，
+// 照量到的音量（lvl，dB）與衰減時間（tau，毫秒）合成，再加上量到的低頻悶響（棋盤、桌面被打到的「咚」）。
+// 這裡只記錄量到的少數幾個數字，不包含、也不複製任何錄音本身。
+
+/** 18 個頻段的中心頻率（Hz） */
+const BANDS = [283, 356, 449, 566, 713, 898, 1131, 1426, 1796, 2263, 2851, 3592, 4526, 5702, 7184, 9052, 11404, 14368]
+
+interface Profile {
+  /** 各頻段的音量（dB，最大的那段約 0） */
+  lvl: number[]
+  /** 各頻段的衰減時間常數（毫秒） */
+  tau: number[]
+  /** 低頻悶響：頻率、音量（dB，和上面同一個尺度）、衰減（毫秒） */
+  lf?: { f: number; lvl: number; tau: number }
+}
+
+// 量到的數值（四捨五入）
+const P = {
+  /** 圍棋落子（三種：KaTrain 兩種、Sabaki 一種） */
+  stone: [
+    { lvl: [-18, -26, -21, -17, -24, -13, -14, -11, -9, 0, -4, -4, -1, -3, -16, -23, -33, -38], tau: [5, 4, 8, 6, 10, 4, 3, 11, 10, 3, 13, 12, 7, 7, 8, 8, 13, 19], lf: { f: 59, lvl: -6, tau: 12 } },
+    { lvl: [-18, -22, -22, -17, -25, -17, -17, -20, -10, -5, -7, -4, -4, 0, -9, -20, -25, -38], tau: [2, 8, 6, 6, 7, 7, 7, 12, 11, 6, 13, 10, 11, 8, 15, 16, 11, 18], lf: { f: 72, lvl: -9, tau: 10 } },
+    { lvl: [-21, -17, -21, -22, -15, -21, -15, -11, -14, -7, -8, -4, 0, -7, -8, -12, -19, -30], tau: [2, 2, 2, 4, 6, 6, 3, 2, 8, 5, 9, 5, 6, 9, 8, 10, 10, 10], lf: { f: 51, lvl: -12, tau: 9 } },
+  ] as Profile[],
+  /** 棋石互碰（KaTrain 提子錄音裡一顆顆碰撞的平均） */
+  stoneTick: { lvl: [-14, -14, -12, -8, -6, -4, -4, -6, -1, -1, 0, -14, -7, -6, -4, -5, -8, -10], tau: [4, 1, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 4, 4, 1, 1, 1, 1] } as Profile,
+  /** 西洋棋走子（lichess）：極短的悶「叩」＋棋盤的低頻 */
+  chessMove: { lvl: [-28, -16, -8, 0, -3, -4, -8, -17, -23, -30, -29, -38, -42, -51, -56, -58, -63, -80], tau: [3, 2, 2, 1.4, 2, 1.4, 1.4, 4, 3, 4, 4, 3, 2, 4, 4, 4, 6, 6], lf: { f: 75, lvl: 0, tau: 7 } } as Profile,
+  /** 西洋棋吃子（lichess）：比較寬、比較響 */
+  chessCapture: { lvl: [-15, -14, -13, -7, -6, -4, -3, -4, 0, -4, -16, -20, -32, -25, -46, -55, -64, -80], tau: [2, 2, 1.4, 1.4, 2, 2, 2, 3, 4, 2, 5, 2, 2, 4, 4, 2, 4, 4], lf: { f: 94, lvl: -10, tau: 6 } } as Profile,
+  /** 指節敲木頭（ESC-50 敲木門） */
+  knock: { lvl: [0, -2, -6, -8, -8, -13, -24, -16, -20, -27, -30, -30, -34, -43, -44, -47, -49, -52], tau: [9, 4, 5, 5, 4, 4, 5, 1.4, 1.4, 2, 3, 2, 2, 3, 2, 3, 4, 4], lf: { f: 89, lvl: -6, tau: 11 } } as Profile,
+  /** 紙牌落在桌上（KPat card-down 撞擊那一下） */
+  cardDown: { lvl: [1, -16, -16, -12, -7, -4, -11, -17, -1, 0, -5, -3, -13, -4, -13, -17, -34, -37].map((v) => v - 1), tau: [20, 20, 19, 18, 7, 10, 13, 20, 9, 11, 11, 12, 15, 9, 13, 15, 20, 20].map((v) => v * 0.6), lf: { f: 89, lvl: 0, tau: 12 } } as Profile,
+  /** 紙牌被拿起、彈開（KPat card-pickup 的那一下「啪」） */
+  cardSnap: { lvl: [-38, -28, -31, -30, -19, -17, -9, -1, -11, -12, 0, 0, -4, -4, -12, -12, -21, -49], tau: [20, 12, 4, 8, 4, 5, 5, 4, 5, 8, 3, 2, 2, 2, 1.4, 2, 2, 2] } as Profile,
+}
+
+/** 原地 FFT（長度要是 2 的次方）；inverse = true 時做反轉換（含 1/n） */
+function fft(re: Float64Array, im: Float64Array, inverse = false) {
+  const n = re.length
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1
+    for (; j & bit; bit >>= 1) j ^= bit
+    j ^= bit
+    if (i < j) {
+      ;[re[i], re[j]] = [re[j], re[i]]
+      ;[im[i], im[j]] = [im[j], im[i]]
+    }
   }
-  return x
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = ((inverse ? 2 : -2) * Math.PI) / len
+    const wr = Math.cos(ang)
+    const wi = Math.sin(ang)
+    for (let i = 0; i < n; i += len) {
+      let cr = 1
+      let ci = 0
+      for (let k = 0; k < len / 2; k++) {
+        const ar = re[i + k + len / 2] * cr - im[i + k + len / 2] * ci
+        const ai = re[i + k + len / 2] * ci + im[i + k + len / 2] * cr
+        re[i + k + len / 2] = re[i + k] - ar
+        im[i + k + len / 2] = im[i + k] - ai
+        re[i + k] += ar
+        im[i + k] += ai
+        const t = cr * wr - ci * wi
+        ci = cr * wi + ci * wr
+        cr = t
+      }
+    }
+  }
+  if (inverse) for (let i = 0; i < n; i++) (re[i] /= n), (im[i] /= n)
 }
 
-
-// ── 敲擊聲的模型 ──
-// 一次碰撞 = 「接觸」＋「共振」：
-//   接觸時間 tc：越硬越短（石頭碰木頭約 0.1 毫秒、木頭碰木頭 0.2～0.3、隔著絨布或紙 1 毫秒以上），
-//     越短激發的頻率越高 → 聲音越清脆；越長 → 越悶。
-//   共振：每個材質有一堆很密的共振頻率，每個頻率衰減多快由材質的「損耗」決定：
-//     衰減時間 = 1 ÷ (π × 頻率 × 損耗)。木頭損耗大（約 0.02～0.04），高頻一下就沒了 → 「叩」；
-//     玻璃、金屬損耗很小，會一直響 → 「叮」。所以只要損耗給得像木頭，就不會像敲玻璃。
-interface Material {
-  /** 共振頻率的範圍（Hz）與數量：數量多、分佈不規則，聽起來才是實心的東西而不是有音高的「嘟」 */
-  lo: number
-  hi: number
-  n: number
-  /** 損耗係數 */
-  eta: number
-  /**
-   * 音色：每個共振的音量 ∝ (頻率／最低頻率)^tilt。
-   * 低頻的共振本來就響比較久，tilt ≈ 0.5 時每個共振的「總能量」差不多；越大越亮、越小越悶。
-   */
-  tilt: number
+/** 第 k 個頻段的權重（相鄰頻段之間用 cos² 交叉淡入淡出，全部加起來是 1；頻段外很快歸零，不會漏到別的頻段） */
+function bandWeight(f: number, centers: number[], k: number): number {
+  const lf = Math.log2(Math.max(1, f))
+  const c = Math.log2(centers[k])
+  const prev = k > 0 ? Math.log2(centers[k - 1]) : c - 1 / 3
+  const next = k < centers.length - 1 ? Math.log2(centers[k + 1]) : c + 1 / 3
+  if (lf <= prev || lf >= next) return 0
+  const x = lf < c ? (c - lf) / (c - prev) : (lf - c) / (next - c)
+  return Math.cos((Math.PI / 2) * x) ** 2
 }
-const MAT = {
-  /** 厚的榧木棋盤（底下挖空，共鳴好） */
-  goBoard: { lo: 300, hi: 4200, n: 22, eta: 0.024, tilt: 0.6 },
-  /** 棋石本身（硬，但很小、很快就停） */
-  goStone: { lo: 3800, hi: 8200, n: 6, eta: 0.008, tilt: 0 },
-  /** 西洋棋、象棋的木頭棋盤（比較薄） */
-  boardWood: { lo: 260, hi: 3400, n: 22, eta: 0.03, tilt: 0.55 },
-  /** 象棋子：厚的實木圓餅 */
-  xqDisc: { lo: 1300, hi: 4800, n: 9, eta: 0.016, tilt: 0.3 },
-  /** 西洋棋子：車床車出來的木頭棋子 */
-  chessMan: { lo: 700, hi: 2800, n: 8, eta: 0.025, tilt: 0.3 },
-  /** 棋罐、盒蓋（薄木頭） */
-  bowl: { lo: 400, hi: 2600, n: 10, eta: 0.035, tilt: 0.4 },
-  /** 桌面（紙牌拍上去、指節敲桌） */
-  table: { lo: 140, hi: 1600, n: 18, eta: 0.045, tilt: 0.4 },
-  /** 按鈕：厚紙板 */
-  card: { lo: 400, hi: 3000, n: 10, eta: 0.07, tilt: 0.5 },
-} satisfies Record<string, Material>
 
-/** 一次碰撞的聲音：tc = 接觸時間（秒），k = 音量 */
-function impact(sr: number, rand: Rand, mat: Material, tc: number, dur: number): Float32Array {
-  const n = Math.ceil(dur * sr)
+/** 把一個頻譜形狀合成成聲音。shift：整體往上（正）或往下（負）移幾個 1/3 八度；tauMul：衰減放慢幾倍 */
+function burst(sr: number, rand: Rand, p: Profile, opts: { shift?: number; tauMul?: number; attack?: number; jitter?: number } = {}): Float32Array {
+  const shift = opts.shift ?? 0
+  const tm = opts.tauMul ?? 1
+  const jit = opts.jitter ?? 1.5
+  const att = Math.max(0.0002, opts.attack ?? 0.0006)
+  const longest = Math.max(...p.tau, p.lf?.tau ?? 0) * tm
+  const n = Math.ceil((att + (longest * 7) / 1000 + 0.004) * sr)
+  let size = 1
+  while (size < n) size <<= 1
   const y = new Float32Array(n)
-  // 接觸越短，能激發的頻率越高（半正弦脈衝的頻譜大致在 1/tc 附近開始掉）
-  const cut = 0.9 / tc
-  for (let m = 0; m < mat.n; m++) {
-    // 頻率在範圍內對數分佈，再加上不規則的偏移
-    const p = (m + 0.15 + rand() * 0.7) / mat.n
-    const f = mat.lo * Math.pow(mat.hi / mat.lo, p)
-    const tau = 1 / (Math.PI * f * mat.eta)
-    const reach = Math.exp(-Math.pow(f / cut, 2))
-    const a = (0.5 + rand() * 0.5) * Math.pow(f / mat.lo, mat.tilt) * reach
-    if (a < 0.002) continue
-    const w = (2 * Math.PI * f) / sr
-    const len = Math.min(n, Math.ceil(tau * 7 * sr))
-    for (let i = 0; i < len; i++) y[i] += a * Math.exp(-i / (tau * sr)) * Math.sin(w * i)
+  const envAt = (i: number, tau: number) => {
+    const t = i / sr
+    const rise = t < att ? Math.sin((Math.PI / 2) * (t / att)) : 1
+    return rise * Math.exp(-Math.max(0, t - att) / tau)
   }
-  // 起音：用接觸時間當作升起的時間，不會有數位的「喀」
-  const rise = Math.max(2, Math.ceil(tc * sr))
-  for (let i = 0; i < rise && i < n; i++) y[i] *= Math.sin((Math.PI / 2) * (i / rise))
+  const centers = BANDS.map((f) => f * Math.pow(2, shift / 3))
+  // 同一份隨機相位的「白噪音頻譜」，每個頻段各切一塊出來
+  const ph = new Float64Array(size / 2 + 1)
+  for (let i = 0; i < ph.length; i++) ph[i] = rand() * 2 * Math.PI
+  const re = new Float64Array(size)
+  const im = new Float64Array(size)
+  centers.forEach((fc, k) => {
+    if (fc > sr * 0.45) return
+    const lvl = p.lvl[k] + (rand() * 2 - 1) * jit
+    if (lvl < -60) return
+    const tau = Math.max(0.0008, (p.tau[k] * tm * (0.85 + rand() * 0.3)) / 1000)
+    re.fill(0)
+    im.fill(0)
+    for (let i = 1; i < size / 2; i++) {
+      const w = bandWeight((i * sr) / size, centers, k)
+      if (!w) continue
+      re[i] = w * Math.cos(ph[i])
+      im[i] = w * Math.sin(ph[i])
+      re[size - i] = re[i]
+      im[size - i] = -im[i]
+    }
+    fft(re, im, true)
+    // 每個頻段先調成一樣的能量，再照量到的音量放大（量到的是頻段的總能量）
+    let rms = 0
+    for (let i = 0; i < n; i++) rms += re[i] * re[i]
+    rms = Math.sqrt(rms / n) || 1
+    const g = Math.pow(10, lvl / 20) / rms
+    for (let i = 0; i < n; i++) y[i] += re[i] * g * envAt(i, tau)
+  })
+  if (p.lf) {
+    // 棋盤、桌面被打到的低頻「咚」：很短的低音（混一點低頻噪音，才不是純音）
+    const f = p.lf.f * Math.pow(2, shift / 6) * (0.95 + rand() * 0.1)
+    const tau = (p.lf.tau * tm) / 1000
+    const g = Math.pow(10, p.lf.lvl / 20) * 1.4
+    const nz = biquad(noise(n, rand), sr, 'lp', f * 2, 0.7)
+    for (let i = 0; i < n; i++) y[i] += g * envAt(i, tau) * (Math.sin((2 * Math.PI * f * i) / sr) + 1.2 * nz[i])
+  }
   return y
-}
-/** 碰撞那一瞬間的寬頻「接觸聲」：tc 越短越亮 */
-function contact(sr: number, rand: Rand, tc: number, dur = 0.012): Float32Array {
-  return env(biquad(noise(Math.ceil(dur * sr), rand), sr, 'lp', Math.min(sr * 0.45, 0.7 / tc), 0.5), sr, tc * 0.5, Math.max(0.0006, tc * 1.6))
 }
 function peakOf(x: Float32Array) {
   let m = 0
@@ -208,232 +269,154 @@ function peakOf(x: Float32Array) {
 function put(b: Buf, t: number, x: Float32Array, k: number) {
   b.add(t, x, k / peakOf(x))
 }
-
-// ── 棋類 ──
-/** 棋石落在榧木棋盤上：硬的「啪」＋棋盤的共鳴，石頭再小彈一下 */
-function stoneOnBoard(b: Buf, t: number, rand: Rand, k = 1) {
-  const sr = b.sr
-  const tc = 0.00011 + rand() * 0.00003
-  put(b, t, impact(sr, rand, MAT.goBoard, tc, 0.22), 1 * k)
-  put(b, t, impact(sr, rand, MAT.goStone, tc, 0.06), 0.2 * k)
-  put(b, t, contact(sr, rand, tc), 0.55 * k)
-  // 小彈跳：石頭落定前在棋盤上輕輕再碰一下
-  const t2 = t + 0.009 + rand() * 0.006
-  put(b, t2, impact(sr, rand, MAT.goBoard, tc * 1.2, 0.08), 0.18 * k)
-  put(b, t2, contact(sr, rand, tc), 0.12 * k)
-}
-/** 兩顆棋石互碰（棋罐裡、盒蓋裡）：很短很亮的「喀」，帶一點罐子的木頭聲 */
-function stoneTick(b: Buf, t: number, rand: Rand, k = 1) {
-  const sr = b.sr
-  const tc = 0.00006 + rand() * 0.00004
-  put(b, t, impact(sr, rand, MAT.goStone, tc, 0.05), 0.6 * k)
-  put(b, t, contact(sr, rand, tc, 0.006), 0.7 * k)
-  put(b, t, impact(sr, rand, MAT.bowl, 0.0003, 0.08), 0.22 * k)
-}
-/** 木頭棋子放到木頭棋盤上：soft = 底下貼絨布（西洋棋），hard = 實木直接拍（象棋） */
-function pieceDown(b: Buf, t: number, rand: Rand, hard: boolean, k = 1) {
-  const sr = b.sr
-  const tc = hard ? 0.00024 + rand() * 0.00005 : 0.00062 + rand() * 0.00012
-  put(b, t, impact(sr, rand, MAT.boardWood, tc, 0.25), 1 * k)
-  put(b, t, impact(sr, rand, hard ? MAT.xqDisc : MAT.chessMan, tc, 0.1), (hard ? 0.45 : 0.25) * k)
-  put(b, t, contact(sr, rand, tc, 0.02), (hard ? 0.6 : 0.35) * k)
-  if (hard) {
-    const t2 = t + 0.006 + rand() * 0.004
-    put(b, t2, impact(sr, rand, MAT.boardWood, tc * 1.3, 0.08), 0.15 * k)
-  }
-}
-/** 棋子撞到棋子（吃子時拿自己的子去撞對方的子） */
-function pieceClack(b: Buf, t: number, rand: Rand, hard: boolean, k = 1) {
-  const sr = b.sr
-  const tc = hard ? 0.00013 : 0.0002
-  put(b, t, impact(sr, rand, hard ? MAT.xqDisc : MAT.chessMan, tc, 0.08), 0.8 * k)
-  put(b, t, contact(sr, rand, tc), 0.6 * k)
-}
-/** 指節敲木頭桌：比較低沉的「叩」 */
-function knock(b: Buf, t: number, rand: Rand, k = 1) {
-  const sr = b.sr
-  const tc = 0.0006 + rand() * 0.0002
-  put(b, t, impact(sr, rand, MAT.table, tc, 0.22), 1 * k)
-  put(b, t, contact(sr, rand, tc, 0.015), 0.35 * k)
-}
-
-// ── 紙牌 ──
-/** 一張牌拍在桌上：牌面壓出空氣的「啪」（寬頻、不帶音高）＋桌面一點低沉的共鳴 */
-function cardSlap(b: Buf, t: number, rand: Rand, k = 1) {
-  const sr = b.sr
-  // 空氣被擠出去：寬頻雜訊，集中在 400～3000 Hz，十幾毫秒就停
-  put(b, t, env(biquad(biquad(noise(Math.ceil(0.05 * sr), rand), sr, 'hp', 350, 0.5), sr, 'lp', 2800 + rand() * 600, 0.5), sr, 0.0005, 0.009), 1 * k)
-  // 牌邊碰到桌面的一下脆聲
-  put(b, t, env(biquad(noise(Math.ceil(0.01 * sr), rand), sr, 'hp', 3500, 0.5), sr, 0.0002, 0.0014), 0.35 * k)
-  // 桌面被拍到的一點低音（紙很軟，接觸時間長，只激得起低頻）
-  put(b, t, impact(sr, rand, MAT.table, 0.0025, 0.1), 0.12 * k)
-}
-/** 牌滑過桌面或牌堆：沙沙的摩擦，最後輕輕停下 */
-function cardSlide(b: Buf, t: number, rand: Rand, len: number, k = 1) {
-  const sr = b.sr
+/** 一段摩擦聲（紙牌滑過、拿起棋子時擦過棋盤）：頻帶噪音，升起再收尾 */
+function rub(sr: number, rand: Rand, len: number, lo: number, hi: number): Float32Array {
   const n = Math.ceil(len * sr)
-  const x = biquad(biquad(noise(n, rand), sr, 'hp', 900, 0.5), sr, 'lp', (i) => 2600 + 2600 * (i / n), 0.5)
+  const x = biquad(biquad(noise(n, rand), sr, 'hp', lo, 0.6), sr, 'lp', hi, 0.6)
   for (let i = 0; i < n; i++) {
     const p = i / n
-    x[i] *= Math.min(1, p / 0.2) * Math.min(1, (1 - p) / 0.35) * (0.8 + 0.2 * Math.sin(i * 0.002))
+    x[i] *= Math.min(1, p / 0.25) * Math.min(1, (1 - p) / 0.3) * (0.8 + 0.2 * Math.sin(i * 0.0023))
   }
-  put(b, t, x, 0.5 * k)
-}
-/** 牌從手上抽出來／挑起來：牌和牌互相摩擦的一聲短「刷」 */
-function cardRub(b: Buf, t: number, rand: Rand, len: number, k = 1) {
-  const sr = b.sr
-  const n = Math.ceil(len * sr)
-  const x = biquad(noise(n, rand), sr, 'bp', (i) => 2600 + 2200 * (i / n), 0.6)
-  for (let i = 0; i < n; i++) x[i] *= Math.sin((Math.PI * i) / n) ** 1.4
-  put(b, t, x, k)
+  return x
 }
 
 // ── 介面 ──
-/** 木琴的一個音（贏、輸、和棋）：木琴是調過音的木條，基音＋4 倍泛音，比一般木頭響得久 */
+/** 木琴的一個音（贏、輸、和局）：木琴的木條調過音，基音＋約 4 倍、10 倍泛音；槌子打下去有一下短的敲擊聲 */
 function marimba(b: Buf, t: number, rand: Rand, f: number, k = 1, d = 0.35) {
   const sr = b.sr
   const n = Math.ceil(d * 3 * sr)
   const y = new Float32Array(n)
   for (const [mul, a, dd] of [
     [1, 1, d],
-    [3.93, 0.22, d * 0.2],
+    [3.93, 0.2, d * 0.2],
     [9.2, 0.05, d * 0.06],
   ] as const) {
     const w = (2 * Math.PI * f * mul * (1 + (rand() - 0.5) * 0.002)) / sr
     for (let i = 0; i < n; i++) y[i] += a * Math.exp(-i / (dd * sr)) * Math.sin(w * i)
   }
-  // 槌子打下去：一點點接觸聲
-  const rise = Math.ceil(0.0015 * sr)
+  const rise = Math.ceil(0.002 * sr)
   for (let i = 0; i < rise; i++) y[i] *= i / rise
   b.add(t, y, k)
-  b.add(t, contact(sr, rand, 0.0008, 0.01), 0.05 * k)
+  b.add(t, burst(sr, rand, P.knock, { shift: 6, tauMul: 0.6 }), 0.06 * k / 1)
 }
 
 /** 算出一個聲音（seed 不同，聲音就稍微不同） */
 export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
   const rand = makeRand(seed * 9973 + name.length * 131 + name.charCodeAt(0))
+  const v = (seed - 1) % 3
   let b: Buf
   switch (name) {
     // ── 介面 ──
     case 'tap': {
-      // 按鈕：手指按下厚紙板的一聲輕「嗒」
-      b = new Buf(sr, 0.08)
-      put(b, 0, impact(sr, rand, MAT.card, 0.0005, 0.07), 1)
-      put(b, 0, contact(sr, rand, 0.0005), 0.45)
-      return b.normalize(0.28).data
+      // 按鈕：手指按下去的一下輕「嗒」（像西洋棋子那種極短的悶聲，高一點、輕一點）
+      b = new Buf(sr, 0.06)
+      put(b, 0, burst(sr, rand, P.chessMove, { shift: 4, tauMul: 0.8 }), 1)
+      return b.normalize(0.22).data
     }
     case 'slide': {
-      // 模式卡片左右滑：一張卡片滑過另一張的「咻」
-      b = new Buf(sr, 0.26)
-      cardSlide(b, 0, rand, 0.22, 1)
-      return b.normalize(0.26).data
+      // 模式卡片左右滑：一張卡片滑過另一張
+      b = new Buf(sr, 0.24)
+      put(b, 0, rub(sr, rand, 0.2, 1500, 6000), 1)
+      return b.normalize(0.18).data
     }
     case 'error': {
-      // 不能這樣做：兩聲悶悶的「咚咚」，第二聲比較低（木頭被手掌壓著敲）
-      b = new Buf(sr, 0.34)
-      put(b, 0, impact(sr, rand, { ...MAT.table, lo: 200, hi: 1200, tilt: 0.35 }, 0.0012, 0.16), 1)
-      put(b, 0.13, impact(sr, rand, { ...MAT.table, lo: 160, hi: 950, tilt: 0.35 }, 0.0014, 0.18), 0.9)
-      return b.normalize(0.5).data
-    }
-    case 'win': {
-      // 贏：木琴往上的琶音
-      b = new Buf(sr, 1.6)
-      ;[523.25, 659.25, 783.99, 1046.5].forEach((f, i) => marimba(b, i * 0.11, rand, f, i === 3 ? 1.1 : 0.9))
-      return b.normalize(0.55).data
-    }
-    case 'lose': {
-      // 輸：木琴往下的三個音
-      b = new Buf(sr, 1.6)
-      ;[392, 329.63, 261.63].forEach((f, i) => marimba(b, i * 0.18, rand, f, 0.9, 0.42))
+      // 不能這樣做：兩下悶悶的敲木頭，第二下比較低
+      b = new Buf(sr, 0.3)
+      put(b, 0, burst(sr, rand, P.knock, { shift: -1 }), 1)
+      put(b, 0.12, burst(sr, rand, P.knock, { shift: -3 }), 0.85)
       return b.normalize(0.45).data
     }
+    case 'win': {
+      b = new Buf(sr, 1.6)
+      ;[523.25, 659.25, 783.99, 1046.5].forEach((f, i) => marimba(b, i * 0.11, rand, f, i === 3 ? 1.1 : 0.9))
+      return b.normalize(0.5).data
+    }
+    case 'lose': {
+      b = new Buf(sr, 1.6)
+      ;[392, 329.63, 261.63].forEach((f, i) => marimba(b, i * 0.18, rand, f, 0.9, 0.42))
+      return b.normalize(0.42).data
+    }
     case 'draw': {
-      // 和局：木琴兩個一樣高的音，不喜不悲
       b = new Buf(sr, 1.2)
       marimba(b, 0, rand, 440, 0.8, 0.3)
       marimba(b, 0.2, rand, 440, 0.7, 0.36)
-      return b.normalize(0.42).data
+      return b.normalize(0.4).data
     }
     case 'reveal': {
-      // 猜拳亮出手勢：手一甩的風聲＋手停住的一下輕拍
-      b = new Buf(sr, 0.2)
-      const n = Math.ceil(0.12 * sr)
-      const w = biquad(noise(n, rand), sr, 'lp', (i) => 600 + 1800 * (i / n), 0.5)
-      for (let i = 0; i < n; i++) w[i] *= (i / n) ** 2
-      put(b, 0, w, 0.35)
-      put(b, 0.12, impact(sr, rand, MAT.card, 0.0012, 0.07), 0.7)
-      put(b, 0.12, contact(sr, rand, 0.001), 0.4)
-      return b.normalize(0.4).data
+      // 猜拳亮出手勢：手一甩的風聲，停住時一下輕拍
+      b = new Buf(sr, 0.22)
+      const w = rub(sr, rand, 0.12, 400, 2500)
+      for (let i = 0; i < w.length; i++) w[i] *= (i / w.length) ** 1.5
+      put(b, 0, w, 0.4)
+      put(b, 0.115, burst(sr, rand, P.chessMove, { shift: 2 }), 0.9)
+      return b.normalize(0.38).data
     }
 
     // ── 紙牌 ──
     case 'shuffle': {
-      // 洗牌（鴿尾式）：拇指放開，兩疊牌的牌角一張張交錯落下（一長串細小的「答」），接著把牌推齊
+      // 鴿尾式洗牌：牌角一張張交錯落下（一長串很短的「答」），最後把牌推齊
       b = new Buf(sr, 0.95)
-      const n = 48
+      const n = 46
       let t = 0.02
       for (let i = 0; i < n; i++) {
         const p = i / n
         const k = 0.35 + 0.65 * Math.sin(Math.PI * p)
-        put(b, t, env(biquad(noise(Math.ceil(0.006 * sr), rand), sr, 'bp', 3200 + rand() * 3000, 0.7), sr, 0.0002, 0.0012), k * (0.6 + rand() * 0.4))
+        put(b, t, burst(sr, rand, P.cardSnap, { tauMul: 0.5, jitter: 3 }), k * (0.5 + rand() * 0.5))
         t += 0.0065 + 0.008 * (1 - Math.sin(Math.PI * p)) + rand() * 0.003
       }
-      cardSlide(b, 0.02, rand, t, 0.3)
-      cardSlap(b, t + 0.1, rand, 0.9)
-      cardSlap(b, t + 0.14, rand, 0.45)
-      return b.normalize(0.5).data
+      put(b, 0.02, rub(sr, rand, t, 1200, 7000), 0.25)
+      put(b, t + 0.09, burst(sr, rand, P.cardDown), 0.9)
+      put(b, t + 0.13, burst(sr, rand, P.cardDown, { tauMul: 0.6 }), 0.45)
+      return b.normalize(0.45).data
     }
     case 'deal': {
       // 發一張牌：從牌堆滑出去，落在桌上
       b = new Buf(sr, 0.2)
-      cardSlide(b, 0, rand, 0.09, 0.8)
-      cardSlap(b, 0.085, rand, 0.55)
-      return b.normalize(0.4).data
+      put(b, 0, rub(sr, rand, 0.08, 1500, 7000), 0.35)
+      put(b, 0.075, burst(sr, rand, P.cardDown), 1)
+      return b.normalize(0.36).data
     }
     case 'card': {
-      // 出牌、放牌：一張牌拍在桌上
-      b = new Buf(sr, 0.14)
-      cardSlap(b, 0, rand)
-      return b.normalize(0.5).data
+      // 出牌、放牌：一張牌落在桌上
+      b = new Buf(sr, 0.13)
+      put(b, 0, burst(sr, rand, P.cardDown), 1)
+      return b.normalize(0.45).data
     }
     case 'flip': {
-      // 翻牌：指尖把牌邊撥起的「嗤」，牌面掀過去帶起一點風，再落下
+      // 翻牌：牌邊彈開的「啪」，翻過去再落下
       b = new Buf(sr, 0.17)
-      put(b, 0, env(biquad(noise(Math.ceil(0.01 * sr), rand), sr, 'hp', 2400, 0.5), sr, 0.0002, 0.0012), 0.45)
-      const n = Math.ceil(0.05 * sr)
-      const whoosh = biquad(noise(n, rand), sr, 'lp', (i) => 700 + 2000 * Math.sin((Math.PI * i) / n), 0.5)
-      for (let i = 0; i < n; i++) whoosh[i] *= Math.sin((Math.PI * i) / n) ** 2
-      put(b, 0.004, whoosh, 0.4)
-      cardSlap(b, 0.055 + rand() * 0.008, rand, 0.7)
-      return b.normalize(0.42).data
+      put(b, 0, burst(sr, rand, P.cardSnap), 0.8)
+      put(b, 0.05 + rand() * 0.01, burst(sr, rand, P.cardDown, { tauMul: 0.7 }), 0.8)
+      return b.normalize(0.4).data
     }
     case 'cardPick': {
-      // 從手牌裡挑起一張：牌和牌之間輕輕一「刷」
-      b = new Buf(sr, 0.09)
-      cardRub(b, 0, rand, 0.06, 1)
-      return b.normalize(0.24).data
+      // 從手牌裡挑起一張：牌和牌擦過，再輕輕彈開
+      b = new Buf(sr, 0.1)
+      put(b, 0, rub(sr, rand, 0.05, 1500, 6500), 0.5)
+      put(b, 0.045, burst(sr, rand, P.cardSnap, { tauMul: 0.8 }), 0.6)
+      return b.normalize(0.22).data
     }
     case 'collect': {
-      // 收牌：牌疊到另一疊上，拍一下再順手推齊
+      // 收牌：疊到另一疊上，拍一下再推齊
       b = new Buf(sr, 0.17)
-      cardSlap(b, 0, rand, 0.9)
-      cardSlap(b, 0.04 + rand() * 0.01, rand, 0.35)
-      return b.normalize(0.45).data
+      put(b, 0, burst(sr, rand, P.cardDown), 1)
+      put(b, 0.04 + rand() * 0.01, burst(sr, rand, P.cardDown, { tauMul: 0.6 }), 0.4)
+      return b.normalize(0.42).data
     }
     case 'pass': {
       // 過牌：指節在木頭桌上敲兩下
-      b = new Buf(sr, 0.36)
-      knock(b, 0, rand, 1)
-      knock(b, 0.13 + rand() * 0.02, rand, 0.85)
-      return b.normalize(0.55).data
+      b = new Buf(sr, 0.32)
+      put(b, 0, burst(sr, rand, P.knock), 1)
+      put(b, 0.13 + rand() * 0.02, burst(sr, rand, P.knock, { shift: -0.5 }), 0.85)
+      return b.normalize(0.5).data
     }
 
     // ── 棋類 ──
     case 'stone': {
-      // 五子棋、圍棋落子：棋石落在榧木棋盤上
-      b = new Buf(sr, 0.26)
-      stoneOnBoard(b, 0, rand)
-      return b.normalize(0.62).data
+      // 五子棋、圍棋落子：棋石拍在棋盤上（三個版本各對應一種量到的落子聲）
+      b = new Buf(sr, 0.16)
+      put(b, 0, burst(sr, rand, P.stone[v], { attack: 0.0003 }), 1)
+      return b.normalize(0.6).data
     }
     case 'stonePick': {
       // 手伸進棋罐拿一顆：幾顆棋石互相碰撞，越來越輕
@@ -441,57 +424,54 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
       const n = 3 + Math.floor(rand() * 3)
       let t = 0
       for (let i = 0; i < n; i++) {
-        stoneTick(b, t, rand, (1 - i / (n + 1)) * (0.6 + rand() * 0.4))
-        t += 0.018 + rand() * 0.03
+        put(b, t, burst(sr, rand, P.stoneTick, { shift: 1, jitter: 3 }), (1 - i / (n + 1)) * (0.6 + rand() * 0.4))
+        t += 0.02 + rand() * 0.03
       }
-      return b.normalize(0.34).data
+      return b.normalize(0.28).data
     }
     case 'capture': {
       // 圍棋提子：被提的棋石一顆顆丟進盒蓋，碰在一起
-      b = new Buf(sr, 0.48)
+      b = new Buf(sr, 0.45)
       const n = 7 + Math.floor(rand() * 4)
       for (let i = 0; i < n; i++) {
         const t = (i / n) * 0.28 + rand() * 0.025
-        stoneTick(b, t, rand, 0.55 + rand() * 0.45)
-        if (rand() < 0.4) stoneTick(b, t + 0.007 + rand() * 0.006, rand, 0.35)
+        put(b, t, burst(sr, rand, P.stoneTick, { jitter: 3 }), 0.55 + rand() * 0.45)
+        if (rand() < 0.4) put(b, t + 0.007 + rand() * 0.006, burst(sr, rand, P.stoneTick, { shift: 1, jitter: 3 }), 0.35)
       }
       return b.normalize(0.42).data
     }
     case 'piece': {
-      // 西洋棋走子：底下貼絨布的木頭棋子放上木頭棋盤，悶悶的「叩」
-      b = new Buf(sr, 0.26)
-      pieceDown(b, 0, rand, false)
+      // 西洋棋走子：極短的悶「叩」＋棋盤的低音
+      b = new Buf(sr, 0.1)
+      put(b, 0, burst(sr, rand, P.chessMove), 1)
       return b.normalize(0.55).data
     }
     case 'chessCapture': {
-      // 西洋棋吃子：自己的子碰到對方的子「喀」，把它拿開，自己的子落下
-      b = new Buf(sr, 0.32)
-      pieceClack(b, 0, rand, false, 0.7)
-      pieceDown(b, 0.07, rand, false, 1)
-      return b.normalize(0.58).data
+      // 西洋棋吃子：比走子寬、比較響
+      b = new Buf(sr, 0.12)
+      put(b, 0, burst(sr, rand, P.chessCapture), 1)
+      return b.normalize(0.6).data
     }
     case 'xqPiece': {
-      // 象棋走子：實木棋子直接拍在棋盤上，清脆的「啪」
-      b = new Buf(sr, 0.26)
-      pieceDown(b, 0, rand, true)
-      return b.normalize(0.62).data
+      // 象棋走子：厚實木棋子直接拍下，比西洋棋清脆（頻譜往上移、衰減慢一點），落定前小彈一下
+      b = new Buf(sr, 0.12)
+      put(b, 0, burst(sr, rand, P.chessMove, { shift: 4, tauMul: 2.2 }), 1)
+      put(b, 0.007 + rand() * 0.003, burst(sr, rand, P.chessMove, { shift: 5, tauMul: 1.2 }), 0.18)
+      return b.normalize(0.6).data
     }
     case 'xqCapture': {
-      // 象棋吃子：用自己的子把對方的子「啪」一聲壓下去
-      b = new Buf(sr, 0.28)
-      pieceClack(b, 0, rand, true, 0.9)
-      pieceDown(b, 0.012, rand, true, 1)
-      return b.normalize(0.66).data
+      // 象棋吃子：兩顆木棋子相撞的「喀」，緊接著拍下
+      b = new Buf(sr, 0.14)
+      put(b, 0, burst(sr, rand, P.chessCapture, { shift: 5, tauMul: 1.6 }), 0.8)
+      put(b, 0.01, burst(sr, rand, P.chessMove, { shift: 3, tauMul: 2 }), 1)
+      return b.normalize(0.64).data
     }
     case 'piecePick': {
-      // 拿起一顆棋子：棋子底部離開棋盤時輕輕擦過的一聲
-      b = new Buf(sr, 0.1)
-      const n = Math.ceil(0.05 * sr)
-      const x = biquad(noise(n, rand), sr, 'bp', 1400 + rand() * 300, 0.6)
-      for (let i = 0; i < n; i++) x[i] *= Math.sin((Math.PI * i) / n)
-      put(b, 0, x, 0.45)
-      put(b, 0.035, impact(sr, rand, MAT.boardWood, 0.0007, 0.05), 0.4)
-      return b.normalize(0.24).data
+      // 拿起一顆棋子：棋子底部擦過棋盤，離開時輕輕一聲
+      b = new Buf(sr, 0.09)
+      put(b, 0, rub(sr, rand, 0.045, 700, 3500), 0.5)
+      put(b, 0.04, burst(sr, rand, P.chessMove, { shift: 3, tauMul: 0.8 }), 0.35)
+      return b.normalize(0.2).data
     }
   }
 }
