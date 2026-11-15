@@ -382,6 +382,12 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.winner < 0 && state.turn === p" />
     <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 桌面中央的框 -->
+    <!-- 每個人這一輪剛出的牌（小張；一輪結束就清掉） -->
+    <template v-for="(seat, p) in layout.seats" :key="`last${p}`">
+      <div v-if="Array.isArray(state.lastMoves[p])" :key="`last${p}-${(state.lastMoves[p] as number[]).join('.')}`" class="last-play pop" :style="{ left: `${seat.last.x}px`, top: `${seat.last.y}px`, '--w': `${layout.cw * 0.55}px` }">
+        <svg v-for="c in (state.lastMoves[p] as number[])" :key="c" viewBox="-2 -2 78 108" class="mini"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" /></svg>
+      </div>
+    </template>
     <div class="table-box" :style="{ left: `${layout.pile.x - layout.cw * 3.1}px`, top: `${layout.pile.y - layout.cw * 1.25}px`, width: `${layout.cw * 6.2}px`, height: `${layout.cw * 2.5}px` }">
       <span class="t-label lab">TABLE</span>
     </div>
@@ -486,6 +492,20 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   isolation: isolate;
   height: 100%;
   overflow: hidden;
+}
+.last-play {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  translate: -50% -50%;
+  pointer-events: none;
+}
+.last-play .mini {
+  width: var(--w);
+  filter: drop-shadow(0.06rem 0.08rem 0 rgb(20 20 20 / 0.5));
+}
+.last-play .mini + .mini {
+  margin-left: calc(var(--w) * -0.5);
 }
 .table-box {
   position: absolute;

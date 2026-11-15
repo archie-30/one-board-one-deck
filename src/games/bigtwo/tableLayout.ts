@@ -25,6 +25,8 @@ export interface Seat {
   label: { x: number; y: number; align: 'left' | 'center' | 'right' }
   /** 「過」印章的位置 */
   stamp: { x: number; y: number }
+  /** 這一輪剛出的牌（小張）擺在哪：中心點 */
+  last: { x: number; y: number }
 }
 
 export interface Layout {
@@ -51,13 +53,14 @@ export function makeLayout(W: number, H: number): Layout {
     H,
     cw,
     seats: [
-      { kid: { x: cw * 0.8, y: H - 8, w: cw * 0.9 }, label: { x: cw * 0.8, y: H - cw - 12, align: 'center' }, stamp: { x: W / 2, y: H - cw * 1.95 } },
-      { kid: { x: W - cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: W - cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: W - cw * 2.2, y: H * 0.3 } },
-      { kid: { x: W / 2 - cw * 1.75, y: cw * 1.02, w: kw * 0.85 }, label: { x: W / 2 - cw * 2.35, y: cw * 0.3, align: 'right' }, stamp: { x: W / 2 + cw * 0.6, y: cw * 0.95 } },
-      { kid: { x: cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: cw * 2.2, y: H * 0.3 } },
+      { kid: { x: cw * 0.8, y: H - 8, w: cw * 0.9 }, label: { x: cw * 0.8, y: H - cw - 12, align: 'center' }, stamp: { x: W / 2, y: H - cw * 1.95 }, last: { x: cw * 0.95, y: H - cw * 1.6 } },
+      { kid: { x: W - cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: W - cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: W - cw * 2.2, y: H * 0.3 }, last: { x: W - cw * 0.85, y: H * 0.4 + cw * 1.05 } },
+      { kid: { x: W / 2 - cw * 1.75, y: cw * 1.02, w: kw * 0.85 }, label: { x: W / 2 - cw * 2.35, y: cw * 0.3, align: 'right' }, stamp: { x: W / 2 + cw * 0.6, y: cw * 0.95 }, last: { x: W / 2 + cw * 2.55, y: cw * 0.62 } },
+      { kid: { x: cw * 0.8, y: H * 0.4, w: kw * 0.85 }, label: { x: cw * 0.8, y: H * 0.4 + 6, align: 'center' }, stamp: { x: cw * 2.2, y: H * 0.3 }, last: { x: cw * 0.85, y: H * 0.4 + cw * 1.05 } },
     ],
     pile: { x: W / 2, y: H * 0.42 },
-    discard: { x: W / 2 + cw * 2.7, y: H * 0.47 },
+    // 棄牌堆：在 TABLE 框裡的左側（框是 pile ± 3.1 張寬、± 1.25 張寬）
+    discard: { x: W / 2 - cw * 2.3, y: H * 0.42 + cw * 0.12 },
   }
 }
 
@@ -109,7 +112,8 @@ export function cardPoses(L: Layout, m: TableModel): Map<Card, Pose> {
 
   // 牌堆：每一手各有自己的落點與角度，一手疊在一手上
   m.pile.forEach((g, gi) => {
-    const ax = L.pile.x + hash(g.id, 1) * cw * 1.3
+    // 這一輪的牌放在框的中間偏右（左邊留給棄牌堆）
+    const ax = L.pile.x + cw * 0.45 + hash(g.id, 1) * cw * 1.0
     const ay = L.pile.y + hash(g.id, 2) * cw * 0.5
     const ar = hash(g.id, 3) * 22
     const rad = (ar * Math.PI) / 180
@@ -129,7 +133,7 @@ export function cardPoses(L: Layout, m: TableModel): Map<Card, Pose> {
 
   // 棄牌堆：一輪結束後被推到旁邊、蓋起來的牌
   m.discard.forEach((c, i) => {
-    out.set(c, { x: L.discard.x + hash(c, 5) * cw * 0.5, y: L.discard.y + hash(c, 6) * cw * 0.3 - i * 0.3, r: hash(c, 7) * 40, s: 0.6, f: 0, z: 20 + i })
+    out.set(c, { x: L.discard.x + hash(c, 5) * cw * 0.3, y: L.discard.y + hash(c, 6) * cw * 0.2 - i * 0.3, r: hash(c, 7) * 36, s: 0.6, f: 0, z: 20 + i })
   })
   return out
 }
