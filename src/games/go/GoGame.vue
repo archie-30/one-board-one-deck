@@ -277,7 +277,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value === 'playing' && !resultOpen.value && (menuOpen.value = true), snapshot })
 if (props.resume) {
   const d = props.resume as Saved
   state.value = d.state
@@ -404,7 +404,7 @@ const resultLine = computed(() => {
         <Btn @click="resignOpen = false">{{ S.common.cancel }}</Btn>
       </template>
     </Dialog>
-    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="score.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ resultLine }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.go.wins, stats.go.losses) }}</p>
       <template #actions>

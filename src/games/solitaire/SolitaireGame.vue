@@ -217,7 +217,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => !state.value.won && !resultOpen.value && (menuOpen.value = true), snapshot })
 if (saved && saved.state.moves > 0) startClock()
 
 const bonus = computed(() => timeBonus(seconds.value))

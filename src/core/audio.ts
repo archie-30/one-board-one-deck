@@ -3,7 +3,7 @@
 //   撲克牌：洗牌、發牌（滑過桌面）、出牌（拍在桌上）、翻牌、抽起手牌、收牌、敲桌子過牌
 //   棋盤：棋子落在木頭棋盤、從棋罐拿棋子、提子丟進盒蓋
 //   介面：按鈕（木頭輕敲）、卡片滑動、錯誤、贏、輸（木琴）
-import { renderSfx, type SfxName } from './sfx'
+import { renderSfx, SFX_NAMES, type SfxName } from './sfx'
 import { settings } from './settings'
 
 export type Sound = SfxName
@@ -51,6 +51,32 @@ function buffers(ac: AudioContext, name: SfxName): AudioBuffer[] {
     cache.set(name, list)
   }
   return list
+}
+
+/**
+ * 開完 App 後趁空閒把所有聲音先算好：第一次播某個聲音時才算，會在那一刻卡一下（例如結算視窗跳出來時）。
+ * 一次只算一個，不影響畫面。
+ */
+export function warmSounds() {
+  let ac: AudioContext
+  try {
+    ctx ??= new AudioContext()
+    ac = ctx
+  } catch {
+    return
+  }
+  const todo = [...SFX_NAMES]
+  const idle = (fn: () => void) => {
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(fn, { timeout: 2000 })
+    else setTimeout(fn, 60)
+  }
+  const step = () => {
+    const name = todo.shift()
+    if (!name) return
+    buffers(ac, name)
+    idle(step)
+  }
+  idle(step)
 }
 
 export function playSound(sound: Sound) {

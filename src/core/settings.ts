@@ -16,6 +16,8 @@ interface Settings {
   lastGame: Record<string, string>
   /** 減少動畫（系統沒開「減少動態」時也可以在遊戲裡自己關） */
   reduceMotion: boolean
+  /** 切走分頁／App、離開視窗時自動暫停並保存進度 */
+  autoPause: boolean
 }
 
 interface Stats {
@@ -28,7 +30,7 @@ interface Stats {
   xiangqi: { wins: number; losses: number; draws: number }
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true }))
 
 const STATS_DEFAULT: Stats = {
   gomoku: { wins: 0, losses: 0, draws: 0 },

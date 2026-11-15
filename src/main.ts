@@ -6,6 +6,7 @@ import '@fontsource/noto-sans-tc/latin-900.css'
 import '@fontsource/alfa-slab-one/latin-400.css'
 import App from './App.vue'
 import { finishBoot } from './core/boot'
+import { warmSounds } from './core/audio'
 import './style.css'
 
 // ?gallery 只在本機開發時用來檢查美術素材
@@ -14,4 +15,4 @@ if (gallery) import('./dev/Gallery.vue').then((m) => createApp(m.default).mount(
 else createApp(App).mount('#app')
 
 // 開機加載畫面：準備好後接到主畫面（見 core/boot.ts）
-void finishBoot()
+void finishBoot().then(() => warmSounds())

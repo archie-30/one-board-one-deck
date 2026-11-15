@@ -233,7 +233,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value === 'playing' && !resultOpen.value && (menuOpen.value = true), snapshot })
 if (props.resume) {
   const d = props.resume as Saved
   state.value = d.state
@@ -291,7 +291,7 @@ if (props.resume) {
 
     <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
-    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>

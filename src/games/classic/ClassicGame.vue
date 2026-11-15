@@ -242,7 +242,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value === 'playing' && !resultOpen.value && (menuOpen.value = true), snapshot })
 if (saved && A.turn(state.value) !== human.value) scheduleCpu()
 
 const promoChoices: Promo[] = ['Q', 'R', 'B', 'N']
@@ -345,7 +345,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
       </template>
     </Dialog>
 
-    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winnerSeat === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ reason }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
       <template #actions>

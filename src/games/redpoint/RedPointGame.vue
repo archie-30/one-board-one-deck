@@ -361,7 +361,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menuOpen.value = true), snapshot })
 
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
@@ -508,7 +508,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winners(state).includes(ME) ? 'red' : 'ink'" wide @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="red" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
