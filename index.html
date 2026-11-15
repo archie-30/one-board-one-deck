@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" class="booting">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
@@ -7,43 +7,67 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <title>One Board One Deck</title>
     <style>
-      /* 開機加載畫面：JS 還沒載入就先出現，準備好後由 main.ts 淡出移除 */
+      /* 開機加載畫面：JS 還沒載入就先出現。牌和棋盤的畫法、位置和主畫面的插圖一樣（viewBox 200×150），
+         載入完成後由 src/core/boot.ts 把它們飛到主畫面的位置接上，再淡掉。 */
       html, body { margin: 0; height: 100%; background: #efe9dc; }
-      #boot { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; background: #efe9dc; transition: opacity 360ms ease; }
-      #boot.done { opacity: 0; pointer-events: none; }
-      #boot .row { display: flex; align-items: flex-end; gap: 9vmin; height: 26vmin; }
-      #boot .card { position: relative; width: 14vmin; height: 19.6vmin; perspective: 60vmin; }
-      #boot .flip { position: absolute; inset: 0; transform-style: preserve-3d; animation: boot-flip 1.8s cubic-bezier(.6,0,.3,1) infinite; }
-      #boot .face, #boot .back { position: absolute; inset: 0; border: 0.6vmin solid #141414; border-radius: 1.4vmin; backface-visibility: hidden; box-shadow: 0.9vmin 0.9vmin 0 #141414; box-sizing: border-box; }
-      #boot .face { background: #fbf8f1; display: grid; place-items: center; }
-      #boot .face svg { width: 55%; }
-      #boot .back { background: #2340d9 radial-gradient(rgb(255 255 255 / .22) 18%, transparent 20%) 0 0 / 1.6vmin 1.6vmin; transform: rotateY(180deg); display: grid; place-items: center; }
-      #boot .back::after { content: ''; width: 4.6vmin; height: 4.6vmin; border-radius: 50%; background: #fbf8f1; border: 0.6vmin solid #141414; box-sizing: border-box; box-shadow: inset 0 0 0 1.2vmin #ff4a1c; }
-      #boot .stone-wrap { position: relative; width: 11vmin; height: 26vmin; }
-      #boot .stone { position: absolute; left: 0; bottom: 1.4vmin; width: 11vmin; height: 11vmin; border-radius: 50%; background: radial-gradient(circle at 34% 30%, #4a4844 0 12%, #141414 40%); animation: boot-hop 0.9s cubic-bezier(.3,0,.6,1) infinite; }
-      #boot .shade { position: absolute; left: 1vmin; bottom: 0; width: 9vmin; height: 2vmin; border-radius: 50%; background: rgb(20 20 20 / .18); animation: boot-shade 0.9s cubic-bezier(.3,0,.6,1) infinite; }
-      #boot .dots { position: absolute; left: 50%; top: calc(50% + 19vmin); transform: translateX(-50%); display: flex; gap: 2vmin; }
-      #boot .dots i { width: 1.8vmin; height: 1.8vmin; border-radius: 50%; background: #141414; opacity: .2; animation: boot-dot 1.2s infinite; }
-      #boot .dots i:nth-child(1) { background: #ff4a1c; }
-      #boot .dots i:nth-child(2) { animation-delay: .2s; background: #ffc21a; }
-      #boot .dots i:nth-child(3) { animation-delay: .4s; background: #2340d9; }
-      @keyframes boot-flip { 0%, 30% { transform: rotateY(0) } 50%, 80% { transform: rotateY(180deg) } 100% { transform: rotateY(360deg) } }
-      @keyframes boot-hop { 0%, 100% { transform: translateY(0) scale(1.12, .86) } 12% { transform: translateY(0) scale(1) } 50% { transform: translateY(-12vmin) scale(.96, 1.04) } 88% { transform: translateY(0) scale(1) } }
-      @keyframes boot-shade { 0%, 100% { transform: scale(1.1); opacity: 1 } 50% { transform: scale(.55); opacity: .45 } }
-      @keyframes boot-dot { 0%, 60%, 100% { opacity: .2; transform: translateY(0) } 25% { opacity: 1; transform: translateY(-0.8vmin) } }
-      @media (prefers-reduced-motion: reduce) { #boot * { animation: none !important; } #boot .dots i { opacity: 1; } }
+      #boot { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
+      #boot .bg { position: absolute; inset: 0; background: #efe9dc; }
+      #boot .stage { position: absolute; left: 50%; top: 44%; display: flex; gap: 2vmin; transform: translate(-50%, -50%); }
+      #boot .art { display: block; width: 50vmin; height: 37.5vmin; overflow: visible; transform-origin: 0 0; }
+      #boot .fc { transform-box: view-box; transform-origin: 100px 140px; animation: boot-fan 2.8s cubic-bezier(.5,0,.2,1) infinite both; animation-delay: calc(var(--i) * 0.12s); }
+      #boot .fc .face, #boot .fc .back { transform-box: fill-box; transform-origin: center; }
+      #boot .fc .face { animation: boot-face 2.8s linear calc(var(--i) * 0.12s) infinite both; }
+      #boot .fc .back { animation: boot-back 2.8s linear calc(var(--i) * 0.12s) infinite both; }
+      #boot .drop { transform-box: fill-box; transform-origin: center; opacity: 0; animation: boot-drop 2.8s cubic-bezier(.3,1.4,.5,1) infinite both; animation-delay: calc(0.5s + var(--i) * 0.42s); }
+      #boot .ring { transform-box: fill-box; transform-origin: center; opacity: 0; animation: boot-ring 2.8s ease-out infinite both; animation-delay: calc(0.5s + var(--i) * 0.42s); }
+      #boot .bar { position: absolute; left: 50%; top: calc(44% + 23vmin); width: 76vmin; transform: translateX(-50%); }
+      #boot .track { position: relative; height: 2vmin; border: 0.45vmin solid #141414; background: #fbf8f1; box-shadow: 0.6vmin 0.6vmin 0 #141414; overflow: hidden; }
+      #boot .fill { position: absolute; inset: 0; transform-origin: 0 50%; background: #ff4a1c; transform: scaleX(0); animation: boot-fill 2.4s cubic-bezier(.2,.7,.3,1) forwards; }
+      #boot .lab { display: flex; justify-content: space-between; white-space: nowrap; margin-top: 1.8vmin; font: 900 2.7vmin/1 system-ui, sans-serif; letter-spacing: .32em; color: #141414; }
+      #boot .lab i { font-style: normal; color: #9a958a; }
+      @keyframes boot-fan { 0% { transform: rotate(0) translateY(0) } 14%, 84% { transform: rotate(calc(var(--a) * 1.35)) translateY(0) } 92% { transform: rotate(0) translateY(-3px) } 100% { transform: rotate(0) } }
+      @keyframes boot-back { 0%, 18% { transform: scaleX(1) } 24%, 78% { transform: scaleX(0) } 84%, 100% { transform: scaleX(1) } }
+      @keyframes boot-face { 0%, 24% { transform: scaleX(0) } 30%, 72% { transform: scaleX(1) } 78%, 100% { transform: scaleX(0) } }
+      @keyframes boot-drop { 0% { opacity: 0; transform: translateY(-24px) scale(1.5) } 8% { opacity: 1; transform: translateY(0) scale(1.18, .82) } 13% { transform: scale(1) } 70% { opacity: 1; transform: none } 80%, 100% { opacity: 0; transform: none } }
+      @keyframes boot-ring { 0%, 6% { opacity: 0; transform: scale(.6) } 8% { opacity: .7 } 26%, 100% { opacity: 0; transform: scale(2.4) } }
+      @keyframes boot-fill { from { transform: scaleX(0) } to { transform: scaleX(.72) } }
+      @media (prefers-reduced-motion: reduce) { #boot *, #boot *::before { animation: none !important; } #boot .fc .face { transform: none } #boot .fc .back { transform: scaleX(0) } #boot .fc { transform: rotate(var(--a)) } #boot .fill { transform: scaleX(.72) } }
     </style>
   </head>
   <body>
     <div id="boot" aria-hidden="true">
-      <div class="row">
-        <div class="card"><div class="flip">
-          <div class="face"><svg viewBox="0 0 20 20"><path fill="#ff4a1c" d="M10 18 2.6 10.6A4.3 4.3 0 0 1 10 4.6a4.3 4.3 0 0 1 7.4 6Z"/></svg></div>
-          <div class="back"></div>
-        </div></div>
-        <div class="stone-wrap"><div class="shade"></div><div class="stone"></div></div>
+      <div class="bg"></div>
+      <div class="stage">
+        <svg class="art fan" viewBox="0 0 200 150">
+          <defs><pattern id="bootDots" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="0.9" fill="rgb(251 248 241 / .35)" /></pattern></defs>
+          <g class="fc" style="--i: 0; --a: -12.8deg">
+            <g transform="translate(64 22)">
+              <g class="back"><rect x="3" y="3.5" width="70" height="100" rx="6" fill="#141414" /><rect width="70" height="100" rx="6" fill="#2340d9" stroke="#141414" stroke-width="2.2" /><rect x="6" y="6" width="58" height="88" rx="3" fill="url(#bootDots)" /><circle cx="35" cy="50" r="13" fill="#fbf8f1" stroke="#141414" stroke-width="2" /><circle cx="35" cy="50" r="5.5" fill="#ff4a1c" /></g>
+              <g class="face"><rect x="3" y="3.5" width="70" height="100" rx="6" fill="#141414" /><rect width="70" height="100" rx="6" fill="#fbf8f1" stroke="#141414" stroke-width="2.2" /><text x="7" y="27" font-size="25" font-family="'Alfa Slab One', Georgia, serif" fill="#ff4a1c">A</text><path d="M12 21.5C5 15.4 2 11.7 2 7.9C2 4.9 4.3 3 6.8 3c2.1 0 4 1.2 5.2 3.2C13.2 4.2 15.1 3 17.2 3C19.7 3 22 4.9 22 7.9c0 3.8-3 7.5-10 13.6z" fill="#ff4a1c" transform="translate(7.5 32) scale(.55)" /><path d="M12 21.5C5 15.4 2 11.7 2 7.9C2 4.9 4.3 3 6.8 3c2.1 0 4 1.2 5.2 3.2C13.2 4.2 15.1 3 17.2 3C19.7 3 22 4.9 22 7.9c0 3.8-3 7.5-10 13.6z" fill="#ff4a1c" transform="translate(30 53) scale(1.45)" /></g>
+            </g>
+          </g>
+          <g class="fc" style="--i: 1; --a: 0deg">
+            <g transform="translate(64 22)">
+              <g class="back"><rect x="3" y="3.5" width="70" height="100" rx="6" fill="#141414" /><rect width="70" height="100" rx="6" fill="#2340d9" stroke="#141414" stroke-width="2.2" /><rect x="6" y="6" width="58" height="88" rx="3" fill="url(#bootDots)" /><circle cx="35" cy="50" r="13" fill="#fbf8f1" stroke="#141414" stroke-width="2" /><circle cx="35" cy="50" r="5.5" fill="#ff4a1c" /></g>
+              <g class="face"><rect x="3" y="3.5" width="70" height="100" rx="6" fill="#141414" /><rect width="70" height="100" rx="6" fill="#fbf8f1" stroke="#141414" stroke-width="2.2" /><text x="7" y="27" font-size="25" font-family="'Alfa Slab One', Georgia, serif" fill="#141414">2</text><path d="M12 1.8C8 6.9 3 9.9 3 14.2c0 2.7 2 4.4 4.3 4.4c1.6 0 2.9-.7 3.7-1.8c-.2 2.2-1 3.8-2.4 5.2h6.8c-1.4-1.4-2.2-3-2.4-5.2c.8 1.1 2.1 1.8 3.7 1.8c2.3 0 4.3-1.7 4.3-4.4c0-4.3-5-7.3-9-12.4z" fill="#141414" transform="translate(7.5 32) scale(.55)" /><path d="M12 1.8C8 6.9 3 9.9 3 14.2c0 2.7 2 4.4 4.3 4.4c1.6 0 2.9-.7 3.7-1.8c-.2 2.2-1 3.8-2.4 5.2h6.8c-1.4-1.4-2.2-3-2.4-5.2c.8 1.1 2.1 1.8 3.7 1.8c2.3 0 4.3-1.7 4.3-4.4c0-4.3-5-7.3-9-12.4z" fill="#141414" transform="translate(30 53) scale(1.45)" /></g>
+            </g>
+          </g>
+          <g class="fc" style="--i: 2; --a: 12.8deg">
+            <g transform="translate(64 22)">
+              <g class="back"><rect x="3" y="3.5" width="70" height="100" rx="6" fill="#141414" /><rect width="70" height="100" rx="6" fill="#2340d9" stroke="#141414" stroke-width="2.2" /><rect x="6" y="6" width="58" height="88" rx="3" fill="url(#bootDots)" /><circle cx="35" cy="50" r="13" fill="#fbf8f1" stroke="#141414" stroke-width="2" /><circle cx="35" cy="50" r="5.5" fill="#ff4a1c" /></g>
+              <g class="face"><rect x="3" y="3.5" width="70" height="100" rx="6" fill="#141414" /><rect width="70" height="100" rx="6" fill="#fbf8f1" stroke="#141414" stroke-width="2.2" /><text x="7" y="27" font-size="25" font-family="'Alfa Slab One', Georgia, serif" fill="#ff4a1c">K</text><path d="M12 1.6c2.2 3.8 5 7.2 8.4 10.4c-3.4 3.2-6.2 6.6-8.4 10.4c-2.2-3.8-5-7.2-8.4-10.4c3.4-3.2 6.2-6.6 8.4-10.4z" fill="#ff4a1c" transform="translate(7.5 32) scale(.55)" /><path d="M12 1.6c2.2 3.8 5 7.2 8.4 10.4c-3.4 3.2-6.2 6.6-8.4 10.4c-2.2-3.8-5-7.2-8.4-10.4c3.4-3.2 6.2-6.6 8.4-10.4z" fill="#ff4a1c" transform="translate(30 53) scale(1.45)" /></g>
+            </g>
+          </g>
+        </svg>
+        <svg class="art goban" viewBox="0 0 200 150">
+          <rect x="44" y="9" width="124" height="124" fill="#141414" />
+          <rect x="38" y="3" width="124" height="124" fill="#ffc21a" stroke="#141414" stroke-width="2.4" />
+          <g stroke="#141414" stroke-width="1.1"><line x1="40" x2="160" y1="5" y2="5" /><line y1="5" y2="125" x1="40" x2="40" /><line x1="40" x2="160" y1="25" y2="25" /><line y1="5" y2="125" x1="60" x2="60" /><line x1="40" x2="160" y1="45" y2="45" /><line y1="5" y2="125" x1="80" x2="80" /><line x1="40" x2="160" y1="65" y2="65" /><line y1="5" y2="125" x1="100" x2="100" /><line x1="40" x2="160" y1="85" y2="85" /><line y1="5" y2="125" x1="120" x2="120" /><line x1="40" x2="160" y1="105" y2="105" /><line y1="5" y2="125" x1="140" x2="140" /><line x1="40" x2="160" y1="125" y2="125" /><line y1="5" y2="125" x1="160" x2="160" /></g>
+          <g><circle cx="101.28" cy="66.60" r="8" fill="#141414" /><circle cx="100" cy="65" r="8" fill="#141414" stroke="#141414" stroke-width="1.6" /><circle cx="97.44" cy="62.44" r="1.44" fill="rgb(251 248 241 / .45)" /></g><g><circle cx="121.28" cy="46.60" r="8" fill="#141414" /><circle cx="120" cy="45" r="8" fill="#fbf8f1" stroke="#141414" stroke-width="1.6" /></g>
+          <circle class="ring" cx="80" cy="85" r="8" fill="none" stroke="#141414" stroke-width="1.2" style="--i: 0" /><g class="drop" style="--i: 0"><circle cx="81.28" cy="86.60" r="8" fill="#141414" /><circle cx="80" cy="85" r="8" fill="#141414" stroke="#141414" stroke-width="1.6" /><circle cx="77.44" cy="82.44" r="1.44" fill="rgb(251 248 241 / .45)" /></g><circle class="ring" cx="120" cy="65" r="8" fill="none" stroke="#141414" stroke-width="1.2" style="--i: 1" /><g class="drop" style="--i: 1"><circle cx="121.28" cy="66.60" r="8" fill="#141414" /><circle cx="120" cy="65" r="8" fill="#fbf8f1" stroke="#141414" stroke-width="1.6" /></g><circle class="ring" cx="60" cy="105" r="8" fill="none" stroke="#141414" stroke-width="1.2" style="--i: 2" /><g class="drop" style="--i: 2"><circle cx="61.28" cy="106.60" r="8" fill="#141414" /><circle cx="60" cy="105" r="8" fill="#141414" stroke="#141414" stroke-width="1.6" /><circle cx="57.44" cy="102.44" r="1.44" fill="rgb(251 248 241 / .45)" /></g>
+        </svg>
       </div>
-      <div class="dots"><i></i><i></i><i></i></div>
+      <div class="bar"><div class="track"><div class="fill"></div></div><div class="lab"><span>ONE BOARD · ONE DECK</span><i>LOADING</i></div></div>
     </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
