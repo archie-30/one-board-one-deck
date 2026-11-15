@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 大老二牌桌：你在下方，三位隨機入座的對手在左、上、右。
 // 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
@@ -348,23 +348,9 @@ function playSelected() {
   act({ type: 'play', player: ME, cards })
 }
 
-// 過牌要按兩次：第一次按下變成「再按一次過牌」，2.5 秒內再按才真的過
-const passArmed = ref(false)
-let passTimer = 0
-function disarmPass() {
-  passArmed.value = false
-  window.clearTimeout(passTimer)
-}
+// 過牌：按一下就過（大老二不用二次確認）
 function pass() {
   if (!canPass.value) return
-  if (!passArmed.value) {
-    passArmed.value = true
-    playSound('tap')
-    window.clearTimeout(passTimer)
-    passTimer = window.setTimeout(() => (passArmed.value = false), 2500)
-    return
-  }
-  disarmPass()
   selected.value = []
   acted.value = true
   act({ type: 'pass', player: ME })
@@ -372,7 +358,6 @@ function pass() {
 /** 時間到：這一手跳過（桌上有牌＝過牌；輪到你首出＝改由下一位首出） */
 function onTimeout() {
   if (!myTurn.value) return
-  disarmPass()
   selected.value = []
   acted.value = true
   if (act({ type: 'timeout', player: ME })) {
@@ -380,10 +365,6 @@ function onTimeout() {
     message.value = S.common.timedOut
   }
 }
-watch(canPass, (v) => {
-  if (!v) disarmPass()
-})
-onBeforeUnmount(() => window.clearTimeout(passTimer))
 
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 const doubleNotes = computed(() => {
@@ -451,7 +432,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <div class="actions">
       <template v-if="phase !== 'over'">
         <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</Btn>
-        <Btn class="rise" style="--i: 1" icon="pass" block :tone="passArmed ? 'yellow' : 'plain'" :disabled="!canPass" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
+        <Btn class="rise" style="--i: 1" icon="pass" block :disabled="!canPass" @click="pass">{{ T.pass }}</Btn>
       </template>
       <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.result.howTitle }}</Btn>
     </div>

@@ -7,6 +7,7 @@ export const S = {
     rotate: '請把裝置轉成橫向',
   },
   common: {
+    home: '回到主畫面',
     /** 規則設定裡的「倒數計時」開關（牌類、棋類共用） */
     timer: {
       label: '倒數計時',
@@ -47,7 +48,7 @@ export const S = {
     restart: '重新開始',
     quit: '離開對局',
     quitNoSave: '離開並認輸',
-    quitConfirm: '再按一次認輸離開',
+    quitConfirm: '再按一次確認',
     viewBoard: '查看棋盤',
     showResult: '看結果',
     saveExit: '保存進度並退出',
@@ -270,7 +271,6 @@ export const S = {
     record: (rounds: number, wins: number, total: number) => `打了 ${rounds} 局　贏 ${wins} 局　總分 ${total > 0 ? '+' : ''}${total}`,
     play: '出牌',
     pass: '過牌',
-    passConfirm: '再按一次過牌',
     passed: '過',
     yourTurn: '輪到你',
     yourLead: '輪到你，可以出任何牌型',
@@ -431,7 +431,7 @@ export const S = {
       },
       {
         title: '操作',
-        body: ['點牌選取，再點一次取消。選好按「出牌」。要過牌時按兩次「過牌」（按第一次會變成「再按一次過牌」，避免按錯）。'],
+        body: ['點牌選取，再點一次取消。選好按「出牌」。要過牌時按「過牌」。'],
       },
     ],
     tutorial: [
@@ -829,7 +829,7 @@ export const S = {
     cpuTurn: (name: string) => `${name}思考中…`,
     place: '落子',
     pass: '虛手',
-    passConfirm: '再按一次虛手',
+    passConfirm: '再按一次',
     resign: '認輸',
     passed: (name: string) => `${name}虛手`,
     bothPassed: '雙方都虛手了，開始算地',

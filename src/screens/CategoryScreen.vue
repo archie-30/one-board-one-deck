@@ -62,12 +62,13 @@ watch(
       return
     }
     // 分數越大數得越久一點（0.6～1.1 秒），先快後慢
-    const dur = Math.min(1100, 600 + Math.log10(to + 1) * 120)
+    const dur = Math.min(1600, 900 + Math.log10(to + 1) * 180)
     // 等右邊的元件浮出來（約 0.25 秒）再開始數，才看得到從 0 開始
     const t0 = performance.now() + 250
     const step = (now: number) => {
       const p = Math.min(1, Math.max(0, (now - t0) / dur))
-      bestShown.value = Math.round(to * (1 - Math.pow(1 - p, 3)))
+      // 一開始跑很快，接近最高分時慢下來
+      bestShown.value = p >= 1 ? to : Math.round(to * (1 - Math.pow(2, -10 * p)))
       if (p < 1) countRaf = requestAnimationFrame(step)
     }
     countRaf = requestAnimationFrame(step)
@@ -215,7 +216,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <section class="mode" :class="[`c-${category}`, { locked }]">
-    <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="back()" /></div>
+    <div class="corner"><IconBtn icon="home" :label="S.common.home" @click="back()" /></div>
     <header class="head">
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
@@ -278,18 +279,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <p class="t-label rise">{{ game.players }}</p>
           <h2 class="t-black name"><span class="mask"><span>{{ game.name }}</span></span></h2>
           <p class="summary rise" style="--i: 2">{{ game.summary }}</p>
-          <div v-if="game.best || quick" class="stats rise" style="--i: 3">
-            <p v-if="game.best" class="best">
+          <div v-if="game.best" class="stats rise" style="--i: 3">
+            <p class="best">
               <span class="t-label">{{ S.lobby.best }}</span>
-              <b class="t-slab">{{ bestShown }}</b>
+              <!-- 寬度先照最高分的位數留好，跳數時不會把旁邊的東西擠來擠去 -->
+              <b class="t-slab" :style="{ minWidth: `${String(bestNow).length * 0.78}em` }">{{ bestShown }}</b>
             </p>
-            <div v-if="quick" class="quick" :title="quick.help">
-              <span class="t-label">{{ quick.label }}</span>
-              <Tabs :choices="quick.choices" :value="quickValue" hot="master" @change="setQuick" />
-            </div>
           </div>
         </div>
         <div class="acts">
+          <!-- 難度：固定在「開始遊戲」上面 -->
+          <div v-if="quick" class="quick rise" style="--i: 3" :title="quick.help">
+            <span class="t-label">{{ quick.label }}</span>
+            <Tabs class="small" :choices="quick.choices" :value="quickValue" hot="master" @change="setQuick" />
+          </div>
           <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="launch">{{ S.lobby.start }}</Btn>
           <div class="minor rise" style="--i: 4">
             <button class="link" @click="open('tutorial')"><span>{{ S.lobby.tutorial }}</span><Icon name="arrow" class="ar" /></button>
@@ -661,6 +664,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.quick .small :deep(.tab) {
+  padding: 0.12rem 0.65rem;
+  font-size: 0.72rem;
+}
+.best b {
+  display: inline-block;
 }
 @media (hover: hover) and (pointer: fine) {
   .card {
