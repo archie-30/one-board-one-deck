@@ -2,7 +2,7 @@
 // 對手的個性（愛進攻、愛守、偏好的下法）照舊由各自的打法參數決定，
 // 另外每位對手在每個難度還有一個自己的「小習慣」（HABITS），只微調個性、不改變強弱。
 // 純資料與純函式，不依賴 UI。
-import type { BigTwoStyle, ChessStyle, GoStyle, GomokuStyle } from './personas'
+import type { BigTwoStyle, ChessStyle, GoStyle, GomokuStyle, OthelloStyle } from './personas'
 
 export type Level = 'low' | 'mid' | 'high' | 'master'
 export const LEVELS: readonly Level[] = ['low', 'mid', 'high', 'master']
@@ -145,6 +145,34 @@ export const bigtwoAt = (st: BigTwoStyle, level: Level, who = -1): BigTwoStyle =
   const out = bigtwoHabit({ ...st, ...BIGTWO[level] }, habitOf(who, level))
   // 挑戰：一定會擋快出完的人
   if (level === 'master') out.block = Math.max(out.block, 0.9)
+  return out
+}
+
+function othelloHabit(st: OthelloStyle, h: Habit | null): OthelloStyle {
+  const o = { ...st }
+  if (h === 'rush' || h === 'bomb') o.greed = clamp(o.greed + 0.25)
+  else if (h === 'turtle' || h === 'hoard' || h === 'edge') o.corner = clamp(o.corner + 0.2)
+  else if (h === 'center' || h === 'block' || h === 'calm') o.mobility = clamp(o.mobility + 0.2)
+  return o
+}
+
+/**
+ * 黑白棋：
+ *   低：只看一步，不太懂角的重要，愛一次翻很多子，常常隨手下
+ *   中：看兩步，偶爾隨手下
+ *   高：看四步，很少失誤
+ *   挑戰：看五步，剩 9 格以內直接算到底，完全不失誤
+ */
+const OTHELLO: Record<Level, Pick<OthelloStyle, 'depth' | 'noise' | 'blunder' | 'solve' | 'nodes'>> = {
+  low: { depth: 1, noise: 0.8, blunder: 0.25, solve: 0 },
+  mid: { depth: 2, noise: 0.35, blunder: 0.06, solve: 0 },
+  high: { depth: 4, noise: 0.1, blunder: 0.01, solve: 6 },
+  master: { depth: 5, noise: 0, blunder: 0, solve: 9, nodes: 40000 },
+}
+export const othelloAt = (st: OthelloStyle, level: Level, who = -1): OthelloStyle => {
+  const out = othelloHabit({ ...st, ...OTHELLO[level] }, habitOf(who, level))
+  // 低：不太懂角，只想翻多一點
+  if (level === 'low') ((out.corner *= 0.3), (out.mobility *= 0.3), (out.greed = clamp(out.greed + 0.4)))
   return out
 }
 
