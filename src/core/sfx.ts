@@ -357,11 +357,13 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
       // 鴿尾式洗牌：牌角一張張交錯落下（一長串很短的「答」），最後把牌推齊
       b = new Buf(sr, 0.95)
       const n = 46
+      // 先算幾個不一樣的「答」，再隨機挑來用（每次音量、時間都不同，聽不出重複）
+      const ticks = [0, 1, 2, 3, 4].map(() => burst(sr, rand, P.cardSnap, { tauMul: 0.5, jitter: 3 }))
       let t = 0.02
       for (let i = 0; i < n; i++) {
         const p = i / n
         const k = 0.35 + 0.65 * Math.sin(Math.PI * p)
-        put(b, t, burst(sr, rand, P.cardSnap, { tauMul: 0.5, jitter: 3 }), k * (0.5 + rand() * 0.5))
+        put(b, t, ticks[Math.floor(rand() * ticks.length)], k * (0.5 + rand() * 0.5))
         t += 0.0065 + 0.008 * (1 - Math.sin(Math.PI * p)) + rand() * 0.003
       }
       put(b, 0.02, rub(sr, rand, t, 1200, 7000), 0.25)
@@ -422,9 +424,10 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
       // 手伸進棋罐拿一顆：幾顆棋石互相碰撞，越來越輕
       b = new Buf(sr, 0.2)
       const n = 3 + Math.floor(rand() * 3)
+      const ticks = [0, 1, 2].map(() => burst(sr, rand, P.stoneTick, { shift: 1, jitter: 3 }))
       let t = 0
       for (let i = 0; i < n; i++) {
-        put(b, t, burst(sr, rand, P.stoneTick, { shift: 1, jitter: 3 }), (1 - i / (n + 1)) * (0.6 + rand() * 0.4))
+        put(b, t, ticks[i % ticks.length], (1 - i / (n + 1)) * (0.6 + rand() * 0.4))
         t += 0.02 + rand() * 0.03
       }
       return b.normalize(0.28).data
@@ -433,10 +436,11 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
       // 圍棋提子：被提的棋石一顆顆丟進盒蓋，碰在一起
       b = new Buf(sr, 0.45)
       const n = 7 + Math.floor(rand() * 4)
+      const ticks = [0, 1, 2, 3].map((k) => burst(sr, rand, P.stoneTick, { shift: k % 2, jitter: 3 }))
       for (let i = 0; i < n; i++) {
         const t = (i / n) * 0.28 + rand() * 0.025
-        put(b, t, burst(sr, rand, P.stoneTick, { jitter: 3 }), 0.55 + rand() * 0.45)
-        if (rand() < 0.4) put(b, t + 0.007 + rand() * 0.006, burst(sr, rand, P.stoneTick, { shift: 1, jitter: 3 }), 0.35)
+        put(b, t, ticks[Math.floor(rand() * ticks.length)], 0.55 + rand() * 0.45)
+        if (rand() < 0.4) put(b, t + 0.007 + rand() * 0.006, ticks[Math.floor(rand() * ticks.length)], 0.35)
       }
       return b.normalize(0.42).data
     }
