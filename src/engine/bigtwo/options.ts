@@ -16,6 +16,8 @@ export interface BigTwoOptions {
   straightFlushSpecial: boolean
   /** 鐵支、同花順是否可以壓任何牌型（關閉時只能壓五張牌型） */
   bombBeatsAll: boolean
+  /** 不同的五張牌型可以互壓（順子＜同花＜葫蘆）；關閉時只能同類型互壓，只有鐵支、同花順能壓別的牌型 */
+  fiveCrossType: boolean
   /** 是否可以單獨出三條 */
   allowTriple: boolean
   /** 同花是否算牌型 */
@@ -31,6 +33,7 @@ export const DEFAULT_BIGTWO_OPTIONS: BigTwoOptions = {
   straightRule: 'tw',
   straightFlushSpecial: true,
   bombBeatsAll: true,
+  fiveCrossType: false,
   allowTriple: false,
   allowFlush: false,
   doubleOverTen: true,

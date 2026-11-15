@@ -59,6 +59,7 @@ export const GAMES: GameDef[] = [
       choice('suitOrder', bs.suitOrder, B.suitOrder),
       choice('straightRule', bs.straightRule, B.straightRule),
       toggle('straightFlushSpecial', bs.straightFlushSpecial, B.straightFlushSpecial),
+      toggle('fiveCrossType', bs.fiveCrossType, B.fiveCrossType),
       toggle('bombBeatsAll', bs.bombBeatsAll, B.bombBeatsAll),
       toggle('allowTriple', bs.allowTriple, B.allowTriple),
       toggle('allowFlush', bs.allowFlush, B.allowFlush),

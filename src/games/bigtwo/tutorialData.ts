@@ -18,7 +18,7 @@ export const BIGTWO_LESSONS: BigTwoLesson[] = [
   { hand: 'D4 C8 H8 S8 CJ', table: 'D8', exact: 'H8' },
   { hand: 'D4 H4 H7 D9 S9 CK', table: 'C6 S6', type: 'pair' },
   { hand: 'C4 D5 H6 S7 C8 DK S2', type: 'straight' },
-  { hand: 'H3 S5 D9 H9 S9 CQ DQ', table: 'C4 D5 H6 S7 C8', type: 'fullHouse' },
+  { hand: 'D5 H6 C7 S8 D9 H9 S9 CQ DQ', table: 'C4 D5 H6 S7 C8', type: 'straight' },
   { hand: 'C7 D7 H7 S7 D10 CA', table: 'S2', type: 'four' },
   { hand: 'C5 DJ HA', table: 'S2', pass: true },
 ]
