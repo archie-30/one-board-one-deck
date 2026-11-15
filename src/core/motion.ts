@@ -1,15 +1,5 @@
-// 減少動畫：系統設定的「減少動態」或遊戲設定裡的「減少動畫」，任一個開著就停掉動畫
-import { watch } from 'vue'
-import { settings } from './settings'
-
+// 減少動畫：跟著手機／電腦系統的「減少動態」設定（遊戲裡不另外提供開關）。
+// 舊存檔裡的 settings.reduceMotion 保留但不再使用，避免以前開過的人關不掉。
 export function reducedMotion(): boolean {
-  if (settings.reduceMotion) return true
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
-
-// 在 <html> 加上 class，讓 CSS 動畫也一起停
-watch(
-  () => settings.reduceMotion,
-  (on) => document.documentElement.classList.toggle('reduce-motion', on),
-  { immediate: true },
-)

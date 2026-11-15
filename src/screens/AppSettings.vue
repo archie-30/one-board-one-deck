@@ -3,6 +3,7 @@
 import { nextTick, ref } from 'vue'
 import { fullscreenSupported, isFullscreen, setFullscreen } from '@/core/fullscreen'
 import { resetStats, settings } from '@/core/settings'
+import { clearAllResume } from '@/core/resume'
 import { S } from '@/data/strings'
 import { VERSION } from '@/data/version'
 import Btn from '@/ui/Btn.vue'
@@ -17,7 +18,7 @@ function setSound(on: boolean) {
   settings.volume = on ? 0.8 : 0
 }
 
-// 清除戰績：按「清除」→ 按「確定清除？」→ 跳出最後說明的視窗再確認 → 清除並重新啟動
+// 格式化遊戲進度：按「格式化」→ 按「確定格式化？」→ 跳出最後說明的視窗再確認 → 戰績歸零、刪掉保存中的對局 → 重新啟動
 const confirmReset = ref(false)
 const finalOpen = ref(false)
 function doReset() {
@@ -30,6 +31,7 @@ function doReset() {
 }
 async function resetAndRestart() {
   resetStats()
+  clearAllResume()
   await nextTick()
   window.setTimeout(() => window.location.reload(), 150)
 }
@@ -52,13 +54,6 @@ function close() {
           <p class="help">{{ fullscreenSupported ? T.fullscreenHelp : T.fullscreenNo }}</p>
         </div>
         <Switch :on="isFullscreen" :label="T.fullscreen" :disabled="!fullscreenSupported" @change="(v) => setFullscreen(v)" />
-      </div>
-      <div class="row">
-        <div>
-          <p class="t-black lb">{{ T.motion }}</p>
-          <p class="help">{{ T.motionHelp }}</p>
-        </div>
-        <Switch :on="settings.reduceMotion" :label="T.motion" @change="(v) => (settings.reduceMotion = v)" />
       </div>
       <div class="row">
         <div>
