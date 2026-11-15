@@ -6,6 +6,7 @@ import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
 import CategoryScreen from '@/screens/CategoryScreen.vue'
 import GameSettingsScreen from '@/screens/GameSettingsScreen.vue'
+import NamesScreen from '@/screens/NamesScreen.vue'
 import PlayScreen from '@/screens/PlayScreen.vue'
 import RulesScreen from '@/screens/RulesScreen.vue'
 import TitleScreen from '@/screens/TitleScreen.vue'
@@ -36,6 +37,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     <!-- 換頁：舊的那一頁先往下沉、淡出（各頁進場時元件會自己依序上浮），對局頁有自己的色塊過場 -->
     <Transition :css="false" mode="out-in" @leave="pageLeave">
         <TitleScreen v-if="route.name === 'title'" :key="routeKey" />
+        <NamesScreen v-else-if="route.name === 'names'" :key="routeKey" />
         <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" />
         <RulesScreen v-else-if="route.name === 'rules'" :key="routeKey" :game-id="route.gameId" />
         <GameSettingsScreen v-else-if="route.name === 'settings'" :key="routeKey" :game-id="route.gameId" />

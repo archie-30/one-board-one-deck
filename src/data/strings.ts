@@ -91,6 +91,14 @@ export const S = {
     again: '再點一下進入',
     settings: '設定',
   },
+  names: {
+    open: '幫電腦取名字',
+    title: '幫電腦取名字',
+    auto: '留空＝自動取名',
+    duplicate: '名字重複了，換一個吧',
+    reset: '恢復預設',
+    note: '改完就自動存。留空的會自動取名；恢復預設會重新取一輪名字。',
+  },
   category: {
     cards: { title: '撲克牌', lead: '一副 52 張的牌。' },
     board: { title: '棋盤', lead: '一張棋盤，兩種棋子。' },
