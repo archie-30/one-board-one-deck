@@ -38,6 +38,8 @@ export const S = {
     line1: '一副牌',
     line2: '一盤棋',
     label: 'ONE BOARD · ONE DECK',
+    /** 主畫面左上角的大字招牌（兩行） */
+    brand: ['ONE BOARD', 'ONE DECK'],
     lead: '大老二、撿紅點、接龍、五子棋、圍棋、西洋棋、象棋。',
     badge: '五款\n遊戲',
     tap: '點一下開始',
