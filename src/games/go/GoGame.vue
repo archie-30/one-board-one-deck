@@ -67,6 +67,8 @@ const dead = ref<number[]>([])
 const aiDead = ref<number[]>([])
 const disputed = ref(false)
 const moods = ref<[Mood, Mood]>(['idle', 'idle'])
+/** 悔棋的動畫：被提掉又回來的子 */
+const revived = ref<{ key: number; points: number[] } | null>(null)
 const captured = ref<{ key: number; color: 1 | 2; points: number[] } | null>(null)
 let rng = seedRng(Date.now())
 /** 悔棋：每局一次，退回玩家上一步之前的局面 */
@@ -111,7 +113,8 @@ function pointOnScreen(index: number) {
   return { x: rect.left + (rect.width * (7 + x * 10)) / total, y: rect.top + (rect.height * (7 + y * 10)) / total, d: (rect.width * 9.1) / total }
 }
 
-function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
+/** back = 反過來從 index 飛回棋罐（悔棋） */
+function fly(who: 0 | 1, index: number, black: boolean, back = false): Promise<void> {
   const el = flier.value
   const bowl = bowlEls.value[who]
   const host = sectionEl.value
@@ -129,14 +132,12 @@ function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
   el.style.height = `${to.d}px`
   el.style.display = 'block'
   flying.value = true
-  const anim = el.animate(
-    [
-      { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(1.2)` },
-      { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2 - lift}px) translate(-50%, -50%) scale(1.6)`, offset: 0.5 },
-      { transform: `translate(${x1}px, ${y1}px) translate(-50%, -50%) scale(1)` },
-    ],
-    { duration: 400, easing: 'cubic-bezier(0.3, 0.6, 0.35, 1)' },
-  )
+  const frames = [
+    { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(1.2)` },
+    { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2 - lift}px) translate(-50%, -50%) scale(1.6)`, offset: 0.5 },
+    { transform: `translate(${x1}px, ${y1}px) translate(-50%, -50%) scale(1)` },
+  ]
+  const anim = el.animate(back ? frames.reverse().map((f, i) => ({ ...f, offset: i / 2 })) : frames, { duration: back ? 380 : 400, easing: 'cubic-bezier(0.3, 0.6, 0.35, 1)' })
   return anim.finished.then(() => {
     el.style.display = 'none'
     flying.value = false
@@ -188,6 +189,7 @@ async function act(action: GoAction, who: 0 | 1) {
   const before = state.value
   const r = applyGo(state.value, action)
   if (!r.ok) return
+  revived.value = null
   if (who === 0 && action.type !== 'resign') undoFrom.value = before
   state.value = r.state
   preview.value = -1
@@ -317,19 +319,38 @@ function pick(index: number) {
 }
 
 const canUndo = computed(() => phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value)
-/** 悔棋：電腦還在想就停下來，局面退回玩家上一步之前 */
-function undo() {
+/** 悔棋：電腦還在想就停下來；剛下的棋子飛回各自的棋罐（電腦的先回去），被提掉的子冒回來，局面退回玩家上一步之前 */
+async function undo() {
   if (!canUndo.value || !undoFrom.value) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
-  state.value = undoFrom.value
+  const prev = undoFrom.value
   undoFrom.value = null
   undoUsed.value = true
   preview.value = -1
   message.value = ''
   captured.value = null
   moods.value = ['idle', 'idle']
-  playSound('stonePick')
+  const cur = state.value
+  const placed: number[] = []
+  const back: number[] = []
+  cur.board.forEach((c, i) => {
+    if (c !== 0 && prev.board[i] === 0) placed.push(i)
+    else if (prev.board[i] !== 0 && c !== prev.board[i]) back.push(i)
+  })
+  // 電腦的子先飛回去，再輪到你的
+  placed.sort((a, b) => (cur.board[a] === ai.value ? 0 : 1) - (cur.board[b] === ai.value ? 0 : 1))
+  for (const idx of placed) {
+    const color = state.value.board[idx]
+    const board = state.value.board.slice()
+    board[idx] = 0
+    state.value = { ...state.value, board, lastMove: -2 }
+    playSound('stonePick')
+    await fly(color === human.value ? 0 : 1, idx, color === 1, true)
+  }
+  revived.value = back.length ? { key: Date.now(), points: back } : null
+  state.value = prev
+  if (back.length) playSound('stone')
 }
 
 function confirmMove() {
@@ -435,7 +456,7 @@ const resultLine = computed(() => {
       <div class="small-acts">
         <Btn size="sm" :tone="passArmed ? 'yellow' : 'plain'" :disabled="!myTurn" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
         <Btn size="sm" :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
-        <UndoBtn :disabled="!canUndo" :used="undoUsed" @undo="undo" />
+        <UndoBtn :disabled="!canUndo" :used="undoUsed" @undo="void undo()" />
       </div>
     </aside>
 
@@ -448,6 +469,7 @@ const resultLine = computed(() => {
         :preview-color="human"
         :interactive="myTurn || phase === 'scoring'"
         :captured="captured"
+        :revived="revived"
         :area="phase === 'scoring' || phase === 'over' ? score.area : null"
         :dead="phase === 'scoring' || phase === 'over' ? dead : []"
         @pick="pick"

@@ -98,8 +98,8 @@ function pointOnScreen(index: number) {
   return { x: rect.left + (rect.width * (7 + x * 10)) / total, y: rect.top + (rect.height * (7 + y * 10)) / total, d: (rect.width * 8.6) / total }
 }
 
-/** 棋子從 who 的棋罐飛到 index，飛完才真的落子 */
-function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
+/** 棋子從 who 的棋罐飛到 index，飛完才真的落子；back = 反過來從 index 飛回棋罐（悔棋） */
+function fly(who: 0 | 1, index: number, black: boolean, back = false): Promise<void> {
   const el = flier.value
   const bowl = bowlEls.value[who]
   const host = sectionEl.value
@@ -117,14 +117,12 @@ function fly(who: 0 | 1, index: number, black: boolean): Promise<void> {
   el.style.height = `${to.d}px`
   el.style.display = 'block'
   flying.value = true
-  const anim = el.animate(
-    [
-      { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(0.9)` },
-      { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2 - lift}px) translate(-50%, -50%) scale(1.45)`, offset: 0.5 },
-      { transform: `translate(${x1}px, ${y1}px) translate(-50%, -50%) scale(1)` },
-    ],
-    { duration: 420, easing: 'cubic-bezier(0.3, 0.6, 0.35, 1)' },
-  )
+  const frames = [
+    { transform: `translate(${x0}px, ${y0}px) translate(-50%, -50%) scale(0.9)` },
+    { transform: `translate(${(x0 + x1) / 2}px, ${(y0 + y1) / 2 - lift}px) translate(-50%, -50%) scale(1.45)`, offset: 0.5 },
+    { transform: `translate(${x1}px, ${y1}px) translate(-50%, -50%) scale(1)` },
+  ]
+  const anim = el.animate(back ? frames.reverse().map((f, i) => ({ ...f, offset: i / 2 })) : frames, { duration: back ? 380 : 420, easing: 'cubic-bezier(0.3, 0.6, 0.35, 1)' })
   return anim.finished.then(() => {
     el.style.display = 'none'
     flying.value = false
@@ -232,18 +230,27 @@ function onTimeout() {
 }
 
 const canUndo = computed(() => phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value)
-/** 悔棋：電腦還在想就停下來，局面退回玩家上一步之前 */
-function undo() {
+/** 悔棋：電腦還在想就停下來；剛下的棋子一顆顆飛回各自的棋罐（後下的先回去），局面退回玩家上一步之前 */
+async function undo() {
   if (!canUndo.value || !undoFrom.value) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
-  state.value = undoFrom.value
+  const prev = undoFrom.value
   undoFrom.value = null
   undoUsed.value = true
   preview.value = -1
   message.value = ''
   moods.value = ['idle', 'idle']
-  playSound('stonePick')
+  const taken = state.value.moves.slice(prev.moves.length).reverse()
+  for (const idx of taken) {
+    const color = state.value.board[idx]
+    const board = state.value.board.slice()
+    board[idx] = 0
+    state.value = { ...state.value, board, moves: state.value.moves.filter((m) => m !== idx) }
+    playSound('stonePick')
+    await fly(color === human.value ? 0 : 1, idx, color === 1, true)
+  }
+  state.value = prev
 }
 
 function confirmMove() {
@@ -320,7 +327,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
         </template>
         <template v-else>
           <Btn tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
-          <UndoBtn class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" @undo="undo" />
+          <UndoBtn class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" @undo="void undo()" />
         </template>
       </div>
     </aside>

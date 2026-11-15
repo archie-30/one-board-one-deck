@@ -67,6 +67,10 @@ let rng: RngState = saved ? saved.rng : seedRng(Date.now())
 /** 悔棋：每局一次，退回玩家上一步之前的局面 */
 const undoFrom = shallowRef<St | null>(saved?.undoFrom ?? null)
 const undoUsed = ref(saved?.undoUsed ?? false)
+/** 你上一步走了哪裡（悔棋時倒著播）；逾時跳過就是 null */
+let myMove: { from: number; to: number } | null = null
+/** 悔棋的倒帶動畫 */
+const rewind = ref<{ moves: { from: number; to: number }[]; plies: number; key: number } | null>(null)
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
@@ -141,7 +145,10 @@ function commit(m: ClassicMove, who: 0 | 1) {
     playSound('error')
     return false
   }
-  if (who === 0) undoFrom.value = state.value
+  if (who === 0) {
+    undoFrom.value = state.value
+    myMove = { from: m.from, to: m.to }
+  }
   state.value = r.state
   selected.value = -1
   message.value = ''
@@ -161,6 +168,7 @@ function onTimeout() {
   selected.value = -1
   promoAsk.value = null
   undoFrom.value = state.value
+  myMove = null
   state.value = A.skip(state.value)
   playSound('error')
   if (A.over(state.value)) return finish()
@@ -255,7 +263,14 @@ function undo() {
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   thinking.value = false
+  // 倒帶：電腦已經走了就先把它那步、再把你那步倒回去（同時滑回原位，被吃的子冒回來）
+  const moves: { from: number; to: number }[] = []
+  const last = A.lastMove(state.value)
+  if (A.turn(state.value) === human.value && last) moves.push(last)
+  if (myMove && !moves.some((x) => x.from === myMove!.from && x.to === myMove!.to)) moves.push(myMove)
+  myMove = null
   state.value = undoFrom.value
+  rewind.value = { moves, plies: A.plies(state.value), key: (rewind.value?.key ?? 0) + 1 }
   undoFrom.value = null
   undoUsed.value = true
   selected.value = -1
@@ -337,6 +352,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
         :interactive="myTurn"
         :move-key="A.plies(state)"
         :can-drag="canDrag"
+        :rewind="rewind"
         @pick="pick"
         @grab="grab"
         @drop="drop"
