@@ -22,12 +22,14 @@ import Burst from '@/ui/art/Burst.vue'
 import CardArt from '@/ui/art/Card.vue'
 import type { Mood as KidMood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
+import Tabs from '@/ui/Tabs.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
 import TurnTimer from '@/ui/TurnTimer.vue'
 import { TURN_SECONDS } from '@/data/timer'
+import Icon from '@/ui/art/Icon.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup, type TableModel } from './tableLayout'
@@ -46,6 +48,8 @@ interface Saved {
   discard: Card[]
   passed: boolean[]
   groupId: number
+  /** 這一局開局時每個人的 13 張牌（結算後回牌桌看牌用；舊存檔沒有） */
+  startHands?: Card[][]
 }
 const saved = (props.resume ?? null) as Saved | null
 
@@ -95,6 +99,16 @@ const moods = reactive<KidMood[]>(['idle', 'idle', 'idle', 'idle'])
 const caption = ref<{ id: number; who: string; text: string; bomb: boolean } | null>(null)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
+/** 這一局開局時每個人的牌（讀回沒有這筆的舊存檔時是 null） */
+const startHands = shallowRef<Card[][] | null>(saved ? (saved.startHands ?? null) : state.value.hands)
+/** 結算後回到牌桌看牌：每個人原本的牌／最後剩下的牌 */
+const reviewOpen = ref(false)
+const reviewMode = ref<'start' | 'end'>('end')
+function openReview() {
+  resultOpen.value = false
+  reviewMode.value = startHands.value ? 'start' : 'end'
+  reviewOpen.value = true
+}
 const scores = ref(scoreBigTwo(state.value))
 let groupId = saved ? saved.groupId : 0
 
@@ -272,6 +286,7 @@ function newRound() {
   timers.clear()
   menuOpen.value = false
   resultOpen.value = false
+  reviewOpen.value = false
   selected.value = []
   message.value = ''
   caption.value = null
@@ -286,6 +301,7 @@ function newRound() {
   later(() => {
     seed = (seed * 1664525 + 1013904223) >>> 0
     state.value = dealBigTwo(seed, options)
+    startHands.value = state.value.hands
     deal()
   }, 52 * 7 + 480)
 }
@@ -306,7 +322,7 @@ function snapshot(): Saved | null {
     p = []
     ps = [false, false, false, false]
   }
-  const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng, tableTotals: tableTotals.value, pile: p, discard: d, passed: ps, groupId }
+  const data: Saved = { state: state.value, opponents: opponents.map((o) => o.id), seed, rng, tableTotals: tableTotals.value, pile: p, discard: d, passed: ps, groupId, startHands: startHands.value ?? undefined }
   return data
 }
 function saveAndExit() {
@@ -454,8 +470,45 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</Btn>
         <Btn class="rise" style="--i: 1" icon="pass" block :disabled="!canPass" @click="pass">{{ T.pass }}</Btn>
       </template>
-      <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.result.howTitle }}</Btn>
+      <template v-else>
+        <Btn v-if="!reviewOpen" class="rise" size="sm" icon="book" block @click="openReview">{{ T.review.open }}</Btn>
+        <Btn class="rise" tone="ink" size="lg" arrow block @click="(reviewOpen = false), (resultOpen = true)">{{ T.result.howTitle }}</Btn>
+      </template>
     </div>
+
+    <!-- 結算後回到牌桌看牌：每個人原本的 13 張、最後剩下的牌 -->
+    <Transition name="review">
+      <section v-if="reviewOpen && phase === 'over' && !resultOpen" class="review">
+        <header class="rv-head">
+          <span class="t-label">{{ T.review.label }}</span>
+          <Tabs
+            class="small"
+            :choices="startHands ? [{ value: 'start', label: T.review.start }, { value: 'end', label: T.review.end }] : [{ value: 'end', label: T.review.end }]"
+            :value="reviewMode"
+            @change="(v) => (reviewMode = v as 'start' | 'end')"
+          />
+          <button class="rv-close" :aria-label="S.common.close" @click="reviewOpen = false"><Icon name="close" /></button>
+        </header>
+        <div v-for="p in [0, 1, 2, 3]" :key="`rv${p}-${reviewMode}`" class="rv-row" :class="{ win: p === state.winner }">
+          <span class="rv-av"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'idle'" /></span>
+          <span class="rv-name t-black">{{ names[p] }}</span>
+          <span class="rv-cards">
+            <template v-if="(reviewMode === 'start' && startHands ? startHands[p] : state.hands[p]).length">
+              <svg
+                v-for="(c, k) in reviewMode === 'start' && startHands ? startHands[p] : state.hands[p]"
+                :key="c"
+                viewBox="-2 -2 78 108"
+                class="rv-card"
+                :class="{ gone: reviewMode === 'start' && !state.hands[p].includes(c) }"
+                :style="{ '--k': k }"
+              ><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" /></svg>
+            </template>
+            <span v-else class="rv-done t-black">{{ T.review.done }}</span>
+          </span>
+        </div>
+        <p class="rv-note" :class="{ off: reviewMode !== 'start' }">{{ T.review.startNote }}</p>
+      </section>
+    </Transition>
 
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
@@ -493,8 +546,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       </p>
       <p class="lifetime t-black">{{ T.result.lifetime(signed(stats.bigtwo.totals[ME] ?? 0)) }}</p>
       <template #actions>
+        <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>
         <Btn tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
-        <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
       </template>
     </Dialog>
   </section>
@@ -686,6 +740,121 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .status.warn {
   color: var(--color-red);
+}
+.review {
+  position: absolute;
+  left: 50%;
+  top: 0.6rem;
+  z-index: 650;
+  width: min(40rem, 78vw);
+  translate: -50% 0;
+  border: 0.14rem solid var(--color-ink);
+  background: var(--color-card);
+  box-shadow: 0.35rem 0.35rem 0 var(--color-ink);
+  padding: 0.55rem 0.8rem 0.6rem;
+}
+.rv-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 0.13rem solid var(--color-ink);
+  margin-bottom: 0.3rem;
+}
+.rv-close {
+  position: relative;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-left: auto;
+}
+.rv-close::after {
+  content: '';
+  position: absolute;
+  inset: -0.4rem;
+}
+.rv-close :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.rv-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.18rem 0;
+}
+.rv-row + .rv-row {
+  border-top: 0.06rem dashed var(--color-ink-3);
+}
+.rv-av {
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: none;
+}
+.rv-av :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.rv-name {
+  width: 4.2rem;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+.rv-row.win .rv-name {
+  color: var(--color-red);
+}
+.rv-cards {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+}
+.rv-card {
+  width: 1.9rem;
+  flex: none;
+  filter: drop-shadow(0.05rem 0.06rem 0 rgb(20 20 20 / 0.45));
+  animation: rv-in 260ms var(--ease-out) calc(var(--k) * 22ms) both;
+}
+.rv-card + .rv-card {
+  margin-left: -0.55rem;
+}
+/* 原本的牌裡，已經出掉的那些淡一點 */
+.rv-card.gone {
+  opacity: 0.38;
+}
+@keyframes rv-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+}
+.rv-done {
+  font-size: 0.85rem;
+  color: var(--color-red);
+}
+.rv-note {
+  padding-top: 0.25rem;
+  font-size: 0.68rem;
+  color: var(--color-ink-2);
+}
+.rv-note.off {
+  visibility: hidden;
+}
+.review-enter-active {
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 280ms var(--ease-back);
+}
+.review-leave-active {
+  transition:
+    opacity 160ms ease-in,
+    transform 160ms ease-in;
+}
+.review-enter-from,
+.review-leave-to {
+  opacity: 0;
+  transform: translateY(1rem) scale(0.97);
 }
 .clear-sel-enter-active {
   transition:

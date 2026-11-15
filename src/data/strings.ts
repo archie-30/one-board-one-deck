@@ -392,6 +392,14 @@ export const S = {
       tooSmall: '不夠大，壓不過桌上的牌',
       mustLead: '輪到你自由出牌，不能過牌',
     },
+    review: {
+      open: '回到牌桌看牌',
+      label: 'HANDS',
+      start: '原本的牌',
+      end: '最後剩下',
+      done: '出完了',
+      startNote: '淡色的是這一局已經出掉的牌。',
+    },
     result: {
       win: '你贏了',
       lose: (name: string) => `${name}先出完了`,
