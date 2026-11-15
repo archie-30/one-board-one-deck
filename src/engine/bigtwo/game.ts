@@ -19,7 +19,7 @@ export interface BigTwoState {
   turn: number
   /** 桌上目前要壓過的牌；null 表示輪到的人可以自由出牌 */
   table: TablePlay | null
-  /** 這一輪每位玩家最後的動作（給畫面顯示） */
+  /** 這一輪每位玩家最後的動作（給畫面顯示）；'pass' = 這一輪已經過牌，這一輪不能再出 */
   lastMoves: (Card[] | 'pass' | null)[]
   passCount: number
   /** 是否為整局第一手（必須包含梅花 3） */
@@ -104,21 +104,40 @@ export function checkPlay(state: BigTwoState, player: number, cards: readonly Ca
   return { ok: true, state: combo }
 }
 
+/** from 之後下一個這一輪還沒過牌的人；繞一圈都過牌了就回傳 -1 */
+function nextActive(lastMoves: BigTwoState['lastMoves'], from: number): number {
+  for (let k = 1; k <= PLAYER_COUNT; k++) {
+    const p = (from + k) % PLAYER_COUNT
+    if (lastMoves[p] !== 'pass') return p
+  }
+  return -1
+}
+
+/**
+ * 一輪的規則：過牌之後，這一輪就不能再出牌（輪到他時直接跳過），直到這一輪結束。
+ * 除了最後出牌的人以外都過牌了，這一輪結束：桌面清空，由最後出牌的人自由出牌。
+ */
 export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<BigTwoState, BigTwoError> {
   if (state.winner >= 0) return { ok: false, reason: 'finished' }
   if (action.player !== state.turn) return { ok: false, reason: 'notYourTurn' }
-  const next = (state.turn + 1) % PLAYER_COUNT
 
   if (action.type === 'timeout' && !state.table) {
+    // 輪到自己首出卻逾時：這一輪算過牌，改由下一個人首出
     const lastMoves = state.lastMoves.slice()
     lastMoves[action.player] = 'pass'
-    return { ok: true, state: { ...state, turn: next, firstTurn: false, lastMoves } }
+    let turn = nextActive(lastMoves, action.player)
+    // 四個人都逾時跳過：重新開始一輪
+    if (turn < 0) return { ok: true, state: { ...state, turn: (action.player + 1) % PLAYER_COUNT, firstTurn: false, lastMoves: lastMoves.map(() => null) } }
+    return { ok: true, state: { ...state, turn, firstTurn: false, lastMoves } }
   }
   if (action.type === 'pass' || action.type === 'timeout') {
     if (!state.table) return { ok: false, reason: 'mustLead' }
+    const lastMoves = state.lastMoves.slice()
+    lastMoves[action.player] = 'pass'
+    const turn = nextActive(lastMoves, action.player)
     const passCount = state.passCount + 1
-    // 其他三家都過牌：桌面清空，由最後出牌的人自由出牌
-    if (passCount >= PLAYER_COUNT - 1) {
+    // 繞回最後出牌的人（其他人都過牌了）：這一輪結束
+    if (turn === state.table.player || turn < 0) {
       return {
         ok: true,
         state: {
@@ -130,9 +149,7 @@ export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<Bi
         },
       }
     }
-    const lastMoves = state.lastMoves.slice()
-    lastMoves[action.player] = 'pass'
-    return { ok: true, state: { ...state, turn: next, passCount, lastMoves } }
+    return { ok: true, state: { ...state, turn, passCount, lastMoves } }
   }
 
   const check = checkPlay(state, action.player, action.cards)
@@ -142,6 +159,14 @@ export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<Bi
   const lastMoves = state.lastMoves.slice()
   lastMoves[action.player] = combo.cards
   const won = hands[action.player].length === 0
+  // 下一個還沒過牌的人；其他人都已經過牌了，就是自己（這一輪結束，下面再清空桌面）
+  const after = nextActive(lastMoves, action.player)
+  if (!won && (after === action.player || after < 0)) {
+    return {
+      ok: true,
+      state: { ...state, hands, table: null, lastMoves: lastMoves.map(() => null), passCount: 0, firstTurn: false, winner: -1, turn: action.player },
+    }
+  }
   return {
     ok: true,
     state: {
@@ -152,7 +177,7 @@ export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<Bi
       passCount: 0,
       firstTurn: false,
       winner: won ? action.player : -1,
-      turn: won ? action.player : next,
+      turn: won ? action.player : after,
     },
   }
 }
