@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 西洋棋封面：一角黃白相間的棋盤，白馬與黑兵；選起時白馬跳「日」字過去
+// 西洋棋封面：一角黃白相間的棋盤，白馬與黑兵。停在這張卡片上時循環播放：白馬跳「日」字過去（拋物線、落地壓一下）→ 停一下 → 跳回來
 import PieceIcon from '@/ui/art/PieceIcon.vue'
 defineProps<{ active?: boolean }>()
 const S = 26
@@ -30,9 +30,34 @@ const S = 26
 .hop {
   transform-box: view-box;
   transform: translate(103px, 93px);
-  transition: transform 560ms var(--ease-back);
 }
 .active .hop {
-  transform: translate(129px, 41px);
+  animation: hop 3s var(--ease-in-out) infinite;
+}
+@keyframes hop {
+  0%,
+  10% {
+    transform: translate(103px, 93px);
+  }
+  22% {
+    transform: translate(116px, 52px) scale(1.18);
+  }
+  32% {
+    transform: translate(129px, 41px) scale(1.06, 0.94);
+  }
+  36%,
+  60% {
+    transform: translate(129px, 41px);
+  }
+  72% {
+    transform: translate(116px, 52px) scale(1.18);
+  }
+  82% {
+    transform: translate(103px, 93px) scale(1.06, 0.94);
+  }
+  86%,
+  100% {
+    transform: translate(103px, 93px);
+  }
 }
 </style>

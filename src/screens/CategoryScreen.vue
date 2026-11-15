@@ -2,7 +2,7 @@
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
@@ -83,22 +83,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => ro?.disconnect())
 
-// ── 停在某張卡片上時，封面的小動畫循環播放：播完停一下 → 收回 → 再播 ──
-const playing = ref(true)
-let loopTimer = 0
-function loopCover() {
-  window.clearTimeout(loopTimer)
-  playing.value = true
-  if (reducedMotion()) return
-  const tick = () => {
-    playing.value = !playing.value
-    loopTimer = window.setTimeout(tick, playing.value ? 2600 : 700)
-  }
-  loopTimer = window.setTimeout(tick, 2600)
-}
-onMounted(loopCover)
-watch(index, loopCover)
-onBeforeUnmount(() => window.clearTimeout(loopTimer))
+// 停在某張卡片上時，封面的小動畫循環播放（每個遊戲的卡面各自有一段重複的動畫，見 games/covers/）
 
 /** 目前轉到的位置：整數 = 停在某張；拖曳時是小數（往左拖 = 往下一張轉） */
 const pos = computed(() => {
@@ -234,7 +219,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             @pointerenter="$event.pointerType === 'mouse' && (hoverId = g.id)"
             @pointerleave="hoverId = null"
           >
-            <span class="cover halftone"><component :is="g.cover" :active="(k === index && (playing || dragging)) || hoverId === g.id" /></span>
+            <span class="cover halftone"><component :is="g.cover" :active="k === index || hoverId === g.id" /></span>
             <span class="info">
               <span class="t-slab no">{{ pad(k + 1) }}</span>
               <span class="nm t-black">{{ g.name }}</span>

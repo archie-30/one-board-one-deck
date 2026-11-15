@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 五子棋封面：棋盤一角，黑棋斜連；選起時最後一顆落下、劃上紅線
+// 五子棋封面：棋盤一角，黑棋斜連四顆。停在這張卡片上時循環播放：第五顆黑子落下 → 紅線劃過五連 → 收回
 import Stone from '@/ui/art/Stone.vue'
 defineProps<{ active?: boolean }>()
 const P = (i: number) => 22 + i * 16
@@ -27,8 +27,8 @@ const whites = [
     </g>
     <Stone v-for="(b, i) in blacks" :key="`b${i}`" :cx="P(b[0]) + 8" :cy="P(b[1]) - 10" :r="6.5" black />
     <Stone v-for="(w, i) in whites" :key="`w${i}`" :cx="P(w[0]) + 8" :cy="P(w[1]) - 10" :r="6.5" />
-    <g v-if="active" class="drop"><Stone :cx="P(6) + 8" :cy="P(1) - 10" :r="6.5" black /></g>
-    <line v-if="active" class="win" :x1="P(2) + 2" :y1="P(5) - 4" :x2="P(6) + 14" :y2="P(1) - 16" />
+    <g class="drop"><Stone :cx="P(6) + 8" :cy="P(1) - 10" :r="6.5" black /></g>
+    <line class="win" :x1="P(2) + 2" :y1="P(5) - 4" :x2="P(6) + 14" :y2="P(1) - 16" />
   </svg>
 </template>
 
@@ -41,27 +41,57 @@ const whites = [
 .drop {
   transform-box: fill-box;
   transform-origin: center;
-  animation: drop 380ms var(--ease-back) 120ms both;
-}
-@keyframes drop {
-  from {
-    opacity: 0;
-    transform: translateY(-16px) scale(1.4);
-  }
+  opacity: 0;
 }
 .win {
   stroke: var(--color-red);
   stroke-width: 3.5;
   stroke-linecap: round;
   stroke-dasharray: 100;
-  animation: draw 460ms var(--ease-in-out) 480ms both;
+  stroke-dashoffset: 100;
+}
+.active .drop {
+  animation: drop 3s var(--ease-back) infinite;
+}
+.active .win {
+  animation: draw 3s var(--ease-in-out) infinite;
+}
+@keyframes drop {
+  0%,
+  8% {
+    opacity: 0;
+    transform: translateY(-18px) scale(1.5);
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1.12, 0.88);
+  }
+  26%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: none;
+  }
 }
 @keyframes draw {
-  from {
+  0%,
+  30% {
     stroke-dashoffset: 100;
+    opacity: 1;
   }
-  to {
+  50%,
+  80% {
     stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  92%,
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
   }
 }
 </style>
