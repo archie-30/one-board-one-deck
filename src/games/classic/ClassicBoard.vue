@@ -161,15 +161,8 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
      </g>
     </g>
 
-    <!-- 滑鼠預覽：半透明的棋子 -->
-    <g v-if="ghost && ghost.index >= 0" class="ghost">
-      <PieceIcon v-if="chess" :kind="ghost.piece" color="#d9d3c6" :x="px(ghost.index)" :y="py(ghost.index) + 0.2" :size="9.2" />
-      <template v-else>
-        <circle :cx="px(ghost.index)" :cy="py(ghost.index)" r="4.4" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="0.6" />
-        <text v-if="pieceStyle === 'text'" :x="px(ghost.index)" :y="py(ghost.index) + 1.75" class="xq" :fill="isUpper(ghost.piece) ? 'var(--color-red)' : 'var(--color-ink)'">{{ xqName(ghost.piece) }}</text>
-        <PieceIcon v-else set="xiangqi" :kind="ghost.piece" :color="isUpper(ghost.piece) ? 'var(--color-red)' : 'var(--color-ink)'" :x="px(ghost.index)" :y="py(ghost.index) + 0.1" :size="6" />
-      </template>
-    </g>
+    <!-- 滑鼠預覽：要走到的那一格出現一團淡淡的影子（不畫棋子本身） -->
+    <ellipse v-if="ghost && ghost.index >= 0" :key="`g${ghost.index}`" :cx="px(ghost.index) + 0.4" :cy="py(ghost.index) + 0.6" :rx="chess ? 3.9 : 4.3" :ry="chess ? 3.5 : 4.1" class="ghost" />
 
     <!-- 能走的位置：空格是小圓點，能吃子是圓圈 -->
     <template v-for="t in targets" :key="`t${t}`">
@@ -297,7 +290,17 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
   }
 }
 .ghost {
-  opacity: 0.8;
+  fill: rgb(20 20 20 / 0.28);
+  filter: blur(1.5px);
   pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ghost-in 180ms var(--ease-out) both;
+}
+@keyframes ghost-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
 }
 </style>
