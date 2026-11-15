@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { seedRng } from '../common/rng'
 import { chooseGomokuMove } from './ai'
-import { canPlace, createGomoku, forbiddenKind, placeStone, toIndex, type GomokuOptions, type GomokuState } from './rules'
+import { canPlace, createGomoku, forbiddenKind, placeStone, skipTurn, toIndex, type GomokuOptions, type GomokuState } from './rules'
 
 /** 依序落子（黑白輪流），座標為 [x,y] */
 function play(moves: [number, number][], options: Partial<GomokuOptions> = {}): GomokuState {
@@ -158,5 +158,15 @@ describe('五子棋：AI', () => {
       if (r.ok) state = r.state
     }
     expect(state.winner).not.toBe(0)
+  })
+})
+
+describe('五子棋：時間到被跳過', () => {
+  it('這一手不下，換對方；棋盤不變', () => {
+    const s = createGomoku()
+    const t = skipTurn(s)
+    expect(t.turn).toBe(2)
+    expect(t.board).toEqual(s.board)
+    expect(skipTurn(t).turn).toBe(1)
   })
 })

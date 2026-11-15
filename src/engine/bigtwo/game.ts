@@ -28,7 +28,8 @@ export interface BigTwoState {
   winner: number
 }
 
-export type BigTwoAction = { type: 'play'; player: number; cards: Card[] } | { type: 'pass'; player: number }
+/** timeout：時間到被跳過。桌上有牌時等於過牌；輪到自己首出時改由下一位首出（首手的梅花 3 限制也取消）。 */
+export type BigTwoAction = { type: 'play'; player: number; cards: Card[] } | { type: 'pass'; player: number } | { type: 'timeout'; player: number }
 
 export type BigTwoError =
   | 'finished'
@@ -91,7 +92,12 @@ export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<Bi
   if (action.player !== state.turn) return { ok: false, reason: 'notYourTurn' }
   const next = (state.turn + 1) % PLAYER_COUNT
 
-  if (action.type === 'pass') {
+  if (action.type === 'timeout' && !state.table) {
+    const lastMoves = state.lastMoves.slice()
+    lastMoves[action.player] = 'pass'
+    return { ok: true, state: { ...state, turn: next, firstTurn: false, lastMoves } }
+  }
+  if (action.type === 'pass' || action.type === 'timeout') {
     if (!state.table) return { ok: false, reason: 'mustLead' }
     const passCount = state.passCount + 1
     // 其他三家都過牌：桌面清空，由最後出牌的人自由出牌

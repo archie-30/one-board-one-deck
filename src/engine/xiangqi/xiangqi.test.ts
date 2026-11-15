@@ -145,3 +145,22 @@ describe('象棋：電腦對手', () => {
     }
   }, 120000)
 })
+
+describe('象棋：時間到被跳過', () => {
+  it('這一步不走、換對方', () => {
+    const s = createXiangqi()
+    const r = applyXiangqi(s, { type: 'timeout' })
+    if (!r.ok) throw new Error(r.reason)
+    expect(r.state.turn).toBe('b')
+    expect(r.state.board).toEqual(s.board)
+    expect(r.state.status).toBe('playing')
+  })
+  it('被將軍時逾時：直接算輸', () => {
+    const s = fromBoard(board('....k....', E, E, E, E, E, E, E, '....r....', '...K.....'.replace('...K', '....K').slice(0, 9)), 'r')
+    expect(inCheck(s.board, 'r')).toBe(true)
+    const r = applyXiangqi(s, { type: 'timeout' })
+    if (!r.ok) throw new Error(r.reason)
+    expect(r.state.status).toBe('timeout')
+    expect(r.state.winner).toBe('b')
+  })
+})

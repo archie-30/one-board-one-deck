@@ -15,7 +15,7 @@ export interface Move {
   promo?: Promo
 }
 
-export type ChessStatus = 'playing' | 'checkmate' | 'stalemate' | 'repetition' | 'fifty' | 'material' | 'resigned'
+export type ChessStatus = 'playing' | 'checkmate' | 'stalemate' | 'repetition' | 'fifty' | 'material' | 'resigned' | 'timeout'
 
 export interface ChessState {
   board: string[]
@@ -36,7 +36,8 @@ export interface ChessState {
   plies: number
 }
 
-export type ChessAction = { type: 'move'; move: Move } | { type: 'resign'; color: Color }
+/** timeout：時間到被跳過，這一步不走、換對方；被將軍時逾時直接算輸（跳過的話王會被吃掉） */
+export type ChessAction = { type: 'move'; move: Move } | { type: 'resign'; color: Color } | { type: 'timeout' }
 export type ChessError = 'over' | 'illegal' | 'needPromotion' | 'notYourTurn'
 
 export const START = 'rnbqkbnrpppppppp' + '.'.repeat(32) + 'PPPPPPPPRNBQKBNR'
@@ -286,6 +287,11 @@ export function insufficientMaterial(board: readonly string[]): boolean {
 export function applyChess(state: ChessState, action: ChessAction): Result<ChessState, ChessError> {
   if (state.status !== 'playing') return { ok: false, reason: 'over' }
   if (action.type === 'resign') return { ok: true, state: { ...state, status: 'resigned', winner: other(action.color) } }
+  if (action.type === 'timeout') {
+    if (inCheck(state, state.turn)) return { ok: true, state: { ...state, status: 'timeout', winner: other(state.turn) } }
+    const s: ChessState = { ...state, turn: other(state.turn), ep: -1, halfmove: state.halfmove + 1, lastMove: null, plies: state.plies + 1 }
+    return { ok: true, state: judge(state, s) }
+  }
   const m = action.move
   const p = state.board[m.from]
   if (!p || colorOf(p) !== state.turn) return { ok: false, reason: p ? 'notYourTurn' : 'illegal' }
@@ -294,10 +300,13 @@ export function applyChess(state: ChessState, action: ChessAction): Result<Chess
   }
   const legal = legalMoves(state).find((x) => x.from === m.from && x.to === m.to && (x.promo ?? null) === (m.promo ?? null))
   if (!legal) return { ok: false, reason: 'illegal' }
-  const s = makeMove(state, legal).state
+  return { ok: true, state: judge(state, makeMove(state, legal).state) }
+}
+
+/** 走完（或跳過）一步之後：記下局面，判斷結束 */
+function judge(prev: ChessState, s: ChessState): ChessState {
   const k = key(s)
-  s.history = [...state.history, k]
-  // 結束判斷
+  s.history = [...prev.history, k]
   const replies = legalMoves(s)
   if (!replies.length) {
     if (inCheck(s, s.turn)) {
@@ -307,7 +316,7 @@ export function applyChess(state: ChessState, action: ChessAction): Result<Chess
   } else if (insufficientMaterial(s.board)) s.status = 'material'
   else if (s.history.filter((h) => h === k).length >= 3) s.status = 'repetition'
   else if (s.halfmove >= 100) s.status = 'fifty'
-  return { ok: true, state: s }
+  return s
 }
 
 /** 測試用：從局面往下數 depth 層的所有走法數（用來核對走法產生是否正確） */

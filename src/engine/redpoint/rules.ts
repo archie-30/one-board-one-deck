@@ -48,7 +48,11 @@ export interface RedPointState {
   phase: 'play' | 'flip' | 'over'
 }
 
-export type RedPointAction = { type: 'play'; player: number; card: Card; target?: Card } | { type: 'flip'; player: number; target?: Card }
+/** timeout：時間到被跳過。出牌階段＝整回合跳過（不出牌也不翻牌）；翻牌時還沒選要吃哪張＝翻出的牌留在桌上不吃。 */
+export type RedPointAction =
+  | { type: 'play'; player: number; card: Card; target?: Card }
+  | { type: 'flip'; player: number; target?: Card }
+  | { type: 'timeout'; player: number }
 
 export type RedPointError = 'over' | 'notYourTurn' | 'wrongPhase' | 'notInHand' | 'chooseTarget' | 'badTarget' | 'mustTake'
 
@@ -92,15 +96,24 @@ function place(state: RedPointState, player: number, card: Card, take: Card | nu
   }
 }
 
+/** 換下一位。有人被跳過後手牌數會不一樣：手上沒牌但牌堆還有牌的人只翻牌；手上和牌堆都沒牌的人直接輪過。 */
 function finishTurn(state: RedPointState): RedPointState {
-  const next = (state.turn + 1) % PLAYERS
   const done = state.hands.every((h) => h.length === 0) && state.pile.length === 0
-  return { ...state, turn: done ? state.turn : next, phase: done ? 'over' : 'play' }
+  if (done) return { ...state, phase: 'over' }
+  let next = (state.turn + 1) % PLAYERS
+  while (state.hands[next].length === 0 && state.pile.length === 0) next = (next + 1) % PLAYERS
+  return { ...state, turn: next, phase: state.hands[next].length ? 'play' : 'flip' }
 }
 
 export function applyRedPoint(state: RedPointState, action: RedPointAction): Result<RedPointState, RedPointError> {
   if (state.phase === 'over') return { ok: false, reason: 'over' }
   if (action.player !== state.turn) return { ok: false, reason: 'notYourTurn' }
+
+  if (action.type === 'timeout') {
+    if (state.phase === 'play') return { ok: true, state: finishTurn(state) }
+    const [top, ...rest] = state.pile
+    return { ok: true, state: finishTurn({ ...state, table: [...state.table, top], pile: rest }) }
+  }
 
   if (action.type === 'play') {
     if (state.phase !== 'play') return { ok: false, reason: 'wrongPhase' }

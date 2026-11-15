@@ -16,7 +16,7 @@ export interface XMove {
   to: number
 }
 
-export type XStatus = 'playing' | 'checkmate' | 'stalemate' | 'repetition' | 'limit' | 'resigned'
+export type XStatus = 'playing' | 'checkmate' | 'stalemate' | 'repetition' | 'limit' | 'resigned' | 'timeout'
 
 export interface XiangqiState {
   board: string[]
@@ -33,7 +33,8 @@ export interface XiangqiState {
   plies: number
 }
 
-export type XAction = { type: 'move'; move: XMove } | { type: 'resign'; side: Side }
+/** timeout：時間到被跳過，這一步不走、換對方；被將軍時逾時直接算輸 */
+export type XAction = { type: 'move'; move: XMove } | { type: 'resign'; side: Side } | { type: 'timeout' }
 export type XError = 'over' | 'illegal' | 'notYourTurn' | 'perpetualCheck'
 
 export const COLS = 9
@@ -236,13 +237,21 @@ export const targetsFrom = (s: XiangqiState, from: number): number[] => legalMov
 export function applyXiangqi(state: XiangqiState, action: XAction): Result<XiangqiState, XError> {
   if (state.status !== 'playing') return { ok: false, reason: 'over' }
   if (action.type === 'resign') return { ok: true, state: { ...state, status: 'resigned', winner: other(action.side) } }
+  if (action.type === 'timeout') {
+    if (inCheck(state.board, state.turn)) return { ok: true, state: { ...state, status: 'timeout', winner: other(state.turn) } }
+    return { ok: true, state: judge(state, { ...state, turn: other(state.turn), lastMove: null, quiet: state.quiet + 1, plies: state.plies + 1 }) }
+  }
   const m = action.move
   const p = state.board[m.from]
   if (!p) return { ok: false, reason: 'illegal' }
   if (sideOf(p) !== state.turn) return { ok: false, reason: 'notYourTurn' }
   if (!basicLegal(state).some((x) => x.from === m.from && x.to === m.to)) return { ok: false, reason: 'illegal' }
   if (perpetual(state, m)) return { ok: false, reason: 'perpetualCheck' }
-  const s = makeMove(state, m)
+  return { ok: true, state: judge(state, makeMove(state, m)) }
+}
+
+/** 走完（或跳過）一步之後：記下局面，判斷結束 */
+function judge(state: XiangqiState, s: XiangqiState): XiangqiState {
   const k = key(s)
   const check = inCheck(s.board, s.turn)
   s.history = [...state.history, k]
@@ -253,7 +262,7 @@ export function applyXiangqi(state: XiangqiState, action: XAction): Result<Xiang
     s.winner = other(s.turn)
   } else if (s.history.filter((h) => h === k).length >= 3) s.status = 'repetition'
   else if (s.quiet >= QUIET_LIMIT) s.status = 'limit'
-  return { ok: true, state: s }
+  return s
 }
 
 /** 測試用：從局面往下數 depth 層的所有走法數 */

@@ -142,3 +142,35 @@ describe('撿紅點：AI', () => {
     expect(pro).toBeGreaterThan(novice)
   })
 })
+
+describe('撿紅點：時間到被跳過', () => {
+  it('出牌階段逾時：整回合跳過，不出牌也不翻牌', () => {
+    const s = createRedPoint([parseCards('H3'), parseCards('C2'), [], []], parseCards('S7'), parseCards('D5 S4'))
+    const t = must(s, { type: 'timeout', player: 0 })
+    expect(t.turn).toBe(1)
+    expect(t.phase).toBe('play')
+    expect(t.hands[0]).toEqual(parseCards('H3'))
+    expect(t.pile.length).toBe(2)
+  })
+  it('翻牌時要選吃哪張卻逾時：翻出的牌留在桌上不吃', () => {
+    let s = createRedPoint([parseCards('SK'), parseCards('C2'), [], []], parseCards('H3 S3 D9'), parseCards('D7 S4'))
+    s = must(s, { type: 'play', player: 0, card: C('SK') })
+    expect(s.phase).toBe('flip')
+    const t = must(s, { type: 'timeout', player: 0 })
+    expect(t.table).toContain(C('D7'))
+    expect(t.captured[0]).toEqual([])
+    expect(t.turn).toBe(1)
+  })
+  it('手上沒牌但牌堆還有：輪到時只翻牌；手上和牌堆都沒牌的人直接輪過', () => {
+    const s = createRedPoint([parseCards('H3'), [], [], []], parseCards('S7'), parseCards('D5'), 1)
+    expect(s.turn).toBe(1)
+    // 1 號手上沒牌：被跳過後，下一個有牌的是 0 號（2、3 號手上沒牌，但牌堆還有牌，所以要翻牌）
+    const t = must(s, { type: 'timeout', player: 1 })
+    expect(t.turn).toBe(2)
+    expect(t.phase).toBe('flip')
+    const u = must(t, { type: 'flip', player: 2 })
+    expect(u.pile.length).toBe(0)
+    expect(u.turn).toBe(0)
+    expect(u.phase).toBe('play')
+  })
+})
