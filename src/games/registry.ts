@@ -75,6 +75,7 @@ export const GAMES: GameDef[] = [
       toggle('dragon', bs.dragon, B.dragon),
       toggle('doubleOverTen', bs.doubleOverTen, B.doubleOverTen, { group: 'score' }),
       toggle('doubleTwos', bs.doubleTwos, B.doubleTwos, { group: 'score' }),
+      toggle('autoPass', bs.autoPass, true, { group: 'other', live: true }),
       timer(),
     ],
   },

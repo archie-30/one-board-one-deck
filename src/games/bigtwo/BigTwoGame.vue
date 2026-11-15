@@ -10,7 +10,7 @@ import { recordBest, stats } from '@/core/settings'
 import { asBigTwoDifficulty, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
-import { chooseBigTwoAction } from '@/engine/bigtwo/ai'
+import { chooseBigTwoAction, legalPlays } from '@/engine/bigtwo/ai'
 import { RANK_2, RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { identifyCombo, isBomb } from '@/engine/bigtwo/combos'
 import { applyBigTwo, checkPlay, dealBigTwo, scoreBigTwo, type BigTwoAction, type BigTwoState } from '@/engine/bigtwo/game'
@@ -192,7 +192,7 @@ function nextTurn() {
   moods.forEach((_, i) => {
     if (moods[i] === 'think') moods[i] = 'idle'
   })
-  if (s.turn === ME) return
+  if (s.turn === ME) return autoPass()
   const opp = opponents[s.turn - 1]
   moods[s.turn] = 'think'
   const st = bigtwoAt(opp.persona.bigtwo, level, opp.id)
@@ -376,6 +376,17 @@ function playSelected() {
 }
 
 // 過牌：按一下就過（大老二不用二次確認）
+/** 自動過牌（規則設定可關，預設開）：桌上有牌、而你手上確定沒有任何能壓過的牌，就提示一下再幫你過牌 */
+function autoPass() {
+  const s = state.value
+  if (props.options.autoPass === false || !s.table || legalPlays(s).length) return
+  message.value = T.autoPassed
+  later(() => {
+    if (state.value !== s || !canPass.value || props.options.autoPass === false) return
+    selected.value = []
+    act({ type: 'pass', player: ME })
+  }, 1100)
+}
 function pass() {
   if (!canPass.value) return
   selected.value = []
