@@ -9,6 +9,8 @@ import { settings } from './settings'
 export type Sound = SfxName
 
 const VARIANTS = 3
+/** 有音高的音樂音：不加隨機的音高變化（不然每次音準不一樣） */
+const MUSICAL = new Set<SfxName>(['win', 'lose', 'draw', 'correct'])
 let ctx: AudioContext | null = null
 let out: GainNode | null = null
 const cache = new Map<SfxName, (AudioBuffer | undefined)[]>()
@@ -85,8 +87,8 @@ export function playSound(sound: Sound) {
   turn.set(sound, k)
   const src = ac.createBufferSource()
   src.buffer = variant(ac, sound, k)
-  // 木琴（贏、輸）不變音高；其他聲音每次差一點點
-  if (sound !== 'win' && sound !== 'lose') src.playbackRate.value = 1 + (Math.random() * 2 - 1) * 0.04
+  // 音樂音不變音高；其他聲音每次差一點點
+  if (!MUSICAL.has(sound)) src.playbackRate.value = 1 + (Math.random() * 2 - 1) * 0.04
   src.connect(master(ac))
   src.start(ac.currentTime + 0.002)
 }

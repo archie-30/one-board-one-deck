@@ -64,7 +64,7 @@ function move(from: number, to: number, promo?: Promo) {
   if (lesson.value.done(r.state)) {
     state.value = r.state
     solved.value = true
-    window.setTimeout(() => playSound('win'), 250)
+    window.setTimeout(() => playSound('correct'), 250)
   } else {
     // 走了但不是這一課要的：先讓你看到，再退回來
     state.value = r.state
@@ -199,6 +199,15 @@ const aspect = A.kind === 'chess' ? '1 / 1' : '94 / 104'
   background: var(--color-card);
   padding: 0.4rem 0;
   box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
+}
+/* 按下時整顆往右下移；多一圈看不見的點擊範圍，放開的位置才不會落在按鈕外面（不然要按兩次） */
+.pc {
+  position: relative;
+}
+.pc::after {
+  content: '';
+  position: absolute;
+  inset: -0.3rem;
 }
 .pc svg {
   width: 2.6rem;

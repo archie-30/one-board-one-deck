@@ -13,6 +13,7 @@ export type SfxName =
   | 'lose'
   | 'draw'
   | 'reveal'
+  | 'correct'
   // 紙牌
   | 'shuffle'
   | 'deal'
@@ -300,6 +301,25 @@ function marimba(b: Buf, t: number, rand: Rand, f: number, k = 1, d = 0.35) {
   b.add(t, burst(sr, rand, P.knock, { shift: 6, tauMul: 0.6 }), 0.06 * k / 1)
 }
 
+/** 拇指琴的一個音：基音為主，帶一點點很快消失的高泛音（撥下去的那一下），沒有尖銳的起音 */
+function kalimba(b: Buf, t: number, rand: Rand, f: number, k = 1) {
+  const sr = b.sr
+  const n = Math.ceil(0.5 * sr)
+  const y = new Float32Array(n)
+  for (const [mul, a, d] of [
+    [1, 1, 0.22],
+    [2, 0.12, 0.08],
+    [5.4, 0.05, 0.015],
+  ] as const) {
+    const w = (2 * Math.PI * f * mul * (1 + (rand() - 0.5) * 0.001)) / sr
+    for (let i = 0; i < n; i++) y[i] += a * Math.exp(-i / (d * sr)) * Math.sin(w * i)
+  }
+  // 柔和的起音（4 毫秒），不會有「叮」的尖頭
+  const rise = Math.ceil(0.004 * sr)
+  for (let i = 0; i < rise; i++) y[i] *= Math.sin((Math.PI / 2) * (i / rise))
+  b.add(t, y, k)
+}
+
 /** 算出一個聲音（seed 不同，聲音就稍微不同） */
 export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
   const rand = makeRand(seed * 9973 + name.length * 131 + name.charCodeAt(0))
@@ -341,6 +361,13 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
       marimba(b, 0, rand, 440, 0.8, 0.3)
       marimba(b, 0.2, rand, 440, 0.7, 0.36)
       return b.normalize(0.4).data
+    }
+    case 'correct': {
+      // 新手教學答對：兩個往上的短音（相差五度），像拇指琴：起音柔和、很快收尾，不吵
+      b = new Buf(sr, 0.7)
+      kalimba(b, 0, rand, 659.25, 0.75)
+      kalimba(b, 0.11, rand, 987.77, 1)
+      return b.normalize(0.32).data
     }
     case 'reveal': {
       // 猜拳亮出手勢：手一甩的風聲，停住時一下輕拍
@@ -480,4 +507,4 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
   }
 }
 
-export const SFX_NAMES: SfxName[] = ['tap', 'slide', 'error', 'win', 'lose', 'draw', 'reveal', 'shuffle', 'deal', 'card', 'flip', 'cardPick', 'collect', 'pass', 'stone', 'stonePick', 'capture', 'piece', 'chessCapture', 'xqPiece', 'xqCapture', 'piecePick']
+export const SFX_NAMES: SfxName[] = ['tap', 'slide', 'error', 'win', 'lose', 'draw', 'reveal', 'correct', 'shuffle', 'deal', 'card', 'flip', 'cardPick', 'collect', 'pass', 'stone', 'stonePick', 'capture', 'piece', 'chessCapture', 'xqPiece', 'xqCapture', 'piecePick']

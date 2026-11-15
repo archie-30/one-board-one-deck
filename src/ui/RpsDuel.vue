@@ -189,6 +189,15 @@ function finish() {
   width: 100%;
   height: 100%;
 }
+/* 按下時整顆往右下移；多一圈看不見的點擊範圍，放開的位置才不會落在按鈕外面（不然要按兩次） */
+.hand {
+  position: relative;
+}
+.hand::after {
+  content: '';
+  position: absolute;
+  inset: -0.3rem;
+}
 .hand:active:not(:disabled) {
   transform: translate(0.2rem, 0.2rem);
   box-shadow: none;

@@ -168,7 +168,7 @@ async function play(card: Card, target: Card | undefined) {
 async function next() {
   if (step.value + 1 >= REDPOINT_LESSONS.length) {
     finished.value = true
-    playSound('win')
+    playSound('correct')
     return
   }
   const { W } = layout.value

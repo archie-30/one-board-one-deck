@@ -283,7 +283,7 @@ if (props.resume) {
       </div>
       <div class="act">
         <template v-if="phase === 'over'">
-          <Btn tone="ink" size="lg" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+          <Btn tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
           <Btn class="mt-[0.5rem]" size="sm" icon="book" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
         </template>
         <Btn v-else tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>

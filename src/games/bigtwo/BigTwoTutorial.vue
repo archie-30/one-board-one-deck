@@ -134,7 +134,7 @@ function pass() {
 function next() {
   if (step.value + 1 >= BIGTWO_LESSONS.length) {
     finished.value = true
-    playSound('win')
+    playSound('correct')
     return
   }
   // 把這一步的牌收走

@@ -52,7 +52,10 @@ const bestNow = computed(() => {
 const pad = (k: number) => String(k).padStart(2, '0')
 
 /** 換到第 k 張 */
+/** 卡片正在拿起來（進遊戲）或飛回來（離開遊戲）：先鎖住所有操作，免得卡片被換掉、動畫對不上 */
+const locked = computed(() => launching.value || launchFx.active)
 function show(k: number) {
+  if (locked.value) return
   const next = Math.min(n.value - 1, Math.max(0, k))
   if (next === index.value) return
   index.value = next
@@ -101,6 +104,7 @@ const pos = computed(() => {
 const rel = (k: number) => k - pos.value
 
 function onDown(e: PointerEvent) {
+  if (locked.value) return
   if (e.button !== undefined && e.button > 0) return
   pid = e.pointerId
   x0 = e.clientX
@@ -175,6 +179,7 @@ async function launch() {
 }
 
 function onKey(e: KeyboardEvent) {
+  if (locked.value) return
   if (e.key === 'ArrowRight') turn(1)
   else if (e.key === 'ArrowLeft') turn(-1)
 }
@@ -183,7 +188,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <section class="mode" :class="`c-${category}`">
+  <section class="mode" :class="[`c-${category}`, { locked }]">
     <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="back()" /></div>
     <header class="head">
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
@@ -280,6 +285,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   height: 100%;
   flex-direction: column;
   padding: max(0.7rem, env(safe-area-inset-top)) max(1.6rem, env(safe-area-inset-right)) 1rem max(1.4rem, env(safe-area-inset-left));
+}
+.mode.locked {
+  pointer-events: none;
 }
 .mode.c-cards {
   --tone: var(--color-red);
@@ -468,6 +476,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .arrow:disabled {
   opacity: 0.3;
+}
+/* 按下時整顆往右下移；多一圈看不見的點擊範圍，放開的位置才不會落在按鈕外面（不然要按兩次） */
+.arrow {
+  position: relative;
+}
+.arrow::after {
+  content: '';
+  position: absolute;
+  inset: -0.3rem;
 }
 .arrow:active:not(:disabled) {
   transform: translate(0.12rem, 0.12rem);
