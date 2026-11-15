@@ -370,6 +370,7 @@ export const S = {
     cardsLeft: (n: number) => `${n} 張`,
     noPlay: '沒有能壓過的牌',
     clearSelection: '取消選取',
+    autoPassed: '沒有能壓過的牌，自動過牌',
     combos: {
       single: '單張',
       pair: '對子',
@@ -458,6 +459,10 @@ export const S = {
       allowFlush: {
         label: '同花算牌型',
         help: '開啟後五張同花色（不連號）也是牌型，只能同花接同花。',
+      },
+      autoPass: {
+        label: '自動過牌',
+        help: '桌上有牌、而你手上確定沒有任何能壓過的牌時，自動幫你按「過牌」。',
       },
       allowTwoPair: {
         label: '兩對',
