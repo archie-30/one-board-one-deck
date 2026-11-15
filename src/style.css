@@ -192,6 +192,14 @@ button {
   animation-delay: calc(var(--i, 0) * 60ms);
 }
 
+/* 左上角的按鈕（選單、返回）：所有畫面都在同一個位置 */
+.corner {
+  position: absolute;
+  left: max(0.9rem, env(safe-area-inset-left));
+  top: max(0.7rem, env(safe-area-inset-top));
+  z-index: 700;
+}
+
 /* 開機加載畫面還在時，主畫面的進場動畫先停在起點；接手時主畫面的插圖先藏起來（由加載畫面飛過來的那份代替） */
 .booting .rise,
 .booting .mask > span,

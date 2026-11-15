@@ -5,6 +5,7 @@
 // 每張牌都是獨立的精靈（沿用大老二的 cardStage），換位置時各自飛過去。
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
+import { afterReveal } from '@/core/launch'
 import { RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { autoTarget, canPlace, cardsAt, type SolitaireAction, type SolitaireState, type Source, type Target } from '@/engine/solitaire/rules'
 import CardArt from '@/ui/art/Card.vue'
@@ -64,6 +65,13 @@ function sync(instant = false) {
   const moved: Card[] = []
   for (const [c, w] of where) if (prevWhere.size && prevWhere.get(c) !== w) moved.push(c)
   moved.sort((a, b) => poses.get(a)!.z - poses.get(b)!.z)
+  // 牌堆翻完、翻回去重來：整疊收攏 → 拿起來翻面 → 放回牌堆（不是一張張亂飛）
+  if (!instant && moved.length > 1 && moved.every((c) => prevWhere.get(c) === 'waste' && where.get(c) === 'stock')) {
+    for (const [c, pose] of poses) if (!moved.includes(c)) stage.move(c, pose, { dur: 200 })
+    recycleAnimation(moved, poses)
+    prevWhere = where
+    return
+  }
   for (const [c, pose] of poses) {
     const k = moved.indexOf(c)
     if (k >= 0 && !instant) {
@@ -74,9 +82,42 @@ function sync(instant = false) {
   prevWhere = where
 }
 
+/** 牌堆重來的動畫：moved 依「在牌堆裡由下到上」排好 */
+let recycleTimer = 0
+function recycleAnimation(moved: Card[], poses: Map<Card, Pose>) {
+  const W = L.value.waste
+  const n = moved.length
+  const busyFor = 260 + n * 9 + 460
+  dealing.value = true
+  dealingUntil = performance.now() + busyFor
+  // 1. 收攏：翻出來的牌（正面朝上）滑成一疊整齊的牌，最後翻出來的那張在最上面
+  //    在牌堆裡最下面的那張，就是原本翻出來最上面的那張
+  moved.forEach((c, j) => {
+    const top = n - 1 - j
+    stage.move(c, { x: W.x - top * 0.25, y: W.y - top * 0.35, r: (Math.random() - 0.5) * 2, s: 1, f: 1, z: 700 + top }, { dur: 200, delay: j * 4 })
+  })
+  playSound('collect')
+  // 2. 整疊拿起來翻面放回牌堆：從原本的最上面開始，每張隔一點點時間，飛的途中翻面
+  window.clearTimeout(recycleTimer)
+  recycleTimer = window.setTimeout(() => {
+    moved.forEach((c, j) => {
+      const v = Math.random()
+      stage.move(c, poses.get(c)!, { delay: j * 9 + v * 10, dur: 380 * (0.94 + v * 0.12), arc: L.value.ch * 0.1, flightZ: 900 + j, land: j === n - 1 })
+    })
+    window.setTimeout(() => {
+      dealing.value = false
+    }, n * 9 + 460)
+  }, 260)
+}
+
 /** 發牌：先全部蓋著疊在牌堆位置，一張一張蓋著飛到桌面；發完再把每疊最上面那張翻開；全部跑完才能操作 */
 let dealTimer = 0
 let resyncAfterDeal = false
+/** 所有牌先疊在牌堆的位置（蓋著） */
+function stackAtStock() {
+  const { poses } = solPoses(L.value, props.state, salt)
+  for (const [c, pose] of poses) stage.move(c, { ...pose, x: L.value.stock.x, y: L.value.stock.y, r: 0, f: 0, z: 10 }, { instant: true })
+}
 function dealAnimation() {
   playSound('shuffle')
   dealing.value = true
@@ -90,7 +131,7 @@ function dealAnimation() {
     cols.forEach((all) => {
       if (all[round] !== undefined) order.push(all[round])
     })
-  for (const [c, pose] of poses) stage.move(c, { ...pose, x: L.value.stock.x, y: L.value.stock.y, r: 0, f: 0, z: 10 }, { instant: true })
+  stackAtStock()
   const step = 34
   const dealt = 120 + order.length * step + 360
   dealingUntil = performance.now() + dealt
@@ -135,13 +176,18 @@ onMounted(() => {
     else sync(true)
   }
   L.value = solLayout(el.clientWidth, el.clientHeight, 0, 0, stockTop())
-  if (props.dealIn) dealAnimation()
-  else sync(true)
+  if (props.dealIn) {
+    // 進場色塊揭開後才發牌，發牌動畫才看得到；在那之前牌都疊在牌堆
+    dealing.value = true
+    stackAtStock()
+    void afterReveal().then(() => dealAnimation())
+  } else sync(true)
   observer = new ResizeObserver(measure)
   observer.observe(el)
 })
 onBeforeUnmount(() => {
   window.clearTimeout(dealTimer)
+  window.clearTimeout(recycleTimer)
   observer?.disconnect()
   stage.destroy()
   window.removeEventListener('pointermove', onMove)
@@ -410,12 +456,11 @@ defineExpose({ layout: L })
 .hint-spot {
   position: absolute;
   z-index: 1;
-  border: 0.2rem solid var(--color-ink);
+  border: 0.16rem dashed var(--color-blue);
   border-radius: 0.5rem;
-  background: rgb(255 194 26 / 0.55);
-  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
+  background: rgb(35 64 217 / 0.08);
   pointer-events: none;
-  animation: hint 0.9s ease-in-out infinite;
+  animation: hint 1.1s ease-in-out infinite;
 }
 /* 提示：黃框輕輕放大、縮小 */
 @keyframes hint {
@@ -454,31 +499,29 @@ defineExpose({ layout: L })
 .sprite.stock {
   cursor: pointer;
 }
-/* 提示：亮起來的牌墊一塊黃色，輕輕上下跳 */
+/* 提示（教學用）：一圈鈷藍細框＋淡淡的藍光 */
 .sprite.hit::before {
   content: '';
   position: absolute;
-  inset: -3% -7% -5%;
-  z-index: -1;
-  border: 0.2rem solid var(--color-ink);
+  inset: -5% -6%;
+  border: 0.16rem solid var(--color-blue);
   border-radius: 10%;
-  background: var(--color-yellow);
-  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
-  animation: hint 0.9s ease-in-out infinite;
+  box-shadow: 0 0 0.9rem rgb(35 64 217 / 0.35);
+  animation: hint 1.1s ease-in-out infinite;
   pointer-events: none;
 }
-/* 點一下選起來的牌：往上浮、墊一條黃色 */
 .sprite.sel {
   translate: 0 -6%;
 }
+/* 點一下選起來的牌：往上浮一點，外圍一圈朱紅框（和其他牌類一致） */
 .sprite.sel::before {
   content: '';
   position: absolute;
-  inset: -3% -6%;
-  z-index: -1;
+  inset: -3% -4%;
+  z-index: 2;
+  border: 0.18rem solid var(--color-red);
   border-radius: 10%;
-  background: var(--color-yellow);
-  box-shadow: 0 0 0 0.16rem var(--color-ink);
+  box-shadow: 0 0.35rem 0.9rem rgb(255 74 28 / 0.28);
   pointer-events: none;
 }
 /* 滑鼠移到可以拿的牌上：浮起一點 */

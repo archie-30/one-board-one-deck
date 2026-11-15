@@ -2,7 +2,7 @@
 // → 等遊戲畫面真的準備好 → 往上揭開。
 // 過場層放在 App 最上層（不跟著換頁消失），所以不會出現「動畫跑完了遊戲還沒出來」的空白。
 // 離開遊戲時反過來：色塊由上往下蓋住畫面 → 換回模式選單 → 縮成卡片背面 → 翻回正面 → 飛回卡片堆裡。
-import { markRaw, shallowReactive } from 'vue'
+import { markRaw, shallowReactive, watch } from 'vue'
 
 interface Launch {
   active: boolean
@@ -59,6 +59,21 @@ export function onReveal(fn: (() => void) | null) {
 /** 對局畫面準備好時呼叫：揭開過場 */
 export function revealLaunch() {
   if (launch.active) reveal?.()
+}
+
+/** 等進場的色塊揭開、看得到遊戲畫面之後才繼續（開局的發牌動畫要讓玩家看得到） */
+export function afterReveal(): Promise<void> {
+  if (!launch.active || launch.mode !== 'enter') return Promise.resolve()
+  return new Promise((resolve) => {
+    const stop = watch(
+      () => launch.active,
+      (on) => {
+        if (on) return
+        stop()
+        resolve()
+      },
+    )
+  })
 }
 
 export function endLaunch() {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 對局外框：開始前先看有沒有「保存進度並退出」留下的存檔。
 // 有的話先問要不要接著玩；遊戲要保存時，把它給的資料存起來再離開。
+import { settings } from '@/core/settings'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { revealLaunch, startExit } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
@@ -37,7 +38,7 @@ function startNew() {
 const gameRef = ref<{ pause?: () => void; snapshot?: () => unknown } | null>(null)
 function autoPause() {
   const g = gameRef.value
-  if (!g || leaving) return
+  if (!g || leaving || !settings.autoPause) return
   g.pause?.()
   const data = g.snapshot?.() ?? null
   if (data) setResume(props.gameId, data, options.value)

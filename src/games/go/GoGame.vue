@@ -6,6 +6,7 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
+import { asLevel, goAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
@@ -42,6 +43,8 @@ interface Saved {
 const T = S.go
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
+/** 難度：只決定電腦多強 */
+const level = asLevel(props.options.difficulty)
 const size = (Number(props.options.size) || 19) as GoSize
 
 const state = ref<GoState>(createGo({ size }))
@@ -182,7 +185,7 @@ async function act(action: GoAction, who: 0 | 1) {
       flash(who === 0 ? 1 : 0, r.state.lastCaptured.length >= 3 ? 'shock' : 'sad')
     }
   } else if (action.type === 'pass') {
-    playSound('pass')
+    playSound('stonePick')
     message.value = T.passed(who === 0 ? S.common.you : opponent.value.name)
   }
   if (r.state.phase === 'over') return endGame()
@@ -205,7 +208,7 @@ function flash(who: 0 | 1, mood: Mood) {
 
 function scheduleCpu() {
   moods.value = [moods.value[0], 'think']
-  const st = opponent.value.persona.go
+  const st = goAt(opponent.value.persona.go, level)
   later(() => {
     let a: GoAction
     ;[a, rng] = chooseGoMove(state.value, st, rng)
@@ -277,7 +280,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value === 'playing' && !resultOpen.value && (menuOpen.value = true), snapshot })
 if (props.resume) {
   const d = props.resume as Saved
   state.value = d.state
@@ -404,7 +407,7 @@ const resultLine = computed(() => {
         <Btn @click="resignOpen = false">{{ S.common.cancel }}</Btn>
       </template>
     </Dialog>
-    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="score.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ resultLine }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.go.wins, stats.go.losses) }}</p>
       <template #actions>
@@ -424,12 +427,6 @@ const resultLine = computed(() => {
   align-items: stretch;
   gap: 1.2rem;
   padding: 0.6rem max(1.2rem, env(safe-area-inset-right)) 0.6rem max(1.2rem, env(safe-area-inset-left));
-}
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 5;
 }
 .board-wrap {
   height: 100%;

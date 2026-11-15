@@ -3,8 +3,10 @@
 // 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
+import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { stats } from '@/core/settings'
+import { recordBest, stats } from '@/core/settings'
+import { asLevel, bigtwoAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { chooseBigTwoAction } from '@/engine/bigtwo/ai'
@@ -49,6 +51,8 @@ const saved = (props.resume ?? null) as Saved | null
 const options = { ...props.options } as unknown as BigTwoOptions
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
+/** 難度：只決定電腦多強 */
+const level = asLevel(props.options.difficulty)
 const T = S.bigtwo
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
@@ -139,7 +143,8 @@ onMounted(() => {
   measure()
   observer = new ResizeObserver(measure)
   observer.observe(el)
-  later(deal, 280)
+  // 進場色塊揭開後才發牌，發牌動畫才看得到
+  void afterReveal().then(() => later(deal, 120))
 })
 onBeforeUnmount(() => {
   observer?.disconnect()
@@ -171,7 +176,7 @@ function nextTurn() {
   if (s.turn === ME) return
   const opp = opponents[s.turn - 1]
   moods[s.turn] = 'think'
-  const st = opp.persona.bigtwo
+  const st = bigtwoAt(opp.persona.bigtwo, level)
   const think = 850 + st.skill * 700 + (1 - st.aggression) * 450 + Math.random() * 550
   later(() => {
     let action: BigTwoAction
@@ -250,7 +255,7 @@ function finish() {
   stats.bigtwo.rounds++
   if (s.winner === ME) stats.bigtwo.wins++
   stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
-  stats.bigtwo.best = Math.max(stats.bigtwo.best, scores.value[ME].points)
+  recordBest('bigtwo', level, scores.value[ME].points)
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')
@@ -304,7 +309,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menuOpen.value = true), snapshot })
 
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
@@ -454,7 +459,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog flip :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" :tone="state.winner === ME ? 'red' : 'ink'" wide @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" tone="red" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
@@ -666,12 +671,6 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .status.warn {
   color: var(--color-red);
-}
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 700;
 }
 .actions {
   position: absolute;

@@ -2,7 +2,7 @@
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
@@ -25,7 +25,6 @@ const start = games.value.findIndex((g) => g.id === settings.lastGame[props.cate
 /** 目前選中的是第幾張。不繞圈：前面的模式疊在左邊、後面的疊在右邊，到頭尾就停住。 */
 const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
-const hoverId = ref<string | null>(null)
 /** 從遊戲退回來：卡片堆不播進場上浮（過場層要量卡片的位置讓卡片飛回去，位置必須一開始就是定位） */
 const returning = launchFx.active && launchFx.mode === 'exit'
 const settingsOpen = ref(false)
@@ -45,6 +44,11 @@ function setQuick(v: string) {
   gamePrefs(game.value.id).options[quick.value.key] = v
   quickTick.value++
 }
+/** 最高分：跟著目前選的難度變 */
+const bestNow = computed(() => {
+  void quickTick.value
+  return game.value.best ? game.value.best(resolveOptions(game.value)) : 0
+})
 const pad = (k: number) => String(k).padStart(2, '0')
 
 /** 換到第 k 張 */
@@ -83,22 +87,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => ro?.disconnect())
 
-// ── 停在某張卡片上時，封面的小動畫循環播放：播完停一下 → 收回 → 再播 ──
-const playing = ref(true)
-let loopTimer = 0
-function loopCover() {
-  window.clearTimeout(loopTimer)
-  playing.value = true
-  if (reducedMotion()) return
-  const tick = () => {
-    playing.value = !playing.value
-    loopTimer = window.setTimeout(tick, playing.value ? 2600 : 700)
-  }
-  loopTimer = window.setTimeout(tick, 2600)
-}
-onMounted(loopCover)
-watch(index, loopCover)
-onBeforeUnmount(() => window.clearTimeout(loopTimer))
+// 停在某張卡片上時，封面的小動畫循環播放（每個遊戲的卡面各自有一段重複的動畫，見 games/covers/）
 
 /** 目前轉到的位置：整數 = 停在某張；拖曳時是小數（往左拖 = 往下一張轉） */
 const pos = computed(() => {
@@ -195,8 +184,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <section class="mode" :class="`c-${category}`">
+    <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="back()" /></div>
     <header class="head">
-      <IconBtn icon="back" :label="S.common.back" @click="back()" />
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
       <IconBtn icon="gear" :label="S.appSettings.title" @click="settingsOpen = true" />
@@ -225,16 +214,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :key="g.id"
             :ref="(el) => (cardEls[k] = el as HTMLElement | null)"
             class="card"
-            :class="{ front: k === index, peek: hoverId === g.id && k !== index, lifted: (launching && k === index) || (launchFx.active && launchFx.mode === 'exit' && launchFx.gameId === g.id) }"
+            :class="{ front: k === index, lifted: (launching && k === index) || (launchFx.active && launchFx.mode === 'exit' && launchFx.gameId === g.id) }"
             :style="cardStyle(k)"
             role="option"
             :aria-selected="k === index"
             :tabindex="k === index ? 0 : -1"
             @click="onClick(k, $event)"
-            @pointerenter="$event.pointerType === 'mouse' && (hoverId = g.id)"
-            @pointerleave="hoverId = null"
           >
-            <span class="cover halftone"><component :is="g.cover" :active="(k === index && (playing || dragging)) || hoverId === g.id" /></span>
+            <span class="cover halftone"><component :is="g.cover" :active="k === index" /></span>
             <span class="info">
               <span class="t-slab no">{{ pad(k + 1) }}</span>
               <span class="nm t-black">{{ g.name }}</span>
@@ -263,7 +250,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <div v-if="game.best || quick" class="stats rise" style="--i: 3">
             <p v-if="game.best" class="best">
               <span class="t-label">{{ S.lobby.best }}</span>
-              <b class="t-slab">{{ game.best() }}</b>
+              <b :key="`${game.id}-${quickValue}`" class="t-slab pop">{{ bestNow }}</b>
             </p>
             <div v-if="quick" class="quick" :title="quick.help">
               <span class="t-label">{{ quick.label }}</span>
@@ -288,10 +275,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <style scoped>
 .mode {
+  position: relative;
   display: flex;
   height: 100%;
   flex-direction: column;
-  padding: 0.8rem max(1.6rem, env(safe-area-inset-right)) 1rem max(1.4rem, env(safe-area-inset-left));
+  padding: max(0.7rem, env(safe-area-inset-top)) max(1.6rem, env(safe-area-inset-right)) 1rem max(1.4rem, env(safe-area-inset-left));
 }
 .mode.c-cards {
   --tone: var(--color-red);
@@ -301,8 +289,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .head {
   display: flex;
+  min-height: 2.4rem;
   align-items: center;
   gap: 0.9rem;
+  /* 左邊讓出左上角返回鍵的位置（返回鍵和遊戲裡的選單鍵在同一個地方） */
+  padding-left: calc(0.9rem + 2.4rem + 0.9rem - max(1.4rem, env(safe-area-inset-left)) + max(0.9rem, env(safe-area-inset-left)) - 0.9rem);
 }
 .title {
   font-size: 2rem;
@@ -627,11 +618,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 0.6rem;
 }
 @media (hover: hover) and (pointer: fine) {
-  /* 滑鼠移到後面的卡片上：那張往上探出來一點（預覽） */
-  /* 滑鼠移到旁邊的卡片上：那張變亮一點（預覽） */
-  .card.peek::after {
-    opacity: calc(var(--fade, 0) * 0.35);
-  }
   .card {
     transition:
       transform 460ms var(--ease-out),

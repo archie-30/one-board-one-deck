@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
+import { asLevel, chessAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng, type RngState } from '@/engine/common/rng'
@@ -22,7 +23,7 @@ import RpsDuel from '@/ui/RpsDuel.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
 import TurnTimer from '@/ui/TurnTimer.vue'
 import { TURN_SECONDS } from '@/data/timer'
-import type { Adapter, ClassicMove, Seat } from './adapters'
+import { moveSound, type Adapter, type ClassicMove, type Seat } from './adapters'
 import ClassicBoard from './ClassicBoard.vue'
 
 const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown; adapter: Adapter<St> }>()
@@ -32,6 +33,8 @@ const T = A.kind === 'chess' ? S.chess : S.xiangqi
 const record = A.kind === 'chess' ? stats.chess : stats.xiangqi
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
+/** 難度：只決定電腦多強 */
+const level = asLevel(props.options.difficulty)
 
 /** 「保存進度並退出」存的資料 */
 interface Saved {
@@ -130,7 +133,7 @@ function commit(m: ClassicMove, who: 0 | 1) {
   selected.value = -1
   message.value = ''
   const took = A.captured(state.value).length > before
-  playSound(took ? 'capture' : 'piece')
+  playSound(moveSound(A.kind, took))
   if (took) flash(who, 'happy')
   if (A.over(state.value)) finish()
   else if (A.checkSq(state.value) >= 0) flash(who === 0 ? 1 : 0, 'shock')
@@ -167,7 +170,7 @@ function flash(who: 0 | 1, mood: Mood) {
 function scheduleCpu() {
   thinking.value = true
   moods.value = [moods.value[0], 'think']
-  const st = opponent.value.persona.chess
+  const st = chessAt(opponent.value.persona.chess, level)
   later(() => {
     let m: ClassicMove | null
     ;[m, rng] = A.choose(state.value, st, rng)
@@ -185,7 +188,7 @@ function finish() {
   else record.losses++
   moods.value = w === null ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
-    playSound(w === human.value ? 'win' : w === null ? 'slide' : 'lose')
+    playSound(w === human.value ? 'win' : w === null ? 'draw' : 'lose')
     resultOpen.value = true
   }, 900)
 }
@@ -198,7 +201,7 @@ function pick(i: number) {
   if (p && A.seatOf(p) === human.value) {
     selected.value = selected.value === i ? -1 : i
     message.value = ''
-    playSound('cardPick')
+    playSound('piecePick')
     return
   }
   if (selected.value < 0) return
@@ -242,7 +245,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value === 'playing' && !resultOpen.value && (menuOpen.value = true), snapshot })
 if (saved && A.turn(state.value) !== human.value) scheduleCpu()
 
 const promoChoices: Promo[] = ['Q', 'R', 'B', 'N']
@@ -345,7 +348,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
       </template>
     </Dialog>
 
-    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winnerSeat === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ reason }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
       <template #actions>
@@ -366,12 +369,6 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
   align-items: stretch;
   gap: 1.4rem;
   padding: 0.7rem max(1.2rem, env(safe-area-inset-right)) 0.7rem max(1.2rem, env(safe-area-inset-left));
-}
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 5;
 }
 .board-wrap {
   height: 100%;

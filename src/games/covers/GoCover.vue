@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 圍棋封面：黑白交纏的一角；選起時中間那顆白子被提走
+// 圍棋封面：黑白交纏的一角。停在這張卡片上時循環播放：黑子落下圍住 → 中間那顆白子往上飄走（提子）→ 白子放回、黑子收回
 import Stone from '@/ui/art/Stone.vue'
 defineProps<{ active?: boolean }>()
 const P = (i: number) => 22 + i * 16
@@ -30,7 +30,7 @@ const whites = [
     <Stone v-for="(b, i) in blacks" :key="`b${i}`" :cx="P(b[0]) + 8" :cy="P(b[1]) - 10" :r="7" black />
     <Stone v-for="(w, i) in whites" :key="`w${i}`" :cx="P(w[0]) + 8" :cy="P(w[1]) - 10" :r="7" />
     <g class="victim"><Stone :cx="P(3) + 8" :cy="P(3) - 10" :r="7" /></g>
-    <g v-if="active" class="drop"><Stone :cx="P(3) + 8" :cy="P(4) - 10" :r="7" black /></g>
+    <g class="drop"><Stone :cx="P(3) + 8" :cy="P(4) - 10" :r="7" black /></g>
   </svg>
 </template>
 
@@ -40,26 +40,59 @@ const whites = [
   height: 100%;
   overflow: visible;
 }
-.victim {
-  transform-box: fill-box;
-  transform-origin: center;
-  transition:
-    opacity 400ms ease 420ms,
-    transform 500ms var(--ease-out) 420ms;
-}
-.active .victim {
-  opacity: 0;
-  transform: translateY(-14px) scale(0.6);
-}
+.victim,
 .drop {
   transform-box: fill-box;
   transform-origin: center;
-  animation: drop 360ms var(--ease-back) 80ms both;
+}
+.drop {
+  opacity: 0;
+}
+.active .drop {
+  animation: drop 3.2s var(--ease-back) infinite;
+}
+.active .victim {
+  animation: lift 3.2s var(--ease-out) infinite;
 }
 @keyframes drop {
-  from {
+  0%,
+  6% {
     opacity: 0;
-    transform: translateY(-16px) scale(1.4);
+    transform: translateY(-18px) scale(1.5);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1.12, 0.88);
+  }
+  24%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  92%,
+  100% {
+    opacity: 0;
+    transform: none;
+  }
+}
+@keyframes lift {
+  0%,
+  28% {
+    opacity: 1;
+    transform: none;
+  }
+  52%,
+  84% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.6);
+  }
+  85% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
   }
 }
 </style>

@@ -42,6 +42,10 @@ export interface Adapter<S> {
 
 const up = (p: string) => p === p.toUpperCase()
 
+/** 走一步的聲音：西洋棋是貼絨布的棋子（悶），象棋是實木棋子直接拍（脆）；吃子另外一種 */
+export const moveSound = (kind: 'chess' | 'xiangqi', took: boolean) =>
+  kind === 'chess' ? (took ? 'chessCapture' : 'piece') : took ? 'xqCapture' : 'xqPiece'
+
 export const chessAdapter: Adapter<ChessState> = {
   kind: 'chess',
   create: createChess,

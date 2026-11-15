@@ -5,6 +5,7 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
+import { asLevel, gomokuAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
@@ -39,6 +40,8 @@ interface Saved {
 const options = { ...props.options } as unknown as GomokuOptions
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
+/** 難度：只決定電腦多強 */
+const level = asLevel(props.options.difficulty)
 const T = S.gomoku
 
 const state = ref<GomokuState>(createGomoku(options))
@@ -173,14 +176,14 @@ function finish() {
   else stats.gomoku.losses++
   moods.value = w === 3 ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
-    playSound(w === human.value ? 'win' : w === 3 ? 'pass' : 'lose')
+    playSound(w === human.value ? 'win' : w === 3 ? 'draw' : 'lose')
     resultOpen.value = true
   }, 1100)
 }
 
 function scheduleCpu() {
   moods.value = ['idle', 'think']
-  const st = opponent.value.persona.gomoku
+  const st = gomokuAt(opponent.value.persona.gomoku, level)
   const think = 900 + (1 - st.noise) * 700 + Math.random() * 600
   later(() => {
     let move: number
@@ -233,7 +236,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value === 'playing' && !resultOpen.value && (menuOpen.value = true), snapshot })
 if (props.resume) {
   const d = props.resume as Saved
   state.value = d.state
@@ -291,7 +294,7 @@ if (props.resume) {
 
     <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
-    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="state.winner === human ? 'red' : 'ink'" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>
@@ -312,12 +315,6 @@ if (props.resume) {
   align-items: stretch;
   gap: 1.4rem;
   padding: 0.7rem max(1.2rem, env(safe-area-inset-right)) 0.7rem max(1.2rem, env(safe-area-inset-left));
-}
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 5;
 }
 .board-wrap {
   height: 100%;

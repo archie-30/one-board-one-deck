@@ -25,6 +25,12 @@ export function clearResume(gameId: string) {
   delete store[gameId]
 }
 
+/** 格式化遊戲進度：刪掉所有保存中、玩到一半的對局 */
+export function clearAllResume() {
+  for (const id of Object.keys(store)) delete store[id]
+  flushResume()
+}
+
 /** 立刻寫進存檔（分頁要被關掉時，等不到平常的自動存檔） */
 export function flushResume() {
   writeSave('resume', JSON.parse(JSON.stringify(store)))

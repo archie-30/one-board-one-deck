@@ -4,6 +4,7 @@
 // 兩張一起飛回自己的牌堆；接著牌堆最上面那張翻開，再決定去哪。
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
+import { afterReveal } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
@@ -133,7 +134,8 @@ onMounted(() => {
   measure()
   observer = new ResizeObserver(measure)
   observer.observe(el)
-  void deal()
+  // 進場色塊揭開後才發牌，發牌動畫才看得到
+  void afterReveal().then(() => deal())
 })
 onBeforeUnmount(() => {
   observer?.disconnect()
@@ -191,7 +193,7 @@ async function nextTurn(): Promise<void> {
   const p = s.turn
   moods[p] = 'think'
   const st = opponents[p - 1].persona.redpoint
-  if (!(await wait(800 + st.skill * 600 + Math.random() * 500))) return
+  if (!(await wait(1200 + st.skill * 700 + Math.random() * 600))) return
   let a: RedPointAction
   ;[a, rng] = chooseRedPointAction(state.value, st, rng)
   moods[p] = 'idle'
@@ -361,7 +363,7 @@ function saveAndExit() {
   if (data) emit('save', data)
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
-defineExpose({ pause: () => (menuOpen.value = true), snapshot })
+defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menuOpen.value = true), snapshot })
 
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
@@ -508,7 +510,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" :tone="winners(state).includes(ME) ? 'red' : 'ink'" wide @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="red" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
@@ -612,33 +614,30 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     transform: scale(1.12);
   }
 }
-/* 可以吃的桌上牌：黃色粗框，輕輕上下跳 */
+/* 可以吃的桌上牌：一圈鈷藍細框＋淡淡的藍光，輕輕放大縮小（不墊顏色） */
 .sprite.hit::before {
   content: '';
   position: absolute;
-  inset: -6% -8%;
-  border: 0.2rem solid var(--color-ink);
+  inset: -5% -6%;
+  border: 0.16rem solid var(--color-blue);
   border-radius: 10%;
-  background: var(--color-yellow);
-  z-index: -1;
-  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
-  animation: hit 0.9s ease-in-out infinite;
+  box-shadow: 0 0 0.9rem rgb(35 64 217 / 0.35);
+  animation: hit 1.1s ease-in-out infinite;
   pointer-events: none;
 }
+/* 滑鼠預覽：能配的牌先出現藍色虛線框 */
 .sprite.peekhit::before {
   content: '';
   position: absolute;
-  inset: -6% -8%;
-  z-index: -1;
-  border: 0.16rem dashed var(--color-ink);
+  inset: -5% -6%;
+  border: 0.14rem dashed var(--color-blue);
   border-radius: 10%;
-  background: rgb(255 194 26 / 0.45);
   pointer-events: none;
 }
-/* 可以吃的牌：黃框輕輕放大、縮小（呼吸），不上下搖 */
+/* 可以吃的牌：藍框輕輕放大、縮小（呼吸），不上下搖 */
 @keyframes hit {
   50% {
-    transform: scale(1.07);
+    transform: scale(1.05);
   }
 }
 /* 數牌：每一列的名字與分數；正在數的那一列亮起來 */
@@ -747,12 +746,6 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .status.warn {
   color: var(--color-red);
-}
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 700;
 }
 .actions {
   position: absolute;

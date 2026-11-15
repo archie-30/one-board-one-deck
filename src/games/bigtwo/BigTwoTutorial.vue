@@ -198,12 +198,6 @@ function next() {
   height: 100%;
   overflow: hidden;
 }
-.corner {
-  position: absolute;
-  left: max(0.8rem, env(safe-area-inset-left));
-  top: max(0.6rem, env(safe-area-inset-top));
-  z-index: 700;
-}
 .guide {
   position: absolute;
   right: max(1rem, env(safe-area-inset-right));

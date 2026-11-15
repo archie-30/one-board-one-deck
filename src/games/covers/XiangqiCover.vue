@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 象棋封面：黃色棋盤的一角與九宮斜線，紅帥、黑車；選起時紅炮跳過炮架吃過去
+// 象棋封面：黃色棋盤的一角與九宮斜線，紅帥、紅兵、黑車。停在這張卡片上時循環播放：紅炮翻過兵（炮架）吃掉黑車 → 停一下 → 回到原位，黑車放回
 defineProps<{ active?: boolean }>()
 const C = 24
 const x = (c: number) => 28 + c * C
@@ -20,7 +20,7 @@ const pieces = [
       <line v-for="c in 7" :key="`v${c}`" :x1="x(c - 1)" :x2="x(c - 1)" :y1="y(0)" :y2="y(4.5)" />
       <path :d="`M${x(3)} ${y(2)}l${C * 2} ${C * 2}M${x(5)} ${y(2)}l${-C * 2} ${C * 2}`" />
     </g>
-    <g v-for="(p, i) in pieces" :key="i">
+    <g v-for="(p, i) in pieces" :key="i" :class="{ victim: i === 0 }">
       <circle :cx="x(p.c) + 1.5" :cy="y(p.r) + 1.8" r="10.5" fill="var(--color-ink)" />
       <circle :cx="x(p.c)" :cy="y(p.r)" r="10.5" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="1.4" />
       <text :x="x(p.c)" :y="y(p.r) + 4.3" class="t" :fill="p.red ? 'var(--color-red)' : 'var(--color-ink)'">{{ p.t }}</text>
@@ -47,9 +47,56 @@ const pieces = [
 .jump {
   transform-box: view-box;
   transform: translate(76px, 108px);
-  transition: transform 560ms var(--ease-back);
+}
+.victim {
+  transform-box: fill-box;
+  transform-origin: center;
 }
 .active .jump {
-  transform: translate(76px, 12px);
+  animation: jump 3.2s var(--ease-in-out) infinite;
+}
+.active .victim {
+  animation: taken 3.2s var(--ease-out) infinite;
+}
+/* 炮：往前走，經過兵（炮架）時跳起來翻過去，落在車上 */
+@keyframes jump {
+  0%,
+  8% {
+    transform: translate(76px, 108px);
+  }
+  22% {
+    transform: translate(76px, 76px);
+  }
+  32% {
+    transform: translate(76px, 42px) scale(1.3);
+  }
+  42%,
+  70% {
+    transform: translate(76px, 12px);
+  }
+  86% {
+    transform: translate(76px, 108px);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(76px, 108px);
+  }
+}
+@keyframes taken {
+  0%,
+  40% {
+    opacity: 1;
+    transform: none;
+  }
+  48%,
+  80% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.6);
+  }
+  92%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
 }
 </style>

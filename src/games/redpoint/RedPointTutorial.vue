@@ -232,12 +232,6 @@ async function next() {
   height: 100%;
   overflow: hidden;
 }
-.corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
-  z-index: 700;
-}
 .table-box {
   position: absolute;
   border: 0.14rem solid var(--color-ink);
@@ -297,22 +291,21 @@ async function next() {
     transform: scale(1.12);
   }
 }
+/* 可以吃的桌上牌：一圈鈷藍細框＋淡淡的藍光，輕輕放大縮小（不墊顏色） */
 .sprite.hit::before {
   content: '';
   position: absolute;
-  inset: -6% -8%;
-  border: 0.2rem solid var(--color-ink);
+  inset: -5% -6%;
+  border: 0.16rem solid var(--color-blue);
   border-radius: 10%;
-  background: var(--color-yellow);
-  z-index: -1;
-  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
-  animation: hit 0.9s ease-in-out infinite;
+  box-shadow: 0 0 0.9rem rgb(35 64 217 / 0.35);
+  animation: hit 1.1s ease-in-out infinite;
   pointer-events: none;
 }
-/* 可以吃的牌：黃框輕輕放大、縮小（呼吸），不上下搖 */
+/* 可以吃的牌：藍框輕輕放大、縮小（呼吸），不上下搖 */
 @keyframes hit {
   50% {
-    transform: scale(1.07);
+    transform: scale(1.05);
   }
 }
 .me {
