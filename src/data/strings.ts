@@ -47,6 +47,7 @@ export const S = {
     resume: '繼續',
     paused: '暫停',
     restart: '重新開始',
+    restartGiveUp: '投降並重新開始',
     quit: '離開對局',
     quitNoSave: '離開並認輸',
     quitConfirm: '再按一次確認',

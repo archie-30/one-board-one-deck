@@ -53,7 +53,7 @@ function hover(side: GameCategory, event: PointerEvent) {
       </h1>
       <div class="foot rise" style="--i: 5">
         <IconBtn icon="gear" :label="S.choose.settings" @click="settingsOpen = true" />
-        <IconBtn icon="pencil" :label="S.names.open" @click="go({ name: 'names' })" />
+        <IconBtn icon="badge" :label="S.names.open" @click="go({ name: 'names' })" />
         <span class="t-label ver">{{ VERSION.number }}</span>
       </div>
     </aside>

@@ -55,16 +55,23 @@ function autoPause() {
   else clearResume(props.gameId)
   flushResume()
 }
+/** 網頁版：按 Esc 暫停（選單已經打開時由選單自己處理） */
+function onEsc(e: KeyboardEvent) {
+  if (e.key !== 'Escape' || !ready.value || leaving || e.repeat) return
+  gameRef.value?.pause?.()
+}
 function onVisibility() {
   if (document.visibilityState === 'hidden') autoPause()
 }
 onMounted(() => {
   document.addEventListener('visibilitychange', onVisibility)
+  window.addEventListener('keydown', onEsc)
   window.addEventListener('blur', autoPause)
   window.addEventListener('pagehide', autoPause)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('visibilitychange', onVisibility)
+  window.removeEventListener('keydown', onEsc)
   window.removeEventListener('blur', autoPause)
   window.removeEventListener('pagehide', autoPause)
 })
