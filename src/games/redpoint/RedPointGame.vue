@@ -467,6 +467,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       </div>
     </template>
     <div class="table-box" :style="{ left: `${spots.box.x}px`, top: `${spots.box.y}px`, width: `${spots.box.w}px`, height: `${spots.box.h}px` }">
+      <span class="t-label lab">TABLE</span>
     </div>
     <span v-if="!tally" class="t-label pile-lab" :style="{ left: `${spots.pile.x}px`, top: `${spots.pile.y + layout.cw * 0.8}px` }">{{ T.pile }} · {{ state.pile.length }}</span>
 
@@ -566,6 +567,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   left: 0.5rem;
   top: -0.55rem;
   padding: 0 0.4rem;
+  background: var(--color-paper);
 }
 .pile-lab {
   position: absolute;

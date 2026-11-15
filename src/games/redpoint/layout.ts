@@ -20,7 +20,7 @@ export interface RpSpots {
   box: { x: number; y: number; w: number; h: number }
   pile: { x: number; y: number }
   reveal: { x: number; y: number }
-  captured: { x: number; y: number; dir: 1 | -1 }[]
+  captured: { x: number; y: number; dir: 1 | -1; step: number }[]
 }
 
 /** 牌的高寬比 */
@@ -43,10 +43,11 @@ export function rpSpots(L: Layout): RpSpots {
     pile,
     reveal: { x: pile.x + cw * 0.95, y: pile.y - cw * 0.35 },
     captured: [
-      { x: cw * 2.45, y: H - cw * 0.7, dir: 1 },
-      { x: W - cw * 1.6, y: H * 0.72, dir: -1 },
-      { x: W / 2 + cw * 2.6, y: cw * 0.6, dir: 1 },
-      { x: cw * 1.6, y: H * 0.72, dir: 1 },
+      { x: cw * 2.45, y: H - cw * 0.7, dir: 1, step: 0.16 },
+      // 左右兩家：放在名字正下方、按鈕上面（排緊一點，才不會碰到牌桌框）
+      { x: W - cw * 0.6, y: H * 0.56, dir: -1, step: 0.11 },
+      { x: W / 2 + cw * 2.6, y: cw * 0.6, dir: 1, step: 0.16 },
+      { x: cw * 0.6, y: H * 0.56, dir: 1, step: 0.11 },
     ],
   }
 }
@@ -139,7 +140,7 @@ export function rpPoses(L: Layout, m: RpModel): Map<Card, Pose> {
     const spot = S.captured[p]
     cards.forEach((c, k) => {
       const h = c * 7 + (m.salt ?? 0)
-      out.set(c, { x: spot.x + spot.dir * k * cw * 0.16, y: spot.y + hash(h, 6) * cw * 0.08, r: hash(h, 7) * 14, s: SMALL, f: 1, z: 60 + k })
+      out.set(c, { x: spot.x + spot.dir * k * cw * spot.step, y: spot.y + hash(h, 6) * cw * 0.08, r: hash(h, 7) * 14, s: SMALL, f: 1, z: 60 + k })
     })
   })
   return out
