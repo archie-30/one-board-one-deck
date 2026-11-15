@@ -93,7 +93,6 @@ let recycleTimer = 0
 let recycleTimer2 = 0
 function recycleAnimation(moved: Card[], poses: Map<Card, Pose>) {
   const W = L.value.waste
-  const S0 = L.value.stock
   const n = moved.length
   const GATHER = 200
   const SPLIT = 340
@@ -118,7 +117,8 @@ function recycleAnimation(moved: Card[], poses: Map<Card, Pose>) {
       const v = Math.random()
       stage.move(
         c,
-        { x: S0.x + cw * 0.3 + side * cw * 0.34 - k * 0.2, y: S0.y + cw * 0.06 - k * 0.45, r: side * 9 + (v - 0.5) * 2, s: 0.96, f: 0, z: 760 + k },
+        // 在翻牌區（牌堆下面）分成兩半；縮小一點、往外偏一點點，不會超出左邊這一欄
+        { x: W.x + side * cw * 0.2 - k * 0.15, y: W.y - k * 0.35, r: side * 7 + (v - 0.5) * 2, s: 0.8, f: 0, z: 760 + k },
         { dur: SPLIT * (0.9 + v * 0.15), delay: j * 4 },
       )
     })
