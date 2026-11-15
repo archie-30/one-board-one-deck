@@ -2,6 +2,7 @@
 // 撿紅點牌桌：你在下方，三位隨機入座的對手在左、上、右。
 // 每張牌都是獨立的精靈（沿用大老二的 cardStage）：出牌時飛到桌上或壓到要吃的牌上，
 // 兩張一起飛回自己的牌堆；接著牌堆最上面那張翻開，再決定去哪。
+import { useGrace } from '@/core/grace'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
@@ -55,6 +56,7 @@ const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
 let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
 let rng = saved ? saved.rng : seedRng(seed)
 const state = shallowRef<RedPointState>(saved ? saved.state : dealRedPoint(seed))
+const grace = useGrace(props.options, state, () => state.value.turn === 0)
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const busy = ref(true)
 const selected = ref<Card | null>(null)
@@ -458,7 +460,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.phase !== 'over' && state.turn === p" />
-    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.phase !== 'over'" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.phase !== 'over' && !(grace && state.turn === 0)" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 數牌：每一列一個人，左邊名字、右邊累加的分數 -->
     <template v-if="tally && !resultOpen">
       <div v-for="p in 4" :key="`tl${p}`" class="tally" :class="{ now: countingRow === p - 1 }" :style="{ left: `${spots.box.x + spots.box.w * 0.03}px`, width: `${spots.box.w * 0.94}px`, top: `${rowY(p - 1)}px` }">

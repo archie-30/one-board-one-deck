@@ -2,6 +2,7 @@
 // 西洋棋、象棋共用的對局畫面：你在左、對手在右，中間一張棋盤。
 // 開局猜拳決定誰先走（西洋棋贏的人拿白、象棋贏的人拿紅）；玩家那一方永遠在棋盤下方。
 // 操作：點自己的棋子 → 能走的位置出現圓點 → 點那個位置走過去。西洋棋兵到底線時跳出升變選擇。
+import { useGrace } from '@/core/grace'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { opponentById, pickOpponents } from '@/core/opponents'
@@ -47,6 +48,7 @@ const saved = (props.resume ?? null) as Saved | null
 
 const state = shallowRef<St>(saved ? saved.state : A.create())
 const human = ref<Seat>(saved ? saved.human : 0)
+const grace = useGrace(props.options, state, () => A.turn(state.value) === human.value)
 const opponent = ref(saved ? opponentById(saved.opponent) : pickOpponents(1)[0])
 const phase = ref<'rps' | 'playing' | 'over'>(saved ? 'playing' : 'rps')
 const selected = ref(-1)
@@ -259,7 +261,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && A.turn(state) === human" />
     <TurnGlow side="right" :on="phase === 'playing' && A.turn(state) !== human" />
-    <TurnTimer v-if="timed" :side="A.turn(state) === human ? 'left' : 'right'" :active="phase === 'playing'" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="A.turn(state) === human ? 'left' : 'right'" :active="phase === 'playing' && !(grace && A.turn(state) === human)" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">

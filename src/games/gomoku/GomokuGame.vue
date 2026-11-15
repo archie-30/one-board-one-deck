@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 五子棋：你在左、對手在右，中間一張棋盤。棋子從各自的棋罐沿弧線飛到落點，落地時壓扁並泛起墨圈。
+import { useGrace } from '@/core/grace'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
@@ -246,6 +247,7 @@ if (props.resume) {
   phase.value = 'playing'
   if (state.value.turn !== human.value) scheduleCpu()
 }
+const grace = useGrace(props.options, state, () => state.value.turn === human.value)
 </script>
 
 <template>
@@ -253,7 +255,7 @@ if (props.resume) {
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
-    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying && !(grace && state.turn === human)" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">

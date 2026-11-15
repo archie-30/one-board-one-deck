@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 圍棋：你在左、對手在右，中間棋盤。先猜拳決定黑白；棋子從棋罐飛到落點，被提掉的子往上飄走。
 // 雙方連續虛手後進入數地：電腦標出死棋與地盤，你可以點棋子修正，再確認結果。
+import { useGrace } from '@/core/grace'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
@@ -291,6 +292,7 @@ if (props.resume) {
   phase.value = d.phase
   if (d.phase === 'playing' && state.value.turn === ai.value) scheduleCpu()
 }
+const grace = useGrace(props.options, state, () => state.value.turn === human.value)
 // 虛手要按兩次：第一次按下變成「再按一次虛手」，2.5 秒內再按才真的虛手
 const passArmed = ref(false)
 let passTimer = 0
@@ -347,7 +349,7 @@ const resultLine = computed(() => {
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
-    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying && !(grace && state.turn === human)" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">

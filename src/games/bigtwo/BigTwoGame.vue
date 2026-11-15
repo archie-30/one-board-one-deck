@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 大老二牌桌：你在下方，三位隨機入座的對手在左、上、右。
 // 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
+import { useGrace } from '@/core/grace'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
@@ -77,6 +78,7 @@ const later = (fn: () => void, ms: number) => {
 }
 
 const state = shallowRef<BigTwoState>(saved ? saved.state : dealBigTwo(seed, options))
+const grace = useGrace(props.options, state, () => state.value.turn === 0)
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const selected = ref<Card[]>([])
 const message = ref('')
@@ -380,7 +382,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.winner < 0 && state.turn === p" />
-    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0 && !(grace && state.turn === 0)" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 桌面中央的框 -->
     <!-- 每個人這一輪剛出的牌（小張；一輪結束就清掉） -->
     <template v-for="(seat, p) in layout.seats" :key="`last${p}`">

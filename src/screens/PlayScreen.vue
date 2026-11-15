@@ -6,6 +6,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { revealLaunch, startExit } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { back } from '@/core/nav'
+import { GRACE_AFTER_MS } from '@/core/grace'
 import { clearResume, flushResume, getResume, setResume } from '@/core/resume'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
@@ -34,7 +35,7 @@ const when = saved ? new Date(saved.savedAt).toLocaleString('zh-TW', { month: 'n
 
 function continueSaved() {
   if (!saved) return
-  options.value = { ...options.value, ...saved.options }
+  options.value = { ...options.value, ...saved.options, graceFirst: Date.now() - saved.savedAt > GRACE_AFTER_MS }
   resume.value = saved.data
   clearResume(props.gameId)
   ready.value = true
@@ -50,7 +51,7 @@ function autoPause() {
   if (!g || leaving || !settings.autoPause) return
   g.pause?.()
   const data = g.snapshot?.() ?? null
-  if (data) setResume(props.gameId, data, options.value)
+  if (data) setResume(props.gameId, data, keep())
   else clearResume(props.gameId)
   flushResume()
 }
@@ -71,8 +72,13 @@ onBeforeUnmount(() => {
 // 對局畫面（或「要不要接著玩」的對話框）出現後，揭開進入遊戲的過場
 onMounted(() => requestAnimationFrame(() => requestAnimationFrame(revealLaunch)))
 
+/** 存檔時不留「第一步不限時」的記號（下次接著玩再依存檔時間決定） */
+function keep() {
+  const { graceFirst: _, ...rest } = options.value
+  return rest
+}
 function onSave(data: unknown) {
-  setResume(props.gameId, data, options.value)
+  setResume(props.gameId, data, keep())
   void leave(true)
 }
 
