@@ -410,12 +410,11 @@ defineExpose({ layout: L })
 .hint-spot {
   position: absolute;
   z-index: 1;
-  border: 0.2rem solid var(--color-ink);
+  border: 0.16rem dashed var(--color-blue);
   border-radius: 0.5rem;
-  background: rgb(255 194 26 / 0.55);
-  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
+  background: rgb(35 64 217 / 0.08);
   pointer-events: none;
-  animation: hint 0.9s ease-in-out infinite;
+  animation: hint 1.1s ease-in-out infinite;
 }
 /* 提示：黃框輕輕放大、縮小 */
 @keyframes hint {
@@ -454,31 +453,29 @@ defineExpose({ layout: L })
 .sprite.stock {
   cursor: pointer;
 }
-/* 提示：亮起來的牌墊一塊黃色，輕輕上下跳 */
+/* 提示（教學用）：一圈鈷藍細框＋淡淡的藍光 */
 .sprite.hit::before {
   content: '';
   position: absolute;
-  inset: -3% -7% -5%;
-  z-index: -1;
-  border: 0.2rem solid var(--color-ink);
+  inset: -5% -6%;
+  border: 0.16rem solid var(--color-blue);
   border-radius: 10%;
-  background: var(--color-yellow);
-  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
-  animation: hint 0.9s ease-in-out infinite;
+  box-shadow: 0 0 0.9rem rgb(35 64 217 / 0.35);
+  animation: hint 1.1s ease-in-out infinite;
   pointer-events: none;
 }
-/* 點一下選起來的牌：往上浮、墊一條黃色 */
 .sprite.sel {
   translate: 0 -6%;
 }
+/* 點一下選起來的牌：往上浮一點，外圍一圈朱紅框（和其他牌類一致） */
 .sprite.sel::before {
   content: '';
   position: absolute;
-  inset: -3% -6%;
-  z-index: -1;
+  inset: -3% -4%;
+  z-index: 2;
+  border: 0.18rem solid var(--color-red);
   border-radius: 10%;
-  background: var(--color-yellow);
-  box-shadow: 0 0 0 0.16rem var(--color-ink);
+  box-shadow: 0 0.35rem 0.9rem rgb(255 74 28 / 0.28);
   pointer-events: none;
 }
 /* 滑鼠移到可以拿的牌上：浮起一點 */

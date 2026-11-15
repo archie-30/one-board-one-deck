@@ -612,33 +612,30 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     transform: scale(1.12);
   }
 }
-/* 可以吃的桌上牌：黃色粗框，輕輕上下跳 */
+/* 可以吃的桌上牌：一圈鈷藍細框＋淡淡的藍光，輕輕放大縮小（不墊顏色） */
 .sprite.hit::before {
   content: '';
   position: absolute;
-  inset: -6% -8%;
-  border: 0.2rem solid var(--color-ink);
+  inset: -5% -6%;
+  border: 0.16rem solid var(--color-blue);
   border-radius: 10%;
-  background: var(--color-yellow);
-  z-index: -1;
-  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
-  animation: hit 0.9s ease-in-out infinite;
+  box-shadow: 0 0 0.9rem rgb(35 64 217 / 0.35);
+  animation: hit 1.1s ease-in-out infinite;
   pointer-events: none;
 }
+/* 滑鼠預覽：能配的牌先出現藍色虛線框 */
 .sprite.peekhit::before {
   content: '';
   position: absolute;
-  inset: -6% -8%;
-  z-index: -1;
-  border: 0.16rem dashed var(--color-ink);
+  inset: -5% -6%;
+  border: 0.14rem dashed var(--color-blue);
   border-radius: 10%;
-  background: rgb(255 194 26 / 0.45);
   pointer-events: none;
 }
-/* 可以吃的牌：黃框輕輕放大、縮小（呼吸），不上下搖 */
+/* 可以吃的牌：藍框輕輕放大、縮小（呼吸），不上下搖 */
 @keyframes hit {
   50% {
-    transform: scale(1.07);
+    transform: scale(1.05);
   }
 }
 /* 數牌：每一列的名字與分數；正在數的那一列亮起來 */
