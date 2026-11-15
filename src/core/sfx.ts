@@ -154,15 +154,19 @@ function click(sr: number, rand: Rand, freq: number, dur = 0.004) {
 }
 
 // ── 紙牌 ──
-/** 一張牌拍在桌上：牌邊的「啪」＋紙張的「沙」＋桌面一點低音 */
+/** 一張牌拍在桌上（像真的紙牌）：全部用寬頻雜訊、不帶音高。
+ *  極短的寬頻「啪」（牌面壓出空氣）＋紙張的悶聲＋桌面一點低頻，最後一點點紙的沙聲。 */
 function cardSlap(b: Buf, t: number, rand: Rand, k = 1) {
   const sr = b.sr
-  b.add(t, click(sr, rand, 3200 + rand() * 1500, 0.003), 0.9 * k)
-  b.add(t, hiss(sr, rand, 0.09, 'bp', 2100 + rand() * 600, 0.7, 0.0008, 0.016), 0.8 * k)
-  b.add(t + 0.002, hiss(sr, rand, 0.06, 'hp', 5200, 0.7, 0.0005, 0.008), 0.35 * k)
-  // 紙張落地後的一點點顫動
-  b.add(t + 0.009 + rand() * 0.004, hiss(sr, rand, 0.04, 'bp', 3400, 1.2, 0.001, 0.006), 0.25 * k)
-  b.add(t, hiss(sr, rand, 0.07, 'lp', 260, 0.8, 0.002, 0.018), 0.55 * k)
+  // 啪：1～2 毫秒的寬頻雜訊（高通 1.2k、低通 7k，Q 低才不會有「叮」的音高）
+  const snap = biquad(hiss(sr, rand, 0.012, 'hp', 1200, 0.5, 0.0002, 0.0016), sr, 'lp', 7000, 0.5)
+  b.add(t, snap, 0.75 * k)
+  // 紙面：較悶的一團（低通 1.4k 附近）
+  b.add(t, hiss(sr, rand, 0.06, 'lp', 1300 + rand() * 300, 0.5, 0.0006, 0.011), 0.9 * k)
+  // 桌面：低頻的一點「噗」
+  b.add(t, hiss(sr, rand, 0.06, 'lp', 170, 0.5, 0.0015, 0.016), 0.7 * k)
+  // 落定後紙邊的一點沙聲
+  b.add(t + 0.006 + rand() * 0.004, hiss(sr, rand, 0.05, 'bp', 2400 + rand() * 600, 0.4, 0.002, 0.012), 0.16 * k)
 }
 /** 牌滑過桌面：摩擦的沙沙聲，最後輕輕停下 */
 function cardSlide(b: Buf, t: number, rand: Rand, len: number, k = 1) {
@@ -317,12 +321,15 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
       return b.normalize(0.55).data
     }
     case 'flip': {
-      // 翻牌：牌邊彈開的「啪」，接著牌面翻過去扇起一點風、落下
+      // 翻牌：指尖把牌邊撥起的「嗤」，牌面掀過去帶起一點風（咻），再輕輕落下
       b = new Buf(sr, 0.16)
-      b.add(0, click(sr, rand, 4200, 0.002), 0.8)
-      b.add(0.004, hiss(sr, rand, 0.05, 'bp', (i) => 1800 + i * 0.4, 0.9, 0.006, 0.012), 0.5)
-      cardSlap(b, 0.045 + rand() * 0.01, rand, 0.55)
-      return b.normalize(0.48).data
+      b.add(0, biquad(hiss(sr, rand, 0.012, 'hp', 2200, 0.5, 0.0002, 0.0012), sr, 'lp', 8000, 0.5), 0.5)
+      const n = Math.ceil(0.05 * sr)
+      const whoosh = biquad(noise(n, rand), sr, 'lp', (i) => 700 + 2000 * Math.sin((Math.PI * i) / n), 0.5)
+      for (let i = 0; i < n; i++) whoosh[i] *= Math.sin((Math.PI * i) / n) ** 2
+      b.add(0.004, whoosh, 0.45)
+      cardSlap(b, 0.05 + rand() * 0.008, rand, 0.6)
+      return b.normalize(0.42).data
     }
     case 'cardPick': {
       // 從手牌裡抽起一張：輕輕的摩擦
@@ -334,12 +341,11 @@ export function renderSfx(name: SfxName, sr: number, seed = 1): Float32Array {
       return b.normalize(0.28).data
     }
     case 'collect': {
-      // 收到收牌區：拍上去，再一聲很小的「叮」
-      b = new Buf(sr, 0.5)
-      // 收到收牌區：拍上去，再把牌推齊的一聲低沉的「咚」（不用高音的叮）
+      // 收到收牌區：疊到別的牌上，拍一下再順手推齊（兩聲紙牌聲，不帶音高）
+      b = new Buf(sr, 0.16)
       cardSlap(b, 0, rand, 0.9)
-      b.add(0.03, modes(sr, 0.14, [{ f: 220, a: 1, d: 0.03 }, { f: 520, a: 0.3, d: 0.012 }], rand), 0.45)
-      return b.normalize(0.5).data
+      cardSlap(b, 0.035 + rand() * 0.01, rand, 0.35)
+      return b.normalize(0.48).data
     }
     case 'pass': {
       // 過牌：手指在木頭桌上敲兩下
