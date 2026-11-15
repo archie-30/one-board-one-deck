@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // 對局外框：開始前先看有沒有「保存進度並退出」留下的存檔。
 // 有的話先問要不要接著玩；遊戲要保存時，把它給的資料存起來再離開。
-import { settings } from '@/core/settings'
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { gamePrefs, settings } from '@/core/settings'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { revealLaunch, startExit } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { back } from '@/core/nav'
@@ -18,6 +18,15 @@ const game = getGame(props.gameId)
 const saved = getResume(props.gameId)
 
 const options = ref(resolveOptions(game))
+// 暫停選單裡改了「不影響公平」的選項（例如棋子樣式）：馬上套用到這一局；其他選項要下一局才生效
+watch(
+  () => gamePrefs(game.id).options,
+  () => {
+    const now = resolveOptions(game)
+    for (const d of game.settings) if (d.live && options.value[d.key] !== now[d.key]) options.value = { ...options.value, [d.key]: now[d.key] }
+  },
+  { deep: true },
+)
 const resume = ref<unknown>(null)
 const ready = ref(!saved)
 
