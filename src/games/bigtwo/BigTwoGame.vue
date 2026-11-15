@@ -7,7 +7,7 @@ import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordBest, stats } from '@/core/settings'
-import { asLevel, bigtwoAt, extraThink } from '@/engine/common/difficulty'
+import { asBigTwoDifficulty, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { chooseBigTwoAction } from '@/engine/bigtwo/ai'
@@ -53,7 +53,9 @@ const options = { ...props.options } as unknown as BigTwoOptions
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
 /** 難度：只決定電腦多強 */
-const level = asLevel(props.options.difficulty)
+/** 難度：簡單／困難（只決定電腦多強） */
+const difficulty = asBigTwoDifficulty(props.options.difficulty)
+const level = bigtwoLevel(difficulty)
 const T = S.bigtwo
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
@@ -257,7 +259,7 @@ function finish() {
   stats.bigtwo.rounds++
   if (s.winner === ME) stats.bigtwo.wins++
   stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
-  recordBest('bigtwo', level, scores.value[ME].points)
+  recordBest('bigtwo', difficulty, scores.value[ME].points)
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')

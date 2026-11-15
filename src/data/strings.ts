@@ -410,6 +410,11 @@ export const S = {
       noDoubles: '本局沒有開啟任何加倍。',
     },
     settings: {
+      difficulty: {
+        label: '難度',
+        help: '簡單：電腦會算但常常判斷失誤。困難：電腦精打細算、一定會擋快出完的人。',
+        choices: { easy: '簡單', hard: '困難' },
+      },
       suitOrder: {
         label: '花色大小',
         help: '點數一樣時，用花色分大小。',
