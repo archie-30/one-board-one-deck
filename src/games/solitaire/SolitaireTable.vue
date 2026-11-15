@@ -82,32 +82,58 @@ function sync(instant = false) {
   prevWhere = where
 }
 
-/** 牌堆重來的動畫：moved 依「在牌堆裡由下到上」排好 */
+/**
+ * 牌堆重來的動畫：像真的洗一次牌。moved 依「在牌堆裡由下到上」排好。
+ *   1. 收攏：翻出來的牌（正面朝上）滑成一疊
+ *   2. 翻面、分成左右兩半：整疊翻成背面，在牌堆的位置分成兩半，兩邊各自往外斜
+ *   3. 鴿尾式洗牌：左右兩半的牌一張張交錯落下，疊回牌堆
+ *   4. 推齊
+ */
 let recycleTimer = 0
+let recycleTimer2 = 0
 function recycleAnimation(moved: Card[], poses: Map<Card, Pose>) {
   const W = L.value.waste
+  const S0 = L.value.stock
   const n = moved.length
-  const busyFor = 260 + n * 9 + 460
+  const GATHER = 200
+  const SPLIT = 340
+  const STEP = 16
+  const busyFor = GATHER + SPLIT + n * STEP + 260
   dealing.value = true
   dealingUntil = performance.now() + busyFor
-  // 1. 收攏：翻出來的牌（正面朝上）滑成一疊整齊的牌，最後翻出來的那張在最上面
-  //    在牌堆裡最下面的那張，就是原本翻出來最上面的那張
+  // 1. 收攏（最後翻出來的那張在最上面；在新牌堆裡最下面的那張，就是原本翻出來最上面的那張）
   moved.forEach((c, j) => {
     const top = n - 1 - j
-    stage.move(c, { x: W.x - top * 0.25, y: W.y - top * 0.35, r: (Math.random() - 0.5) * 2, s: 1, f: 1, z: 700 + top }, { dur: 200, delay: j * 4 })
+    stage.move(c, { x: W.x - top * 0.25, y: W.y - top * 0.35, r: (Math.random() - 0.5) * 2, s: 1, f: 1, z: 700 + top }, { dur: GATHER, delay: j * 3 })
   })
   playSound('collect')
-  // 2. 整疊拿起來翻面放回牌堆：從原本的最上面開始，每張隔一點點時間，飛的途中翻面
   window.clearTimeout(recycleTimer)
+  window.clearTimeout(recycleTimer2)
+  // 2. 翻面、分成兩半：偶數張在左、奇數張在右，兩邊往外斜一點
   recycleTimer = window.setTimeout(() => {
+    const cw = L.value.cw
     moved.forEach((c, j) => {
+      const side = j % 2 === 0 ? -1 : 1
+      const k = Math.floor(j / 2)
       const v = Math.random()
-      stage.move(c, poses.get(c)!, { delay: j * 9 + v * 10, dur: 380 * (0.94 + v * 0.12), arc: L.value.ch * 0.1, flightZ: 900 + j, land: j === n - 1 })
+      stage.move(
+        c,
+        { x: S0.x + cw * 0.3 + side * cw * 0.34 - k * 0.2, y: S0.y + cw * 0.06 - k * 0.45, r: side * 9 + (v - 0.5) * 2, s: 0.96, f: 0, z: 760 + k },
+        { dur: SPLIT * (0.9 + v * 0.15), delay: j * 4 },
+      )
     })
-    window.setTimeout(() => {
-      dealing.value = false
-    }, n * 9 + 460)
-  }, 260)
+    // 3. 交錯落下：照新牌堆由下到上的順序，左右兩邊輪流放開
+    recycleTimer2 = window.setTimeout(() => {
+      playSound('shuffle')
+      moved.forEach((c, j) => {
+        const v = Math.random()
+        stage.move(c, poses.get(c)!, { delay: j * STEP + v * 5, dur: 150 + v * 40, flightZ: 820 + j, land: j === n - 1 })
+      })
+      window.setTimeout(() => {
+        dealing.value = false
+      }, n * STEP + 260)
+    }, SPLIT + 40)
+  }, GATHER + 20)
 }
 
 /** 發牌：先全部蓋著疊在牌堆位置，一張一張蓋著飛到桌面；發完再把每疊最上面那張翻開；全部跑完才能操作 */
@@ -188,6 +214,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.clearTimeout(dealTimer)
   window.clearTimeout(recycleTimer)
+  window.clearTimeout(recycleTimer2)
   observer?.disconnect()
   stage.destroy()
   window.removeEventListener('pointermove', onMove)

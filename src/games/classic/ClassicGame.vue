@@ -180,7 +180,8 @@ function scheduleCpu() {
   }, 450 + st.depth * 250 + Math.random() * 400)
 }
 
-function finish() {
+/** 結束：wait 毫秒後翻出結算（認輸時確認視窗剛關，不要再停太久，看起來才不會卡住） */
+function finish(wait = 900) {
   phase.value = 'over'
   const w = winnerSeat.value
   if (w === null) record.draws++
@@ -190,7 +191,7 @@ function finish() {
   later(() => {
     playSound(w === human.value ? 'win' : w === null ? 'draw' : 'lose')
     resultOpen.value = true
-  }, 900)
+  }, wait)
 }
 
 // ── 你的操作 ──
@@ -227,7 +228,7 @@ function resign() {
   timers.clear()
   thinking.value = false
   state.value = A.resign(state.value, human.value)
-  finish()
+  finish(260)
 }
 
 // ── 保存進度並退出 ──
@@ -320,7 +321,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
       </div>
       <div class="act">
         <template v-if="phase === 'over'">
-          <Btn tone="ink" size="lg" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+          <Btn tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
           <Btn class="mt-[0.5rem]" size="sm" icon="book" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
         </template>
         <Btn v-else size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
@@ -343,8 +344,10 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
 
     <Dialog :open="resignOpen" :title="T.resignAsk" :label="game.name" @close="resignOpen = false">
       <template #actions>
-        <Btn size="sm" @click="resignOpen = false">{{ S.common.cancel }}</Btn>
-        <Btn tone="red" @click="resign">{{ T.resign }}</Btn>
+        <div class="grid w-full grid-cols-2 gap-[0.8rem]">
+          <Btn block @click="resignOpen = false">{{ S.common.cancel }}</Btn>
+          <Btn tone="red" block @click="resign">{{ T.resign }}</Btn>
+        </div>
       </template>
     </Dialog>
 
@@ -499,6 +502,15 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
 .pc svg {
   width: 2.6rem;
   height: 2.6rem;
+}
+/* 按下時整顆往右下移；多一圈看不見的點擊範圍，放開的位置才不會落在按鈕外面（不然要按兩次） */
+.pc {
+  position: relative;
+}
+.pc::after {
+  content: '';
+  position: absolute;
+  inset: -0.3rem;
 }
 .pc:active {
   transform: translate(0.15rem, 0.15rem);

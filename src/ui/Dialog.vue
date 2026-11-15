@@ -86,7 +86,14 @@ const emit = defineEmits<{ close: [] }>()
   transition: transform 420ms var(--ease-back);
 }
 .dialog-leave-active {
-  transition: opacity 120ms ease;
+  transition: opacity 220ms ease;
+}
+/* 關閉：和打開反過來，紙往下沉、稍微縮小再消失 */
+.dialog-leave-active .sheet {
+  transition: transform 220ms var(--ease-in-out);
+}
+.dialog-leave-to .sheet {
+  transform: translateY(1.8rem) scale(0.96);
 }
 .dialog-enter-from,
 .dialog-leave-to {
@@ -114,7 +121,16 @@ const emit = defineEmits<{ close: [] }>()
   pointer-events: none;
 }
 .dialog-flip-leave-active {
-  transition: opacity 140ms ease;
+  transition: opacity 280ms ease;
+}
+/* 結算關閉：像牌翻回去一樣，轉到側面再消失 */
+.dialog-flip-leave-active .sheet {
+  animation: card-flip-out 280ms var(--ease-in-out) both;
+}
+@keyframes card-flip-out {
+  to {
+    transform: perspective(1200px) translateY(1rem) rotateY(80deg) scale(0.85);
+  }
 }
 .dialog-flip-enter-from,
 .dialog-flip-leave-to {

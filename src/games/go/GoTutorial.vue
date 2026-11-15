@@ -63,7 +63,7 @@ function confirmMove() {
 function next() {
   if (step.value + 1 >= GO_LESSONS.length) {
     finished.value = true
-    playSound('win')
+    playSound('correct')
     return
   }
   step.value++

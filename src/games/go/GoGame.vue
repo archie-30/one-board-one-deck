@@ -392,7 +392,7 @@ const resultLine = computed(() => {
       </div>
       <div class="act">
         <Btn v-if="phase === 'scoring'" tone="red" size="lg" arrow block @click="finish">{{ T.confirm }}</Btn>
-        <Btn v-else-if="phase === 'over'" tone="ink" size="lg" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+        <Btn v-else-if="phase === 'over'" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
         <Btn v-else tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
       </div>
     </aside>
@@ -403,8 +403,10 @@ const resultLine = computed(() => {
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
     <Dialog :open="resignOpen" :title="T.resignAsk" :label="game.name" @close="resignOpen = false">
       <template #actions>
-        <Btn tone="red" @click="resign">{{ T.resign }}</Btn>
-        <Btn @click="resignOpen = false">{{ S.common.cancel }}</Btn>
+        <div class="grid w-full grid-cols-2 gap-[0.8rem]">
+          <Btn block @click="resignOpen = false">{{ S.common.cancel }}</Btn>
+          <Btn tone="red" block @click="resign">{{ T.resign }}</Btn>
+        </div>
       </template>
     </Dialog>
     <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
