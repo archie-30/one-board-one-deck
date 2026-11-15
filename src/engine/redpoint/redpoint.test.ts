@@ -174,3 +174,31 @@ describe('撿紅點：時間到被跳過', () => {
     expect(u.phase).toBe('play')
   })
 })
+
+describe('撿紅點：電腦不偷看別人的牌與牌堆', () => {
+  it('把別人的手牌、還沒翻開的牌堆互相打亂，電腦的決定完全一樣', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      let s = dealRedPoint(seed)
+      let rng = seedRng(seed)
+      for (let i = 0; i < (seed % 7) * 2; i++) {
+        let a
+        ;[a, rng] = chooseRedPointAction(s, PERSONAS[seed % PERSONAS.length].redpoint, rng)
+        const r = applyRedPoint(s, a)
+        if (!r.ok || r.state.phase === 'over') break
+        s = r.state
+      }
+      const me = s.turn
+      // 翻牌階段牌堆最上面那張已經翻開（大家都看得到），其餘都是看不到的
+      const keep = s.phase === 'flip' ? 1 : 0
+      const hidden = [...s.hands.flatMap((h, p) => (p === me ? [] : h)), ...s.pile.slice(keep)]
+      const mixed = hidden.slice().reverse()
+      let k = 0
+      const hands2 = s.hands.map((h, p) => (p === me ? h : h.map(() => mixed[k++])))
+      const pile2 = [...s.pile.slice(0, keep), ...s.pile.slice(keep).map(() => mixed[k++])]
+      const st = PERSONAS[(seed * 3) % PERSONAS.length].redpoint
+      const r1 = chooseRedPointAction(s, st, seedRng(seed * 5))[0]
+      const r2 = chooseRedPointAction({ ...s, hands: hands2, pile: pile2 }, st, seedRng(seed * 5))[0]
+      expect(r2).toEqual(r1)
+    }
+  })
+})

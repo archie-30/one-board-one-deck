@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { PERSONAS } from '../common/personas'
 import { seedRng } from '../common/rng'
 import { chooseBigTwoAction, legalPlays, listCombos } from './ai'
 import { CLUB_THREE, cardPower, parseCard, parseCards } from './cards'
@@ -286,5 +287,74 @@ describe('大老二：時間到被跳過', () => {
   })
   it('不是自己的回合不能逾時', () => {
     expect(applyBigTwo(hands(), { type: 'timeout', player: 2 }).ok).toBe(false)
+  })
+})
+
+describe('大老二：小順（三張連號）', () => {
+  const S = { ...D, allowSmallStraight: true }
+  it('預設關閉；開啟後三張連號是小順，繞一圈的不算', () => {
+    expect(combo('C3 D4 H5')).toBeNull()
+    expect(combo('C3 D4 H5', S)?.type).toBe('smallStraight')
+    expect(combo('SQ HK DA', S)?.type).toBe('smallStraight')
+    expect(combo('HK DA C2', S)).toBeNull()
+    expect(combo('C3 D4 H6', S)).toBeNull()
+  })
+  it('小順只能接小順；比最大那張，A23、234 照順子的 A 與 2（預設 234 最大、A23 第二）', () => {
+    expect(beats('C4 D5 H6', 'C3 D4 H5', S)).toBe(true)
+    expect(beats('C4 D5 H6', 'C3 D3 H3', { ...S, allowTriple: true })).toBe(false)
+    expect(beats('C2 D3 H4', 'SQ HK DA', S)).toBe(true)
+    expect(beats('CA D2 H3', 'SQ HK DA', S)).toBe(true)
+    expect(beats('C2 D3 H4', 'CA D2 H3', S)).toBe(true)
+    expect(beats('CA D2 H3', 'C3 D4 H5', { ...S, straightRule: 'aLow' })).toBe(false)
+  })
+  it('鐵支、同花順可以壓小順（預設鐵支可壓任何牌）', () => {
+    expect(beats('C7 D7 H7 S7 C3', 'SQ HK DA', S)).toBe(true)
+  })
+  it('電腦也會出小順', () => {
+    const list = listCombos(parseCards('C3 D4 H5 S9'), S)
+    expect(list.some((c) => c.type === 'smallStraight')).toBe(true)
+  })
+})
+
+describe('大老二：一條龍', () => {
+  const dragonHand = 'C3 D4 H5 S6 C7 D8 H9 S10 CJ DQ HK SA C2'
+  const others = ['D3 H3 S3 C4 H4 S4 C5 D5 S5 C6 D6 H6 D7', 'H7 S7 C8 H8 S8 C9 D9 S9 C10 D10 H10 CQ DJ', 'HJ SJ HQ SQ CK DK SK CA DA HA D2 H2 S2']
+  it('開啟時拿到一條龍的人開局直接獲勝，其他人照手上 13 張扣分', () => {
+    const s = createBigTwo([parseCards(others[0]), parseCards(dragonHand), parseCards(others[1]), parseCards(others[2])], { ...D, dragon: true })
+    expect(s.winner).toBe(1)
+    expect(s.dragon).toBe(1)
+    const sc = scoreBigTwo(s)
+    expect(sc[1].cards).toBe(0)
+    expect(sc[1].points).toBe(-(sc[0].points + sc[2].points + sc[3].points))
+  })
+  it('預設關閉', () => {
+    const s = createBigTwo([parseCards(others[0]), parseCards(dragonHand), parseCards(others[1]), parseCards(others[2])])
+    expect(s.winner).toBe(-1)
+  })
+})
+
+describe('大老二：電腦不偷看別人的牌', () => {
+  it('把別人的手牌互相打亂（張數不變），電腦的決定完全一樣', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      let s = dealBigTwo(seed)
+      // 先隨便走幾步，讓局面不一樣
+      let rng = seedRng(seed)
+      for (let i = 0; i < seed % 9; i++) {
+        let a
+        ;[a, rng] = chooseBigTwoAction(s, PERSONAS[seed % PERSONAS.length].bigtwo, rng)
+        const r = applyBigTwo(s, a)
+        if (!r.ok || r.state.winner >= 0) break
+        s = r.state
+      }
+      const me = s.turn
+      const hidden = s.hands.flatMap((h, p) => (p === me ? [] : h))
+      const mixed = hidden.slice().reverse()
+      let k = 0
+      const hands2 = s.hands.map((h, p) => (p === me ? h : h.map(() => mixed[k++])))
+      const s2 = { ...s, hands: hands2 }
+      const r1 = chooseBigTwoAction(s, PERSONAS[(seed * 3) % PERSONAS.length].bigtwo, seedRng(seed * 7))[0]
+      const r2 = chooseBigTwoAction(s2, PERSONAS[(seed * 3) % PERSONAS.length].bigtwo, seedRng(seed * 7))[0]
+      expect(r2).toEqual(r1)
+    }
   })
 })

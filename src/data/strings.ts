@@ -282,6 +282,7 @@ export const S = {
       single: '單張',
       pair: '對子',
       triple: '三條',
+      smallStraight: '小順',
       straight: '順子',
       flush: '同花',
       fullHouse: '葫蘆',
@@ -339,6 +340,14 @@ export const S = {
       bombBeatsAll: {
         label: '鐵支可壓任何牌',
         help: '開啟時鐵支和同花順可以壓單張、對子等任何牌型。關閉後只能壓五張的牌型。',
+      },
+      allowSmallStraight: {
+        label: '小順（三張連號）',
+        help: '開啟後三張連號（例如 3-4-5）也能出，叫「小順」，只能用更大的小順壓。A23、234 的大小跟著「順子的 A 與 2」。',
+      },
+      dragon: {
+        label: '一條龍直接贏',
+        help: '開啟後，發牌時拿到 3 到 2 十三種點數各一張（一條龍）的人直接獲勝。',
       },
       allowTriple: {
         label: '可單出三條',

@@ -6,6 +6,7 @@ export type ComboType =
   | 'single'
   | 'pair'
   | 'triple'
+  | 'smallStraight'
   | 'straight'
   | 'flush'
   | 'fullHouse'
@@ -57,6 +58,37 @@ function straightKey(cards: readonly Card[], opts: BigTwoOptions): number[] | nu
   return opts.straightRule === 'high' ? [top, suitOfRank(top)] : [ranks[0], suitOfRank(top)]
 }
 
+/**
+ * 小順（三張連號）的大小：回傳 [等級, 比花色的那張牌]；不是小順回傳 null。
+ * 規則和五張的順子一致：繞一圈的（KA2、A23 以外含 2 又不連的）不算；
+ * A23、234 這兩組照「順子的 A 與 2」的選項排（預設 234 最大、A23 第二）。
+ */
+function smallStraightKey(cards: readonly Card[], opts: BigTwoOptions): number[] | null {
+  const ranks = cards.map(rankOf).sort((a, b) => a - b)
+  if (ranks[0] === ranks[1] || ranks[1] === ranks[2]) return null
+  const cardOfRank = (rank: number) => cards.find((c) => rankOf(c) === rank) as Card
+  const suitOfRank = (rank: number) => suitPower(suitOf(cardOfRank(rank)), opts.suitOrder)
+  const has = (...rs: number[]) => rs.every((r) => ranks.includes(r))
+  const isA23 = has(RANK_A, RANK_2, 0)
+  const is234 = has(RANK_2, 0, 1)
+  if (isA23 || is234) {
+    switch (opts.straightRule) {
+      case 'tw':
+        return [is234 ? 21 : 20, suitOfRank(RANK_2)]
+      case 'aLow':
+        return is234 ? [21, suitOfRank(RANK_2)] : [-1, suitOfRank(0)]
+      case 'high':
+        return [RANK_2, suitOfRank(RANK_2)]
+    }
+  }
+  if (ranks[2] - ranks[0] !== 2 || ranks[2] === RANK_2) return null
+  const top = ranks[2]
+  return opts.straightRule === 'high' ? [top, suitOfRank(top)] : [ranks[0], suitOfRank(top)]
+}
+
+/** 一條龍：3 到 2 十三種點數各一張 */
+export const isDragon = (hand: readonly Card[]): boolean => hand.length === 13 && new Set(hand.map(rankOf)).size === 13
+
 /** 判定一組牌是什麼牌型；不合法回傳 null */
 export function identifyCombo(cardsIn: readonly Card[], opts: BigTwoOptions): Combo | null {
   const cards = cardsIn.slice().sort((a, b) => cardPower(a, opts.suitOrder) - cardPower(b, opts.suitOrder))
@@ -70,9 +102,9 @@ export function identifyCombo(cardsIn: readonly Card[], opts: BigTwoOptions): Co
     return { type: 'pair', cards, key: [rankOf(cards[0]), sp(cards[1])] }
   }
   if (n === 3) {
-    if (!opts.allowTriple) return null
-    if (rankOf(cards[0]) !== rankOf(cards[2])) return null
-    return { type: 'triple', cards, key: [rankOf(cards[0])] }
+    if (rankOf(cards[0]) === rankOf(cards[2])) return opts.allowTriple ? { type: 'triple', cards, key: [rankOf(cards[0])] } : null
+    const small = opts.allowSmallStraight ? smallStraightKey(cards, opts) : null
+    return small ? { type: 'smallStraight', cards, key: small } : null
   }
   if (n !== 5) return null
 

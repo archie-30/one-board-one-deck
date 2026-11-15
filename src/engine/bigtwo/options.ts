@@ -20,6 +20,10 @@ export interface BigTwoOptions {
   fiveCrossType: boolean
   /** 是否可以單獨出三條 */
   allowTriple: boolean
+  /** 小順：三張連號（例如 345）也能出，只能接三張的小順 */
+  allowSmallStraight: boolean
+  /** 一條龍：拿到 3 到 2 十三張連號，開局直接獲勝 */
+  dragon: boolean
   /** 同花是否算牌型 */
   allowFlush: boolean
   /** 計分：剩 10 張以上加倍 */
@@ -35,6 +39,8 @@ export const DEFAULT_BIGTWO_OPTIONS: BigTwoOptions = {
   bombBeatsAll: true,
   fiveCrossType: false,
   allowTriple: false,
+  allowSmallStraight: false,
+  dragon: false,
   allowFlush: false,
   doubleOverTen: true,
   doubleTwos: true,

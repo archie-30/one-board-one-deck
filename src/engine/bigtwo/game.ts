@@ -2,7 +2,7 @@
 import { nextInt, seedRng, shuffle, type RngState } from '../common/rng'
 import type { Result } from '../common/types'
 import { CLUB_THREE, RANK_2, fullDeck, rankOf, sortCards, type Card } from './cards'
-import { canBeat, identifyCombo, type Combo } from './combos'
+import { canBeat, identifyCombo, isDragon, type Combo } from './combos'
 import { DEFAULT_BIGTWO_OPTIONS, type BigTwoOptions } from './options'
 
 export const PLAYER_COUNT = 4
@@ -26,6 +26,8 @@ export interface BigTwoState {
   firstTurn: boolean
   /** -1 = 進行中 */
   winner: number
+  /** 拿到一條龍、開局直接獲勝的人（沒有就是 -1；舊存檔沒有這個欄位） */
+  dragon?: number
 }
 
 /** timeout：時間到被跳過。桌上有牌時等於過牌；輪到自己首出時改由下一位首出（首手的梅花 3 限制也取消）。 */
@@ -56,6 +58,21 @@ export function dealBigTwo(seed: number, options: Partial<BigTwoOptions> = {}): 
 export function createBigTwo(hands: Card[][], options: Partial<BigTwoOptions> = {}): BigTwoState {
   const opts = { ...DEFAULT_BIGTWO_OPTIONS, ...options }
   const starter = hands.findIndex((h) => h.includes(CLUB_THREE))
+  // 一條龍（規則選項）：3 到 2 十三張連號，開局直接獲勝
+  const dragon = opts.dragon ? hands.findIndex(isDragon) : -1
+  if (dragon >= 0) {
+    return {
+      options: opts,
+      hands: hands.map((h) => sortCards(h, opts.suitOrder)),
+      turn: dragon,
+      table: null,
+      lastMoves: hands.map(() => null),
+      passCount: 0,
+      firstTurn: false,
+      winner: dragon,
+      dragon,
+    }
+  }
   return {
     options: opts,
     hands: hands.map((h) => sortCards(h, opts.suitOrder)),
@@ -166,8 +183,9 @@ export function scoreBigTwo(state: BigTwoState): PlayerScore[] {
     return { cards, twos, multiplier, points: -cards * multiplier }
   })
   if (state.winner >= 0) {
-    const total = scores.reduce((sum, s) => sum - s.points, 0)
-    scores[state.winner].points = total
+    // 贏家拿到其他三家扣分的總和（一條龍開局就贏時，贏家手上的牌不算扣分）
+    const total = scores.reduce((sum, s, p) => (p === state.winner ? sum : sum - s.points), 0)
+    scores[state.winner] = { cards: 0, twos: 0, multiplier: 1, points: total }
   }
   return scores
 }
