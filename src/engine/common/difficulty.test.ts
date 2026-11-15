@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { asLevel, bigtwoAt, chessAt, goAt, gomokuAt, HABITS, habitOf, LEVELS } from './difficulty'
+import { asBigTwoDifficulty, asLevel, bigtwoAt, bigtwoLevel, chessAt, goAt, gomokuAt, HABITS, habitOf, LEVELS } from './difficulty'
 import { PERSONAS } from './personas'
 
 describe('難度', () => {
@@ -25,6 +25,11 @@ describe('難度', () => {
         expect(g[i].look ?? 0).toBeGreaterThanOrEqual(g[i - 1].look ?? 0)
       }
     })
+  })
+  it('大老二只有簡單／困難；舊的低中算簡單、高挑戰算困難', () => {
+    expect(['low', 'mid', 'easy', undefined, 'x'].map(asBigTwoDifficulty)).toEqual(['easy', 'easy', 'easy', 'easy', 'easy'])
+    expect(['high', 'master', 'hard'].map(asBigTwoDifficulty)).toEqual(['hard', 'hard', 'hard'])
+    expect(bigtwoAt(PERSONAS[0].bigtwo, bigtwoLevel('hard')).skill).toBeGreaterThan(bigtwoAt(PERSONAS[0].bigtwo, bigtwoLevel('easy')).skill)
   })
   it('圍棋整體比其他棋類弱一點：同一難度圍棋的「會不會算」比大老二低', () => {
     for (const l of LEVELS) expect(goAt(PERSONAS[0].go, l).skill).toBeLessThan(bigtwoAt(PERSONAS[0].bigtwo, l).skill)

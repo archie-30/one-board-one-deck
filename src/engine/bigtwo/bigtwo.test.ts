@@ -96,6 +96,24 @@ describe('大老二：壓牌', () => {
     expect(beats('H3 H4 H5 H6 H7', 'C2 D2 H2 S2 CA')).toBe(true)
     expect(beats('C2 D2 H2 S2 CA', 'H3 H4 H5 H6 H7')).toBe(false)
   })
+  it('兩對（預設不算）：兩個對子＋一張，只能接兩對，比大的那一對再比花色；鐵支可以壓', () => {
+    expect(combo('C3 D3 H8 S8 CK')).toBeNull()
+    const o = { ...D, allowTwoPair: true }
+    expect(combo('C3 D3 H8 S8 CK', o)?.type).toBe('twoPair')
+    expect(combo('C3 D3 H3 S8 C8', o)?.type).toBe('fullHouse')
+    expect(beats('C4 D4 H9 S9 C5', 'C3 D3 H8 S8 CK', o)).toBe(true)
+    expect(beats('CK DK H3 S3 C5', 'C3 D3 HQ SQ CA', o)).toBe(true)
+    expect(beats('C3 D3 C8 D8 CK', 'H3 S3 H8 S8 DK', o)).toBe(false)
+    expect(beats('H3 S3 H8 S8 DK', 'C3 D3 C8 D8 CK', o)).toBe(true)
+    expect(beats('C4 D5 H6 S7 C8', 'C3 D3 H8 S8 CK', o)).toBe(false)
+    expect(beats('C3 D3 H8 S8 CK', 'C4 D5 H6 S7 C8', o)).toBe(false)
+    expect(beats('C5 D5 H5 S5 C9', 'C3 D3 H8 S8 CK', o)).toBe(true)
+  })
+  it('兩對開啟時，電腦也找得到兩對', () => {
+    const hand = parseCards('C3 D3 H8 S8 CK')
+    expect(listCombos(hand, D).some((c) => c.type === 'twoPair')).toBe(false)
+    expect(listCombos(hand, { ...D, allowTwoPair: true }).some((c) => c.type === 'twoPair')).toBe(true)
+  })
   it('同花（開啟時）也只能同花接同花', () => {
     const o = { ...D, allowFlush: true }
     expect(beats('S3 S6 S7 S8 SA', 'H4 H6 H7 H8 HK', o)).toBe(true)

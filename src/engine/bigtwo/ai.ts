@@ -64,6 +64,17 @@ export function listCombos(hand: readonly Card[], opts: BigTwoOptions): Combo[] 
       for (const cards of partial) push(cards)
     }
   }
+  if (opts.allowTwoPair) {
+    const pairRanks = [...byRank.entries()].filter(([, g]) => g.length >= 2)
+    for (let i = 0; i < pairRanks.length; i++) {
+      for (let j = i + 1; j < pairRanks.length; j++) {
+        const [r1, g1] = pairRanks[i]
+        const [r2, g2] = pairRanks[j]
+        const kickers = hand.filter((c) => rankOf(c) !== r1 && rankOf(c) !== r2)
+        for (const p1 of subsets(g1, 2)) for (const p2 of subsets(g2, 2)) for (const k of kickers) push([...p1, ...p2, k])
+      }
+    }
+  }
   if (opts.allowFlush) {
     for (let suit = 0; suit < 4; suit++) {
       const same = hand.filter((c) => suitOf(c) === suit)

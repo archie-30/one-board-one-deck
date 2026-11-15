@@ -369,11 +369,13 @@ export const S = {
     waiting: (name: string) => `${name}出牌中…`,
     cardsLeft: (n: number) => `${n} 張`,
     noPlay: '沒有能壓過的牌',
+    clearSelection: '取消選取',
     combos: {
       single: '單張',
       pair: '對子',
       triple: '三條',
       smallStraight: '小順',
+      twoPair: '兩對',
       straight: '順子',
       flush: '同花',
       fullHouse: '葫蘆',
@@ -389,6 +391,14 @@ export const S = {
       wrongType: '張數要和桌上的牌一樣',
       tooSmall: '不夠大，壓不過桌上的牌',
       mustLead: '輪到你自由出牌，不能過牌',
+    },
+    review: {
+      open: '回到牌桌看牌',
+      label: 'HANDS',
+      start: '原本的牌',
+      end: '最後剩下',
+      done: '出完了',
+      startNote: '淡色的是這一局已經出掉的牌。',
     },
     result: {
       win: '你贏了',
@@ -410,6 +420,11 @@ export const S = {
       noDoubles: '本局沒有開啟任何加倍。',
     },
     settings: {
+      difficulty: {
+        label: '難度',
+        help: '簡單：電腦會算但常常判斷失誤。困難：電腦精打細算、一定會擋快出完的人。',
+        choices: { easy: '簡單', hard: '困難' },
+      },
       suitOrder: {
         label: '花色大小',
         help: '點數一樣時，用花色分大小。',
@@ -442,7 +457,11 @@ export const S = {
       },
       allowFlush: {
         label: '同花算牌型',
-        help: '開啟後五張同花色（不連號）也是牌型，比順子大、比葫蘆小。',
+        help: '開啟後五張同花色（不連號）也是牌型，只能同花接同花。',
+      },
+      allowTwoPair: {
+        label: '兩對',
+        help: '開啟後「兩個對子＋一張」也是五張牌型，例如 3 3 8 8 K。只能兩對接兩對，比大的那一對（一樣大再比花色）；鐵支、同花順照樣可以壓。',
       },
       doubleOverTen: {
         label: '剩 10 張以上加倍',
@@ -486,7 +505,7 @@ export const S = {
           '鐵支：四張一樣加任意一張，一定要湊滿五張。比四張的點數。',
           '同花順：五張同花色又連號。',
           '五張牌型只能同類型互壓：順子接順子、葫蘆接葫蘆。只有鐵支、同花順可以壓別的牌型（同花順 > 鐵支）。',
-          '預設不能單獨出三條，五張同花色但不連號的「同花」也不算牌型，這兩項都能在規則設定打開。',
+          '預設不能單獨出三條，五張同花色但不連號的「同花」、兩個對子＋一張的「兩對」也不算牌型，這幾項都能在規則設定打開。'
         ],
       },
       {

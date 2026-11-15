@@ -134,6 +134,14 @@ const GO: Record<Level, Pick<GoStyle, 'skill' | 'noise'>> = {
 }
 export const goAt = (st: GoStyle, level: Level, who = -1): GoStyle => goHabit({ ...st, ...GO[level] }, habitOf(who, level))
 
+/**
+ * 大老二只有「簡單／困難」兩種（跟接龍一樣）：簡單＝中等的電腦，困難＝最強（挑戰）。
+ * 舊存檔裡的低／中算簡單，高／挑戰算困難。
+ */
+export type BigTwoDifficulty = 'easy' | 'hard'
+export const asBigTwoDifficulty = (v: unknown): BigTwoDifficulty => (v === 'hard' || v === 'high' || v === 'master' ? 'hard' : 'easy')
+export const bigtwoLevel = (d: BigTwoDifficulty): Level => (d === 'hard' ? 'master' : 'mid')
+
 /** 大老二：會不會算、手滑的機率、判斷的搖擺程度 */
 const BIGTWO: Record<Level, Pick<BigTwoStyle, 'skill' | 'blunder' | 'whim'>> = {
   low: { skill: 0.1, blunder: 0.2, whim: 0.9 },

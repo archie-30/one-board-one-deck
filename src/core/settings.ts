@@ -48,6 +48,16 @@ const STATS_DEFAULT: Stats = {
 export const stats = reactive(loadSave<Stats>('stats', structuredClone(STATS_DEFAULT)))
 // 舊存檔只有一個最高分：算在當時的預設難度（大老二「中」、接龍「簡單」）
 if (stats.bigtwo.best > 0 && !Object.keys(stats.bigtwo.bestBy).length) stats.bigtwo.bestBy.mid = stats.bigtwo.best
+// 大老二難度從「低／中／高／挑戰」改成「簡單／困難」：低、中的最高分算簡單，高、挑戰的算困難
+{
+  const by = stats.bigtwo.bestBy
+  const old = (k: string) => by[k] ?? 0
+  if (['low', 'mid', 'high', 'master'].some((k) => k in by)) {
+    by.easy = Math.max(by.easy ?? 0, old('low'), old('mid'))
+    by.hard = Math.max(by.hard ?? 0, old('high'), old('master'))
+    for (const k of ['low', 'mid', 'high', 'master']) delete by[k]
+  }
+}
 if (stats.solitaire.best > 0 && !Object.keys(stats.solitaire.bestBy).length) stats.solitaire.bestBy.easy = stats.solitaire.best
 
 /** 某個難度的最高分 */
