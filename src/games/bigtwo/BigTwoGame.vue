@@ -3,6 +3,7 @@
 // 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
+import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
@@ -139,7 +140,8 @@ onMounted(() => {
   measure()
   observer = new ResizeObserver(measure)
   observer.observe(el)
-  later(deal, 280)
+  // 進場色塊揭開後才發牌，發牌動畫才看得到
+  void afterReveal().then(() => later(deal, 120))
 })
 onBeforeUnmount(() => {
   observer?.disconnect()

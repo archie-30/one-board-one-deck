@@ -5,6 +5,7 @@
 // 每張牌都是獨立的精靈（沿用大老二的 cardStage），換位置時各自飛過去。
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
+import { afterReveal } from '@/core/launch'
 import { RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { autoTarget, canPlace, cardsAt, type SolitaireAction, type SolitaireState, type Source, type Target } from '@/engine/solitaire/rules'
 import CardArt from '@/ui/art/Card.vue'
@@ -77,6 +78,11 @@ function sync(instant = false) {
 /** 發牌：先全部蓋著疊在牌堆位置，一張一張蓋著飛到桌面；發完再把每疊最上面那張翻開；全部跑完才能操作 */
 let dealTimer = 0
 let resyncAfterDeal = false
+/** 所有牌先疊在牌堆的位置（蓋著） */
+function stackAtStock() {
+  const { poses } = solPoses(L.value, props.state, salt)
+  for (const [c, pose] of poses) stage.move(c, { ...pose, x: L.value.stock.x, y: L.value.stock.y, r: 0, f: 0, z: 10 }, { instant: true })
+}
 function dealAnimation() {
   playSound('shuffle')
   dealing.value = true
@@ -90,7 +96,7 @@ function dealAnimation() {
     cols.forEach((all) => {
       if (all[round] !== undefined) order.push(all[round])
     })
-  for (const [c, pose] of poses) stage.move(c, { ...pose, x: L.value.stock.x, y: L.value.stock.y, r: 0, f: 0, z: 10 }, { instant: true })
+  stackAtStock()
   const step = 34
   const dealt = 120 + order.length * step + 360
   dealingUntil = performance.now() + dealt
@@ -135,8 +141,12 @@ onMounted(() => {
     else sync(true)
   }
   L.value = solLayout(el.clientWidth, el.clientHeight, 0, 0, stockTop())
-  if (props.dealIn) dealAnimation()
-  else sync(true)
+  if (props.dealIn) {
+    // 進場色塊揭開後才發牌，發牌動畫才看得到；在那之前牌都疊在牌堆
+    dealing.value = true
+    stackAtStock()
+    void afterReveal().then(() => dealAnimation())
+  } else sync(true)
   observer = new ResizeObserver(measure)
   observer.observe(el)
 })

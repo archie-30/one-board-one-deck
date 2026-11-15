@@ -23,11 +23,19 @@ export interface RpSpots {
   captured: { x: number; y: number; dir: 1 | -1 }[]
 }
 
+/** 牌的高寬比 */
+const CARD_H = 108 / 78
+
 export function rpSpots(L: Layout): RpSpots {
   const { W, H, cw } = L
   const cx = W / 2 + cw * 0.45
-  const cy = H * 0.43
-  const box = { x: cx - cw * 3.5, y: cy - cw * 1.45, w: cw * 7, h: cw * 2.9 }
+  const ch = cw * CARD_H
+  // 桌面框：上面讓出對家的牌背，下面不能壓到你的手牌（手牌最上緣＝選起來時再往上浮的位置）
+  const handTop = H - cw * 0.74 - ch / 2 - cw * 0.34
+  const top = Math.max(cw * 1.2, H * 0.43 - cw * 1.45)
+  const bottom = Math.min(H * 0.43 + cw * 1.45, handTop - cw * 0.12)
+  const box = { x: cx - cw * 3.5, y: top, w: cw * 7, h: Math.max(ch * 0.9, bottom - top) }
+  const cy = box.y + box.h / 2
   // 牌堆放在桌面框的左邊，桌上的牌排在右邊剩下的空間
   const pile = { x: box.x + cw * 0.75, y: cy + cw * 0.05 }
   return {
@@ -85,11 +93,25 @@ export function rpPoses(L: Layout, m: RpModel): Map<Card, Pose> {
     })
   }
 
-  // 桌上的牌：排成一到兩排
+  // 桌上的牌：一排放不下就排兩排；兩排還放不下（框太矮或太多張）就整體縮小
   const t = m.table.length
-  const cols = t <= 6 ? Math.max(t, 1) : Math.ceil(t / 2)
-  const rows = Math.ceil(t / cols)
-  const sc = cols > 7 ? 0.7 : 0.82
+  const usableW = S.box.w - cw * 1.75
+  const usableH = S.box.h * 0.94
+  let sc = 0.82
+  let cols = Math.max(1, t)
+  let rows = 1
+  for (let tries = 0; tries < 12; tries++) {
+    cols = Math.max(1, Math.min(t, Math.floor(usableW / (cw * sc * 1.12))))
+    rows = Math.ceil(Math.max(t, 1) / cols)
+    if (rows > 2) {
+      rows = 2
+      cols = Math.ceil(t / 2)
+    }
+    const needW = cols * cw * sc * 1.12
+    const needH = rows * cw * sc * CARD_H + (rows - 1) * cw * sc * 0.12
+    if (needW <= usableW && needH <= usableH) break
+    sc *= 0.92
+  }
   const cx = S.box.x + cw * 1.5 + (S.box.w - cw * 1.5) / 2
   const cy = S.box.y + S.box.h / 2
   m.table.forEach((c, i) => {
@@ -98,7 +120,7 @@ export function rpPoses(L: Layout, m: RpModel): Map<Card, Pose> {
     const k = c * 7 + (m.salt ?? 0)
     out.set(c, {
       x: cx + (col - (cols - 1) / 2) * cw * sc * 1.12 + hash(k, 2) * cw * 0.14,
-      y: cy + (row - (rows - 1) / 2) * cw * sc * 1.5 + hash(k, 3) * cw * 0.14,
+      y: cy + (row - (rows - 1) / 2) * cw * sc * (CARD_H + 0.12) + hash(k, 3) * cw * 0.1,
       r: hash(k, 4) * 18,
       s: sc,
       f: 1,

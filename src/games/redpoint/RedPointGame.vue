@@ -4,6 +4,7 @@
 // 兩張一起飛回自己的牌堆；接著牌堆最上面那張翻開，再決定去哪。
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
+import { afterReveal } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { stats } from '@/core/settings'
@@ -133,7 +134,8 @@ onMounted(() => {
   measure()
   observer = new ResizeObserver(measure)
   observer.observe(el)
-  void deal()
+  // 進場色塊揭開後才發牌，發牌動畫才看得到
+  void afterReveal().then(() => deal())
 })
 onBeforeUnmount(() => {
   observer?.disconnect()
@@ -191,7 +193,7 @@ async function nextTurn(): Promise<void> {
   const p = s.turn
   moods[p] = 'think'
   const st = opponents[p - 1].persona.redpoint
-  if (!(await wait(800 + st.skill * 600 + Math.random() * 500))) return
+  if (!(await wait(1200 + st.skill * 700 + Math.random() * 600))) return
   let a: RedPointAction
   ;[a, rng] = chooseRedPointAction(state.value, st, rng)
   moods[p] = 'idle'
