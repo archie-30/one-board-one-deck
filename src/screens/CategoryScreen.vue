@@ -253,7 +253,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :tabindex="k === index ? 0 : -1"
             @click="onClick(k, $event)"
           >
-            <span class="cover halftone"><component :is="g.cover" :active="k === index" /></span>
+            <span class="cover halftone"><component :is="g.cover" :active="k === index && !locked" /></span>
             <span class="info">
               <span class="t-slab no">{{ pad(k + 1) }}</span>
               <span class="nm t-black">{{ g.name }}</span>

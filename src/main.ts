@@ -15,4 +15,6 @@ if (gallery) import('./dev/Gallery.vue').then((m) => createApp(m.default).mount(
 else createApp(App).mount('#app')
 
 // 開機加載畫面：準備好後接到主畫面（見 core/boot.ts）
-void finishBoot().then(() => warmSounds())
+// 音效在背景執行緒先算好（不佔主畫面）
+warmSounds()
+void finishBoot()

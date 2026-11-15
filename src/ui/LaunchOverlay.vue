@@ -191,6 +191,11 @@ onBeforeUnmount(() => onReveal(null))
   --fade: 0 !important;
   box-shadow: 0.4rem 0.45rem 0 var(--color-ink);
 }
+/* 複製出來的卡片不播封面動畫（飛行時少畫很多東西，比較順） */
+.front :deep(.launch-clone *) {
+  animation: none !important;
+  transition: none !important;
+}
 .back {
   display: flex;
   flex-direction: column;
