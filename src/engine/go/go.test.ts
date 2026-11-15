@@ -3,7 +3,7 @@ import { PERSONAS } from '../common/personas'
 import { seedRng } from '../common/rng'
 import { chooseGoMove } from './ai'
 import { estimateDead } from './playout'
-import { applyGo, createGo, hashBoard, legalMoves, scoreGo, toIndex, type GoState, type Point } from './rules'
+import { applyGo, createGo, hashBoard, legalMoves, resumeGo, scoreGo, toIndex, type GoState, type Point } from './rules'
 
 /** 用文字擺盤面：X 黑、O 白、. 空；turn 預設黑 */
 function setup(rows: string[], turn: 1 | 2 = 1, komi = 7.5): GoState {
@@ -126,6 +126,20 @@ describe('圍棋：計分', () => {
     expect(dead).toContain(at(7, 2))
     expect(dead).not.toContain(at(3, 0))
     expect(dead).not.toContain(at(4, 0))
+  })
+})
+
+describe('圍棋：有爭議就繼續下', () => {
+  it('雙方虛手結束後可以回到對局，由指定的一方先下；認輸的不能回去', () => {
+    let s = createGo({ size: 9 })
+    s = (applyGo(s, { type: 'pass' }) as { state: GoState }).state
+    s = (applyGo(s, { type: 'pass' }) as { state: GoState }).state
+    expect(s.phase).toBe('over')
+    const r = resumeGo(s, 2)
+    expect(r).toMatchObject({ phase: 'play', passes: 0, turn: 2 })
+    expect(applyGo(r, { type: 'play', index: 40 }).ok).toBe(true)
+    const resigned = (applyGo(createGo({ size: 9 }), { type: 'resign' }) as { state: GoState }).state
+    expect(resumeGo(resigned, 1).phase).toBe('over')
   })
 })
 

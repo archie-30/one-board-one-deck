@@ -13,7 +13,7 @@ import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { chooseGoMove } from '@/engine/go/ai'
 import { estimateDead } from '@/engine/go/playout'
-import { applyGo, createGo, groupAt, other, scoreGo, toXY, tryPlay, type Color, type GoAction, type GoSize, type GoState } from '@/engine/go/rules'
+import { applyGo, createGo, groupAt, other, resumeGo, scoreGo, toXY, tryPlay, type Color, type GoAction, type GoSize, type GoState } from '@/engine/go/rules'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
 import Bowl from '@/ui/art/Bowl.vue'
@@ -41,6 +41,7 @@ interface Saved {
   rng: number
   phase: 'playing' | 'scoring'
   dead: number[]
+  aiDead?: number[]
   undoFrom?: GoState | null
   undoUsed?: boolean
 }
@@ -62,6 +63,9 @@ const resultOpen = ref(false)
 const resignOpen = ref(false)
 const flying = ref(false)
 const dead = ref<number[]>([])
+/** 對方（電腦）判斷的死棋；你標的比這個對你更有利時，對方不同意 */
+const aiDead = ref<number[]>([])
+const disputed = ref(false)
 const moods = ref<[Mood, Mood]>(['idle', 'idle'])
 const captured = ref<{ key: number; color: 1 | 2; points: number[] } | null>(null)
 let rng = seedRng(Date.now())
@@ -236,11 +240,47 @@ function endGame() {
   // 先讓畫面顯示「開始算地」，再做比較花時間的死棋判斷
   later(() => {
     ;[dead.value, rng] = estimateDead(state.value, rng)
+    aiDead.value = dead.value
+    disputed.value = false
     phase.value = 'scoring'
   }, 450)
 }
 
+/** 從你的角度看領先幾子 */
+const lead = (marks: readonly number[]) => {
+  const sc = scoreGo(state.value, marks)
+  return human.value === 1 ? sc.black - sc.white : sc.white - sc.black
+}
+/** 確認結果：你標的死活對你比較有利，對方就不同意，要繼續下完來證明 */
+function confirmScore() {
+  if (lead(dead.value) > lead(aiDead.value) + 0.01) {
+    disputed.value = true
+    message.value = T.disagree(opponent.value.name)
+    moods.value = ['idle', 'shock']
+    playSound('error')
+    return
+  }
+  finish()
+}
+/** 有爭議時改照對方的判斷結算 */
+function acceptOpponent() {
+  dead.value = aiDead.value
+  finish()
+}
+/** 回到對局繼續下（由對方先下） */
+function resumePlay() {
+  state.value = resumeGo(state.value, ai.value)
+  dead.value = []
+  aiDead.value = []
+  disputed.value = false
+  message.value = T.resumed(opponent.value.name)
+  moods.value = ['idle', 'idle']
+  phase.value = 'playing'
+  scheduleCpu()
+}
+
 function finish() {
+  message.value = ''
   phase.value = 'over'
   const win = score.value.winner === human.value
   if (win) stats.go.wins++
@@ -259,6 +299,8 @@ function pick(index: number) {
     const isDead = set.has(index)
     for (const s of g) isDead ? set.delete(s) : set.add(s)
     dead.value = [...set]
+    disputed.value = false
+    if (message.value) message.value = ''
     playSound('stonePick')
     return
   }
@@ -301,7 +343,7 @@ const canSave = computed(() => (phase.value === 'playing' || phase.value === 'sc
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
-  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, phase: phase.value === 'scoring' ? 'scoring' : 'playing', dead: dead.value, undoFrom: undoFrom.value, undoUsed: undoUsed.value }
+  const data: Saved = { state: state.value, human: human.value, opponent: opponent.value.id, rng, phase: phase.value === 'scoring' ? 'scoring' : 'playing', dead: dead.value, aiDead: aiDead.value, undoFrom: undoFrom.value, undoUsed: undoUsed.value }
   return data
 }
 function saveAndExit() {
@@ -317,6 +359,7 @@ if (props.resume) {
   opponent.value = opponentById(d.opponent)
   rng = d.rng
   dead.value = d.dead ?? []
+  aiDead.value = d.aiDead ?? d.dead ?? []
   undoFrom.value = d.undoFrom ?? null
   undoUsed.value = d.undoUsed ?? false
   phase.value = d.phase
@@ -424,7 +467,11 @@ const resultLine = computed(() => {
         <p class="hint">{{ phase === 'scoring' ? T.scoringLead : myTurn && !message ? T.previewHint : '' }}</p>
       </div>
       <div class="act">
-        <Btn v-if="phase === 'scoring'" tone="red" size="lg" arrow block @click="finish">{{ T.confirm }}</Btn>
+        <template v-if="phase === 'scoring'">
+          <Btn v-if="disputed" tone="red" block @click="resumePlay">{{ T.resume }}</Btn>
+          <Btn v-else tone="red" size="lg" arrow block @click="confirmScore">{{ T.confirm }}</Btn>
+          <Btn class="mt-[0.5rem]" size="sm" block @click="disputed ? acceptOpponent() : resumePlay()">{{ disputed ? T.byOpponent : T.resume }}</Btn>
+        </template>
         <Btn v-else-if="phase === 'over'" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
         <Btn v-else tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
       </div>
