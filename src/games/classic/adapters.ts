@@ -26,6 +26,8 @@ export interface Adapter<S> {
   needsPromotion(s: S, from: number, to: number): boolean
   apply(s: S, m: ClassicMove): { ok: true; state: S } | { ok: false; reason: string }
   resign(s: S, seat: Seat): S
+  /** 時間到被跳過：這一步不走、換對方（被將軍時逾時直接算輸） */
+  skip(s: S): S
   choose(s: S, style: ChessStyle, rng: RngState): [ClassicMove | null, RngState]
   over(s: S): boolean
   /** 贏的一方；和棋或還沒結束是 null */
@@ -51,6 +53,10 @@ export const chessAdapter: Adapter<ChessState> = {
   apply: (s, m) => applyChess(s, { type: 'move', move: m as Move }),
   resign: (s, seat) => {
     const r = applyChess(s, { type: 'resign', color: seat === 0 ? 'w' : 'b' })
+    return r.ok ? r.state : s
+  },
+  skip: (s) => {
+    const r = applyChess(s, { type: 'timeout' })
     return r.ok ? r.state : s
   },
   choose: (s, style, rng) => {
@@ -79,6 +85,10 @@ export const xiangqiAdapter: Adapter<XiangqiState> = {
   apply: (s, m) => applyXiangqi(s, { type: 'move', move: { from: m.from, to: m.to } }),
   resign: (s, seat) => {
     const r = applyXiangqi(s, { type: 'resign', side: seat === 0 ? 'r' : 'b' })
+    return r.ok ? r.state : s
+  },
+  skip: (s) => {
+    const r = applyXiangqi(s, { type: 'timeout' })
     return r.ok ? r.state : s
   },
   choose: (s, style, rng) => chooseXiangqiMove(s, style, rng),

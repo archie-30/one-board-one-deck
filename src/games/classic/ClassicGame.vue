@@ -20,6 +20,8 @@ import GameMenu from '@/ui/GameMenu.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
+import TurnTimer from '@/ui/TurnTimer.vue'
+import { TURN_SECONDS } from '@/data/timer'
 import type { Adapter, ClassicMove, Seat } from './adapters'
 import ClassicBoard from './ClassicBoard.vue'
 
@@ -28,6 +30,8 @@ const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
 const A = props.adapter
 const T = A.kind === 'chess' ? S.chess : S.xiangqi
 const record = A.kind === 'chess' ? stats.chess : stats.xiangqi
+/** 規則設定的「倒數計時」 */
+const timed = props.options.timer !== false
 
 /** 「保存進度並退出」存的資料 */
 interface Saved {
@@ -134,6 +138,19 @@ function commit(m: ClassicMove, who: 0 | 1) {
   return true
 }
 
+/** 時間到：這一步跳過，換對方（被將軍時逾時直接算輸） */
+function onTimeout() {
+  if (!myTurn.value) return
+  acted.value = true
+  selected.value = -1
+  promoAsk.value = null
+  state.value = A.skip(state.value)
+  playSound('error')
+  if (A.over(state.value)) return finish()
+  message.value = S.common.timedOut
+  scheduleCpu()
+}
+
 function flash(who: 0 | 1, mood: Mood) {
   const next: [Mood, Mood] = [...moods.value]
   next[who] = mood
@@ -238,6 +255,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && A.turn(state) === human" />
     <TurnGlow side="right" :on="phase === 'playing' && A.turn(state) !== human" />
+    <TurnTimer v-if="timed" :side="A.turn(state) === human ? 'left' : 'right'" :active="phase === 'playing'" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
@@ -306,7 +324,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
       </div>
     </aside>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :lead="T.rpsLead" @done="startAfterRps" />
+    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" @save-exit="saveAndExit" />
 
     <!-- 兵升變 -->

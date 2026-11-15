@@ -12,8 +12,10 @@ import Icon from './art/Icon.vue'
 import type { Mood as KidMood } from './art/look'
 import Btn from './Btn.vue'
 import Dialog from './Dialog.vue'
+import TurnTimer from './TurnTimer.vue'
 
-defineProps<{ open: boolean; opponent: Opponent; lead?: string }>()
+// seconds：要在幾秒內出拳（0 = 不計時），時間到沒出拳就算輸
+const props = withDefaults(defineProps<{ open: boolean; opponent: Opponent; lead?: string; seconds?: number }>(), { seconds: 0 })
 const emit = defineEmits<{ done: [playerWins: boolean] }>()
 
 let rng = seedRng(Date.now())
@@ -23,6 +25,21 @@ const theirs = ref<RpsHand>('rock')
 const outcome = ref<1 | 0 | -1>(0)
 const moods = ref<[KidMood, KidMood]>(['idle', 'idle'])
 const round = ref(0)
+const timedOut = ref(false)
+
+/** 時間到還沒出拳：直接算輸 */
+function timeout() {
+  if (phase.value !== 'pick') return
+  let cpu: RpsHand
+  ;[cpu, rng] = randomRps(rng)
+  theirs.value = cpu
+  outcome.value = -1
+  timedOut.value = true
+  phase.value = 'show'
+  round.value++
+  playSound('error')
+  moods.value = ['sad', 'happy']
+}
 
 function choose(hand: RpsHand) {
   if (phase.value !== 'pick') return
@@ -48,6 +65,7 @@ function choose(hand: RpsHand) {
 
 function finish() {
   const win = outcome.value === 1
+  timedOut.value = false
   phase.value = 'pick'
   moods.value = ['idle', 'idle']
   emit('done', win)
@@ -57,14 +75,15 @@ function finish() {
 <template>
   <Dialog :open="open" :title="S.rps.title" label="ROCK · PAPER · SCISSORS" tone="blue" wide>
     <p class="text-[0.85rem] text-ink-2">{{ lead ?? S.rps.lead }}</p>
+    <TurnTimer v-if="props.seconds > 0" inline side="top" :active="phase === 'pick'" :paused="!open" :seconds="props.seconds" :turn-key="round" @timeout="timeout" />
     <div class="duel">
       <div class="side">
-        <span v-if="phase === 'show'" :key="`m${round}`" class="reveal pop"><Icon :name="mine" /></span>
+        <span v-if="phase === 'show' && !timedOut" :key="`m${round}`" class="reveal pop"><Icon :name="mine" /></span>
         <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="PLAYER_LOOK" :mood="moods[0]" /></span>
         <span class="t-black nm">{{ S.common.you }}</span>
       </div>
       <p class="verdict t-black" :class="{ win: phase === 'show' && outcome === 1 }">
-        <span v-if="phase === 'show'" :key="`v${round}`" class="mask"><span>{{ outcome === 0 ? S.rps.draw : outcome === 1 ? S.rps.win : S.rps.lose(opponent.name) }}</span></span>
+        <span v-if="phase === 'show'" :key="`v${round}`" class="mask"><span>{{ timedOut ? S.rps.timeout(opponent.name) : outcome === 0 ? S.rps.draw : outcome === 1 ? S.rps.win : S.rps.lose(opponent.name) }}</span></span>
         <span v-else class="t-slab vs">{{ S.rps.vs }}</span>
       </p>
       <div class="side">

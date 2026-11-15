@@ -23,6 +23,8 @@ import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
+import TurnTimer from '@/ui/TurnTimer.vue'
+import { TURN_SECONDS } from '@/data/timer'
 import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
 import { makeLayout, type Layout } from '../bigtwo/tableLayout'
@@ -41,6 +43,8 @@ interface Saved {
 const saved = (props.resume ?? null) as Saved | null
 
 const T = S.redpoint
+/** 規則設定的「倒數計時」 */
+const timed = props.options.timer !== false
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3)
@@ -167,12 +171,18 @@ function act(action: RedPointAction) {
   return true
 }
 
-async function nextTurn() {
+async function nextTurn(): Promise<void> {
   const s = state.value
   if (s.phase === 'over') return finish()
   moods.forEach((m, i) => {
     if (m === 'think') moods[i] = 'idle'
   })
+  // 手上沒牌了（有人被跳過後會發生）：只翻牌堆
+  if (s.phase === 'flip') {
+    busy.value = true
+    if (!(await wait(600))) return
+    return flipTop(s.turn)
+  }
   if (s.turn === ME) {
     busy.value = false
     return
@@ -217,7 +227,7 @@ async function playCard(player: number, card: Card, target: Card | undefined) {
 }
 
 /** 翻牌堆最上面那張 */
-async function flipTop(player: number) {
+async function flipTop(player: number): Promise<void> {
   const s = state.value
   if (s.phase !== 'flip') return nextTurn()
   const top = s.pile[0]
@@ -385,6 +395,30 @@ function tapCard(c: Card) {
   if (selected.value !== null && s.table.includes(c) && matches(selected.value, c)) void playCard(ME, selected.value, c)
 }
 
+/** 時間到：出牌階段＝整回合跳過；翻牌時還沒選要吃哪張＝翻出的牌留在桌上 */
+async function onTimeout() {
+  if (awaitFlip.value) {
+    awaitFlip.value = false
+    busy.value = true
+    const top = state.value.pile[0]
+    staged.delete(top)
+    if (!act({ type: 'timeout', player: ME })) return
+    message.value = S.common.timedOut
+    playSound('error')
+    sync([top], { dur: 320, arc: 10 })
+    if (!(await wait(520))) return
+    return nextTurn()
+  }
+  if (!myTurn.value) return
+  acted.value = true
+  selected.value = null
+  if (!act({ type: 'timeout', player: ME })) return
+  message.value = S.common.timedOut
+  playSound('error')
+  sync()
+  void nextTurn()
+}
+
 function playSelected() {
   if (!myTurn.value || selected.value === null) return
   const targets = hits.value
@@ -419,6 +453,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.phase !== 'over' && state.turn === p" />
+    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.phase !== 'over'" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 數牌：每一列一個人，左邊名字、右邊累加的分數 -->
     <template v-if="tally && !resultOpen">
       <div v-for="p in 4" :key="`tl${p}`" class="tally" :class="{ now: countingRow === p - 1 }" :style="{ left: `${spots.box.x + spots.box.w * 0.03}px`, width: `${spots.box.w * 0.94}px`, top: `${rowY(p - 1)}px` }">
