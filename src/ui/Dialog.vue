@@ -1,14 +1,15 @@
 <script setup lang="ts">
 // 對話框：一塊有黑框與實心陰影的紙，上方一條色帶放小標籤。從下方升起並稍微過頭。
 // flip：結算用——像翻一張牌一樣，從背面（分類色）翻到正面（跟進出遊戲的翻卡片呼應）。
-defineProps<{ open: boolean; title?: string; label?: string; wide?: boolean; tone?: 'red' | 'blue' | 'yellow' | 'ink'; flip?: boolean }>()
+// cover：暫停用——後面整片蓋住，看不到牌和棋（不能拿暫停來多想）。
+defineProps<{ open: boolean; title?: string; label?: string; wide?: boolean; tone?: 'red' | 'blue' | 'yellow' | 'ink'; flip?: boolean; cover?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 </script>
 
 <template>
   <Transition :name="flip ? 'dialog-flip' : 'dialog'">
     <div v-if="open" class="fixed inset-0 z-[900] grid place-items-center" role="dialog" aria-modal="true">
-      <div class="backdrop absolute inset-0" @click="emit('close')" />
+      <div class="backdrop absolute inset-0" :class="{ cover }" @click="emit('close')" />
       <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip b-${tone ?? 'ink'}` : '']">
         <div class="band halftone" :class="`b-${tone ?? 'ink'}`"><span class="t-label">{{ label }}</span></div>
         <div class="body">
@@ -24,6 +25,11 @@ const emit = defineEmits<{ close: [] }>()
 <style scoped>
 .backdrop {
   background: rgb(239 233 220 / 0.82);
+}
+.backdrop.cover {
+  background-color: var(--color-paper);
+  background-image: radial-gradient(rgb(20 20 20 / 0.07) 18%, transparent 20%);
+  background-size: 0.9rem 0.9rem;
 }
 .sheet {
   max-width: 94vw;

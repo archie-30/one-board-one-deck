@@ -20,7 +20,7 @@ watch(
   },
 )
 
-// 「不保存，直接離開」要按兩次：第一次變成「再按一次離開」，2.5 秒內再按才離開
+// 「離開並認輸」要按兩次：第一次變成「再按一次認輸離開」，2.5 秒內再按才離開
 const quitArmed = ref(false)
 let quitTimer = 0
 function quit() {
@@ -37,7 +37,7 @@ onBeforeUnmount(() => window.clearTimeout(quitTimer))
 </script>
 
 <template>
-  <Dialog :open="open" :title="showRules ? S.rules.title : S.common.paused" :label="game.name"  wide @close="emit('close')">
+  <Dialog :open="open" :title="showRules ? S.rules.title : S.common.paused" :label="game.name" wide cover @close="emit('close')">
     <RulesBody v-if="showRules" :game="game" :options="options" />
     <div v-else class="menu pt-[0.3rem]">
       <Btn class="rise wide-row" tone="red" icon="play" block arrow @click="emit('close')">{{ S.common.resume }}</Btn>
