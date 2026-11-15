@@ -319,6 +319,11 @@ defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menu
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
 const canPass = computed(() => myTurn.value && state.value.table !== null)
+/** 取消選取：選起的牌全部放回手牌 */
+function clearSelection() {
+  if (!selected.value.length) return
+  selected.value = []
+}
 const selectedCombo = computed(() => (selected.value.length ? identifyCombo(selected.value, options) : null))
 const status = computed(() => {
   if (message.value) return message.value
@@ -442,6 +447,10 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions">
       <template v-if="phase !== 'over'">
+        <!-- 有選起牌時才出現：一次把選起的牌全部放回去 -->
+        <Transition name="clear-sel">
+          <Btn v-if="selected.length" class="clear-sel" size="sm" icon="close" block @click="clearSelection">{{ T.clearSelection }}</Btn>
+        </Transition>
         <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</Btn>
         <Btn class="rise" style="--i: 1" icon="pass" block :disabled="!canPass" @click="pass">{{ T.pass }}</Btn>
       </template>
@@ -677,6 +686,21 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .status.warn {
   color: var(--color-red);
+}
+.clear-sel-enter-active {
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 260ms var(--ease-back);
+}
+.clear-sel-leave-active {
+  transition:
+    opacity 140ms ease-in,
+    transform 140ms ease-in;
+}
+.clear-sel-enter-from,
+.clear-sel-leave-to {
+  opacity: 0;
+  transform: translateY(0.5rem) scale(0.92);
 }
 .actions {
   position: absolute;

@@ -369,6 +369,7 @@ export const S = {
     waiting: (name: string) => `${name}出牌中…`,
     cardsLeft: (n: number) => `${n} 張`,
     noPlay: '沒有能壓過的牌',
+    clearSelection: '取消選取',
     combos: {
       single: '單張',
       pair: '對子',
