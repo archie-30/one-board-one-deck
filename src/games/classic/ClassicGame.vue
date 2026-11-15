@@ -230,6 +230,19 @@ function pick(i: number) {
   }
   commit({ from: selected.value, to: i }, 0)
 }
+/** 拖曳：只能拖自己的棋子 */
+const canDrag = (i: number) => myTurn.value && !!board.value[i] && A.seatOf(board.value[i]) === human.value
+function grab(i: number) {
+  if (!canDrag(i)) return
+  if (selected.value !== i) playSound('piecePick')
+  selected.value = i
+  message.value = ''
+}
+/** 拖到能走的格子放開就走；放在不能走的地方，棋子回原位、保持選起 */
+function drop(from: number, to: number) {
+  if (!myTurn.value || selected.value !== from) return
+  if (targets.value.includes(to)) pick(to)
+}
 function promote(promo: Promo) {
   const ask = promoAsk.value
   promoAsk.value = null
@@ -323,7 +336,10 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
         :piece-style="options.pieceStyle === 'icon' ? 'icon' : 'text'"
         :interactive="myTurn"
         :move-key="A.plies(state)"
+        :can-drag="canDrag"
         @pick="pick"
+        @grab="grab"
+        @drop="drop"
         @hover="(i) => (hoverAt = i)"
       />
     </div>

@@ -4,7 +4,8 @@
 //   象棋：9 × 10 交叉點，中間楚河漢界、兩邊九宮畫斜線；棋子是圓形木子寫中文字（或圖示）。
 // 只負責畫：選起的棋子、能走的位置（圓點）、上一步、被將軍的王、教學提示、滑鼠預覽的半透明棋子；
 // 點了哪裡回報給上層。走子動畫：上一步走過去的棋子從原位滑過來、落地壓扁一下。
-import { computed } from 'vue'
+// 拖曳：按住自己的棋子拖到目標格放開（canDrag 有給才能拖）；拖曳放下的那一步不再播滑過來的動畫。
+import { computed, ref, watch } from 'vue'
 import { S } from '@/data/strings'
 import PieceIcon from '@/ui/art/PieceIcon.vue'
 
@@ -27,10 +28,12 @@ const props = withDefaults(
     interactive?: boolean
     /** 換了一個數字就重播走子動畫（同一步不重播） */
     moveKey?: number
+    /** 這一格的棋子能不能拖（沒給就不能拖） */
+    canDrag?: ((index: number) => boolean) | null
   }>(),
-  { flip: false, selected: -1, targets: () => [], lastMove: null, checkSq: -1, hints: () => [], ghost: null, pieceStyle: 'text', interactive: true, moveKey: 0 },
+  { canDrag: null, flip: false, selected: -1, targets: () => [], lastMove: null, checkSq: -1, hints: () => [], ghost: null, pieceStyle: 'text', interactive: true, moveKey: 0 },
 )
-const emit = defineEmits<{ pick: [index: number]; hover: [index: number] }>()
+const emit = defineEmits<{ pick: [index: number]; hover: [index: number]; grab: [index: number]; drop: [from: number, to: number] }>()
 
 const chess = computed(() => props.kind === 'chess')
 const COLS = computed(() => (chess.value ? 8 : 9))
@@ -63,8 +66,14 @@ const moveFrom = computed(() => {
 
 const xqName = (p: string) => S.xiangqi.names[isUpper(p) ? 'r' : 'b'][p.toUpperCase() as 'K']
 
+const svgEl = ref<SVGSVGElement>()
+/** 指標在棋盤座標（viewBox 單位）的位置 */
+function toSvg(e: MouseEvent) {
+  const rect = svgEl.value!.getBoundingClientRect()
+  return { x: ((e.clientX - rect.left) / rect.width) * W.value, y: ((e.clientY - rect.top) / rect.height) * H.value }
+}
 function pointAt(e: MouseEvent): number {
-  const rect = (e.currentTarget as SVGElement).getBoundingClientRect()
+  const rect = svgEl.value!.getBoundingClientRect()
   const x = ((e.clientX - rect.left) / rect.width) * W.value - PAD.value
   const y = ((e.clientY - rect.top) / rect.height) * H.value - PAD.value
   let c = chess.value ? Math.floor(x / CELL) : Math.round(x / CELL)
@@ -77,12 +86,83 @@ function pointAt(e: MouseEvent): number {
   return r * COLS.value + c
 }
 function onClick(e: MouseEvent) {
+  // 剛拖曳放下：這次的 click 不算
+  if (suppressClick) {
+    suppressClick = false
+    return
+  }
   if (!props.interactive) return
   const i = pointAt(e)
   if (i >= 0) emit('pick', i)
 }
+
+// ── 拖曳 ──
+const drag = ref<{ from: number; id: number; x0: number; y0: number; dx: number; dy: number; moving: boolean } | null>(null)
+let suppressClick = false
+/** 拖曳放下的那一步：不播「從原位滑過來」 */
+let pendingDrop = -1
+const noSlideKey = ref(-1)
+watch(
+  () => props.moveKey,
+  (k) => {
+    if (pendingDrop >= 0 && lastTo.value === pendingDrop) noSlideKey.value = k
+    pendingDrop = -1
+  },
+)
+function onDown(e: PointerEvent) {
+  if (!props.interactive || !props.canDrag || (e.pointerType === 'mouse' && e.button !== 0)) return
+  const i = pointAt(e)
+  if (i < 0 || !props.canDrag(i)) return
+  const p = toSvg(e)
+  drag.value = { from: i, id: e.pointerId, x0: p.x, y0: p.y, dx: 0, dy: 0, moving: false }
+}
 function onMove(e: PointerEvent) {
+  const d = drag.value
+  if (d && e.pointerId === d.id) {
+    const p = toSvg(e)
+    d.dx = p.x - d.x0
+    d.dy = p.y - d.y0
+    if (!d.moving && Math.hypot(d.dx, d.dy) > 2.2) {
+      d.moving = true
+      svgEl.value?.setPointerCapture(e.pointerId)
+      emit('grab', d.from)
+    }
+    if (d.moving) {
+      emit('hover', pointAt(e))
+      return
+    }
+  }
   emit('hover', e.pointerType === 'mouse' ? pointAt(e) : -1)
+}
+function onUp(e: PointerEvent) {
+  const d = drag.value
+  if (!d || e.pointerId !== d.id) return
+  drag.value = null
+  if (!d.moving) return
+  suppressClick = true
+  // 有些瀏覽器拖到外面放開就不會有 click：下一輪自動解除
+  window.setTimeout(() => (suppressClick = false), 0)
+  const to = pointAt(e)
+  if (e.pointerType !== 'mouse') emit('hover', -1)
+  if (to >= 0 && to !== d.from) {
+    pendingDrop = to
+    emit('drop', d.from, to)
+  }
+}
+function onCancel() {
+  drag.value = null
+}
+/** 畫的順序：拖著的那顆放最後，才會疊在別的棋子上面 */
+const drawn = computed(() => {
+  const f = drag.value?.moving ? drag.value.from : -1
+  if (f < 0) return pieces.value
+  return [...pieces.value.filter((x) => x.i !== f), ...pieces.value.filter((x) => x.i === f)]
+})
+function pieceTf(i: number) {
+  const d = drag.value
+  if (d?.moving && d.from === i) return { transform: `translate(${d.dx}px, ${d.dy}px)` }
+  if (i === lastTo.value && props.moveKey !== noSlideKey.value) return { '--dx': `${moveFrom.value.dx}px`, '--dy': `${moveFrom.value.dy}px` }
+  return undefined
 }
 
 const files = 'abcdefgh'
@@ -93,7 +173,18 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
 </script>
 
 <template>
-  <svg class="board" :class="{ interactive }" :viewBox="`0 0 ${W} ${H}`" @click="onClick" @pointermove="onMove" @pointerleave="emit('hover', -1)">
+  <svg
+    ref="svgEl"
+    class="board"
+    :class="{ interactive, draggable: !!canDrag }"
+    :viewBox="`0 0 ${W} ${H}`"
+    @click="onClick"
+    @pointerdown="onDown"
+    @pointermove="onMove"
+    @pointerup="onUp"
+    @pointercancel="onCancel"
+    @pointerleave="!drag?.moving && emit('hover', -1)"
+  >
     <!-- 底板：黑色實心陰影＋黑框 -->
     <rect x="1.7" y="2.1" :width="W - 1" :height="H - 1" fill="var(--color-ink)" />
     <rect x="0.5" y="0.5" :width="W - 1.6" :height="H - 1.6" :fill="chess ? 'var(--color-card)' : 'var(--color-yellow)'" stroke="var(--color-ink)" stroke-width="0.9" />
@@ -148,7 +239,13 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
     <circle v-if="checkSq >= 0" :cx="px(checkSq)" :cy="py(checkSq)" r="4.8" class="check" />
 
     <!-- 棋子 -->
-    <g v-for="{ p, i } in pieces" :key="i === lastTo ? `${i}-${moveKey}` : `${i}`" class="piece" :class="{ moved: i === lastTo }" :style="i === lastTo ? { '--dx': `${moveFrom.dx}px`, '--dy': `${moveFrom.dy}px` } : undefined">
+    <g
+      v-for="{ p, i } in drawn"
+      :key="i === lastTo ? `${i}-${moveKey}` : `${i}`"
+      class="piece"
+      :class="{ moved: i === lastTo && moveKey !== noSlideKey, dragging: drag?.moving && drag.from === i }"
+      :style="pieceTf(i)"
+    >
      <g>
       <PieceIcon v-if="chess" :kind="p" :light="isUpper(p)" :x="px(i)" :y="py(i) + 0.2" :size="9.2" :filter="`url(#${haloId})`" />
       <template v-else>
@@ -268,6 +365,18 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
 }
 .piece {
   pointer-events: none;
+}
+/* 拖著的棋子跟著手指走（稍微放大一點，看得出拿起來了） */
+.piece.dragging {
+  animation: none;
+}
+.piece.dragging > g {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.15);
+}
+.board.draggable {
+  touch-action: none;
 }
 /* 剛走過來的棋子：從原位滑過來，落地壓扁一下 */
 .piece.moved {
