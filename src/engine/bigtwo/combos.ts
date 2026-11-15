@@ -139,8 +139,8 @@ export function canBeat(play: Combo, prev: Combo, opts: BigTwoOptions): boolean 
   if (play.type === prev.type) return compareKeys(play.key, prev.key) > 0
   const a = FIVE_CLASS[play.type]
   const b = FIVE_CLASS[prev.type]
-  // 五張牌型：預設只能同類型互壓（順子接順子、葫蘆接葫蘆），只有鐵支、同花順可以壓別的五張牌型
-  if (a !== undefined && b !== undefined) return opts.fiveCrossType || isBomb(play.type) ? a > b : false
+  // 五張牌型：只能同類型互壓（順子接順子、葫蘆接葫蘆），只有鐵支、同花順可以壓別的五張牌型
+  if (a !== undefined && b !== undefined) return isBomb(play.type) ? a > b : false
   // 鐵支、同花順壓單張／對子／三條
   if (isBomb(play.type) && b === undefined) return opts.bombBeatsAll
   return false
