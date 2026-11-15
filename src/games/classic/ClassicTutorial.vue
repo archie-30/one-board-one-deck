@@ -11,7 +11,7 @@ import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import GuideNote from '@/ui/GuideNote.vue'
 import IconBtn from '@/ui/IconBtn.vue'
-import type { Adapter } from './adapters'
+import { moveSound, type Adapter } from './adapters'
 import ClassicBoard from './ClassicBoard.vue'
 import type { ClassicLesson } from './tutorialData'
 
@@ -38,7 +38,7 @@ function pick(i: number) {
   if (solved.value || finished.value) return
   if (i === lesson.value.from) {
     selected.value = selected.value === i ? -1 : i
-    playSound('cardPick')
+    playSound('piecePick')
     return
   }
   if (selected.value < 0 || !targets.value.includes(i)) {
@@ -60,7 +60,7 @@ function move(from: number, to: number, promo?: Promo) {
     playSound('error')
     return
   }
-  playSound('piece')
+  playSound(moveSound(A.kind, A.captured(r.state).length > A.captured(state.value).length))
   if (lesson.value.done(r.state)) {
     state.value = r.state
     solved.value = true

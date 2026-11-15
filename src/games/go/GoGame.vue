@@ -182,7 +182,7 @@ async function act(action: GoAction, who: 0 | 1) {
       flash(who === 0 ? 1 : 0, r.state.lastCaptured.length >= 3 ? 'shock' : 'sad')
     }
   } else if (action.type === 'pass') {
-    playSound('pass')
+    playSound('stonePick')
     message.value = T.passed(who === 0 ? S.common.you : opponent.value.name)
   }
   if (r.state.phase === 'over') return endGame()

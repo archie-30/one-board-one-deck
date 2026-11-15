@@ -166,8 +166,8 @@ const lightSq = (r: number, c: number) => (r + c) % 2 === 0
 
     <!-- 能走的位置：空格是小圓點，能吃子是圓圈 -->
     <template v-for="t in targets" :key="`t${t}`">
-      <circle v-if="!board[t] && t !== ghost?.index" :cx="px(t)" :cy="py(t)" r="1.5" class="dot" />
-      <circle v-else :cx="px(t)" :cy="py(t)" r="4.9" class="ring" />
+      <circle v-if="board[t]" :cx="px(t)" :cy="py(t)" r="4.9" class="ring" />
+      <circle v-else-if="t !== ghost?.index" :cx="px(t)" :cy="py(t)" r="1.5" class="dot" />
     </template>
   </svg>
 </template>

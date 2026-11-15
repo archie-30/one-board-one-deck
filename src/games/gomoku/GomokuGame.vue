@@ -173,7 +173,7 @@ function finish() {
   else stats.gomoku.losses++
   moods.value = w === 3 ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
-    playSound(w === human.value ? 'win' : w === 3 ? 'pass' : 'lose')
+    playSound(w === human.value ? 'win' : w === 3 ? 'draw' : 'lose')
     resultOpen.value = true
   }, 1100)
 }

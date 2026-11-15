@@ -22,7 +22,7 @@ import RpsDuel from '@/ui/RpsDuel.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
 import TurnTimer from '@/ui/TurnTimer.vue'
 import { TURN_SECONDS } from '@/data/timer'
-import type { Adapter, ClassicMove, Seat } from './adapters'
+import { moveSound, type Adapter, type ClassicMove, type Seat } from './adapters'
 import ClassicBoard from './ClassicBoard.vue'
 
 const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown; adapter: Adapter<St> }>()
@@ -130,7 +130,7 @@ function commit(m: ClassicMove, who: 0 | 1) {
   selected.value = -1
   message.value = ''
   const took = A.captured(state.value).length > before
-  playSound(took ? 'capture' : 'piece')
+  playSound(moveSound(A.kind, took))
   if (took) flash(who, 'happy')
   if (A.over(state.value)) finish()
   else if (A.checkSq(state.value) >= 0) flash(who === 0 ? 1 : 0, 'shock')
@@ -185,7 +185,7 @@ function finish() {
   else record.losses++
   moods.value = w === null ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
-    playSound(w === human.value ? 'win' : w === null ? 'slide' : 'lose')
+    playSound(w === human.value ? 'win' : w === null ? 'draw' : 'lose')
     resultOpen.value = true
   }, 900)
 }
@@ -198,7 +198,7 @@ function pick(i: number) {
   if (p && A.seatOf(p) === human.value) {
     selected.value = selected.value === i ? -1 : i
     message.value = ''
-    playSound('cardPick')
+    playSound('piecePick')
     return
   }
   if (selected.value < 0) return
