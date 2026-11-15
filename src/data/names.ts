@@ -6,6 +6,8 @@ export interface OpponentProfile {
   /** 顯示在名字下方的個性 */
   tag: string
   look: Look
+  /** 新手打法：困難模式不會出現 */
+  beginner?: boolean
 }
 
 export const OPPONENTS: OpponentProfile[] = [
@@ -25,7 +27,7 @@ export const OPPONENTS: OpponentProfile[] = [
   { name: '秀琴', tag: '細心', look: { shape: 'circle', tone: 'blue', fill: 'stripes' } },
   { name: '建國', tag: '照本宣科', look: { shape: 'square', tone: 'card', fill: 'solid' } },
   { name: '淑芬', tag: '高手', look: { shape: 'diamond', tone: 'ink', fill: 'dots' } },
-  { name: '阿寶', tag: '新手', look: { shape: 'circle', tone: 'card', fill: 'stripes' } },
+  { name: '阿寶', tag: '新手', look: { shape: 'circle', tone: 'card', fill: 'stripes' }, beginner: true },
   { name: '小黑', tag: '深藏不露', look: { shape: 'pill', tone: 'ink', fill: 'stripes' } },
   { name: '阿達', tag: '急性子', look: { shape: 'triangle', tone: 'yellow', fill: 'solid' } },
   { name: '阿蓮', tag: '溫柔難纏', look: { shape: 'half', tone: 'blue', fill: 'stripes' } },

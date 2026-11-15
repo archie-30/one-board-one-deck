@@ -61,7 +61,8 @@ const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
-const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3)
+// 困難模式不會出現新手打法的電腦
+const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'hard')
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
 const tableTotals = ref(saved ? saved.tableTotals.slice() : [0, 0, 0, 0])
