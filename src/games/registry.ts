@@ -14,19 +14,22 @@ import GomokuCover from './covers/GomokuCover.vue'
 import RedPointCover from './covers/RedPointCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
-import type { GameCategory, GameDef, RuleSection, SettingDef } from './types'
+import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
-const toggle = (key: string, text: { label: string; help: string }, def: boolean): SettingDef => ({
+type Extra = { group?: SettingGroup; live?: boolean }
+const toggle = (key: string, text: { label: string; help: string }, def: boolean, extra: Extra = {}): SettingDef => ({
   key,
   type: 'toggle',
   label: text.label,
   help: text.help,
   default: def,
+  ...extra,
 })
 const choice = (
   key: string,
   text: { label: string; help: string; choices: Record<string, string> },
   def: string,
+  extra: Extra = {},
 ): SettingDef => ({
   key,
   type: 'choice',
@@ -34,9 +37,10 @@ const choice = (
   help: text.help,
   default: def,
   choices: Object.entries(text.choices).map(([value, label]) => ({ value, label })),
+  ...extra,
 })
 
-const timer = () => toggle('timer', S.common.timer, true)
+const timer = () => toggle('timer', S.common.timer, true, { group: 'other' })
 const level = () => choice('difficulty', S.common.level, DEFAULT_LEVEL)
 /** 規則說明最後面加一段「倒數計時」 */
 const TR = S.common.timerRules
@@ -65,9 +69,11 @@ export const GAMES: GameDef[] = [
       toggle('fiveCrossType', bs.fiveCrossType, B.fiveCrossType),
       toggle('bombBeatsAll', bs.bombBeatsAll, B.bombBeatsAll),
       toggle('allowTriple', bs.allowTriple, B.allowTriple),
+      toggle('allowSmallStraight', bs.allowSmallStraight, B.allowSmallStraight),
       toggle('allowFlush', bs.allowFlush, B.allowFlush),
-      toggle('doubleOverTen', bs.doubleOverTen, B.doubleOverTen),
-      toggle('doubleTwos', bs.doubleTwos, B.doubleTwos),
+      toggle('dragon', bs.dragon, B.dragon),
+      toggle('doubleOverTen', bs.doubleOverTen, B.doubleOverTen, { group: 'score' }),
+      toggle('doubleTwos', bs.doubleTwos, B.doubleTwos, { group: 'score' }),
       timer(),
     ],
   },
@@ -83,7 +89,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.redpoint.rules, [...TR.cards, TR.redpoint]),
     tutorial: defineAsyncComponent(() => import('./redpoint/RedPointTutorial.vue')),
     component: defineAsyncComponent(() => import('./redpoint/RedPointGame.vue')),
-    settings: [timer()],
+    settings: [toggle('hints', S.redpoint.settings.hints, false), timer()],
   },
   {
     id: 'solitaire',
@@ -149,7 +155,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.xiangqi.rules, [...TR.board, TR.check]),
     tutorial: defineAsyncComponent(() => import('./xiangqi/XiangqiTutorial.vue')),
     component: defineAsyncComponent(() => import('./xiangqi/XiangqiGame.vue')),
-    settings: [level(), choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text'), timer()],
+    settings: [level(), choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text', { group: 'other', live: true }), timer()],
   },
 ]
 

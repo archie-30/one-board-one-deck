@@ -139,6 +139,10 @@ export const S = {
     backApply: '返回並套用',
     reset: '恢復預設',
     note: '改動會從下一局開始套用。',
+    groups: { rules: '規則', score: '計分', other: '其他' },
+    /** 暫停選單裡：會影響這一局公平的選項 */
+    lockedNow: '請在局外設定',
+    liveNote: '反灰的選項會影響這一局的公平，請在局外（模式選單的「規則設定」）調整。',
   },
   rules: {
     title: '規則說明',
@@ -471,6 +475,12 @@ export const S = {
     players: '你 對 3 位對手',
     tags: ['4 人', '約 4 分鐘'],
     record: (rounds: number, wins: number, best: number) => `打了 ${rounds} 局　贏 ${wins} 局　最高 ${best} 分`,
+    settings: {
+      hints: {
+        label: '提示可以吃的牌',
+        help: '開啟後，選起手牌時桌上能吃的牌會亮起藍框（滑鼠移到手牌上也會先顯示）。翻牌後要選吃哪一張時一定會亮。',
+      },
+    },
     yourTurn: '輪到你：選一張手牌',
     pickTarget: '能配兩張，點桌上要吃的那張',
     flipPick: '翻到的牌能配兩張，點桌上要吃的那張',

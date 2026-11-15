@@ -369,6 +369,8 @@ defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menu
 const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
 // 滑鼠移到自己的手牌上：桌上能跟它配的牌先淡淡亮起來（預覽），點下去才選起
 const hoverCard = ref<Card | null>(null)
+/** 規則設定的「提示可以吃的牌」（預設關）；翻牌後要選吃哪張時一定會亮 */
+const showHints = props.options.hints === true
 const peekHits = computed<Card[]>(() => {
   const c = hoverCard.value
   if (c === null || !myTurn.value || selected.value !== null || !state.value.hands[ME].includes(c)) return []
@@ -440,7 +442,8 @@ const status = computed(() => {
   if (phase.value === 'over' && countingRow.value >= 0) return T.counting
   if (phase.value === 'over') return winners(s).includes(ME) ? T.win : T.lose(names[winners(s)[0]])
   if (s.turn !== ME) return s.phase === 'flip' ? T.flipping(names[s.turn]) : T.waiting(names[s.turn])
-  if (selected.value === null) return T.yourTurn
+  // 沒開提示：不說這張會不會吃到
+  if (selected.value === null || !showHints) return T.yourTurn
   return hits.value.length ? (hits.value.length >= 2 ? T.pickTarget : T.willTake) : T.willDiscard
 })
 const resultTitle = computed(() => {
@@ -488,7 +491,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         :key="c"
         :ref="(el) => stage.attach(c, el as HTMLElement | null)"
         class="sprite"
-        :class="{ mine: state.hands[ME].includes(c), sel: selected === c, hit: hits.includes(c), peekhit: peekHits.includes(c), red: isRed(c) }"
+        :class="{ mine: state.hands[ME].includes(c), sel: selected === c, hit: (showHints || awaitFlip) && hits.includes(c), peekhit: showHints && peekHits.includes(c), red: isRed(c) }"
         :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
         @click="tapCard(c)"
         @pointerenter="$event.pointerType === 'mouse' && (hoverCard = c)"

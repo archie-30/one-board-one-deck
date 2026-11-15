@@ -8,16 +8,20 @@ export interface RuleSection {
 }
 
 /** 一個規則選項。設定頁依這份資料自動產生畫面。 */
+/** 規則設定的分組：規則、計分、其他 */
+export type SettingGroup = 'rules' | 'score' | 'other'
+interface SettingBase {
+  key: string
+  label: string
+  help: string
+  /** 規則設定頁上放在哪一組（沒寫就是「規則」） */
+  group?: SettingGroup
+  /** 對局中途改了也不影響公平（例如棋子的樣式）；沒有標的選項在暫停選單裡反灰，要在局外設定 */
+  live?: boolean
+}
 export type SettingDef =
-  | { key: string; type: 'toggle'; label: string; help: string; default: boolean }
-  | {
-      key: string
-      type: 'choice'
-      label: string
-      help: string
-      default: string
-      choices: { value: string; label: string }[]
-    }
+  | (SettingBase & { type: 'toggle'; default: boolean })
+  | (SettingBase & { type: 'choice'; default: string; choices: { value: string; label: string }[] })
 
 export interface GameDef {
   id: string
