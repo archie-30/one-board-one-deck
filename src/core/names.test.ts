@@ -29,9 +29,19 @@ describe('幫電腦取名字', () => {
     expect(opponentNames.names[2]).toBe('新名字')
     expect(new Set(opponentNames.names).size).toBe(20)
   })
-  it('恢復預設：20 個從名字庫抽、不重複', () => {
+  it('恢復預設：回到固定的 20 個預設名字', () => {
+    setOpponentName(5, '新名字二')
     resetOpponentNames()
-    expect(new Set(opponentNames.names).size).toBe(20)
-    for (const n of opponentNames.names) expect(NAME_POOL).toContain(n)
+    expect(opponentNames.names).toEqual(NAME_POOL.slice(0, 20))
+  })
+  it('留空：用那一位的預設名字；被別人用掉了才從名字庫抽', () => {
+    resetOpponentNames()
+    setOpponentName(0, '小花號')
+    expect(setOpponentName(0, '')).toBe('ok')
+    expect(opponentNames.names[0]).toBe('阿明')
+    setOpponentName(1, '老王')
+    expect(opponentNames.names[1]).toBe('小美')
+    setOpponentName(2, '')
+    expect(opponentNames.names[2]).toBe('老王')
   })
 })

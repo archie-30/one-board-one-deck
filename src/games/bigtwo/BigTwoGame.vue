@@ -386,7 +386,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <!-- 桌面中央的框 -->
     <!-- 每個人這一輪剛出的牌（小張；一輪結束就清掉） -->
     <template v-for="(seat, p) in layout.seats" :key="`last${p}`">
-      <div v-if="Array.isArray(state.lastMoves[p])" :key="`last${p}-${(state.lastMoves[p] as number[]).join('.')}`" class="last-play pop" :style="{ left: `${seat.last.x}px`, top: `${seat.last.y}px`, '--w': `${layout.cw * 0.72}px` }">
+      <div v-if="Array.isArray(state.lastMoves[p])" :key="`last${p}-${(state.lastMoves[p] as number[]).join('.')}`" class="last-play pop" :style="{ left: `${seat.last.x}px`, top: `${seat.last.y}px`, '--w': `${layout.cw * 0.48}px` }">
         <svg v-for="c in (state.lastMoves[p] as number[])" :key="c" viewBox="-2 -2 78 108" class="lp-card"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" /></svg>
       </div>
     </template>
