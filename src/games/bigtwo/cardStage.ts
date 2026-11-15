@@ -47,11 +47,6 @@ interface Sprite {
 
 const LAND_MS = 160
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
-const easeBack = (t: number) => {
-  const c1 = 1.2
-  const c3 = c1 + 1
-  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
-}
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 
 export class CardStage {
@@ -137,12 +132,17 @@ export class CardStage {
         const t = Math.min(1, Math.max(0, (now - s.start) / s.dur))
         if (t <= 0) continue
         const p = easeOut(t)
-        const lift = Math.sin(Math.PI * t)
+        // 牌直接平順地飛到定位：不往上抬、不放大（看起來才是「放上桌」，不是「拋起來再落下」）。
+        // arc 只讓路線稍微往旁邊彎一點（每張牌略有不同），不改變高度感。
+        const bend = Math.sin(Math.PI * t) * s.arc * 0.25
+        const dx = s.to.x - s.from.x
+        const dy = s.to.y - s.from.y
+        const len = Math.hypot(dx, dy) || 1
         s.cur = {
-          x: lerp(s.from.x, s.to.x, p),
-          y: lerp(s.from.y, s.to.y, p) - s.arc * lift,
-          r: lerp(s.from.r, s.to.r, easeBack(t)),
-          s: lerp(s.from.s, s.to.s, p) * (1 + (s.arc ? 0.1 : 0.03) * lift),
+          x: lerp(s.from.x, s.to.x, p) + (-dy / len) * bend,
+          y: lerp(s.from.y, s.to.y, p) + (dx / len) * bend,
+          r: lerp(s.from.r, s.to.r, p),
+          s: lerp(s.from.s, s.to.s, p),
           // 翻面發生在飛行中段
           f: lerp(s.from.f, s.to.f, Math.min(1, Math.max(0, (t - 0.2) / 0.55))),
           z: t < 1 ? s.flightZ : s.to.z,
@@ -175,7 +175,7 @@ export class CardStage {
     const since = now - s.landedAt
     if (since >= 0 && since < LAND_MS) {
       const k = 1 - since / LAND_MS
-      sq = 1 + 0.07 * k * Math.sin((since / LAND_MS) * Math.PI)
+      sq = 1 + 0.025 * k * Math.sin((since / LAND_MS) * Math.PI)
     }
     el.style.transform = `translate3d(${c.x}px, ${c.y}px, 0) rotate(${c.r}deg) scale(${c.s * sx * sq}, ${(c.s * (2 - sq))})`
     el.style.zIndex = String(Math.round(c.z))

@@ -25,7 +25,6 @@ const start = games.value.findIndex((g) => g.id === settings.lastGame[props.cate
 /** 目前選中的是第幾張。不繞圈：前面的模式疊在左邊、後面的疊在右邊，到頭尾就停住。 */
 const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
-const hoverId = ref<string | null>(null)
 /** 從遊戲退回來：卡片堆不播進場上浮（過場層要量卡片的位置讓卡片飛回去，位置必須一開始就是定位） */
 const returning = launchFx.active && launchFx.mode === 'exit'
 const settingsOpen = ref(false)
@@ -210,16 +209,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :key="g.id"
             :ref="(el) => (cardEls[k] = el as HTMLElement | null)"
             class="card"
-            :class="{ front: k === index, peek: hoverId === g.id && k !== index, lifted: (launching && k === index) || (launchFx.active && launchFx.mode === 'exit' && launchFx.gameId === g.id) }"
+            :class="{ front: k === index, lifted: (launching && k === index) || (launchFx.active && launchFx.mode === 'exit' && launchFx.gameId === g.id) }"
             :style="cardStyle(k)"
             role="option"
             :aria-selected="k === index"
             :tabindex="k === index ? 0 : -1"
             @click="onClick(k, $event)"
-            @pointerenter="$event.pointerType === 'mouse' && (hoverId = g.id)"
-            @pointerleave="hoverId = null"
           >
-            <span class="cover halftone"><component :is="g.cover" :active="k === index || hoverId === g.id" /></span>
+            <span class="cover halftone"><component :is="g.cover" :active="k === index" /></span>
             <span class="info">
               <span class="t-slab no">{{ pad(k + 1) }}</span>
               <span class="nm t-black">{{ g.name }}</span>
@@ -612,11 +609,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 0.6rem;
 }
 @media (hover: hover) and (pointer: fine) {
-  /* 滑鼠移到後面的卡片上：那張往上探出來一點（預覽） */
-  /* 滑鼠移到旁邊的卡片上：那張變亮一點（預覽） */
-  .card.peek::after {
-    opacity: calc(var(--fade, 0) * 0.35);
-  }
   .card {
     transition:
       transform 460ms var(--ease-out),

@@ -96,8 +96,8 @@ async function runExit() {
   const scale = Math.min((H * 0.72) / r.height, (W * 0.5) / r.width)
   const w = r.width * scale
   const h = r.height * scale
-  fl.querySelector('.name')?.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.8)' }], { duration: 420, easing: ease, fill: 'forwards' })
-  await fl.animate([{ clipPath: 'inset(0px 0px round 0rem)' }, { clipPath: `inset(${(H - h) / 2}px ${(W - w) / 2}px round 0.6rem)` }], { duration: 440, easing: ease, fill: 'forwards' }).finished
+  fl.querySelector('.name')?.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.8)' }], { duration: 300, easing: ease, fill: 'forwards' })
+  await fl.animate([{ clipPath: 'inset(0px 0px round 0rem)' }, { clipPath: `inset(${(H - h) / 2}px ${(W - w) / 2}px round 0.6rem)` }], { duration: 300, easing: ease, fill: 'forwards' }).finished
   // 3. 換成一張真的卡片（背面朝上），翻回正面，飛回原位
   launch.rect = { left: r.left, top: r.top, width: r.width, height: r.height }
   showFill.value = false
@@ -119,7 +119,7 @@ async function runExit() {
       { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotateY(0deg) rotateZ(2deg)`, offset: 0.55 },
       { transform: 'translate(0, 0) scale(1) rotateY(0deg) rotateZ(0deg)' },
     ],
-    { duration: 820, easing: ease, fill: 'forwards' },
+    { duration: 540, easing: ease, fill: 'forwards' },
   ).finished
   finishExit()
 }
