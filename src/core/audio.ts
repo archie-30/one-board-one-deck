@@ -31,8 +31,12 @@ function audio(): AudioContext | null {
 function master(ac: AudioContext): AudioNode {
   if (!out) {
     const comp = ac.createDynamicsCompressor()
-    comp.threshold.value = -12
-    comp.ratio.value = 3
+    // 當作限幅器：很多聲音疊在一起時把峰值壓住，不會破音
+    comp.threshold.value = -10
+    comp.knee.value = 6
+    comp.ratio.value = 12
+    comp.attack.value = 0.002
+    comp.release.value = 0.12
     out = ac.createGain()
     out.connect(comp).connect(ac.destination)
   }
@@ -80,15 +84,30 @@ export function warmSounds() {
   idle(step)
 }
 
+/** 同一種聲音正在響幾個、上次什麼時候播的（發牌時很多張牌同時落地，疊在一起會破音） */
+const active = new Map<SfxName, number>()
+const lastAt = new Map<SfxName, number>()
+/** 同一種聲音兩次至少隔多久（毫秒）；太近就不再疊一個 */
+const MIN_GAP: Partial<Record<SfxName, number>> = { deal: 60, card: 50, collect: 50, stone: 40, piece: 40 }
+
 export function playSound(sound: Sound) {
   const ac = audio()
   if (!ac) return
+  const now = performance.now()
+  if (now - (lastAt.get(sound) ?? -1e9) < (MIN_GAP[sound] ?? 0)) return
+  lastAt.set(sound, now)
   const k = ((turn.get(sound) ?? 0) + 1) % VARIANTS
   turn.set(sound, k)
   const src = ac.createBufferSource()
   src.buffer = variant(ac, sound, k)
   // 音樂音不變音高；其他聲音每次差一點點
   if (!MUSICAL.has(sound)) src.playbackRate.value = 1 + (Math.random() * 2 - 1) * 0.04
-  src.connect(master(ac))
+  // 同一種聲音同時響越多個，每個就越小聲，加起來才不會爆
+  const n = active.get(sound) ?? 0
+  active.set(sound, n + 1)
+  const g = ac.createGain()
+  g.gain.value = 1 / Math.sqrt(1 + n)
+  src.connect(g).connect(master(ac))
+  src.onended = () => active.set(sound, Math.max(0, (active.get(sound) ?? 1) - 1))
   src.start(ac.currentTime + 0.002)
 }
