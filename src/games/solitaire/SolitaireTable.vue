@@ -65,6 +65,13 @@ function sync(instant = false) {
   const moved: Card[] = []
   for (const [c, w] of where) if (prevWhere.size && prevWhere.get(c) !== w) moved.push(c)
   moved.sort((a, b) => poses.get(a)!.z - poses.get(b)!.z)
+  // 牌堆翻完、翻回去重來：整疊收攏 → 拿起來翻面 → 放回牌堆（不是一張張亂飛）
+  if (!instant && moved.length > 1 && moved.every((c) => prevWhere.get(c) === 'waste' && where.get(c) === 'stock')) {
+    for (const [c, pose] of poses) if (!moved.includes(c)) stage.move(c, pose, { dur: 200 })
+    recycleAnimation(moved, poses)
+    prevWhere = where
+    return
+  }
   for (const [c, pose] of poses) {
     const k = moved.indexOf(c)
     if (k >= 0 && !instant) {
@@ -73,6 +80,34 @@ function sync(instant = false) {
     } else stage.move(c, pose, { dur: 200, instant })
   }
   prevWhere = where
+}
+
+/** 牌堆重來的動畫：moved 依「在牌堆裡由下到上」排好 */
+let recycleTimer = 0
+function recycleAnimation(moved: Card[], poses: Map<Card, Pose>) {
+  const W = L.value.waste
+  const n = moved.length
+  const busyFor = 260 + n * 9 + 460
+  dealing.value = true
+  dealingUntil = performance.now() + busyFor
+  // 1. 收攏：翻出來的牌（正面朝上）滑成一疊整齊的牌，最後翻出來的那張在最上面
+  //    在牌堆裡最下面的那張，就是原本翻出來最上面的那張
+  moved.forEach((c, j) => {
+    const top = n - 1 - j
+    stage.move(c, { x: W.x - top * 0.25, y: W.y - top * 0.35, r: (Math.random() - 0.5) * 2, s: 1, f: 1, z: 700 + top }, { dur: 200, delay: j * 4 })
+  })
+  playSound('collect')
+  // 2. 整疊拿起來翻面放回牌堆：從原本的最上面開始，每張隔一點點時間，飛的途中翻面
+  window.clearTimeout(recycleTimer)
+  recycleTimer = window.setTimeout(() => {
+    moved.forEach((c, j) => {
+      const v = Math.random()
+      stage.move(c, poses.get(c)!, { delay: j * 9 + v * 10, dur: 380 * (0.94 + v * 0.12), arc: L.value.ch * 0.1, flightZ: 900 + j, land: j === n - 1 })
+    })
+    window.setTimeout(() => {
+      dealing.value = false
+    }, n * 9 + 460)
+  }, 260)
 }
 
 /** 發牌：先全部蓋著疊在牌堆位置，一張一張蓋著飛到桌面；發完再把每疊最上面那張翻開；全部跑完才能操作 */
@@ -152,6 +187,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   window.clearTimeout(dealTimer)
+  window.clearTimeout(recycleTimer)
   observer?.disconnect()
   stage.destroy()
   window.removeEventListener('pointermove', onMove)
