@@ -254,7 +254,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </p>
             <div v-if="quick" class="quick" :title="quick.help">
               <span class="t-label">{{ quick.label }}</span>
-              <Tabs :choices="quick.choices" :value="quickValue" @change="setQuick" />
+              <Tabs :choices="quick.choices" :value="quickValue" hot="master" @change="setQuick" />
             </div>
           </div>
         </div>

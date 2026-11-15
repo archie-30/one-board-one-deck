@@ -34,7 +34,7 @@ function set(key: string, value: string | boolean) {
             </p>
             <p class="text-[0.78rem] leading-snug text-ink-2">{{ def.help }}</p>
           </div>
-          <Tabs v-if="def.type === 'choice'" :choices="def.choices" :value="String(values[def.key])" class="ctl" @change="(v) => set(def.key, v)" />
+          <Tabs v-if="def.type === 'choice'" :choices="def.choices" :value="String(values[def.key])" :hot="def.key === 'difficulty' ? 'master' : undefined" class="ctl" @change="(v) => set(def.key, v)" />
           <Tabs v-else :choices="onOff" :value="values[def.key] ? 'on' : 'off'" class="ctl" @change="(v) => set(def.key, v === 'on')" />
         </li>
       </ul>
