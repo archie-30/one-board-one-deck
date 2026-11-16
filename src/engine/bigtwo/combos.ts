@@ -101,8 +101,9 @@ export function identifyCombo(cardsIn: readonly Card[], opts: BigTwoOptions): Co
   if (n === 1) return { type: 'single', cards, key: [rankOf(cards[0]), sp(cards[0])] }
   if (n === 2) {
     if (rankOf(cards[0]) !== rankOf(cards[1])) return null
-    // 兩副牌：同花色同數字的「雙胞胎對子」比任何一般對子大（最前面多一項 1）
-    if (opts.decks === 2) return { type: 'pair', cards, key: [suitOf(cards[0]) === suitOf(cards[1]) ? 1 : 0, rankOf(cards[0]), sp(cards[1])] }
+    // 兩副牌：對子先比數字；數字一樣時，同花色同數字的「雙胞胎對子」比一般對子大（中間多一項 1）
+    // 例如兩張梅花 3 壓得過黑桃 3＋紅心 3，但壓不過一對 4
+    if (opts.decks === 2) return { type: 'pair', cards, key: [rankOf(cards[0]), suitOf(cards[0]) === suitOf(cards[1]) ? 1 : 0, sp(cards[1])] }
     return { type: 'pair', cards, key: [rankOf(cards[0]), sp(cards[1])] }
   }
   if (n === 3) {
@@ -162,7 +163,7 @@ export function canBeat(play: Combo, prev: Combo, opts: BigTwoOptions): boolean 
 export function comboStrength(combo: Combo): number {
   const cls = FIVE_CLASS[combo.type]
   if (cls !== undefined) return 100 + cls * 60 + combo.key[0] * 4 + (combo.key[1] ?? 0)
-  // 兩副牌的對子：[雙胞胎, 點數, 花色]，雙胞胎再加一截
-  if (combo.type === 'pair' && combo.key.length === 3) return combo.key[0] * 60 + combo.key[1] * 4 + combo.key[2]
+  // 兩副牌的對子：[點數, 雙胞胎, 花色]，同點數裡雙胞胎最大
+  if (combo.type === 'pair' && combo.key.length === 3) return combo.key[0] * 4 + combo.key[1] * 3.5 + combo.key[2] * 0.8
   return combo.key[0] * 4 + (combo.key[1] ?? 0)
 }

@@ -392,13 +392,22 @@ describe('瘋狂大老二（兩副牌）', () => {
     const all = s.hands.flat()
     expect(new Set(all).size).toBe(104)
   })
-  it('雙胞胎對子（同花色同數字）比任何一般對子大；雙胞胎之間再比點數花色', () => {
+  it('雙胞胎對子：先比數字，同數字時雙胞胎比一般對子大；兩張梅花 3 壓不過一對 4', () => {
     const t3 = cx([parseCard('C3'), twin('C3')])
-    const p2 = cx(parseCards('S2 H2'))
-    expect(canBeat(t3, p2, X)).toBe(true)
-    expect(canBeat(p2, t3, X)).toBe(false)
+    // 同數字：雙胞胎壓得過黑桃 3＋紅心 3（就算一般對子的花色比較大）
+    const p3 = cx(parseCards('S3 H3'))
+    expect(canBeat(t3, p3, X)).toBe(true)
+    expect(canBeat(p3, t3, X)).toBe(false)
+    // 數字比較小的雙胞胎壓不過比較大的一般對子
+    const p4 = cx(parseCards('C4 D4'))
+    expect(canBeat(t3, p4, X)).toBe(false)
+    expect(canBeat(p4, t3, X)).toBe(true)
+    expect(canBeat(t3, cx(parseCards('S2 H2')), X)).toBe(false)
+    // 雙胞胎之間：先比數字，再比花色
     const t4 = cx([parseCard('D4'), twin('D4')])
     expect(canBeat(t4, t3, X)).toBe(true)
+    const s3 = cx([parseCard('S3'), twin('S3')])
+    expect(canBeat(s3, t3, X)).toBe(true)
   })
   it('關鍵最大張一模一樣：後出的壓不過（先出為主）', () => {
     const a = cx([parseCard('SK')])
