@@ -1,5 +1,6 @@
 // 電腦對手的名字：玩家可以自己取（主畫面「幫電腦取名字」）。存檔 obod.names.v1。
-// 規則：20 個名字不能重複；「恢復預設」回到固定的 20 個預設名字；留空就用那一位的預設名字（被別人用掉了才從名字庫抽）；有不雅字眼的直接換成名字庫的名字（不提示）；長度有上限。
+// 規則：30 位對手，名字可以重複；「恢復預設」回到固定的預設名字；留空就用那一位的預設名字；有不雅字眼的直接換成名字庫的名字（不提示）；長度有上限。
+// 舊存檔只有 20 個名字（以前只有 20 位）：後面補上新對手的預設名字。
 import { reactive, watch } from 'vue'
 import { BLOCKED_WORDS, NAME_MAX_WIDTH, NAME_POOL } from '@/data/namePool'
 import { OPPONENTS } from '@/data/names'
@@ -9,11 +10,13 @@ const COUNT = OPPONENTS.length
 const DEFAULTS = OPPONENTS.map((o) => o.name)
 
 const saved = loadSave<{ names: string[] }>('names', { names: [] })
-export const opponentNames = reactive<{ names: string[] }>({ names: valid(saved.names) ? saved.names.slice() : DEFAULTS.slice() })
+export const opponentNames = reactive<{ names: string[] }>({ names: upgrade(saved.names) })
 watch(opponentNames, (v) => writeSave('names', { names: v.names }), { deep: true })
 
-function valid(list: unknown): list is string[] {
-  return Array.isArray(list) && list.length === COUNT && list.every((n) => typeof n === 'string' && n.length > 0) && new Set(list).size === COUNT
+/** 讀回的名字：格式不對就用預設；比現在的對手少（舊版 20 位）就補上預設名字 */
+function upgrade(list: unknown): string[] {
+  if (!Array.isArray(list) || !list.length || !list.every((n) => typeof n === 'string' && n.length > 0)) return DEFAULTS.slice()
+  return DEFAULTS.map((d, i) => (list[i] as string | undefined) ?? d).slice(0, COUNT)
 }
 
 const charWidth = (ch: string) => (/[\u0000-ÿ]/.test(ch) ? 1 : 2)
@@ -41,26 +44,16 @@ export function isBlocked(name: string): boolean {
   return BLOCKED_WORDS.some((w) => flat.includes(w))
 }
 
-/** 從名字庫抽一個沒被用掉的名字 */
-function draw(taken: Set<string>): string {
-  const free = NAME_POOL.filter((n) => !taken.has(n))
-  if (free.length) return free[Math.floor(Math.random() * free.length)]
-  for (let k = 1; ; k++) if (!taken.has(`電腦${k}`)) return `電腦${k}`
+/** 從名字庫隨便抽一個 */
+const draw = () => NAME_POOL[Math.floor(Math.random() * NAME_POOL.length)]
+
+/** 改第 i 位的名字（可以跟別人重複）：留空就用他的預設名字；有不雅字眼就換成名字庫的名字 */
+export function setOpponentName(i: number, raw: string) {
+  const name = cleanName(raw)
+  opponentNames.names[i] = !name ? DEFAULTS[i] : isBlocked(name) ? draw() : name
 }
 
-export type SetNameResult = 'ok' | 'duplicate'
-
-/** 改第 i 位的名字：留空或有不雅字眼就自動取名；跟別人重複就不改並回報 */
-export function setOpponentName(i: number, raw: string): SetNameResult {
-  const others = new Set(opponentNames.names.filter((_, k) => k !== i))
-  let name = cleanName(raw)
-  if (name && others.has(name)) return 'duplicate'
-  if (!name || isBlocked(name)) name = others.has(DEFAULTS[i]) ? draw(others) : DEFAULTS[i]
-  opponentNames.names[i] = name
-  return 'ok'
-}
-
-/** 恢復預設：回到固定的 20 個預設名字 */
+/** 恢復預設：回到固定的預設名字 */
 export function resetOpponentNames() {
   opponentNames.names = DEFAULTS.slice()
 }

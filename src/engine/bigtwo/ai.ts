@@ -2,7 +2,7 @@
 import { nextRandom, type RngState } from '../common/rng'
 import { PRESET_STYLES, type BigTwoStyle } from '../common/personas'
 import type { Difficulty } from '../common/types'
-import { CLUB_THREE, RANK_2, RANK_A, rankOf, suitOf, type Card } from './cards'
+import { RANK_2, RANK_A, faceOf, isClubThree, rankOf, suitOf, type Card } from './cards'
 import { canBeat, comboStrength, identifyCombo, isBomb, isFiveCard, type Combo } from './combos'
 import { PLAYER_COUNT, type BigTwoAction, type BigTwoState } from './game'
 import type { BigTwoOptions } from './options'
@@ -24,64 +24,79 @@ const STRAIGHT_RANKS: number[][] = [
 /** 小順（三張連號）可能的點數組合 */
 const SMALL_STRAIGHT_RANKS: number[][] = [[RANK_A, RANK_2, 0], [RANK_2, 0, 1], ...Array.from({ length: 10 }, (_, i) => [i, i + 1, i + 2])]
 
-/** 列出手牌能組出的所有合法牌型 */
+/** 每種牌面只留一張（兩副牌時同一張牌有兩張，組出來的牌型一模一樣，不必算兩次） */
+const uniqFaces = (cards: readonly Card[]): Card[] => {
+  const seen = new Set<number>()
+  return cards.filter((c) => (seen.has(faceOf(c)) ? false : (seen.add(faceOf(c)), true)))
+}
+/** 同點數的牌取 k 張的組合，牌面一樣的組合只留一個 */
+const groupsOf = (group: readonly Card[], k: number): Card[][] => {
+  const seen = new Set<string>()
+  return subsets(group, k).filter((g) => {
+    const sig = g.map(faceOf).sort((a, b) => a - b).join(',')
+    return seen.has(sig) ? false : (seen.add(sig), true)
+  })
+}
+
+/** 列出手牌能組出的所有合法牌型（兩副牌時牌面一樣的只列一次） */
 export function listCombos(hand: readonly Card[], opts: BigTwoOptions): Combo[] {
   const byRank = new Map<number, Card[]>()
   for (const c of hand) byRank.set(rankOf(c), [...(byRank.get(rankOf(c)) ?? []), c])
+  const byRankU = new Map<number, Card[]>()
+  for (const [r, g] of byRank) byRankU.set(r, uniqFaces(g))
+  const kickers = uniqFaces(hand)
   const out: Combo[] = []
+  const seen = new Set<string>()
   const push = (cards: Card[]) => {
+    const sig = cards.map(faceOf).sort((a, b) => a - b).join(',')
+    if (seen.has(sig)) return
+    seen.add(sig)
     const combo = identifyCombo(cards, opts)
     if (combo) out.push(combo)
   }
 
-  for (const c of hand) push([c])
-  for (const group of byRank.values()) {
-    for (const pair of subsets(group, 2)) push(pair)
-    if (opts.allowTriple) for (const t of subsets(group, 3)) push(t)
+  for (const c of kickers) push([c])
+  const pairsOf = new Map<number, Card[][]>()
+  for (const [rank, group] of byRank) {
+    pairsOf.set(rank, groupsOf(group, 2))
+    for (const pair of pairsOf.get(rank)!) push(pair)
+    if (opts.allowTriple) for (const t of groupsOf(group, 3)) push(t)
   }
   for (const [rank, group] of byRank) {
-    for (const triple of subsets(group, 3)) {
-      for (const [r2, g2] of byRank) {
+    for (const triple of groupsOf(group, 3)) {
+      for (const [r2, pairs] of pairsOf) {
         if (r2 === rank) continue
-        for (const pair of subsets(g2, 2)) push([...triple, ...pair])
+        for (const pair of pairs) push([...triple, ...pair])
       }
     }
-    if (group.length === 4) for (const kicker of hand) if (rankOf(kicker) !== rank) push([...group, kicker])
+    for (const four of groupsOf(group, 4)) for (const kicker of kickers) if (rankOf(kicker) !== rank) push([...four, kicker])
   }
-  for (const ranks of STRAIGHT_RANKS) {
-    const groups = ranks.map((r) => byRank.get(r) ?? [])
-    if (groups.some((g) => g.length === 0)) continue
-    let partial: Card[][] = [[]]
-    for (const g of groups) partial = partial.flatMap((p) => g.map((c) => [...p, c]))
-    for (const cards of partial) push(cards)
-  }
-  if (opts.allowSmallStraight) {
-    for (const ranks of SMALL_STRAIGHT_RANKS) {
-      const groups = ranks.map((r) => byRank.get(r) ?? [])
+  const runs = (rankLists: number[][]) => {
+    for (const ranks of rankLists) {
+      const groups = ranks.map((r) => byRankU.get(r) ?? [])
       if (groups.some((g) => g.length === 0)) continue
       let partial: Card[][] = [[]]
       for (const g of groups) partial = partial.flatMap((p) => g.map((c) => [...p, c]))
       for (const cards of partial) push(cards)
     }
   }
+  runs(STRAIGHT_RANKS)
+  if (opts.allowSmallStraight) runs(SMALL_STRAIGHT_RANKS)
   if (opts.allowTwoPair) {
-    const pairRanks = [...byRank.entries()].filter(([, g]) => g.length >= 2)
+    const pairRanks = [...pairsOf.entries()].filter(([, ps]) => ps.length)
     for (let i = 0; i < pairRanks.length; i++) {
       for (let j = i + 1; j < pairRanks.length; j++) {
-        const [r1, g1] = pairRanks[i]
-        const [r2, g2] = pairRanks[j]
-        const kickers = hand.filter((c) => rankOf(c) !== r1 && rankOf(c) !== r2)
-        for (const p1 of subsets(g1, 2)) for (const p2 of subsets(g2, 2)) for (const k of kickers) push([...p1, ...p2, k])
+        const [r1, ps1] = pairRanks[i]
+        const [r2, ps2] = pairRanks[j]
+        const ks = kickers.filter((c) => rankOf(c) !== r1 && rankOf(c) !== r2)
+        for (const p1 of ps1) for (const p2 of ps2) for (const k of ks) push([...p1, ...p2, k])
       }
     }
   }
   if (opts.allowFlush) {
     for (let suit = 0; suit < 4; suit++) {
       const same = hand.filter((c) => suitOf(c) === suit)
-      for (const five of subsets(same, 5)) {
-        const combo = identifyCombo(five, opts)
-        if (combo?.type === 'flush') out.push(combo)
-      }
+      for (const five of subsets(same, 5)) push(five)
     }
   }
   return out
@@ -91,7 +106,7 @@ export function listCombos(hand: readonly Card[], opts: BigTwoOptions): Combo[] 
 export function legalPlays(state: BigTwoState): Combo[] {
   if (state.winner >= 0) return []
   let combos = listCombos(state.hands[state.turn], state.options)
-  if (state.firstTurn) combos = combos.filter((c) => c.cards.includes(CLUB_THREE))
+  if (state.firstTurn) combos = combos.filter((c) => c.cards.some(isClubThree))
   const table = state.table
   if (table) combos = combos.filter((c) => canBeat(c, table.combo, state.options))
   return combos

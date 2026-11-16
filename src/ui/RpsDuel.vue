@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 猜拳決定先後手：你和對手面對面，出拳時兩個人一起甩手三下，然後亮出手勢。
-import { ref } from 'vue'
+// 分出勝負後結果停一下（約 1.3 秒）就自動開始，不用再按「開始」。
+import { onBeforeUnmount, ref } from 'vue'
 import { playSound } from '@/core/audio'
 import type { Opponent } from '@/core/opponents'
 import { PLAYER_LOOK } from '@/data/names'
@@ -39,7 +40,16 @@ function timeout() {
   round.value++
   playSound('error')
   moods.value = ['sad', 'happy']
+  autoStart()
 }
+
+/** 結果停一下就自動開始 */
+let startTimer = 0
+function autoStart() {
+  window.clearTimeout(startTimer)
+  startTimer = window.setTimeout(finish, 1300)
+}
+onBeforeUnmount(() => window.clearTimeout(startTimer))
 
 function choose(hand: RpsHand) {
   if (phase.value !== 'pick') return
@@ -60,10 +70,13 @@ function choose(hand: RpsHand) {
         phase.value = 'pick'
         moods.value = ['idle', 'idle']
       }, 1100)
+    else autoStart()
   }, 720)
 }
 
 function finish() {
+  window.clearTimeout(startTimer)
+  if (phase.value !== 'show') return
   const win = outcome.value === 1
   timedOut.value = false
   phase.value = 'pick'
@@ -88,19 +101,16 @@ function finish() {
       </p>
       <div class="side">
         <span v-if="phase === 'show'" :key="`t${round}`" class="reveal pop"><Icon :name="theirs" /></span>
-        <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="opponent.look" :mood="moods[1]" flip /></span>
+        <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="opponent.look" :mood="moods[1]" flip talk /></span>
         <span class="t-black nm">{{ opponent.name }}</span>
       </div>
     </div>
     <template #actions>
-      <template v-if="phase !== 'show' || outcome === 0">
-        <Btn class="back" icon="back" size="sm" :disabled="phase !== 'pick'" @click="emit('back')">{{ S.common.resumeBack }}</Btn>
-        <button v-for="hand in RPS_HANDS" :key="hand" class="hand" :disabled="phase !== 'pick'" @click="choose(hand)">
-          <span class="ic"><Icon :name="hand" /></span>
-          <span class="t-black">{{ S.rps[hand] }}</span>
-        </button>
-      </template>
-      <Btn v-else class="rise" tone="red" size="lg" arrow @click="finish">{{ S.rps.go }}</Btn>
+      <Btn class="back" icon="back" size="sm" :disabled="phase !== 'pick'" @click="emit('back')">{{ S.common.resumeBack }}</Btn>
+      <button v-for="hand in RPS_HANDS" :key="hand" class="hand" :disabled="phase !== 'pick'" @click="choose(hand)">
+        <span class="ic"><Icon :name="hand" /></span>
+        <span class="t-black">{{ S.rps[hand] }}</span>
+      </button>
     </template>
   </Dialog>
 </template>

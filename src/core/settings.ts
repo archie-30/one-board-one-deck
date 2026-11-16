@@ -18,12 +18,15 @@ interface Settings {
   reduceMotion: boolean
   /** 切走分頁／App、離開視窗時自動暫停並保存進度 */
   autoPause: boolean
+  /** 開遊戲後第一次點畫面就自動全螢幕（瀏覽器規定要先點一下才能全螢幕） */
+  fullscreen: boolean
 }
 
 interface Stats {
   gomoku: { wins: number; losses: number; draws: number }
   /** best：所有難度裡最高的；bestBy：各難度各自的最高分 */
   bigtwo: { rounds: number; wins: number; totals: number[]; best: number; bestBy: Record<string, number> }
+  crazybigtwo: { rounds: number; wins: number; totals: number[]; best: number; bestBy: Record<string, number> }
   redpoint: { rounds: number; wins: number; best: number }
   go: { wins: number; losses: number }
   solitaire: { played: number; wins: number; best: number; fastest: number; bestBy: Record<string, number> }
@@ -32,11 +35,12 @@ interface Stats {
   othello: { wins: number; losses: number; draws: number }
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true }))
 
 const STATS_DEFAULT: Stats = {
   gomoku: { wins: 0, losses: 0, draws: 0 },
   bigtwo: { rounds: 0, wins: 0, totals: [0, 0, 0, 0], best: 0, bestBy: {} },
+  crazybigtwo: { rounds: 0, wins: 0, totals: [0, 0, 0, 0], best: 0, bestBy: {} },
   redpoint: { rounds: 0, wins: 0, best: 0 },
   go: { wins: 0, losses: 0 },
   solitaire: { played: 0, wins: 0, best: 0, fastest: 0, bestBy: {} },
@@ -61,9 +65,9 @@ if (stats.bigtwo.best > 0 && !Object.keys(stats.bigtwo.bestBy).length) stats.big
 if (stats.solitaire.best > 0 && !Object.keys(stats.solitaire.bestBy).length) stats.solitaire.bestBy.easy = stats.solitaire.best
 
 /** 某個難度的最高分 */
-export const bestAt = (game: 'bigtwo' | 'solitaire', level: string): number => stats[game].bestBy[level] ?? 0
+export const bestAt = (game: 'bigtwo' | 'crazybigtwo' | 'solitaire', level: string): number => stats[game].bestBy[level] ?? 0
 /** 記下一個分數：這個難度的最高分、所有難度裡的最高分都更新 */
-export function recordBest(game: 'bigtwo' | 'solitaire', level: string, value: number) {
+export function recordBest(game: 'bigtwo' | 'crazybigtwo' | 'solitaire', level: string, value: number) {
   const g = stats[game]
   g.bestBy[level] = Math.max(g.bestBy[level] ?? 0, value)
   g.best = Math.max(g.best, value)

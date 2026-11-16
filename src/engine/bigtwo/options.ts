@@ -30,6 +30,13 @@ export interface BigTwoOptions {
   doubleOverTen: boolean
   /** 計分：手上每剩一張 2 再加倍 */
   doubleTwos: boolean
+  /**
+   * 用幾副牌：1 = 大老二；2 = 瘋狂大老二（104 張、每人 26 張）。
+   * 兩副牌時：兩張同花色同數字的「雙胞胎對子」比任何一般對子大；
+   * 關鍵最大張（數字＋花色）一模一樣的牌型，後出的壓不過先出的（先出為主）；
+   * 計分改成剩 20 張以上才加倍、2 不加倍（兩副牌最多 8 張 2）。
+   */
+  decks?: 1 | 2
 }
 
 export const DEFAULT_BIGTWO_OPTIONS: BigTwoOptions = {

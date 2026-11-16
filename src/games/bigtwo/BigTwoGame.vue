@@ -2,7 +2,7 @@
 // 大老二牌桌：你在下方，三位隨機入座的對手在左、上、右。
 // 每張牌都是獨立的精靈（cardStage.ts），發牌、出牌、收牌都是一張一張飛。
 import { useGrace } from '@/core/grace'
-import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
@@ -22,7 +22,6 @@ import Burst from '@/ui/art/Burst.vue'
 import CardArt from '@/ui/art/Card.vue'
 import type { Mood as KidMood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
-import Tabs from '@/ui/Tabs.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
@@ -53,7 +52,10 @@ interface Saved {
 }
 const saved = (props.resume ?? null) as Saved | null
 
-const options = { ...props.options } as unknown as BigTwoOptions
+/** 瘋狂大老二：同一個畫面，用兩副牌（104 張、每人 26 張） */
+const crazy = props.game.id === 'crazybigtwo'
+const options = { ...props.options, decks: crazy ? 2 : 1 } as unknown as BigTwoOptions
+const record = crazy ? stats.crazybigtwo : stats.bigtwo
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
 /** 難度：只決定電腦多強 */
@@ -62,7 +64,9 @@ const difficulty = asBigTwoDifficulty(props.options.difficulty)
 const level = bigtwoLevel(difficulty)
 const T = S.bigtwo
 const ME = 0
-const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
+const ALL: Card[] = Array.from({ length: crazy ? 104 : 52 }, (_, i) => i)
+/** 發牌時每張牌的間隔（兩副牌發快一點，總時間差不多） */
+const DEAL_GAP = crazy ? 13 : 24
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
 // 困難模式不會出現新手打法的電腦
@@ -101,12 +105,10 @@ const menuOpen = ref(false)
 const resultOpen = ref(false)
 /** 這一局開局時每個人的牌（讀回沒有這筆的舊存檔時是 null） */
 const startHands = shallowRef<Card[][] | null>(saved ? (saved.startHands ?? null) : state.value.hands)
-/** 結算後回到牌桌看牌：每個人原本的牌／最後剩下的牌 */
+/** 結算後回到牌桌檢視牌組：每個人開局的牌，已經出掉的蓋一層淡色（沒有開局手牌的舊存檔只看剩下的牌） */
 const reviewOpen = ref(false)
-const reviewMode = ref<'start' | 'end'>('end')
 function openReview() {
   resultOpen.value = false
-  reviewMode.value = startHands.value ? 'start' : 'end'
   reviewOpen.value = true
 }
 const scores = ref(scoreBigTwo(state.value))
@@ -125,7 +127,7 @@ stage.onLand = () => {
 const ch = computed(() => (layout.value.cw * 108) / 78)
 
 function model(): TableModel {
-  return { hands: state.value.hands, selected: selected.value, pile: pile.value, discard: discard.value, gathered: gathered.value }
+  return { hands: state.value.hands, selected: selected.value, pile: pile.value, discard: discard.value, gathered: gathered.value, deck: ALL.length }
 }
 
 interface Flight {
@@ -179,11 +181,11 @@ function deal() {
   const hands = state.value.hands
   const order = new Map<Card, number>()
   hands.forEach((h, seat) => h.forEach((c, k) => order.set(c, k * 4 + seat)))
-  sync({ cards: ALL, stagger: 24, dur: 320, arc: 16, order: (c) => order.get(c) ?? 0 })
+  sync({ cards: ALL, stagger: DEAL_GAP, dur: 320, arc: 16, order: (c) => order.get(c) ?? 0 })
   later(() => {
     phase.value = 'play'
     nextTurn()
-  }, 52 * 24 + 420)
+  }, ALL.length * DEAL_GAP + 420)
 }
 
 function nextTurn() {
@@ -196,8 +198,8 @@ function nextTurn() {
   const opp = opponents[s.turn - 1]
   moods[s.turn] = 'think'
   const st = bigtwoAt(opp.persona.bigtwo, level, opp.id)
-  // 電腦每一手想一下再出：約 1.5～3.8 秒（會算的、愛保留的想比較久；困難再多想一點）
-  const think = 1400 + st.skill * 800 + (1 - st.aggression) * 500 + extraThink(level) * 0.5 + Math.random() * 700
+  // 電腦每一手想一下再出：約 2.1～4.8 秒（會算的、愛保留的想比較久；困難再多想一點）
+  const think = 1900 + st.skill * 1000 + (1 - st.aggression) * 600 + extraThink(level) * 0.6 + Math.random() * 800
   later(() => {
     let action: BigTwoAction
     ;[action, rng] = chooseBigTwoAction(state.value, st, rng)
@@ -272,10 +274,10 @@ function finish() {
   const s = state.value
   scores.value = scoreBigTwo(s)
   tableTotals.value = scores.value.map((sc, p) => tableTotals.value[p] + sc.points)
-  stats.bigtwo.rounds++
-  if (s.winner === ME) stats.bigtwo.wins++
-  stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
-  recordBest('bigtwo', difficulty, scores.value[ME].points)
+  record.rounds++
+  if (s.winner === ME) record.wins++
+  record.totals[ME] = (record.totals[ME] ?? 0) + scores.value[ME].points
+  recordBest(crazy ? 'crazybigtwo' : 'bigtwo', difficulty, scores.value[ME].points)
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')
@@ -304,7 +306,7 @@ function newRound() {
     state.value = dealBigTwo(seed, options)
     startHands.value = state.value.hands
     deal()
-  }, 52 * 7 + 480)
+  }, ALL.length * 7 + 480)
 }
 
 // ── 保存進度並退出 ──
@@ -377,15 +379,23 @@ function playSelected() {
 
 // 過牌：按一下就過（大老二不用二次確認）
 /** 自動過牌（規則設定可關，預設開）：桌上有牌、而你手上確定沒有任何能壓過的牌，就提示一下再幫你過牌 */
+// 你正在選牌時不會幫你過（免得選到一半牌不見了）：等你把選起的牌放回去再過
 function autoPass() {
   const s = state.value
   if (props.options.autoPass === false || !s.table || legalPlays(s).length) return
   message.value = T.autoPassed
   later(() => {
     if (state.value !== s || !canPass.value || props.options.autoPass === false) return
-    selected.value = []
+    if (selected.value.length) {
+      const stop = watch(selected, (v) => {
+        if (v.length) return
+        stop()
+        if (state.value === s && canPass.value) autoPass()
+      })
+      return
+    }
     act({ type: 'pass', player: ME })
-  }, 1100)
+  }, 600)
 }
 function pass() {
   if (!canPass.value) return
@@ -407,8 +417,8 @@ function onTimeout() {
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 const doubleNotes = computed(() => {
   const notes: string[] = []
-  if (options.doubleOverTen) notes.push(T.result.overTen)
-  if (options.doubleTwos) notes.push(T.result.twos)
+  if (options.doubleOverTen) notes.push(crazy ? S.crazybigtwo.overTwenty : T.result.overTen)
+  if (options.doubleTwos && !crazy) notes.push(T.result.twos)
   return notes.length ? notes.join('') : T.result.noDoubles
 })
 const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
@@ -418,7 +428,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.winner < 0 && state.turn === p" />
-    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0 && !(grace && state.turn === 0)" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0 && !(grace && state.turn === 0)" :paused="menuOpen || resultOpen" :seconds="crazy ? TURN_SECONDS.crazy : TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 桌面中央的框 -->
     <!-- 每個人這一輪剛出的牌（小張；一輪結束就清掉） -->
     <template v-for="(seat, p) in layout.seats" :key="`last${p}`">
@@ -437,7 +447,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         :class="[`s${p}`, { active: phase === 'play' && state.turn === p }]"
         :style="{ left: `${seat.kid.x - seat.kid.w / 2}px`, top: `${seat.kid.y - seat.kid.w}px`, width: `${seat.kid.w}px`, height: `${seat.kid.w}px` }"
       >
-        <Avatar :look="looks[p]" :mood="moods[p]" :flip="p === 1" />
+        <Avatar :look="looks[p]" :mood="moods[p]" :flip="p === 1" :talk="p !== ME" />
       </div>
       <div v-if="p !== ME" class="tag" :class="[`al-${seat.label.align}`, { active: phase === 'play' && state.turn === p }]" :style="{ left: `${seat.label.x}px`, top: `${seat.label.y}px` }">
         <span class="nm t-black"><span class="hl" />{{ names[p] }}</span>
@@ -446,7 +456,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <span v-if="passed[p] && p !== ME" :key="`pass${p}`" class="stamp pop" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.passed }}</span>
     </template>
 
-    <!-- 52 張牌 -->
+    <!-- 每一張牌（大老二 52 張、瘋狂大老二 104 張） -->
     <div class="cards">
       <div
         v-for="c in ALL"
@@ -493,32 +503,30 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <section v-if="reviewOpen && phase === 'over' && !resultOpen" class="review">
         <header class="rv-head">
           <span class="t-label">{{ T.review.label }}</span>
-          <Tabs
-            class="small"
-            :choices="startHands ? [{ value: 'start', label: T.review.start }, { value: 'end', label: T.review.end }] : [{ value: 'end', label: T.review.end }]"
-            :value="reviewMode"
-            @change="(v) => (reviewMode = v as 'start' | 'end')"
-          />
+          <span class="t-black rv-title">{{ T.review.open }}</span>
           <button class="rv-close" :aria-label="S.common.close" @click="reviewOpen = false"><Icon name="close" /></button>
         </header>
-        <div v-for="p in [0, 1, 2, 3]" :key="`rv${p}-${reviewMode}`" class="rv-row" :class="{ win: p === state.winner }">
+        <div v-for="p in [0, 1, 2, 3]" :key="`rv${p}`" class="rv-row" :class="{ win: p === state.winner }">
           <span class="rv-av"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'idle'" /></span>
           <span class="rv-name t-black">{{ names[p] }}</span>
           <span class="rv-cards">
-            <template v-if="(reviewMode === 'start' && startHands ? startHands[p] : state.hands[p]).length">
+            <template v-if="(startHands ? startHands[p] : state.hands[p]).length">
+              <!-- 出掉的牌不整張變透明（不然下面那張的框線會透出來），而是蓋一層紙色，牌本身還是實心的 -->
               <svg
-                v-for="(c, k) in reviewMode === 'start' && startHands ? startHands[p] : state.hands[p]"
+                v-for="(c, k) in startHands ? startHands[p] : state.hands[p]"
                 :key="c"
                 viewBox="-2 -2 78 108"
                 class="rv-card"
-                :class="{ gone: reviewMode === 'start' && !state.hands[p].includes(c) }"
                 :style="{ '--k': k }"
-              ><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" /></svg>
+              >
+                <CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" />
+                <rect v-if="!state.hands[p].includes(c)" x="0" y="0" width="70" height="100" rx="6" class="rv-wash" />
+              </svg>
             </template>
-            <span v-else class="rv-done t-black">{{ T.review.done }}</span>
+            <span v-if="!state.hands[p].length" class="rv-done t-black">{{ T.review.done }}</span>
           </span>
         </div>
-        <p class="rv-note" :class="{ off: reviewMode !== 'start' }">{{ T.review.startNote }}</p>
+        <p v-if="startHands" class="rv-note">{{ T.review.startNote }}</p>
       </section>
     </Transition>
 
@@ -556,7 +564,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <b class="t-black">{{ T.result.howTitle }}</b>
         {{ T.result.base }}{{ doubleNotes }}
       </p>
-      <p class="lifetime t-black">{{ T.result.lifetime(signed(stats.bigtwo.totals[ME] ?? 0)) }}</p>
+      <p class="lifetime t-black">{{ T.result.lifetime(signed(record.totals[ME] ?? 0)) }}</p>
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>
@@ -831,9 +839,13 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 .rv-card + .rv-card {
   margin-left: -0.55rem;
 }
-/* 原本的牌裡，已經出掉的那些淡一點 */
-.rv-card.gone {
-  opacity: 0.38;
+/* 已經出掉的牌：蓋一層紙色讓它變淡，牌本身不透明，被下一張壓住的框線就不會透出來 */
+.rv-wash {
+  fill: var(--color-card);
+  opacity: 0.68;
+}
+.rv-title {
+  font-size: 0.95rem;
 }
 @keyframes rv-in {
   from {
@@ -842,6 +854,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   }
 }
 .rv-done {
+  margin-left: 0.6rem;
   font-size: 0.85rem;
   color: var(--color-red);
 }

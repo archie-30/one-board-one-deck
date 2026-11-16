@@ -1,6 +1,6 @@
-// 大老二的牌：0～51 的整數。
-//   點數 = card >> 2（0 = 3、1 = 4 … 10 = K、11 = A、12 = 2，也就是大老二的大小順序）
-//   花色 = card & 3（0 = 梅花、1 = 方塊、2 = 紅心、3 = 黑桃）
+// 大老二的牌：0～51 的整數（瘋狂大老二用兩副牌：52～103 是第二副，牌面 = card % 52）。
+//   點數 = 牌面 >> 2（0 = 3、1 = 4 … 10 = K、11 = A、12 = 2，也就是大老二的大小順序）
+//   花色 = 牌面 & 3（0 = 梅花、1 = 方塊、2 = 紅心、3 = 黑桃）
 
 export type Card = number
 export type Suit = 0 | 1 | 2 | 3
@@ -15,8 +15,12 @@ export const RANK_A = 11
 export const RANK_2 = 12
 export const CLUB_THREE: Card = 0
 
-export const rankOf = (card: Card): number => card >> 2
-export const suitOf = (card: Card): Suit => (card & 3) as Suit
+/** 牌面（兩副牌裡同一張牌的牌面一樣） */
+export const faceOf = (card: Card): Card => card % 52
+export const rankOf = (card: Card): number => faceOf(card) >> 2
+export const suitOf = (card: Card): Suit => (faceOf(card) & 3) as Suit
+/** 是不是梅花 3（兩副牌各有一張） */
+export const isClubThree = (card: Card): boolean => faceOf(card) === CLUB_THREE
 export const makeCard = (rank: number, suit: Suit): Card => rank * 4 + suit
 export const isRed = (card: Card): boolean => suitOf(card) === 1 || suitOf(card) === 2
 
@@ -34,8 +38,9 @@ export function sortCards(cards: readonly Card[], order: SuitOrder): Card[] {
   return cards.slice().sort((a, b) => cardPower(a, order) - cardPower(b, order))
 }
 
-export function fullDeck(): Card[] {
-  return Array.from({ length: 52 }, (_, i) => i)
+/** 一副（或兩副）牌 */
+export function fullDeck(decks = 1): Card[] {
+  return Array.from({ length: 52 * decks }, (_, i) => i)
 }
 
 /** 測試與教學用：'S2'、'H10'、'DA'、'C3' → 牌 */

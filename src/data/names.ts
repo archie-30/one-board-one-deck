@@ -31,6 +31,16 @@ export const OPPONENTS: OpponentProfile[] = [
   { name: '小黑', tag: '深藏不露', look: { shape: 'pill', tone: 'ink', fill: 'stripes' } },
   { name: '阿達', tag: '急性子', look: { shape: 'triangle', tone: 'yellow', fill: 'solid' } },
   { name: '阿蓮', tag: '溫柔難纏', look: { shape: 'half', tone: 'blue', fill: 'stripes' } },
+  { name: '阿傑', tag: '眼明手快', look: { shape: 'pill', tone: 'red', fill: 'solid' } },
+  { name: '小芳', tag: '小心翼翼', look: { shape: 'square', tone: 'blue', fill: 'dots' } },
+  { name: '阿偉', tag: '愛賭一把', look: { shape: 'half', tone: 'ink', fill: 'solid' } },
+  { name: '佩佩', tag: '隨興', look: { shape: 'diamond', tone: 'red', fill: 'stripes' } },
+  { name: '大頭', tag: '算很細', look: { shape: 'circle', tone: 'ink', fill: 'dots' } },
+  { name: '阿翔', tag: '速戰速決', look: { shape: 'triangle', tone: 'blue', fill: 'dots' } },
+  { name: '小琪', tag: '留一手', look: { shape: 'pill', tone: 'yellow', fill: 'stripes' } },
+  { name: '阿國', tag: '固執', look: { shape: 'square', tone: 'red', fill: 'dots' } },
+  { name: '惠美', tag: '見機行事', look: { shape: 'half', tone: 'card', fill: 'solid' } },
+  { name: '阿德', tag: '老實', look: { shape: 'diamond', tone: 'card', fill: 'stripes' } },
 ]
 
 export const OPPONENT_NAMES = OPPONENTS.map((o) => o.name)

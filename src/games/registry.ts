@@ -8,6 +8,7 @@ import { DEFAULT_GO_OPTIONS as GO } from '@/engine/go/rules'
 import { bestAt, stats } from '@/core/settings'
 import { DEFAULT_LEVEL } from '@/engine/common/difficulty'
 import BigTwoCover from './covers/BigTwoCover.vue'
+import CrazyBigTwoCover from './covers/CrazyBigTwoCover.vue'
 import ChessCover from './covers/ChessCover.vue'
 import GoCover from './covers/GoCover.vue'
 import GomokuCover from './covers/GomokuCover.vue'
@@ -75,6 +76,33 @@ export const GAMES: GameDef[] = [
       toggle('dragon', bs.dragon, B.dragon),
       toggle('doubleOverTen', bs.doubleOverTen, B.doubleOverTen, { group: 'score' }),
       toggle('doubleTwos', bs.doubleTwos, B.doubleTwos, { group: 'score' }),
+      toggle('autoPass', bs.autoPass, true, { group: 'other', live: true }),
+      timer(),
+    ],
+  },
+  {
+    id: 'crazybigtwo',
+    category: 'cards',
+    name: S.crazybigtwo.name,
+    summary: S.crazybigtwo.summary,
+    players: S.crazybigtwo.players,
+    cover: CrazyBigTwoCover,
+    tags: S.crazybigtwo.tags,
+    best: (o) => bestAt('crazybigtwo', String(o.difficulty ?? 'easy')),
+    rulesIntro: withTimer(S.crazybigtwo.rules, [...TR.cardsCrazy, TR.bigtwo]),
+    tutorial: defineAsyncComponent(() => import('./bigtwo/CrazyTutorial.vue')),
+    component: defineAsyncComponent(() => import('./bigtwo/BigTwoGame.vue')),
+    settings: [
+      choice('difficulty', bs.difficulty, 'easy'),
+      choice('suitOrder', bs.suitOrder, B.suitOrder),
+      choice('straightRule', bs.straightRule, B.straightRule),
+      toggle('straightFlushSpecial', bs.straightFlushSpecial, B.straightFlushSpecial),
+      toggle('bombBeatsAll', bs.bombBeatsAll, B.bombBeatsAll),
+      toggle('allowTriple', bs.allowTriple, B.allowTriple),
+      toggle('allowSmallStraight', bs.allowSmallStraight, B.allowSmallStraight),
+      toggle('allowFlush', bs.allowFlush, B.allowFlush),
+      toggle('allowTwoPair', bs.allowTwoPair, B.allowTwoPair),
+      toggle('doubleOverTen', S.crazybigtwo.settings.doubleOverTen, B.doubleOverTen, { group: 'score' }),
       toggle('autoPass', bs.autoPass, true, { group: 'other', live: true }),
       timer(),
     ],

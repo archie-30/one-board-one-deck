@@ -219,6 +219,7 @@ onBeforeUnmount(() => {
   stage.destroy()
   window.removeEventListener('pointermove', onMove)
   window.removeEventListener('pointerup', onUp)
+  window.removeEventListener('pointercancel', onCancel)
 })
 // 新的一局：重新發牌；其他狀態變化：換了位置的牌飛過去
 watch(
@@ -263,6 +264,8 @@ interface Drag {
   x0: number
   y0: number
   moved: boolean
+  /** 手指點的會抖一下：移動超過這個距離才算拖曳（滑鼠 6px、手指 14px） */
+  slop: number
 }
 let drag: Drag | null = null
 function local(e: PointerEvent) {
@@ -270,11 +273,13 @@ function local(e: PointerEvent) {
   return { x: e.clientX - r.left, y: e.clientY - r.top }
 }
 function onDown(c: Card, e: PointerEvent) {
+  // 上一次的拖曳沒有正常結束（手機上被系統打斷）：先收掉，不然之後的點擊全都沒反應
+  if (drag && drag.id !== e.pointerId) onCancel()
   if (!canAct.value || drag) return
   if (e.button !== undefined && e.button > 0) return
   const p = local(e)
   if (inStock(c)) {
-    drag = { id: e.pointerId, from: 'stock', cards: [], base: [], x0: p.x, y0: p.y, moved: false }
+    drag = { id: e.pointerId, from: 'stock', cards: [], base: [], x0: p.x, y0: p.y, moved: false, slop: 6 }
   } else {
     const from = sourceOf(c)
     if (!from) {
@@ -284,17 +289,27 @@ function onDown(c: Card, e: PointerEvent) {
       return
     }
     const cards = cardsAt(props.state, from)
-    drag = { id: e.pointerId, from, cards, base: cards.map((k) => stage.target(k)), x0: p.x, y0: p.y, moved: false }
+    drag = { id: e.pointerId, from, cards, base: cards.map((k) => stage.target(k)), x0: p.x, y0: p.y, moved: false, slop: e.pointerType === 'mouse' ? 6 : 14 }
   }
   window.addEventListener('pointermove', onMove)
   window.addEventListener('pointerup', onUp)
+  window.addEventListener('pointercancel', onCancel)
+}
+/** 拖曳被系統打斷（手機長按、手勢、來電…）：拿著的牌飛回原位 */
+function onCancel() {
+  window.removeEventListener('pointermove', onMove)
+  window.removeEventListener('pointerup', onUp)
+  window.removeEventListener('pointercancel', onCancel)
+  const d = drag
+  drag = null
+  if (d && d.from !== 'stock' && d.moved) d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
 }
 function onMove(e: PointerEvent) {
   if (!drag || e.pointerId !== drag.id || drag.from === 'stock') return
   const p = local(e)
   const dx = p.x - drag.x0
   const dy = p.y - drag.y0
-  if (!drag.moved && Math.hypot(dx, dy) < 6) return
+  if (!drag.moved && Math.hypot(dx, dy) < drag.slop) return
   drag.moved = true
   drag.cards.forEach((c, k) => {
     const b = drag!.base[k]
@@ -305,6 +320,7 @@ function onUp(e: PointerEvent) {
   if (!drag || e.pointerId !== drag.id) return
   window.removeEventListener('pointermove', onMove)
   window.removeEventListener('pointerup', onUp)
+  window.removeEventListener('pointercancel', onCancel)
   const d = drag
   drag = null
   if (d.from === 'stock') {
@@ -317,10 +333,16 @@ function onUp(e: PointerEvent) {
     tapCard(from)
     return
   }
-  selected.value = null
   const p = local(e)
   // 用拿著的那張牌的中心判斷放在哪裡
   const spot = dropSpot(L.value, props.state, d.base[0].x + (p.x - d.x0), d.base[0].y + (p.y - d.y0))
+  // 只拖了一點點、又放回原本那一疊：當作點一下（手指點的時候常常會滑一點）
+  if (spot && sameSpot(from, spot as Target) && Math.hypot(p.x - d.x0, p.y - d.y0) < L.value.cw * 0.6) {
+    d.cards.forEach((c, k) => stage.move(c, d.base[k], { dur: 160 }))
+    tapCard(from)
+    return
+  }
+  selected.value = null
   if (spot && spot.pile !== 'stock' && spot.pile !== 'waste' && canPlace(props.state, d.cards, spot as Target) && !sameSpot(from, spot as Target)) {
     emit('action', { type: 'move', from, to: spot as Target })
   } else {

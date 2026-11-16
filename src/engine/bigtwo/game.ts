@@ -1,7 +1,7 @@
 // 大老二對局流程：(state, action) → newState
 import { nextInt, seedRng, shuffle, type RngState } from '../common/rng'
 import type { Result } from '../common/types'
-import { CLUB_THREE, RANK_2, fullDeck, rankOf, sortCards, type Card } from './cards'
+import { RANK_2, cardPower, fullDeck, isClubThree, rankOf, sortCards, type Card } from './cards'
 import { canBeat, identifyCombo, isDragon, type Combo } from './combos'
 import { DEFAULT_BIGTWO_OPTIONS, type BigTwoOptions } from './options'
 
@@ -46,20 +46,36 @@ export type BigTwoError =
 /** 發牌開局。同一個 seed 會發出同一副牌。 */
 export function dealBigTwo(seed: number, options: Partial<BigTwoOptions> = {}): BigTwoState {
   const opts = { ...DEFAULT_BIGTWO_OPTIONS, ...options }
-  const [deck] = shuffle(fullDeck(), seedRng(seed))
+  const [deck] = shuffle(fullDeck(opts.decks ?? 1), seedRng(seed))
+  const per = deck.length / PLAYER_COUNT
   const hands: Card[][] = []
   for (let p = 0; p < PLAYER_COUNT; p++) {
-    hands.push(sortCards(deck.slice(p * 13, p * 13 + 13), opts.suitOrder))
+    hands.push(sortCards(deck.slice(p * per, p * per + per), opts.suitOrder))
   }
   return createBigTwo(hands, opts)
+}
+
+/**
+ * 誰先出：有梅花 3 的人。兩副牌時兩張梅花 3 可能在兩個人手上：
+ * 兩人的牌由小到大排好，從第二小的牌開始逐張比，先出現比較小的那張的人先出。
+ */
+export function findStarter(hands: readonly Card[][], opts: BigTwoOptions): number {
+  const holders = hands.map((h, p) => (h.some(isClubThree) ? p : -1)).filter((p) => p >= 0)
+  if (holders.length <= 1) return holders[0] ?? -1
+  const sorted = holders.map((p) => ({ p, cards: sortCards(hands[p], opts.suitOrder).map((c) => cardPower(c, opts.suitOrder)) }))
+  sorted.sort((a, b) => {
+    for (let i = 1; i < Math.min(a.cards.length, b.cards.length); i++) if (a.cards[i] !== b.cards[i]) return a.cards[i] - b.cards[i]
+    return a.cards.length - b.cards.length || a.p - b.p
+  })
+  return sorted[0].p
 }
 
 /** 用指定的手牌開局（測試與教學用）。有梅花 3 的人先出，沒有梅花 3 時由 0 號先出且不限首手。 */
 export function createBigTwo(hands: Card[][], options: Partial<BigTwoOptions> = {}): BigTwoState {
   const opts = { ...DEFAULT_BIGTWO_OPTIONS, ...options }
-  const starter = hands.findIndex((h) => h.includes(CLUB_THREE))
-  // 一條龍（規則選項）：3 到 2 十三張連號，開局直接獲勝
-  const dragon = opts.dragon ? hands.findIndex(isDragon) : -1
+  const starter = findStarter(hands, opts)
+  // 一條龍（規則選項，一副牌才有）：3 到 2 十三張連號，開局直接獲勝
+  const dragon = opts.dragon && opts.decks !== 2 ? hands.findIndex(isDragon) : -1
   if (dragon >= 0) {
     return {
       options: opts,
@@ -95,7 +111,7 @@ export function checkPlay(state: BigTwoState, player: number, cards: readonly Ca
   }
   const combo = identifyCombo(cards, state.options)
   if (!combo) return { ok: false, reason: 'invalidCombo' }
-  if (state.firstTurn && !cards.includes(CLUB_THREE)) return { ok: false, reason: 'needClubThree' }
+  if (state.firstTurn && !cards.some(isClubThree)) return { ok: false, reason: 'needClubThree' }
   if (state.table && !canBeat(combo, state.table.combo, state.options)) {
     const prev = state.table.combo
     const sameShape = combo.type === prev.type || (combo.cards.length === 5 && prev.cards.length === 5)
@@ -199,12 +215,14 @@ export interface PlayerScore {
  * 贏家得到所有輸家扣分的總和。
  */
 export function scoreBigTwo(state: BigTwoState): PlayerScore[] {
+  // 兩副牌（每人 26 張）：剩 20 張以上才加倍；2 最多有 8 張，不再因為 2 加倍
+  const crazy = state.options.decks === 2
   const scores = state.hands.map((hand) => {
     const cards = hand.length
     const twos = hand.filter((c) => rankOf(c) === RANK_2).length
     let multiplier = 1
-    if (state.options.doubleOverTen && cards >= 10) multiplier *= 2
-    if (state.options.doubleTwos) multiplier *= 2 ** twos
+    if (state.options.doubleOverTen && cards >= (crazy ? 20 : 10)) multiplier *= 2
+    if (state.options.doubleTwos && !crazy) multiplier *= 2 ** twos
     return { cards, twos, multiplier, points: -cards * multiplier }
   })
   if (state.winner >= 0) {

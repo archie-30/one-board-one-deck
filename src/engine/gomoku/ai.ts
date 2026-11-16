@@ -2,6 +2,7 @@
 import type { Difficulty } from '../common/types'
 import { nextInt, nextRandom, type RngState } from '../common/rng'
 import { PRESET_STYLES, type GomokuStyle } from '../common/personas'
+import { findVcf } from './vcf'
 import { DIRECTIONS, forbiddenKind, toXY, type GomokuState, type Player, type Stone } from './rules'
 
 const SCORE = {
@@ -121,15 +122,31 @@ export function scoreMoves(state: GomokuState, style: GomokuAiStyle): ScoredMove
 
 // 對手回應只看「對手自己能連多兇」（不算擋我的分數，不然我越有威脅反而扣越多）
 const PLAIN: GomokuStyle = { attack: 1, defense: 0, sharp: true, noise: 0, center: 0, blind: 0 }
-function lookAhead(state: GomokuState, top: ScoredMove[]): number {
+/** 對手會怎麼回：攻守都看（像一般的好手） */
+const REPLY: GomokuStyle = { attack: 1, defense: 1, sharp: true, noise: 0, center: 0, blind: 0 }
+/**
+ * deep（挑戰）：再多看一步——假設對手照好手的下法回一手，看自己接下來最兇能下到哪裡，
+ * 選「自己好、對手的威脅小、自己還有後續」的那一手
+ */
+function lookAhead(state: GomokuState, top: ScoredMove[], deep = false): number {
   const opp: Player = state.turn === 1 ? 2 : 1
   let pick = top[0]
   let bestV = -Infinity
   for (const m of top) {
     const board = state.board.slice()
     board[m.index] = state.turn
-    const reply = scoreMoves({ ...state, board, turn: opp }, PLAIN)[0]
-    const v = m.score - (reply ? reply.score * 0.5 : 0)
+    const after = { ...state, board, turn: opp }
+    const reply = scoreMoves(after, PLAIN)[0]
+    let v = m.score - (reply ? reply.score * 0.5 : 0)
+    if (deep) {
+      const real = scoreMoves(after, REPLY)[0]
+      if (real) {
+        const b2 = board.slice()
+        b2[real.index] = opp
+        const follow = scoreMoves({ ...state, board: b2, turn: state.turn }, PLAIN)[0]
+        if (follow) v += follow.score * 0.35
+      }
+    }
     if (v > bestV) {
       bestV = v
       pick = m
@@ -137,6 +154,9 @@ function lookAhead(state: GomokuState, top: ScoredMove[]): number {
   }
   return pick.index
 }
+
+/** 這一格能不能下（黑棋禁手開啟時要避開禁手） */
+const canPlay = (s: GomokuState, i: number) => s.board[i] === 0 && !(s.options.forbidden && s.turn === 1 && forbiddenKind(s.board, s.size, i))
 
 /** 選一手棋。回傳 [格子編號, 新的亂數狀態]；沒有可下的格子時回傳 -1 */
 export function chooseGomokuMove(state: GomokuState, style: GomokuAiStyle, rng: RngState): [number, RngState] {
@@ -164,8 +184,21 @@ export function chooseGomokuMove(state: GomokuState, style: GomokuAiStyle, rng: 
 
   const best = scored[0]
   if (best.score >= SCORE.openFour * 0.9 && st.blind === 0) return [best.index, rng]
+  // 挑戰：自己有連續衝四取勝就照著下；對手有的話，從前幾名裡挑一手能破壞它的
+  if (st.vcf) {
+    const win = findVcf(state)
+    if (win >= 0 && canPlay(state, win)) return [win, rng]
+    const opp: Player = state.turn === 1 ? 2 : 1
+    if (findVcf(state, opp) >= 0) {
+      for (const m of scored.slice(0, 6)) {
+        const board = state.board.slice()
+        board[m.index] = state.turn
+        if (findVcf({ ...state, board, turn: opp }, opp) < 0) return [m.index, rng]
+      }
+    }
+  }
   // 先試下前幾名，看對手最好的回應有多兇，選「自己好、對手回得最不痛」的那一手
-  if (st.look && st.look > 0) return [lookAhead(state, scored.slice(0, st.look)), rng]
+  if (st.look && st.look > 0) return [lookAhead(state, scored.slice(0, st.look), st.look >= 10), rng]
   // 在分數接近的前幾名裡挑：noise 越大，挑選範圍越寬
   const floor = best.score * (1 - 0.06 - st.noise * 0.6)
   const pool = scored.filter((m) => m.score >= floor).slice(0, 1 + Math.round(st.noise * 5))

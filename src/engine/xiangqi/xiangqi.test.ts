@@ -128,7 +128,7 @@ describe('象棋：電腦對手', () => {
     const [m] = chooseXiangqiMove(s, { depth: 1, attack: 0.5, safety: 0.5, noise: 0, blunder: 0 }, seedRng(2))
     expect(m).toEqual({ from: sq(7, 2), to: sq(4, 2) })
   })
-  it('20 位對手都能走完一段（不會走不合法的步）', async () => {
+  it('每位對手都能走完一段（不會走不合法的步）', async () => {
     const { chooseXiangqiMove } = await import('./ai')
     const { seedRng } = await import('../common/rng')
     const { PERSONAS } = await import('../common/personas')
@@ -137,7 +137,7 @@ describe('象棋：電腦對手', () => {
       let rng = seedRng(p + 3)
       for (let i = 0; i < 30 && s.status === 'playing'; i++) {
         let m
-        ;[m, rng] = chooseXiangqiMove(s, PERSONAS[(p + i) % 20].chess, rng)
+        ;[m, rng] = chooseXiangqiMove(s, PERSONAS[(p + i) % PERSONAS.length].chess, rng)
         const r = applyXiangqi(s, { type: 'move', move: m! })
         expect(r.ok).toBe(true)
         if (r.ok) s = r.state

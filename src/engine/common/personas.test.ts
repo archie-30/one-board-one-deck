@@ -24,16 +24,16 @@ function playRound(seed: number, seats: number[]) {
 }
 
 describe('對手個性', () => {
-  it('一共 20 位，每位的大老二與五子棋打法都不完全一樣', () => {
-    expect(PERSONAS).toHaveLength(20)
+  it('一共 30 位，每位的大老二與五子棋打法都不完全一樣', () => {
+    expect(PERSONAS).toHaveLength(30)
     const keys = new Set(PERSONAS.map((p) => JSON.stringify(p)))
-    expect(keys.size).toBe(20)
+    expect(keys.size).toBe(30)
   })
 
   it('每一位都能把大老二正常打完（不會出不合法的牌）', () => {
-    for (let p = 0; p < 20; p++) {
+    for (let p = 0; p < 30; p++) {
       for (let seed = 1; seed <= 4; seed++) {
-        const r = playRound(seed * 31 + p, [p, (p + 5) % 20, (p + 11) % 20, (p + 17) % 20])
+        const r = playRound(seed * 31 + p, [p, (p + 5) % 30, (p + 11) % 30, (p + 17) % 30])
         expect(r.winner).toBeGreaterThanOrEqual(0)
       }
     }

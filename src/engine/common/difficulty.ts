@@ -42,6 +42,16 @@ export const HABITS: readonly (readonly [Habit, Habit, Habit, Habit])[] = [
   ['hoard', 'edge', 'bomb', 'edge'], // 17 小黑
   ['rush', 'rush', 'combo', 'rush'], // 18 阿達
   ['turtle', 'pairs', 'block', 'center'], // 19 阿蓮
+  ['rush', 'combo', 'block', 'rush'], // 20 阿傑
+  ['turtle', 'calm', 'hoard', 'turtle'], // 21 小芳
+  ['bomb', 'rush', 'bomb', 'rush'], // 22 阿偉
+  ['edge', 'center', 'small', 'calm'], // 23 佩佩
+  ['calm', 'block', 'center', 'hoard'], // 24 大頭
+  ['rush', 'combo', 'rush', 'bomb'], // 25 阿翔
+  ['hoard', 'turtle', 'hoard', 'block'], // 26 小琪
+  ['pairs', 'pairs', 'center', 'turtle'], // 27 阿國
+  ['block', 'calm', 'rush', 'center'], // 28 惠美
+  ['small', 'edge', 'calm', 'block'], // 29 阿德
 ]
 
 /** 這位對手（編號 who）在這個難度的小習慣；不認得的對手沒有習慣 */
@@ -100,22 +110,22 @@ const CHESS: Record<Level, Pick<ChessStyle, 'depth' | 'noise' | 'blunder' | 'qui
 export const chessAt = (st: ChessStyle, level: Level, who = -1): ChessStyle => chessHabit({ ...st, ...CHESS[level] }, habitOf(who, level))
 
 /**
- * 五子棋：
- *   低：看不懂跳三跳四、亂下、常漏看對手要連五、也不太會擋
- *   中：看不懂跳三跳四、有時亂挑、偶爾漏看
- *   高：看得懂、很少漏看
- *   挑戰：完全不漏看，還會先試下前幾名、看對手最好的回應再決定
+ * 五子棋（大家比較會玩，整體比其他棋類再強一點）：
+ *   低：看不懂跳三跳四、常亂下、有時漏看對手要連五、不太會擋
+ *   中：看得懂跳三跳四、偶爾亂挑、偶爾漏看
+ *   高：幾乎不亂下、很少漏看，會先試下前幾名、看對手的回應
+ *   挑戰：完全不漏看，試下更多手，還會再多看一步（對手回完之後自己的後續）
  */
-const GOMOKU: Record<Level, Pick<GomokuStyle, 'sharp' | 'noise' | 'blind' | 'look'>> = {
-  low: { sharp: false, noise: 0.85, blind: 0.5, look: 0 },
-  mid: { sharp: false, noise: 0.45, blind: 0.2, look: 0 },
-  high: { sharp: true, noise: 0.12, blind: 0.03, look: 0 },
-  master: { sharp: true, noise: 0, blind: 0, look: 8 },
+const GOMOKU: Record<Level, Pick<GomokuStyle, 'sharp' | 'noise' | 'blind' | 'look' | 'vcf'>> = {
+  low: { sharp: false, noise: 0.7, blind: 0.35, look: 0 },
+  mid: { sharp: true, noise: 0.45, blind: 0.14, look: 0 },
+  high: { sharp: true, noise: 0.03, blind: 0.01, look: 0 },
+  master: { sharp: true, noise: 0, blind: 0, look: 0, vcf: true },
 }
 export const gomokuAt = (st: GomokuStyle, level: Level, who = -1): GomokuStyle => {
   const out = { ...st, ...GOMOKU[level] }
   // 低：不太會擋
-  if (level === 'low') out.defense *= 0.6
+  if (level === 'low') out.defense *= 0.75
   // 挑戰：攻守都不偏廢（太偏攻或太偏守都容易被抓到漏洞）
   if (level === 'master') {
     const avg = (st.attack + st.defense) / 2

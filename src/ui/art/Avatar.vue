@@ -1,11 +1,30 @@
 <script setup lang="ts">
 // 對手頭像：一個幾何形狀，兩點眼睛。表情靠眼睛與小動作表達：
 //   think 眼睛左右看、happy 彈跳＋笑眼、sad 往下沉＋垂眼、smug 半瞇、shock 圓眼＋抖一下
-import { computed, useId } from 'vue'
+// talk（電腦對手才開）：表情一變，頭旁邊冒出一個顏文字泡泡，停一下就消失（想事情時偶爾才冒）
+import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { KAOMOJI } from '@/data/kaomoji'
 import type { Look, Mood } from './look'
 
-const props = withDefaults(defineProps<{ look: Look; mood?: Mood; flip?: boolean }>(), { mood: 'idle' })
+const props = withDefaults(defineProps<{ look: Look; mood?: Mood; flip?: boolean; talk?: boolean }>(), { mood: 'idle' })
 const id = useId()
+
+const bubble = ref<{ text: string; key: number } | null>(null)
+let bubbleTimer = 0
+watch(
+  () => props.mood,
+  (m) => {
+    if (!props.talk) return
+    const pool = KAOMOJI[m as keyof typeof KAOMOJI]
+    if (!pool || (m === 'think' && Math.random() > 0.3)) return
+    bubble.value = { text: pool[Math.floor(Math.random() * pool.length)], key: Date.now() }
+    window.clearTimeout(bubbleTimer)
+    bubbleTimer = window.setTimeout(() => (bubble.value = null), 1800)
+  },
+)
+onBeforeUnmount(() => window.clearTimeout(bubbleTimer))
+/** 泡泡寬度：全形字算 1、半形算 0.55 */
+const bubbleW = computed(() => (bubble.value ? [...bubble.value.text].reduce((w, ch) => w + (/[\u0000-\u00ff]/.test(ch) ? 0.55 : 1), 0) * 9.5 + 10 : 0))
 
 const TONE: Record<Look['tone'], string> = {
   red: 'var(--color-red)',
@@ -63,6 +82,12 @@ const ey = computed(() => EYE_Y[props.look.shape])
           <rect x="35" :y="ey - 4" width="4" height="8" rx="2" stroke="none" />
         </g>
       </g>
+    </g>
+    <!-- 顏文字泡泡：放在頭的斜上方（頭朝左的放左邊），不擋到臉 -->
+    <g v-if="bubble" :key="bubble.key" class="bubble" :transform="flip ? `translate(${4 - bubbleW} -16)` : 'translate(40 -16)'">
+      <rect x="0" y="0" :width="bubbleW" height="17" rx="8.5" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="1.6" />
+      <path :d="flip ? `M${bubbleW - 10} 16l8 7-1-8` : 'M10 16l-8 7 1-8'" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="1.6" stroke-linejoin="round" />
+      <text :x="bubbleW / 2" y="12.6" class="kao">{{ bubble.text }}</text>
     </g>
   </svg>
 </template>
@@ -133,6 +158,23 @@ const ey = computed(() => EYE_Y[props.look.shape])
 .m-sad .body {
   transform: translateY(3px) rotate(-6deg);
   transition: transform 400ms var(--ease-out);
+}
+.bubble {
+  transform-box: fill-box;
+  transform-origin: bottom left;
+  animation: bubble-in 260ms var(--ease-back) both;
+}
+.kao {
+  font-size: 10px;
+  font-weight: 900;
+  text-anchor: middle;
+  fill: var(--color-ink);
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
 }
 .m-shock .body {
   animation: shiver 0.4s linear 1;

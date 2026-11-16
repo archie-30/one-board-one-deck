@@ -11,6 +11,7 @@ import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { chooseGomokuMove } from '@/engine/gomoku/ai'
+import { winPoints } from '@/engine/gomoku/vcf'
 import { canPlace, createGomoku, placeStone, skipTurn, toXY, type GomokuOptions, type GomokuState, type Player } from '@/engine/gomoku/rules'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -177,6 +178,12 @@ async function commit(index: number, who: 0 | 1) {
   if (result.state.winner !== 0) finish()
   else if (result.state.turn !== human.value) scheduleCpu()
   else moods.value = ['idle', 'idle']
+  // 做出「四」（下一手就能連成五）：下的人得意、對方嚇一跳，過一下再回到原本的表情
+  if (result.state.winner === 0 && winPoints(result.state.board, result.state.size, result.state.board[index] as Player, options.overlineWins).length) {
+    const back = moods.value
+    moods.value = who === 1 ? ['shock', 'smug'] : [back[0], 'shock']
+    later(() => phase.value === 'playing' && (moods.value = [back[0], state.value.turn !== human.value ? 'think' : 'idle']), 1300)
+  }
 }
 
 function finish() {
@@ -195,7 +202,8 @@ function finish() {
 function scheduleCpu() {
   moods.value = ['idle', 'think']
   const st = gomokuAt(opponent.value.persona.gomoku, level, opponent.value.id)
-  const think = 900 + (1 - st.noise) * 700 + extraThink(level) + Math.random() * 600
+  // 挑戰：多想一會兒（要找「連續衝四」）
+  const think = 900 + (1 - st.noise) * 700 + extraThink(level) + (level === 'master' ? 500 : 0) + Math.random() * 600
   later(() => {
     let move: number
     ;[move, rng] = chooseGomokuMove(state.value, st, rng)
@@ -310,7 +318,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
 
     <aside class="side right">
       <div class="who rise" style="--i: 1" :class="{ active: phase === 'playing' && state.turn !== human }">
-        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip /></span>
+        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip talk /></span>
         <span :ref="(el) => (bowlEls[1] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 2" /></span>
       </div>
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn !== human }" />{{ opponent.name }}</p>

@@ -130,7 +130,7 @@ describe('西洋棋：電腦對手', () => {
     const [m] = chooseChessMove(s, { depth: 1, attack: 0.5, safety: 0.5, noise: 0, blunder: 0 }, seedRng(2))
     expect(m).toEqual({ from: at('c8'), to: at('g4') })
   })
-  it('20 位對手都能走完一盤（不會走不合法的步），而且每步不會算太久', async () => {
+  it('每位對手都能走完一盤（不會走不合法的步），而且每步不會算太久', async () => {
     const { chooseChessMove } = await import('./ai')
     const { seedRng } = await import('../common/rng')
     const { PERSONAS } = await import('../common/personas')
@@ -141,7 +141,7 @@ describe('西洋棋：電腦對手', () => {
       for (let i = 0; i < 40 && s.status === 'playing'; i++) {
         const t0 = performance.now()
         let m
-        ;[m, rng] = chooseChessMove(s, PERSONAS[(p + i) % 20].chess, rng)
+        ;[m, rng] = chooseChessMove(s, PERSONAS[(p + i) % PERSONAS.length].chess, rng)
         worst = Math.max(worst, performance.now() - t0)
         const r = applyChess(s, { type: 'move', move: { ...m!, promo: m!.promo ?? (m && (s.board[m.from] === 'P' || s.board[m.from] === 'p') && (m.to < 8 || m.to >= 56) ? 'Q' : undefined) } })
         expect(r.ok).toBe(true)

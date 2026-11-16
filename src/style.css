@@ -36,6 +36,8 @@
 /* 整個介面依螢幕高度等比縮放：所有尺寸用 rem */
 html {
   font-size: clamp(11px, min(4.45vh, 2.1vw), 30px);
+  /* 手機：點兩下不會放大畫面（iOS 也一樣），點擊沒有延遲 */
+  touch-action: manipulation;
 }
 
 html,
