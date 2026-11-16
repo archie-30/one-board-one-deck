@@ -10,7 +10,7 @@
 // 現在還沒接真的連線（見 core/online.ts），只有自己一個人。
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { back, resetTo, setBackGuard } from '@/core/nav'
-import { canChangeMode, changeMode, isHost, leaveRoom, online, ROOM_MAX, setAllowOthers, setReady, setSpectator, startState, type RoomPlayer } from '@/core/online'
+import { canChangeMode, changeMode, isHost, leaveRoom, online, ROOM_MAX, setReady, setSpectator, startState, type RoomPlayer } from '@/core/online'
 import { levelOf, myLook, profile } from '@/core/profile'
 import type { GameCategory } from '@/games/types'
 import { S } from '@/data/strings'
@@ -20,7 +20,6 @@ import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import Page from '@/ui/Page.vue'
-import Switch from '@/ui/Switch.vue'
 
 const T = S.online
 const room = computed(() => online.room)
@@ -147,13 +146,6 @@ async function leave() {
               <Btn size="sm" tone="red" @click="goCat('cards')">{{ T.goCards }}</Btn>
               <Btn size="sm" tone="blue" @click="goCat('board')">{{ T.goBoard }}</Btn>
             </div>
-            <label class="perm" :class="{ off: !isHost }">
-              <span>
-                <span class="t-black pl">{{ T.allowOthers }}</span>
-                <span class="ph">{{ isHost ? T.allowHelp : T.onlyHost }}</span>
-              </span>
-              <Switch :on="room.allowOthers" :label="T.allowOthers" :disabled="!isHost" @change="setAllowOthers" />
-            </label>
             <div v-if="room.recommends.length" class="recs">
               <p class="t-label">{{ T.recommends }}</p>
               <div v-for="r in room.recommends" :key="r.playerId" class="rec">
@@ -164,14 +156,6 @@ async function leave() {
             </div>
           </div>
         </div>
-        <!-- 準備 -->
-        <div class="go">
-          <p class="t-label stline" :class="{ hot: st.canStart, warn: st.tooMany > 0 }">{{ status }}</p>
-          <div class="btns">
-            <Btn v-if="showWatch" size="md" :icon="me?.spectator ? 'play' : 'pass'" @click="setSpectator(!me?.spectator)">{{ me?.spectator ? T.play : T.watch }}</Btn>
-            <Btn class="readybtn" :tone="me?.ready ? 'ink' : 'red'" size="lg" :icon="me?.ready ? 'close' : 'check'" :disabled="!game" @click="setReady(!me?.ready)">{{ me?.ready ? T.unready : T.ready }}</Btn>
-          </div>
-        </div>
       </section>
     </div>
 
@@ -180,6 +164,10 @@ async function leave() {
         <Icon :name="copied ? 'check' : 'copy'" class="ci" />
         <span class="t-label">{{ copied ? T.copied : T.copy }}</span>
       </button>
+      <!-- 準備：右下角，跟左下的離開房間同一排 -->
+      <p class="t-label stline" :class="{ hot: st.canStart, warn: st.tooMany > 0 }">{{ status }}</p>
+      <Btn v-if="showWatch" :icon="me?.spectator ? 'play' : 'pass'" @click="setSpectator(!me?.spectator)">{{ me?.spectator ? T.play : T.watch }}</Btn>
+      <Btn class="readybtn" :tone="me?.ready ? 'ink' : 'red'" :icon="me?.ready ? 'close' : 'check'" :disabled="!game" @click="setReady(!me?.ready)">{{ me?.ready ? T.unready : T.ready }}</Btn>
     </template>
 
     <Dialog :open="leaveOpen" :title="isHost ? T.disbandAsk : T.leaveAsk" label="ROOM" tone="ink" @close="leaveOpen = false">
@@ -367,13 +355,16 @@ async function leave() {
   display: flex;
   min-height: 0;
   flex: 1;
+  align-items: flex-start;
   gap: 1.1rem;
+  /* 卡片高度照這一塊實際的高度算（寬度再照 0.72 比例），不會被擠成奇怪的比例 */
+  container-type: size;
 }
 /* 跟模式選單一樣的直式卡片（縮小版） */
 .mcard {
   display: flex;
-  height: 100%;
-  max-height: 16rem;
+  height: min(100cqh, 17rem);
+  width: auto;
   aspect-ratio: 0.72;
   flex: none;
   flex-direction: column;
@@ -431,27 +422,6 @@ async function leave() {
   overflow-y: auto;
 }
 /* 「讓大家都能換模式」：不是房主的人看得到但反灰 */
-.perm {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.6rem;
-  border-top: 0.1rem solid var(--color-line);
-  padding-top: 0.5rem;
-}
-.perm.off {
-  opacity: 0.45;
-}
-.pl {
-  display: block;
-  font-size: 0.85rem;
-}
-.ph {
-  display: block;
-  font-size: 0.65rem;
-  color: var(--color-ink-2);
-}
 .recs {
   display: flex;
   width: 100%;
@@ -471,15 +441,10 @@ async function leave() {
   margin-left: auto;
   border-bottom: 0.1rem solid var(--color-ink);
 }
-.go {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.9rem;
-}
 .stline {
   min-width: 0;
   flex: 1;
+  margin-right: 0.3rem;
   text-align: right;
   color: var(--color-ink-2);
 }
@@ -489,13 +454,8 @@ async function leave() {
 .stline.hot {
   color: var(--color-blue);
 }
-.btns {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.6rem;
-}
 .readybtn {
-  min-width: 9rem;
+  min-width: 8rem;
 }
 .readybtn :deep(.lb) {
   text-align: center;
@@ -581,8 +541,8 @@ async function leave() {
 .copy {
   display: flex;
   align-items: center;
+  flex: none;
   gap: 0.35rem;
-  margin-right: auto;
   border-bottom: 0.13rem solid var(--color-ink);
   padding: 0.2rem 0.1rem;
 }

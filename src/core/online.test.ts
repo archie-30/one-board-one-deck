@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { canChangeMode, changeMode, createRoom, joinRoom, online, recommendMode, setAllowOthers, setReady, setSpectator, startState, type RoomPlayer } from './online'
+import { canChangeMode, changeMode, createRoom, joinRoom, online, recommendMode, setReady, setSpectator, startState, type RoomPlayer } from './online'
 
 const guest = (id: string, extra: Partial<RoomPlayer> = {}): RoomPlayer => ({ id, name: id, host: false, me: false, ready: false, spectator: false, ...extra })
 
@@ -19,7 +19,7 @@ describe('連線房間', () => {
     expect(await joinRoom('1234', '我')).toBe('notFound')
   })
 
-  it('不是房主：預設不能換模式，只能推薦；房主打開權限後就能換', () => {
+  it('不是房主：不能換模式，只能推薦', () => {
     const room = online.room!
     room.players[0].host = false
     room.players.push(guest('h', { host: true }))
@@ -29,10 +29,6 @@ describe('連線房間', () => {
     recommendMode('gomoku')
     recommendMode('go')
     expect(room.recommends).toEqual([{ playerId: 'me', gameId: 'go' }])
-    setAllowOthers(true) // 不是房主不能設定
-    expect(room.allowOthers).toBe(false)
-    room.allowOthers = true
-    expect(canChangeMode.value).toBe(true)
   })
 
   it('開房時還沒選模式，不能開始', async () => {

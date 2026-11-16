@@ -302,7 +302,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <button v-if="online.room" class="room-tag rise" style="--i: 2" :aria-label="S.online.backRoom" @click="go({ name: 'room' })">
         <Icon name="online" class="ri" />
         <span class="rt">
-          <b class="t-black">{{ online.room.gameId ? S.online.modeLine(getGame(online.room.gameId).name) : S.online.noMode }}</b>
+          <b class="t-black">{{ online.room.gameId ? getGame(online.room.gameId).name : S.online.noMode }}</b>
           <span class="t-label">{{ S.online.readyLine(online.room.players.filter((p) => p.ready).length, online.room.players.length, !!online.room.players.find((p) => p.me)?.ready) }}</span>
         </span>
       </button>
@@ -435,7 +435,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   align-items: center;
   gap: 0.5rem;
   border: 0.13rem solid var(--color-ink);
-  background: var(--color-yellow);
+  background: var(--color-card);
   box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
   padding: 0 0.7rem;
 }
@@ -454,8 +454,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-size: 0.82rem;
 }
 .rt .t-label {
-  font-size: 0.56rem;
-  letter-spacing: 0.08em;
+  font-size: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-3);
 }
 .ri {
   width: 1rem;

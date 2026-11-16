@@ -4,7 +4,7 @@
 //
 // 房間規則：
 // - 一間最多 4 人。房主開房；大家都可以在房間外（模式選單）逛模式。
-// - 換模式：預設只有房主能換；房主可以在房間裡打開「讓大家都能換模式」。不能換的人只能「推薦此模式」，推薦會出現在房間裡給房主看。
+// - 換模式：只有房主能換；其他人只能「推薦此模式」，推薦會出現在房間裡給房主看。
 // - 開房時還沒選模式（「未選擇模式」），要先選一個才能開始。
 // - 開始：在房間裡，大家都按「準備」就開始；人不夠的空位由電腦補上。
 // - 模式人數比房間人數少（例如 4 人房玩 2 人的棋）：多出來的人要自己改成「觀戰」，對戰的人數不超過模式人數才能開始。
@@ -42,8 +42,6 @@ export interface Room {
   /** 目前的模式（空字串＝還沒選） */
   gameId: string
   players: RoomPlayer[]
-  /** 房主打開：大家都能換模式 */
-  allowOthers: boolean
   /** 大家推薦的模式（同一個人只留最新一個） */
   recommends: Recommend[]
 }
@@ -69,7 +67,7 @@ export interface OnlineService {
 const localService: OnlineService = {
   async create(me) {
     const code = String(Math.floor(Math.random() * 10 ** ROOM_CODE_LENGTH)).padStart(ROOM_CODE_LENGTH, '0')
-    return { code, gameId: '', allowOthers: false, recommends: [], players: [{ id: 'me', name: me.name, host: true, me: true, ready: false, spectator: false }] }
+    return { code, gameId: '', recommends: [], players: [{ id: 'me', name: me.name, host: true, me: true, ready: false, spectator: false }] }
   },
   async join(code) {
     return isRoomCode(code) ? 'notFound' : 'format'
@@ -91,7 +89,7 @@ const me = () => online.room?.players.find((p) => p.me) ?? null
 const push = () => online.room && void service.update(online.room)
 
 /** 自己能不能換模式（房主，或房主打開了「大家都能換」） */
-export const canChangeMode = computed(() => !!online.room && (!!me()?.host || online.room.allowOthers))
+export const canChangeMode = computed(() => !!online.room && !!me()?.host)
 export const isHost = computed(() => !!me()?.host)
 
 /** 開房：一開始不幫房主選模式（「未選擇模式」） */
@@ -133,14 +131,6 @@ export function recommendMode(gameId: string) {
   const m = me()
   if (!room || !m) return
   room.recommends = [...room.recommends.filter((r) => r.playerId !== m.id), { playerId: m.id, gameId }]
-  push()
-}
-
-/** 房主：讓大家都能換模式 */
-export function setAllowOthers(on: boolean) {
-  const room = online.room
-  if (!room || !isHost.value) return
-  room.allowOthers = on
   push()
 }
 
