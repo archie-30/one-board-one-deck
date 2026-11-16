@@ -300,8 +300,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <div v-if="quick" class="quick rise" style="--i: 3" :title="quick.help">
             <span class="t-label">{{ quick.label }}</span>
             <Tabs class="small" :choices="quick.choices" :value="quickValue" hot="master" @change="setQuick" />
+            <!-- 近百場戰況：放在難度右邊同一排，不多佔一行（不然下面的小按鈕會被擠出畫面） -->
+            <span class="recent">{{ recent }}</span>
           </div>
-          <p class="recent rise" style="--i: 3">{{ recent }}</p>
+          <p v-else class="recent rise solo" style="--i: 3">{{ recent }}</p>
           <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="launch">{{ S.lobby.start }}</Btn>
           <div class="minor rise" style="--i: 4">
             <button class="link" @click="open('tutorial')"><span>{{ S.lobby.tutorial }}</span><Icon name="arrow" class="ar" /></button>
@@ -646,11 +648,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   color: var(--color-red);
 }
 .recent {
-  margin: -0.15rem 0 0.1rem;
-  font-size: 0.68rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.66rem;
   line-height: 1.3;
   color: var(--color-ink-3);
   font-variant-numeric: tabular-nums;
+}
+.recent.solo {
+  margin: -0.2rem 0 0.35rem;
 }
 .quick-help {
   margin-top: 0.25rem;

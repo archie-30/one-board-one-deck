@@ -112,7 +112,7 @@ export const S = {
   lobby: {
     recent: (n: number, w: number, l: number, d: number) => `近 ${n} 場　勝 ${w}　負 ${l}${d ? `　和 ${d}` : ''}`,
     recentSolo: (n: number, w: number, l: number) => `近 ${n} 局　過關 ${w}　沒過 ${l}`,
-    recentNone: '這個難度還沒有戰績',
+    recentNone: '還沒有戰績',
     start: '開始遊戲',
     startSub: '對手每局隨機入座',
     tutorial: '新手教學',
