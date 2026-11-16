@@ -28,7 +28,7 @@ defineProps<{ title: string; label?: string; num?: string; backLabel?: string }>
   display: flex;
   height: 100%;
   flex-direction: column;
-  padding: 0.9rem max(1.6rem, env(safe-area-inset-right)) 0.8rem max(1.6rem, env(safe-area-inset-left));
+  padding: 0.9rem 1.6rem 0.8rem 1.6rem;
 }
 .head {
   display: flex;

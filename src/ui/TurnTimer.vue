@@ -90,10 +90,10 @@ const low = computed(() => left.value < 0.25)
   height: 0.5rem;
 }
 .bottom {
-  bottom: max(0.3rem, env(safe-area-inset-bottom));
+  bottom: 0.3rem;
 }
 .top {
-  top: max(0.3rem, env(safe-area-inset-top));
+  top: 0.3rem;
 }
 .left,
 .right {
@@ -102,10 +102,10 @@ const low = computed(() => left.value < 0.25)
   width: 0.5rem;
 }
 .left {
-  left: max(0.3rem, env(safe-area-inset-left));
+  left: 0.3rem;
 }
 .right {
-  right: max(0.3rem, env(safe-area-inset-right));
+  right: 0.3rem;
 }
 .flat {
   position: relative;

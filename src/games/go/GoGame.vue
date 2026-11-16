@@ -531,7 +531,7 @@ const resultLine = computed(() => {
   height: 100%;
   align-items: stretch;
   gap: 1.2rem;
-  padding: 0.6rem max(1.2rem, env(safe-area-inset-right)) 0.6rem max(1.2rem, env(safe-area-inset-left));
+  padding: 0.6rem 1.2rem 0.6rem 1.2rem;
 }
 .board-wrap {
   height: 100%;

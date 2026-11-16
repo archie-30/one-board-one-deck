@@ -57,6 +57,13 @@ function close() {
       </div>
       <div class="row">
         <div>
+          <p class="t-black lb">{{ T.avoidCutout }}</p>
+          <p class="help">{{ T.avoidCutoutHelp }}</p>
+        </div>
+        <Switch :on="settings.avoidCutout" :label="T.avoidCutout" @change="(v) => (settings.avoidCutout = v)" />
+      </div>
+      <div class="row">
+        <div>
           <p class="t-black lb">{{ T.autoPause }}</p>
           <p class="help">{{ T.autoPauseHelp }}</p>
         </div>

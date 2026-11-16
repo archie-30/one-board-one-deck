@@ -437,7 +437,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
   height: 100%;
   align-items: stretch;
   gap: 1.4rem;
-  padding: 0.7rem max(1.2rem, env(safe-area-inset-right)) 0.7rem max(1.2rem, env(safe-area-inset-left));
+  padding: 0.7rem 1.2rem 0.7rem 1.2rem;
 }
 .board-wrap {
   height: 100%;

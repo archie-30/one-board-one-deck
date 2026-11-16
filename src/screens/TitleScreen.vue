@@ -97,7 +97,7 @@ function hover(side: GameCategory, event: PointerEvent) {
   width: 36%;
   flex-shrink: 0;
   flex-direction: column;
-  padding: 0.9rem 1.2rem 1rem max(1.6rem, env(safe-area-inset-left));
+  padding: 0.9rem 1.2rem 1rem 1.6rem;
 }
 .brand {
   display: flex;

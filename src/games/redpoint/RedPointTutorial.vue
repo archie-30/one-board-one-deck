@@ -240,7 +240,7 @@ async function next() {
 }
 .guide {
   position: absolute;
-  right: max(1rem, env(safe-area-inset-right));
+  right: 1rem;
   top: 0.8rem;
   width: 17rem;
   z-index: 650;
@@ -320,7 +320,7 @@ async function next() {
 }
 .actions {
   position: absolute;
-  right: max(1rem, env(safe-area-inset-right));
+  right: 1rem;
   bottom: 0.7rem;
   width: 8.4rem;
   z-index: 700;

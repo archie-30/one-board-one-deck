@@ -40,6 +40,22 @@ html {
   touch-action: manipulation;
 }
 
+/* 鏡頭防遮擋（設定可關，預設開）：手機的瀏海、挖孔鏡頭、圓角那一圈，系統會告訴網頁要讓開多少（safe-area-inset）。
+   開著時整個畫面往內縮那麼多，所有東西都稍微往上下左右移開，不會被鏡頭擋到或裁掉；
+   關掉時畫面鋪滿整個螢幕。各畫面不要再自己讀 safe-area-inset，免得重複往內縮。 */
+:root {
+  --cut-t: 0px;
+  --cut-r: 0px;
+  --cut-b: 0px;
+  --cut-l: 0px;
+}
+html.avoid-cutout {
+  --cut-t: env(safe-area-inset-top, 0px);
+  --cut-r: env(safe-area-inset-right, 0px);
+  --cut-b: env(safe-area-inset-bottom, 0px);
+  --cut-l: env(safe-area-inset-left, 0px);
+}
+
 html,
 body,
 #app {
@@ -47,6 +63,11 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
+}
+#app {
+  box-sizing: border-box;
+  padding: var(--cut-t) var(--cut-r) var(--cut-b) var(--cut-l);
+  transition: padding 260ms var(--ease-out);
 }
 
 body {
@@ -196,9 +217,10 @@ button {
 
 /* 左上角的按鈕（選單、返回）：所有畫面都在同一個位置 */
 .corner {
-  position: absolute;
-  left: max(0.9rem, env(safe-area-inset-left));
-  top: max(0.7rem, env(safe-area-inset-top));
+  /* 左上角的按鈕固定在螢幕角落：鏡頭（瀏海、挖孔）通常在短邊中間，角落不會被擋到，開了鏡頭防遮擋也不跟著往內移 */
+  position: fixed;
+  left: 0.9rem;
+  top: 0.7rem;
   z-index: 700;
 }
 

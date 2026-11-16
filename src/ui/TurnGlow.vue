@@ -9,7 +9,8 @@ defineProps<{ side: 'left' | 'right' | 'top' | 'bottom'; on: boolean }>()
 
 <style scoped>
 .turn-glow {
-  position: absolute;
+  /* 對整個螢幕定位：開了鏡頭防遮擋時，畫面內縮的那一圈（鏡頭區）也照樣亮起來，不會留一條沒有效果的邊 */
+  position: fixed;
   /* 放在畫面所有東西的後面（外層要有 isolation: isolate） */
   z-index: -1;
   pointer-events: none;
