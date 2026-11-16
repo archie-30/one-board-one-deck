@@ -22,6 +22,8 @@ interface Settings {
   fullscreen: boolean
   /** 鏡頭防遮擋：畫面避開手機的瀏海、挖孔鏡頭（往內縮一點） */
   avoidCutout: boolean
+  /** 模式選單：點中間那張卡片也能開始遊戲（關掉就只能按「開始遊戲」） */
+  cardStarts: boolean
 }
 
 interface Stats {
@@ -39,7 +41,7 @@ interface Stats {
   recent: Record<string, string>
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true }))
 
 const STATS_DEFAULT: Stats = {
   gomoku: { wins: 0, losses: 0, draws: 0 },

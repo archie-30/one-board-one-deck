@@ -16,7 +16,7 @@ import ClassicBoard from './ClassicBoard.vue'
 import type { ClassicLesson } from './tutorialData'
 
 const props = defineProps<{ adapter: Adapter<St>; lessons: ClassicLesson<St>[]; pieceStyle?: 'text' | 'icon' }>()
-const emit = defineEmits<{ exit: []; play: [] }>()
+const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const A = props.adapter
 const T = A.kind === 'chess' ? S.chess : S.xiangqi
 
@@ -123,6 +123,7 @@ const aspect = A.kind === 'chess' ? '1 / 1' : '94 / 104'
       <div class="act">
         <template v-if="finished">
           <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+          <Btn icon="book" size="sm" block @click="emit('rules')">{{ S.tutorial.rules }}</Btn>
           <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </template>
         <Btn v-else-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= lessons.length ? S.common.done : S.common.next }}</Btn>

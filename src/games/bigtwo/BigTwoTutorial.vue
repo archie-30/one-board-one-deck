@@ -17,7 +17,7 @@ import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup } from './tableLayout'
 import { BIGTWO_LESSONS, CRAZY_LESSONS, lessonCards as parseCards } from './tutorialData'
 
-const emit = defineEmits<{ exit: []; play: [] }>()
+const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const props = defineProps<{ crazy?: boolean }>()
 const T = S.bigtwo
 const OPTS: BigTwoOptions = props.crazy ? { ...DEFAULT_BIGTWO_OPTIONS, decks: 2 } : DEFAULT_BIGTWO_OPTIONS
@@ -161,6 +161,7 @@ function next() {
         <p class="text-ink-2">{{ S.tutorial.finishLead }}</p>
         <div class="mt-[0.8rem] flex w-[12rem] flex-col gap-[0.5rem]">
           <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+          <Btn icon="book" size="sm" block @click="emit('rules')">{{ S.tutorial.rules }}</Btn>
           <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </div>
       </div>

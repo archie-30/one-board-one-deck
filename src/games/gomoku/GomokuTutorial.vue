@@ -12,7 +12,7 @@ import IconBtn from '@/ui/IconBtn.vue'
 import GomokuBoard from './GomokuBoard.vue'
 import { GOMOKU_LESSONS } from './tutorialData'
 
-const emit = defineEmits<{ exit: []; play: [] }>()
+const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const T = S.gomoku
 
 const step = ref(0)
@@ -92,6 +92,7 @@ function next() {
       <div class="act">
         <template v-if="finished">
           <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+          <Btn icon="book" size="sm" block @click="emit('rules')">{{ S.tutorial.rules }}</Btn>
           <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </template>
         <Btn v-else-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= GOMOKU_LESSONS.length ? S.common.done : S.common.next }}</Btn>

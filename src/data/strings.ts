@@ -141,6 +141,8 @@ export const S = {
     fullscreen: '全螢幕',
     fullscreenHelp: '在瀏覽器裡玩時，把網址列和工具列藏起來。開著的話，下次打開遊戲第一次點畫面就自動全螢幕。',
     fullscreenNo: '這個瀏覽器不支援全螢幕。',
+    cardStarts: '點卡片開始遊戲',
+    cardStartsHelp: '在模式選單點中間那張卡片就開始遊戲。關掉的話只能按「開始遊戲」按鈕，比較不會誤觸。',
     avoidCutout: '鏡頭防遮擋',
     avoidCutoutHelp: '手機有瀏海或挖孔鏡頭時，畫面稍微往內縮，按鈕、牌和棋子不會被鏡頭擋住或裁掉。',
     autoPause: '離開時自動暫停並保存',
@@ -190,6 +192,7 @@ export const S = {
     finish: '教學完成',
     finishLead: '可以開始對局了。',
     play: '開始對局',
+    rules: '詳細規則',
   },
 
   othello: {

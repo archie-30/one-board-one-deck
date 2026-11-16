@@ -47,6 +47,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
           :key="routeKey"
           @exit="back()"
           @play="replace({ name: 'play', gameId: route.gameId })"
+          @rules="replace({ name: 'rules', gameId: route.gameId })"
         />
         <PlayScreen v-else :key="routeKey" :game-id="route.gameId" />
     </Transition>

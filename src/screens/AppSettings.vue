@@ -64,6 +64,13 @@ function close() {
       </div>
       <div class="row">
         <div>
+          <p class="t-black lb">{{ T.cardStarts }}</p>
+          <p class="help">{{ T.cardStartsHelp }}</p>
+        </div>
+        <Switch :on="settings.cardStarts" :label="T.cardStarts" @change="(v) => (settings.cardStarts = v)" />
+      </div>
+      <div class="row">
+        <div>
           <p class="t-black lb">{{ T.autoPause }}</p>
           <p class="help">{{ T.autoPauseHelp }}</p>
         </div>

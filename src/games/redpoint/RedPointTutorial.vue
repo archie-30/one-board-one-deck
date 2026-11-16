@@ -16,7 +16,7 @@ import { makeLayout, type Layout } from '../bigtwo/tableLayout'
 import { onTop, rpPoses, rpSpots } from './layout'
 import { REDPOINT_LESSONS } from './tutorialData'
 
-const emit = defineEmits<{ exit: []; play: [] }>()
+const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const T = S.redpoint
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 
@@ -194,6 +194,7 @@ async function next() {
         <p class="text-ink-2">{{ S.tutorial.finishLead }}</p>
         <div class="mt-[0.8rem] flex w-[12rem] flex-col gap-[0.5rem]">
           <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+          <Btn icon="book" size="sm" block @click="emit('rules')">{{ S.tutorial.rules }}</Btn>
           <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </div>
       </div>

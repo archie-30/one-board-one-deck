@@ -18,9 +18,33 @@ if (typeof document !== 'undefined') {
  */
 export function autoFullscreen() {
   if (!fullscreenSupported) return
+  armOnce()
+  // 全螢幕時切到別的分頁／App 再切回來：瀏覽器會自己退出全螢幕，而且不讓網頁直接再開，
+  // 所以回來後「下一次點畫面」就自動恢復全螢幕（切走前是全螢幕才這樣做；自己按退出的不會硬拉回去）
+  let wasFull = false
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') wasFull = !!document.fullscreenElement || wasFull
+    else if (wasFull && !document.fullscreenElement) {
+      wasFull = false
+      armOnce()
+    } else wasFull = false
+  })
+  window.addEventListener('blur', () => (wasFull = !!document.fullscreenElement))
+  window.addEventListener('focus', () => {
+    if (wasFull && !document.fullscreenElement) armOnce()
+    wasFull = false
+  })
+}
+
+/** 下一次點畫面（或按鍵）時進入全螢幕（設定開著才會） */
+let armed = false
+function armOnce() {
+  if (armed) return
+  armed = true
   const events = ['pointerup', 'keydown'] as const
   const once = () => {
     events.forEach((t) => window.removeEventListener(t, once, true))
+    armed = false
     if (settings.fullscreen) void setFullscreen(true)
   }
   events.forEach((t) => window.addEventListener(t, once, true))
