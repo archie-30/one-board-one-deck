@@ -42,7 +42,7 @@ function close() {
 </script>
 
 <template>
-  <Dialog :open="open" :title="T.title" label="SETTINGS" tone="yellow" wide @close="close">
+  <Dialog :open="open" :title="T.title" label="SETTINGS" tone="yellow" wide close-x @close="close">
     <div class="rows">
       <div class="row">
         <div><p class="t-black lb">{{ T.sound }}</p></div>
@@ -88,9 +88,6 @@ function close() {
       <span>{{ T.version }} {{ VERSION.number }}</span>
       <a class="underline underline-offset-[0.2em]" href="./privacy.html" target="_blank" rel="noopener">{{ T.privacy }}</a>
     </p>
-    <template #actions>
-      <Btn icon="close" size="sm" @click="close">{{ S.common.close }}</Btn>
-    </template>
   </Dialog>
 
   <!-- 清除戰績的最後確認 -->
