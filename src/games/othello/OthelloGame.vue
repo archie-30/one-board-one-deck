@@ -363,7 +363,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
 
     <aside class="side right">
       <div class="who rise" style="--i: 1" :class="{ active: phase === 'playing' && state.turn !== human }">
-        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip /></span>
+        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip talk /></span>
         <span :ref="(el) => (bowlEls[1] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 2" /></span>
       </div>
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn !== human }" />{{ opponent.name }}</p>

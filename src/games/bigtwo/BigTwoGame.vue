@@ -442,7 +442,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         :class="[`s${p}`, { active: phase === 'play' && state.turn === p }]"
         :style="{ left: `${seat.kid.x - seat.kid.w / 2}px`, top: `${seat.kid.y - seat.kid.w}px`, width: `${seat.kid.w}px`, height: `${seat.kid.w}px` }"
       >
-        <Avatar :look="looks[p]" :mood="moods[p]" :flip="p === 1" />
+        <Avatar :look="looks[p]" :mood="moods[p]" :flip="p === 1" :talk="p !== ME" />
       </div>
       <div v-if="p !== ME" class="tag" :class="[`al-${seat.label.align}`, { active: phase === 'play' && state.turn === p }]" :style="{ left: `${seat.label.x}px`, top: `${seat.label.y}px` }">
         <span class="nm t-black"><span class="hl" />{{ names[p] }}</span>

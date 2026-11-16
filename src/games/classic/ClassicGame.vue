@@ -362,7 +362,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
 
     <aside class="side right">
       <div class="who rise" style="--i: 1" :class="{ active: phase === 'playing' && A.turn(state) !== human }">
-        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip /></span>
+        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip talk /></span>
       </div>
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && A.turn(state) !== human }" />{{ opponent.name }}</p>
       <p class="t-label tg">{{ opponent.tag }}<template v-if="phase !== 'rps'"> · {{ seatName(human === 0 ? 1 : 0) }}</template></p>

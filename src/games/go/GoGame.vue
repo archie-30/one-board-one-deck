@@ -478,7 +478,7 @@ const resultLine = computed(() => {
 
     <aside class="side right">
       <div class="who rise" style="--i: 1" :class="{ active: phase === 'playing' && state.turn === ai }">
-        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip /></span>
+        <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip talk /></span>
         <span :ref="(el) => (bowlEls[1] = el as HTMLElement | null)" class="bowl"><Bowl :black="ai === 1" /></span>
       </div>
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === ai }" />{{ opponent.name }}</p>

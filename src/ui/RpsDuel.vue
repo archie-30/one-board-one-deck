@@ -101,7 +101,7 @@ function finish() {
       </p>
       <div class="side">
         <span v-if="phase === 'show'" :key="`t${round}`" class="reveal pop"><Icon :name="theirs" /></span>
-        <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="opponent.look" :mood="moods[1]" flip /></span>
+        <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="opponent.look" :mood="moods[1]" flip talk /></span>
         <span class="t-black nm">{{ opponent.name }}</span>
       </div>
     </div>
