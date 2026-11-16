@@ -3,7 +3,7 @@
 // 畫面簡化成「桌上四排＋你的手牌」，點牌選起、再按出牌／蓋牌。
 import { computed, ref } from 'vue'
 import { playSound } from '@/core/audio'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { applySevens, createSevens, legalPlays, lowestCover, makeCard, RANK_LABELS, rankOf, suitOf, type Card, type Row, type SevensState } from '@/engine/sevens/rules'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -93,7 +93,7 @@ const hint = computed(() => (!solved.value && misses.value >= 2 ? (lesson.value.
   <section class="st">
     <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
     <aside class="side">
-      <span class="kid"><Avatar :look="PLAYER_LOOK" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
+      <span class="kid"><Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
     </aside>
     <div class="mid">
       <div class="table">
@@ -188,11 +188,16 @@ const hint = computed(() => (!solved.value && misses.value >= 2 ? (lesson.value.
   position: relative;
 }
 .slot.seven::before {
+  /* 7 的位置：跟牌一樣比例的虛線框（不是被格子拉長的細長條） */
   content: '';
   position: absolute;
-  inset: 0.15rem 0.1rem;
+  left: 50%;
+  top: 50%;
+  height: 92%;
+  aspect-ratio: 70 / 100;
+  translate: -50% -50%;
   border: 0.08rem dashed var(--color-ink-3);
-  border-radius: 0.2rem;
+  border-radius: 0.25rem;
 }
 .tcard {
   position: absolute;

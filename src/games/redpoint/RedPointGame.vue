@@ -9,7 +9,7 @@ import { afterReveal } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordResult, stats } from '@/core/settings'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { RANK_LABELS, isRed, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { seedRng } from '@/engine/common/rng'
@@ -51,7 +51,7 @@ const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3)
 const names = [S.common.you, ...opponents.map((o) => o.name)]
-const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
+const looks = [myLook(), ...opponents.map((o) => o.look)]
 
 let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
 let rng = saved ? saved.rng : seedRng(seed)
@@ -295,7 +295,12 @@ function finish() {
   stats.redpoint.rounds++
   if (w.includes(ME)) stats.redpoint.wins++
   // 並列第一：跟別人平手算和；只有你最高算贏
-  recordResult('redpoint', 'all', !w.includes(ME) ? 'l' : w.length > 1 ? 'd' : 'w')
+  // 表現：贏的話看贏第二名多少分，輸的話看自己拿到第一名的幾成
+  const pts = scores.value.map((x) => x.points)
+  const top = Math.max(...pts)
+  const second = Math.max(...pts.filter((_, p) => p !== ME))
+  const perf = w.includes(ME) ? (pts[ME] - second) / 60 : top > 0 ? pts[ME] / top : 0.5
+  recordResult('redpoint', 'all', !w.includes(ME) ? 'l' : w.length > 1 ? 'd' : 'w', perf)
   stats.redpoint.best = Math.max(stats.redpoint.best, scores.value[ME].points)
   void countUp().then((ok) => {
     if (!ok) return

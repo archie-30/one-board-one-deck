@@ -9,23 +9,33 @@ import type { Look, Mood } from './look'
 const props = withDefaults(defineProps<{ look: Look; mood?: Mood; flip?: boolean; talk?: boolean }>(), { mood: 'idle' })
 const id = useId()
 
-const bubble = ref<{ text: string; key: number } | null>(null)
+// 顏文字泡泡：表情一變就冒一個（想事情時偶爾才冒），停 3 秒。
+// 畫在最上層（Teleport 到 body），位置照頭像在螢幕上的位置算：放頭上，頭上沒空間就放頭下，左右不超出螢幕；
+// 不加外框，字外圍一圈紙色描邊，蓋在別的東西上面也看得清楚。
+const root = ref<SVGSVGElement>()
+const bubble = ref<{ text: string; key: number; x: number; y: number; below: boolean } | null>(null)
 let bubbleTimer = 0
 watch(
   () => props.mood,
   (m) => {
     if (!props.talk) return
     const pool = KAOMOJI[m as keyof typeof KAOMOJI]
-    if (!pool || (m === 'think' && Math.random() > 0.3)) return
-    bubble.value = { text: pool[Math.floor(Math.random() * pool.length)], key: Date.now() }
+    if (!pool || (m === 'think' && Math.random() > 0.3) || !root.value) return
+    const r = root.value.getBoundingClientRect()
+    if (!r.width) return
+    const below = r.top < 34
+    bubble.value = {
+      text: pool[Math.floor(Math.random() * pool.length)],
+      key: Date.now(),
+      x: Math.min(window.innerWidth - 56, Math.max(56, r.left + r.width / 2)),
+      y: below ? r.bottom + 2 : r.top - 2,
+      below,
+    }
     window.clearTimeout(bubbleTimer)
-    bubbleTimer = window.setTimeout(() => (bubble.value = null), 1800)
+    bubbleTimer = window.setTimeout(() => (bubble.value = null), 3000)
   },
 )
 onBeforeUnmount(() => window.clearTimeout(bubbleTimer))
-/** 泡泡寬度：全形字算 1、半形算 0.55 */
-const bubbleW = computed(() => (bubble.value ? [...bubble.value.text].reduce((w, ch) => w + (/[\u0000-\u00ff]/.test(ch) ? 0.55 : 1), 0) * 9.5 + 10 : 0))
-
 const TONE: Record<Look['tone'], string> = {
   red: 'var(--color-red)',
   blue: 'var(--color-blue)',
@@ -51,7 +61,7 @@ const ey = computed(() => EYE_Y[props.look.shape])
 </script>
 
 <template>
-  <svg class="avatar" :class="[`m-${mood}`, { flip }]" viewBox="-2 -2 66 66" aria-hidden="true">
+  <svg ref="root" class="avatar" :class="[`m-${mood}`, { flip }]" viewBox="-2 -2 66 66" aria-hidden="true">
     <defs>
       <pattern :id="`dt${id}`" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="1.1" :fill="light ? 'rgb(251 248 241 / .4)' : 'rgb(20 20 20 / .25)'" /></pattern>
       <pattern :id="`st${id}`" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="6" :fill="light ? 'rgb(251 248 241 / .3)' : 'rgb(20 20 20 / .2)'" /></pattern>
@@ -83,13 +93,10 @@ const ey = computed(() => EYE_Y[props.look.shape])
         </g>
       </g>
     </g>
-    <!-- 顏文字泡泡：放在頭的斜上方（頭朝左的放左邊），不擋到臉 -->
-    <g v-if="bubble" :key="bubble.key" class="bubble" :transform="flip ? `translate(${4 - bubbleW} -16)` : 'translate(40 -16)'">
-      <rect x="0" y="0" :width="bubbleW" height="17" rx="8.5" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="1.6" />
-      <path :d="flip ? `M${bubbleW - 10} 16l8 7-1-8` : 'M10 16l-8 7 1-8'" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="1.6" stroke-linejoin="round" />
-      <text :x="bubbleW / 2" y="12.6" class="kao">{{ bubble.text }}</text>
-    </g>
   </svg>
+  <Teleport to="body">
+    <span v-if="bubble" :key="bubble.key" class="kao-bubble t-black" :class="{ below: bubble.below }" :style="{ left: `${bubble.x}px`, top: `${bubble.y}px` }">{{ bubble.text }}</span>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -159,23 +166,6 @@ const ey = computed(() => EYE_Y[props.look.shape])
   transform: translateY(3px) rotate(-6deg);
   transition: transform 400ms var(--ease-out);
 }
-.bubble {
-  transform-box: fill-box;
-  transform-origin: bottom left;
-  animation: bubble-in 260ms var(--ease-back) both;
-}
-.kao {
-  font-size: 10px;
-  font-weight: 900;
-  text-anchor: middle;
-  fill: var(--color-ink);
-}
-@keyframes bubble-in {
-  from {
-    opacity: 0;
-    scale: 0.4;
-  }
-}
 .m-shock .body {
   animation: shiver 0.4s linear 1;
 }
@@ -188,6 +178,41 @@ const ey = computed(() => EYE_Y[props.look.shape])
   }
   75% {
     transform: translateX(-2px);
+  }
+}
+.kao-bubble {
+  position: fixed;
+  z-index: 2100;
+  translate: -50% -100%;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  color: var(--color-ink);
+  pointer-events: none;
+  /* 沒有外框：字的外圍一圈紙色，壓在牌或棋盤上也讀得到 */
+  text-shadow:
+    0 0 0.12rem var(--color-paper),
+    0.08rem 0 0 var(--color-paper),
+    -0.08rem 0 0 var(--color-paper),
+    0 0.08rem 0 var(--color-paper),
+    0 -0.08rem 0 var(--color-paper);
+  animation: kao-in 3s var(--ease-out) both;
+}
+.kao-bubble.below {
+  translate: -50% 0;
+}
+@keyframes kao-in {
+  0% {
+    opacity: 0;
+    scale: 0.5;
+  }
+  8%,
+  88% {
+    opacity: 1;
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 </style>

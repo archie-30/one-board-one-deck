@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import { createGomoku, placeStone, toIndex, type GomokuState } from '@/engine/gomoku/rules'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import Avatar from '@/ui/art/Avatar.vue'
 import Bowl from '@/ui/art/Bowl.vue'
 import Btn from '@/ui/Btn.vue'
@@ -76,7 +76,7 @@ function next() {
     <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
     <aside class="side">
       <div class="who">
-        <span class="kid"><Avatar :look="PLAYER_LOOK" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
+        <span class="kid"><Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
         <span class="bowl"><Bowl black /></span>
       </div>
     </aside>

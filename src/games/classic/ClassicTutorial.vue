@@ -2,7 +2,7 @@
 // 西洋棋、象棋互動教學：每一課一個小盤面，只能動發亮的那顆子，照著提示走一步就過關
 import { computed, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import type { Promo } from '@/engine/chess/rules'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -96,7 +96,7 @@ const aspect = A.kind === 'chess' ? '1 / 1' : '94 / 104'
   <section class="gt">
     <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
     <aside class="side">
-      <span class="kid"><Avatar :look="PLAYER_LOOK" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
+      <span class="kid"><Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
     </aside>
     <div class="board-wrap" :style="{ aspectRatio: aspect }">
       <ClassicBoard

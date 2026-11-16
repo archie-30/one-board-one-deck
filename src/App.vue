@@ -8,9 +8,11 @@ import CategoryScreen from '@/screens/CategoryScreen.vue'
 import GameSettingsScreen from '@/screens/GameSettingsScreen.vue'
 import NamesScreen from '@/screens/NamesScreen.vue'
 import PlayScreen from '@/screens/PlayScreen.vue'
+import ProfileScreen from '@/screens/ProfileScreen.vue'
 import RulesScreen from '@/screens/RulesScreen.vue'
 import TitleScreen from '@/screens/TitleScreen.vue'
 import LaunchOverlay from '@/ui/LaunchOverlay.vue'
+import UnlockDialog from '@/ui/UnlockDialog.vue'
 
 /** 離開一頁：往下沉一點、淡出（0.2 秒）；對局頁、減少動態時直接換 */
 function pageLeave(el: Element, done: () => void) {
@@ -38,6 +40,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     <Transition :css="false" mode="out-in" @leave="pageLeave">
         <TitleScreen v-if="route.name === 'title'" :key="routeKey" />
         <NamesScreen v-else-if="route.name === 'names'" :key="routeKey" />
+        <ProfileScreen v-else-if="route.name === 'profile'" :key="routeKey" />
         <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" />
         <RulesScreen v-else-if="route.name === 'rules'" :key="routeKey" :game-id="route.gameId" />
         <GameSettingsScreen v-else-if="route.name === 'settings'" :key="routeKey" :game-id="route.gameId" />
@@ -51,6 +54,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         />
         <PlayScreen v-else :key="routeKey" :game-id="route.gameId" />
     </Transition>
+    <UnlockDialog />
     <LaunchOverlay />
     <div class="rotate">{{ S.app.rotate }}</div>
   </main>

@@ -12,6 +12,7 @@ import type { GameCategory } from '@/games/types'
 import Card from '@/ui/art/Card.vue'
 import Icon from '@/ui/art/Icon.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import ProfileChip from '@/ui/ProfileChip.vue'
 import AppSettings from './AppSettings.vue'
 
 const picked = ref<GameCategory | null>(null)
@@ -82,14 +83,23 @@ function hover(side: GameCategory, event: PointerEvent) {
       <span class="go"><Icon name="arrow" class="ar" /></span>
     </button>
 
+    <!-- 右上角：個人資料（頭像＋等級） -->
+    <div class="me rise" style="--i: 3"><ProfileChip /></div>
     <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
   </section>
 </template>
 
 <style scoped>
 .choose {
+  position: relative;
   display: flex;
   height: 100%;
+}
+.me {
+  position: absolute;
+  top: 0.9rem;
+  right: 1.2rem;
+  z-index: 2;
 }
 .intro {
   position: relative;

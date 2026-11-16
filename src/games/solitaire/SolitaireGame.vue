@@ -140,7 +140,8 @@ function settleStuck() {
   stopClock()
   total.value = finalScore(scoreOf(state.value), seconds.value, false)
   recordBest('solitaire', String(props.options.difficulty ?? 'easy'), total.value)
-  recordResult('solitaire', String(props.options.difficulty ?? 'easy'), 'l')
+  // 表現：收上去幾成
+  recordResult('solitaire', String(props.options.difficulty ?? 'easy'), 'l', state.value.foundations.flat().length / 52)
   playSound('lose')
   window.setTimeout(() => (resultOpen.value = true), 500)
 }
@@ -193,7 +194,8 @@ function win() {
   total.value = finalScore(scoreOf(state.value), seconds.value, true)
   stats.solitaire.wins++
   recordBest('solitaire', String(props.options.difficulty ?? 'easy'), total.value)
-  recordResult('solitaire', String(props.options.difficulty ?? 'easy'), 'w')
+  // 表現：越快過關越高（3 分鐘內滿分）
+  recordResult('solitaire', String(props.options.difficulty ?? 'easy'), 'w', 1 - (seconds.value - 180) / 900)
   if (!stats.solitaire.fastest || seconds.value < stats.solitaire.fastest) stats.solitaire.fastest = seconds.value
   playSound('win')
   window.setTimeout(() => (resultOpen.value = true), 900)

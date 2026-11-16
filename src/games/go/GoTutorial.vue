@@ -2,7 +2,7 @@
 // 圍棋互動教學：9 路棋盤，一步一步練習提子、逃跑、做眼、打劫、圍地
 import { computed, ref } from 'vue'
 import { playSound } from '@/core/audio'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { applyGo, createGo, hashBoard, other, toIndex, type GoState, type Point } from '@/engine/go/rules'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -80,7 +80,7 @@ function next() {
     <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
     <aside class="side">
       <div class="who">
-        <span class="kid"><Avatar :look="PLAYER_LOOK" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
+        <span class="kid"><Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
         <span class="bowl"><Bowl black /></span>
       </div>
     </aside>

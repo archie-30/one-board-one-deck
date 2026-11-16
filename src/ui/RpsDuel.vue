@@ -4,7 +4,7 @@
 import { onBeforeUnmount, ref } from 'vue'
 import { playSound } from '@/core/audio'
 import type { Opponent } from '@/core/opponents'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { RPS_HANDS, randomRps, resolveRps, type RpsHand } from '@/engine/common/rps'
@@ -92,7 +92,7 @@ function finish() {
     <div class="duel">
       <div class="side">
         <span v-if="phase === 'show' && !timedOut" :key="`m${round}`" class="reveal pop"><Icon :name="mine" /></span>
-        <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="PLAYER_LOOK" :mood="moods[0]" /></span>
+        <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="myLook()" :mood="moods[0]" /></span>
         <span class="t-black nm">{{ S.common.you }}</span>
       </div>
       <p class="verdict t-black" :class="{ win: phase === 'show' && outcome === 1 }">
