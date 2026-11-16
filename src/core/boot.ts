@@ -6,9 +6,8 @@
 import { reducedMotion } from './motion'
 
 // ── 字型與進度條 ──
-// 中文字型兩個字重各約 1MB。以前要等畫面用到才開始下載，而且只等畫面上已經用到的那一個：
-// 進度條跑到七成就停住等字型（看起來卡在 2/3），另一個字重進主畫面後才開始下載（粗體字晚到）。
-// 現在一開機就三個字型一起下載，進度條照真正下載完幾個往前走，等待時慢慢往前爬不會停住。
+// 中文字型用的是只含遊戲用到的字的小檔（各約 180KB，見 scripts/subset-fonts.py），完整字型（各約 1MB）只有遇到罕見字才下載。
+// 一開機就三個字型一起下載，進度條照真正下載完幾個往前走，等待時慢慢往前爬不會停住；都好了才進主畫面（粗體字不會晚到）。
 const FONTS = ['900 1em "Noto Sans TC"', '500 1em "Noto Sans TC"', '400 1em "Alfa Slab One"']
 /** 程式載好時進度條的位置（之前由 index.html 的 CSS 動畫跑到這裡） */
 const BASE = 0.3
@@ -108,8 +107,8 @@ export async function finishBoot() {
   const started = performance.now()
   const fillEl = boot.querySelector<HTMLElement>('.fill')
   if (fillEl && !reducedMotion()) runBar(fillEl)
-  // 三個字型都下載好才進主畫面（進去後粗體字不會晚到）；網路太慢最多等 6 秒，之後字型照樣會補上
-  await Promise.race([fontsDone, wait(6000)])
+  // 三個字型都下載好才進主畫面（進去後粗體字不會晚到）；網路太慢最多等 4 秒，之後字型照樣會補上
+  await Promise.race([fontsDone, wait(4000)])
   await (document.fonts?.ready ?? Promise.resolve())
   await wait(Math.max(0, 900 - (performance.now() - started))) // 至少轉一下，不要一閃而過
   cancelAnimationFrame(barRaf)
