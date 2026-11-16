@@ -17,7 +17,6 @@ import Btn from '@/ui/Btn.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import ProfileChip from '@/ui/ProfileChip.vue'
 import Tabs from '@/ui/Tabs.vue'
-import AppSettings from './AppSettings.vue'
 
 const props = defineProps<{ category: GameCategory }>()
 const games = computed(() => gamesIn(props.category))
@@ -28,7 +27,6 @@ const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 /** 從遊戲退回來：卡片堆不播進場上浮（過場層要量卡片的位置讓卡片飛回去，位置必須一開始就是定位） */
 const returning = launchFx.active && launchFx.mode === 'exit'
-const settingsOpen = ref(false)
 
 /** 難度這類常用設定：直接在這裡選，不用進「規則設定」 */
 const quick = computed(() => {
@@ -230,7 +228,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <header class="head">
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
-      <IconBtn icon="gear" :label="S.appSettings.title" @click="settingsOpen = true" />
       <ProfileChip />
     </header>
     <div class="rule wipe" style="--i: 1" />
@@ -316,7 +313,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </div>
       </aside>
     </div>
-    <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
 
   </section>
 </template>

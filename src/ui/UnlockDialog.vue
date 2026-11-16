@@ -5,7 +5,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { go, route } from '@/core/nav'
-import { lastGain, myLook, unlockQueue, type Unlock } from '@/core/profile'
+import { lastGain, myLook, unlockQueue, type Part, type Unlock } from '@/core/profile'
 import { S } from '@/data/strings'
 import Avatar from './art/Avatar.vue'
 import type { Look } from './art/look'
@@ -39,9 +39,9 @@ function view() {
 
 const level = computed(() => current.value?.items.find((i) => i.kind === 'level') as { level: number } | undefined)
 const titles = computed(() => (current.value?.items ?? []).filter((i): i is { kind: 'title'; id: string } => i.kind === 'title'))
-const avatars = computed(() => (current.value?.items ?? []).filter((i): i is { kind: 'avatar'; part: 'shape' | 'tone' | 'fill'; value: string } => i.kind === 'avatar'))
-const partName = (a: { part: 'shape' | 'tone' | 'fill'; value: string }) => ({ shape: T.shapes, tone: T.tones, fill: T.fills })[a.part][a.value]
-const preview = (a: { part: 'shape' | 'tone' | 'fill'; value: string }): Look => ({ ...myLook(), [a.part]: a.value })
+const avatars = computed(() => (current.value?.items ?? []).filter((i): i is { kind: 'avatar'; part: Part; value: string } => i.kind === 'avatar'))
+const partName = (a: { part: Part; value: string }) => ({ shape: T.shapes, tone: T.tones, fill: T.fills, acc: T.accs })[a.part][a.value]
+const preview = (a: { part: Part; value: string }): Look => ({ ...myLook(), [a.part]: a.value })
 
 // 「+N 經驗」小提示
 const toast = ref(0)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 進入遊戲的過場層（放在 App 最上層，換頁時不會消失）。進場與離開的總長度差不多（各約 1.4 秒）：
+// 進入遊戲的過場層（放在 App 最上層，換頁時不會消失）。進場與離開的總長度差不多（各約 1 秒；數值在 D）：
 //   1. 把被點的那張卡片整張複製一份，從原位拿起來、移到畫面中間並放大一點
 //   2. 卡片翻面，背面是分類色＋網點＋遊戲名稱
 //   3. 背面從卡片大小展開成整個畫面
@@ -17,6 +17,8 @@ const fill = ref<HTMLElement>()
 const showFill = ref(false)
 const ease = 'cubic-bezier(0.77, 0, 0.175, 1)'
 const easeOut = 'cubic-bezier(0.23, 1, 0.32, 1)'
+/** 各段長度（毫秒）。進場：拿起翻面 lift → 展開 grow → 揭開 wipe；離開：蓋住 cover → 縮回 shrink → 翻回飛走 back */
+const D = { lift: 420, grow: 240, nameOut: 200, wipeDelay: 60, wipe: 300, cover: 300, nameIn: 260, nameInDelay: 100, shrink: 240, back: 420 }
 let safety = 0
 
 watch(
@@ -50,7 +52,7 @@ watch(
         { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotateY(0deg) rotateZ(-2deg)`, offset: 0.38 },
         { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotateY(180deg) rotateZ(0deg)` },
       ],
-      { duration: 600, easing: ease, fill: 'forwards' },
+      { duration: D.lift, easing: ease, fill: 'forwards' },
     )
     await lift.finished
     // 背面展開成整個畫面：從卡片背面的大小開始，用 clip-path 擴到全螢幕
@@ -61,8 +63,8 @@ watch(
     await nextTick()
     const fl = fill.value
     if (!fl) return notifyGrown()
-    const grow = fl.animate([{ clipPath: `inset(${inset} round 0.6rem)` }, { clipPath: 'inset(0px 0px round 0rem)' }], { duration: 340, easing: ease, fill: 'forwards' })
-    fl.querySelector('.name')?.animate([{ transform: 'scale(0.86)' }, { transform: 'scale(1)' }], { duration: 340, easing: easeOut, fill: 'forwards' })
+    const grow = fl.animate([{ clipPath: `inset(${inset} round 0.6rem)` }, { clipPath: 'inset(0px 0px round 0rem)' }], { duration: D.grow, easing: ease, fill: 'forwards' })
+    fl.querySelector('.name')?.animate([{ transform: 'scale(0.86)' }, { transform: 'scale(1)' }], { duration: D.grow, easing: easeOut, fill: 'forwards' })
     await grow.finished
     notifyGrown()
     // 萬一遊戲那邊沒通知，最晚 3 秒也要揭開
@@ -80,8 +82,8 @@ async function runExit() {
   const W = window.innerWidth
   const H = window.innerHeight
   // 1. 由上往下蓋滿
-  fl.querySelector('.name')?.animate([{ transform: 'translateY(30%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 360, delay: 160, easing: easeOut, fill: 'both' })
-  await fl.animate([{ clipPath: 'inset(0 0 100% 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: 420, easing: ease, fill: 'forwards' }).finished
+  fl.querySelector('.name')?.animate([{ transform: 'translateY(30%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], { duration: D.nameIn, delay: D.nameInDelay, easing: easeOut, fill: 'both' })
+  await fl.animate([{ clipPath: 'inset(0 0 100% 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: D.cover, easing: ease, fill: 'forwards' }).finished
   notifyCovered()
   // 2. 等模式選單出現，找到那張卡片
   let card: HTMLElement | null = null
@@ -96,8 +98,8 @@ async function runExit() {
   const scale = Math.min((H * 0.72) / r.height, (W * 0.5) / r.width)
   const w = r.width * scale
   const h = r.height * scale
-  fl.querySelector('.name')?.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.8)' }], { duration: 340, easing: ease, fill: 'forwards' })
-  await fl.animate([{ clipPath: 'inset(0px 0px round 0rem)' }, { clipPath: `inset(${(H - h) / 2}px ${(W - w) / 2}px round 0.6rem)` }], { duration: 340, easing: ease, fill: 'forwards' }).finished
+  fl.querySelector('.name')?.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.8)' }], { duration: D.shrink, easing: ease, fill: 'forwards' })
+  await fl.animate([{ clipPath: 'inset(0px 0px round 0rem)' }, { clipPath: `inset(${(H - h) / 2}px ${(W - w) / 2}px round 0.6rem)` }], { duration: D.shrink, easing: ease, fill: 'forwards' }).finished
   // 3. 換成一張真的卡片（背面朝上），翻回正面，飛回原位
   launch.rect = { left: r.left, top: r.top, width: r.width, height: r.height }
   showFill.value = false
@@ -119,7 +121,7 @@ async function runExit() {
       { transform: `translate(${dx}px, ${dy}px) scale(${scale}) rotateY(0deg) rotateZ(2deg)`, offset: 0.55 },
       { transform: 'translate(0, 0) scale(1) rotateY(0deg) rotateZ(0deg)' },
     ],
-    { duration: 600, easing: ease, fill: 'forwards' },
+    { duration: D.back, easing: ease, fill: 'forwards' },
   ).finished
   finishExit()
 }
@@ -132,8 +134,8 @@ async function reveal() {
   window.clearTimeout(safety)
   const fl = fill.value
   if (!fl) return endLaunch()
-  fl.querySelector('.name')?.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-30%)', opacity: 0 }], { duration: 280, easing: 'ease-in', fill: 'forwards' })
-  const wipe = fl.animate([{ clipPath: 'inset(0 0 0 0)' }, { clipPath: 'inset(0 0 100% 0)' }], { duration: 400, delay: 100, easing: ease, fill: 'forwards' })
+  fl.querySelector('.name')?.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-30%)', opacity: 0 }], { duration: D.nameOut, easing: 'ease-in', fill: 'forwards' })
+  const wipe = fl.animate([{ clipPath: 'inset(0 0 0 0)' }, { clipPath: 'inset(0 0 100% 0)' }], { duration: D.wipe, delay: D.wipeDelay, easing: ease, fill: 'forwards' })
   await wipe.finished
   endLaunch()
 }

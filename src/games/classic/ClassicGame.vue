@@ -387,7 +387,10 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
       <div class="act">
         <template v-if="phase === 'over'">
           <Btn tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
-          <Btn class="mt-[0.5rem]" size="sm" icon="book" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
+          <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
+            <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
+            <Btn size="sm" block @click="emit('exit')">{{ S.common.quit }}</Btn>
+          </div>
         </template>
         <template v-else>
           <UndoBtn block :disabled="!canUndo" :used="undoUsed" @undo="undo" />
@@ -550,6 +553,15 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
 .act {
   width: 8.6rem;
   margin-top: 0.4rem;
+}
+/* 結束後看棋盤：看結果、離開對局兩顆小按鈕並排，字置中、內距縮小才放得下 */
+.end2 :deep(.face) {
+  justify-content: center;
+  padding: 0 0.25rem;
+  font-size: 0.76rem;
+}
+.end2 :deep(.lb) {
+  flex: none;
 }
 .promo {
   display: grid;
