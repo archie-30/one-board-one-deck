@@ -127,9 +127,32 @@ onBeforeUnmount(() => ro?.disconnect())
 
 // 停在某張卡片上時，封面的小動畫循環播放（每個遊戲的卡面各自有一段重複的動畫，見 games/covers/）
 
-/** 目前轉到的位置：整數 = 停在某張；拖曳時是小數（往左拖 = 往下一張轉） */
+// 卡片疊實際轉到的位置：換卡片時不靠 CSS 補間，而是每一格畫面重算所有卡片的位置。
+// 這樣「誰疊在上面」會剛好在兩張交錯的那一刻才換（以前是一開始就換，下一張會突然跳到上面、閃一下）。
+const vis = ref(index.value)
+let glideRaf = 0
+function glideTo(target: number) {
+  cancelAnimationFrame(glideRaf)
+  const from = vis.value
+  if (reducedMotion() || from === target) {
+    vis.value = target
+    return
+  }
+  const t0 = performance.now()
+  const dur = 460 + Math.min(2, Math.abs(target - from) - 1) * 120
+  const step = (now: number) => {
+    const t = Math.min(1, (now - t0) / dur)
+    vis.value = from + (target - from) * (1 - Math.pow(1 - t, 3))
+    if (t < 1) glideRaf = requestAnimationFrame(step)
+  }
+  glideRaf = requestAnimationFrame(step)
+}
+watch(index, (k) => glideTo(k))
+onBeforeUnmount(() => cancelAnimationFrame(glideRaf))
+
+/** 目前轉到的位置：整數 = 停在某張；拖曳、換卡片途中是小數（往左拖 = 往下一張轉） */
 const pos = computed(() => {
-  let p = index.value - dragX.value / (cardW.value * 0.75)
+  let p = vis.value - dragX.value / (cardW.value * 0.75)
   // 頭尾拉不過去，會有一點阻力
   if (p < 0) p = p * 0.3
   if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
@@ -144,6 +167,8 @@ function onDown(e: PointerEvent) {
   pid = e.pointerId
   x0 = e.clientX
   moved = false
+  // 上一次換卡片還在滑：停在現在的位置，從這裡接著拖
+  cancelAnimationFrame(glideRaf)
   dragging.value = true
   deckEl.value?.setPointerCapture(e.pointerId)
 }
@@ -158,13 +183,17 @@ function onUp(e: PointerEvent) {
   if (!moved) {
     // 沒有拖：當作點一下（拖曳時抓住了指標，點擊事件不會傳到卡片上，所以在這裡找點到哪一張）
     dragX.value = 0
+    glideTo(index.value)
     const hit = document.elementsFromPoint(e.clientX, e.clientY).find((el) => cardEls.includes(el as HTMLElement))
     if (hit) tapCard(cardEls.indexOf(hit as HTMLElement))
     return
   }
   const target = Math.round(pos.value - Math.sign(dragX.value) * 0.25 * (Math.abs(dragX.value) > 30 ? 1 : 0))
+  // 從放手的位置接著滑到目標（沒換卡片時滑回原位）
+  vis.value = pos.value
   dragX.value = 0
   show(target)
+  glideTo(index.value)
 }
 function tapCard(k: number) {
   if (k !== index.value) show(k)
@@ -187,13 +216,16 @@ function cardStyle(k: number) {
   const rot = -sg * Math.min(a, 1) * 52
   // 左右最多各看得到兩張；更後面的淡出，改用灰色陰影表示「還有」
   const op = Math.max(0, Math.min(1, (2.6 - a) * 1.7))
+  // 兩張卡片交錯（離中間半張）時蒙上一層霧：微微模糊＋多蓋一點紙色，在交錯點最濃，
+  // 換上下層的那一瞬間被霧遮住，看起來是接續過去，不是閃一下
+  const mist = Math.max(0, 1 - Math.abs(a - 0.5) / 0.38)
   const style: Record<string, string | number> = {
     zIndex: 100 - Math.round(a * 10),
     opacity: op,
-    '--fade': Math.min(0.78, a * 0.5),
+    '--fade': Math.min(0.78, a * 0.5 + mist * 0.32),
     transform: `translateX(-50%) translateX(${x}px) translateZ(${z}px) rotateY(${rot}deg)`,
   }
-  if (dragging.value) style.transition = 'none'
+  if (mist > 0.02) style.filter = `blur(${(mist * 2.4).toFixed(2)}px)`
   return style
 }
 
@@ -408,10 +440,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   text-align: left;
   box-shadow: 0.25rem 0.25rem 0 var(--color-ink);
   transform-origin: 50% 50%;
-  transition:
-    transform 460ms var(--ease-out),
-    opacity 360ms ease,
-    box-shadow 220ms var(--ease-out);
+  /* 位置、透明度每一格畫面由 cardStyle 算（見 glideTo），不用 CSS 補間 */
+  transition: box-shadow 220ms var(--ease-out);
 }
 .card:not(.front) {
   cursor: pointer;
@@ -433,7 +463,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   background: var(--color-paper);
   opacity: var(--fade, 0);
   pointer-events: none;
-  transition: opacity 300ms ease;
 }
 .deck:active .card::after {
   transition: none;
@@ -722,8 +751,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 @media (hover: hover) and (pointer: fine) {
   .card {
     transition:
-      transform 460ms var(--ease-out),
-      opacity 360ms ease,
       translate 200ms var(--ease-out),
       box-shadow 220ms var(--ease-out);
   }
