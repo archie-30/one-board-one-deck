@@ -195,7 +195,8 @@ function finish() {
 function scheduleCpu() {
   moods.value = ['idle', 'think']
   const st = gomokuAt(opponent.value.persona.gomoku, level, opponent.value.id)
-  const think = 900 + (1 - st.noise) * 700 + extraThink(level) + Math.random() * 600
+  // 挑戰：多想一會兒（要找「連續衝四」）
+  const think = 900 + (1 - st.noise) * 700 + extraThink(level) + (level === 'master' ? 500 : 0) + Math.random() * 600
   later(() => {
     let move: number
     ;[move, rng] = chooseGomokuMove(state.value, st, rng)

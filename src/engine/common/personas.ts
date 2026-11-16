@@ -37,6 +37,8 @@ export interface GomokuStyle {
   blind: number
   /** 先試下前幾名、看對手最好的回應再決定（0 = 不看對手怎麼回）；沒填是 0 */
   look?: number
+  /** 會找「連續衝四取勝」，也會先破壞對手的（挑戰） */
+  vcf?: boolean
 }
 
 /** 撿紅點的打法 */

@@ -170,3 +170,61 @@ describe('五子棋：時間到被跳過', () => {
     expect(skipTurn(t).turn).toBe(1)
   })
 })
+
+describe('五子棋：連續衝四取勝（挑戰的電腦）', () => {
+  it('找得到：做一個四逼對手擋，再做出擋不完的雙四', async () => {
+    const { findVcf } = await import('./vcf')
+    // 黑：橫的 (3..5,7) 三顆、直的 (6,4..5) 兩顆＋(6,8)；下 (6,7) 同時成橫四與直四
+    const s = setup(
+      [
+        [3, 7],
+        [4, 7],
+        [5, 7],
+        [6, 5],
+        [6, 6],
+        [6, 8],
+      ],
+      [
+        [2, 7],
+        [9, 9],
+        [12, 10],
+        [11, 13],
+        [13, 1],
+        [1, 1],
+      ],
+      1,
+    )
+    const p = findVcf(s)
+    expect(p).toBeGreaterThanOrEqual(0)
+    const r = placeStone(s, p)
+    expect(r.ok).toBe(true)
+  })
+  it('挑戰的電腦會先破壞對手的連續衝四', async () => {
+    const { findVcf } = await import('./vcf')
+    const { gomokuAt } = await import('../common/difficulty')
+    const { PERSONAS } = await import('../common/personas')
+    // 白有連續衝四；輪到黑，黑下完後白就不該再有
+    const s = setup(
+      [
+        [2, 7],
+        [0, 0],
+        [14, 0],
+        [0, 14],
+      ],
+      [
+        [3, 7],
+        [4, 7],
+        [5, 7],
+        [6, 5],
+        [6, 6],
+        [6, 8],
+      ],
+      1,
+    )
+    expect(findVcf(s, 2)).toBeGreaterThanOrEqual(0)
+    const [m] = chooseGomokuMove(s, gomokuAt(PERSONAS[0].gomoku, 'master'), seedRng(1))
+    const r = placeStone(s, m)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(findVcf(r.state, 2)).toBe(-1)
+  })
+})
