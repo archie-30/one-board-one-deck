@@ -8,9 +8,9 @@
 //   大家都準備好、對戰人數不超過模式人數就開始（空位由電腦補上；之後接連線時由伺服器開局）。
 //   只有按左下「離開房間」（房主是「解散房間」）才會離開；只剩自己一個人時不用再確認。點成員看玩家資料（彈窗）。
 // 現在還沒接真的連線（見 core/online.ts），只有自己一個人。
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { back, resetTo, setBackGuard } from '@/core/nav'
-import { canChangeMode, changeMode, isHost, leaveRoom, online, ROOM_MAX, setReady, setSpectator, startState, type RoomPlayer } from '@/core/online'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { back, go, resetTo, setBackGuard } from '@/core/nav'
+import { beginMatch, canChangeMode, changeMode, isHost, leaveRoom, online, ROOM_MAX, setReady, setSpectator, startState, type RoomPlayer } from '@/core/online'
 import { levelOf, myLook, profile } from '@/core/profile'
 import type { GameCategory } from '@/games/types'
 import { S } from '@/data/strings'
@@ -35,7 +35,7 @@ const status = computed(() => {
   if (!s.chosen) return T.status.noMode
   if (s.tooMany) return T.status.tooMany(s.tooMany)
   const ai = s.ai ? `　${T.status.ai(s.ai)}` : ''
-  if (s.canStart) return T.status.go + ai
+  if (s.canStart) return (countdown.value > 0 ? T.status.countdown(countdown.value) : T.status.go) + ai
   return T.status.waitReady(s.readyCount, s.total) + ai
 })
 /** 人比模式多（或自己已經在觀戰）才出現「改成觀戰／回來對戰」 */
@@ -65,6 +65,34 @@ async function copy() {
   window.clearTimeout(copyTimer)
   copyTimer = window.setTimeout(() => (copied.value = false), 1400)
 }
+
+// 大家都準備好：倒數 3 秒開局（倒數中有人取消準備、換模式就停下來）。
+// 現在還沒接連線：在這台機器上開局，空位由電腦補上；打完離開對局會回到房間。
+const countdown = ref(0)
+let cdTimer = 0
+function stopCountdown() {
+  window.clearInterval(cdTimer)
+  countdown.value = 0
+}
+watch(
+  () => st.value.canStart,
+  (ok) => {
+    stopCountdown()
+    if (!ok || !game.value) return
+    countdown.value = 3
+    cdTimer = window.setInterval(() => {
+      countdown.value--
+      if (countdown.value > 0) return
+      stopCountdown()
+      const id = game.value?.id
+      if (!id || !st.value.canStart) return
+      beginMatch()
+      go({ name: 'play', gameId: id })
+    }, 1000)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(stopCountdown)
 
 // 離開房間：先問一下
 const leaveOpen = ref(false)

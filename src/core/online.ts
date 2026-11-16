@@ -141,6 +141,14 @@ export function setReady(on: boolean) {
   push()
 }
 
+/** 開局：大家的準備清掉（打完回到房間要重新準備）。之後接連線時由伺服器通知大家一起開局。 */
+export function beginMatch() {
+  const room = online.room
+  if (!room) return
+  for (const p of room.players) p.ready = false
+  push()
+}
+
 /** 改成觀戰／回來對戰（改了就要重新準備） */
 export function setSpectator(on: boolean) {
   const m = me()
