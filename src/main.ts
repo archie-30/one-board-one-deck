@@ -1,9 +1,9 @@
 import { createApp, watchEffect } from 'vue'
-import '@fontsource/noto-sans-tc/chinese-traditional-500.css'
-import '@fontsource/noto-sans-tc/chinese-traditional-900.css'
 import '@fontsource/noto-sans-tc/latin-500.css'
 import '@fontsource/noto-sans-tc/latin-900.css'
 import '@fontsource/alfa-slab-one/latin-400.css'
+// 中文字型：只含遊戲用到的字的小字型（各約 180KB）＋完整字型（另一個名字，遇到罕見字才下載），見 scripts/subset-fonts.py
+import './assets/fonts/subset.css'
 import App from './App.vue'
 import { finishBoot, startFontLoads } from './core/boot'
 import { warmSounds } from './core/audio'

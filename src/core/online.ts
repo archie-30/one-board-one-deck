@@ -1,7 +1,13 @@
-// 連線房間的狀態與動作（建立、加入、離開、選遊戲）。
+// 連線房間的狀態與動作。
 // 現在只有介面：還沒接真的連線，房號在本機產生、別人加入不了。
 // 之後接連線時，只要把下面的 `service` 換成真的實作（例如 WebSocket／Firebase），畫面不用改。
-import { reactive } from 'vue'
+//
+// 房間規則：
+// - 一間最多 4 人。房主開房；大家都可以在房間外（模式選單）逛模式。
+// - 換模式：預設只有房主能換；房主可以在房間裡打開「讓大家都能換模式」。不能換的人只能「推薦此模式」，推薦會出現在房間裡給房主看。
+// - 開始：在房間裡，大家都按「準備」就開始。
+// - 模式人數比房間人數少（例如 4 人房玩 2 人的棋）：多出來的人要自己改成「觀戰」，對戰的人數剛好才能開始。
+import { computed, reactive } from 'vue'
 import type { Look } from '@/ui/art/look'
 
 export interface RoomPlayer {
@@ -14,41 +20,57 @@ export interface RoomPlayer {
   me: boolean
   /** 頭像（別人的由連線傳來；自己的照個人資料） */
   look?: Look
+  /** 按了準備 */
+  ready: boolean
+  /** 這一局觀戰 */
+  spectator: boolean
+}
+
+export interface Recommend {
+  playerId: string
+  gameId: string
 }
 
 export interface Room {
   /** 4 位數房號 */
   code: string
-  /** 選好的玩法 */
+  /** 目前的模式 */
   gameId: string
   players: RoomPlayer[]
+  /** 房主打開：大家都能換模式 */
+  allowOthers: boolean
+  /** 大家推薦的模式（同一個人只留最新一個） */
+  recommends: Recommend[]
 }
 
 export type JoinError = 'format' | 'notFound' | 'full'
 
-/** 連線服務：之後換成真的實作 */
+/** 房間最多幾人 */
+export const ROOM_MAX = 4
+/** 房號：4 位數字 */
+export const ROOM_CODE_LENGTH = 4
+export const isRoomCode = (s: string) => new RegExp(`^\\d{${ROOM_CODE_LENGTH}}$`).test(s)
+
+/** 連線服務：之後換成真的實作。每個動作都把變動送出去；別人的變動由服務改 online.room。 */
 export interface OnlineService {
   create(me: { name: string }, gameId: string): Promise<Room>
   join(code: string, me: { name: string }): Promise<Room | JoinError>
   leave(code: string): Promise<void>
-  setGame(code: string, gameId: string): Promise<void>
+  /** 自己的狀態（準備、觀戰）或房間設定（模式、權限、推薦）有變 */
+  update(room: Room): Promise<void>
 }
-
-/** 房號：4 位數字 */
-export const ROOM_CODE_LENGTH = 4
-export const isRoomCode = (s: string) => new RegExp(`^\\d{${ROOM_CODE_LENGTH}}$`).test(s)
 
 /** 先用的假服務：只在本機產生房號；因為還沒有伺服器，加入房間一律找不到 */
 const localService: OnlineService = {
   async create(me, gameId) {
     const code = String(Math.floor(Math.random() * 10 ** ROOM_CODE_LENGTH)).padStart(ROOM_CODE_LENGTH, '0')
-    return { code, gameId, players: [{ id: 'me', name: me.name, host: true, me: true }] }
+    return { code, gameId, allowOthers: false, recommends: [], players: [{ id: 'me', name: me.name, host: true, me: true, ready: false, spectator: false }] }
   },
   async join(code) {
     return isRoomCode(code) ? 'notFound' : 'format'
   },
   async leave() {},
-  async setGame() {},
+  async update() {},
 }
 
 let service: OnlineService = localService
@@ -59,6 +81,13 @@ export function useOnlineService(s: OnlineService) {
 
 /** 目前所在的房間（沒有就是 null） */
 export const online = reactive<{ room: Room | null }>({ room: null })
+
+const me = () => online.room?.players.find((p) => p.me) ?? null
+const push = () => online.room && void service.update(online.room)
+
+/** 自己能不能換模式（房主，或房主打開了「大家都能換」） */
+export const canChangeMode = computed(() => !!online.room && (!!me()?.host || online.room.allowOthers))
+export const isHost = computed(() => !!me()?.host)
 
 export async function createRoom(name: string, gameId: string): Promise<Room> {
   const room = await service.create({ name }, gameId)
@@ -79,10 +108,64 @@ export async function leaveRoom() {
   if (room) await service.leave(room.code)
 }
 
-/** 房主換玩法 */
-export async function setRoomGame(gameId: string) {
+/** 換模式：大家的「準備」都取消；新模式坐得下所有人的話，觀戰的人自動回來對戰 */
+export function changeMode(gameId: string, seats: number) {
   const room = online.room
-  if (!room || !room.players.find((p) => p.me)?.host) return
+  if (!room || !canChangeMode.value || room.gameId === gameId) return
   room.gameId = gameId
-  await service.setGame(room.code, gameId)
+  room.recommends = room.recommends.filter((r) => r.gameId !== gameId)
+  for (const p of room.players) {
+    p.ready = false
+    if (seats >= room.players.length) p.spectator = false
+  }
+  push()
+}
+
+/** 推薦模式（不能換模式的人用） */
+export function recommendMode(gameId: string) {
+  const room = online.room
+  const m = me()
+  if (!room || !m) return
+  room.recommends = [...room.recommends.filter((r) => r.playerId !== m.id), { playerId: m.id, gameId }]
+  push()
+}
+
+/** 房主：讓大家都能換模式 */
+export function setAllowOthers(on: boolean) {
+  const room = online.room
+  if (!room || !isHost.value) return
+  room.allowOthers = on
+  push()
+}
+
+export function setReady(on: boolean) {
+  const m = me()
+  if (!m) return
+  m.ready = on
+  push()
+}
+
+/** 改成觀戰／回來對戰（改了就要重新準備） */
+export function setSpectator(on: boolean) {
+  const m = me()
+  if (!m) return
+  m.spectator = on
+  m.ready = false
+  push()
+}
+
+/** 開始的條件：對戰的人數剛好等於模式人數，而且房間裡每個人（含觀戰）都準備好了 */
+export function startState(seats: number) {
+  const ps = online.room?.players ?? []
+  const playing = ps.filter((p) => !p.spectator).length
+  return {
+    playing,
+    /** 還要幾個人改成觀戰 */
+    tooMany: Math.max(0, playing - seats),
+    /** 還差幾個人 */
+    missing: Math.max(0, seats - playing),
+    readyCount: ps.filter((p) => p.ready).length,
+    total: ps.length,
+    canStart: playing === seats && ps.length > 0 && ps.every((p) => p.ready),
+  }
 }

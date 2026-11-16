@@ -17,8 +17,8 @@
   --color-blue: #2340d9;
   --color-yellow: #ffc21a;
 
-  --font-sans: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
-  --font-slab: 'Alfa Slab One', 'Noto Sans TC', serif;
+  --font-sans: 'Noto Sans TC', 'Noto Sans TC Full', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+  --font-slab: 'Alfa Slab One', 'Noto Sans TC', 'Noto Sans TC Full', serif;
 
   /* 棋盤、牌桌底色與共用陰影（實心偏移陰影） */
   --color-board: #ffc21a;
