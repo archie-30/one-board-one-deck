@@ -206,6 +206,21 @@ function tapCard(k: number) {
 function onClick(k: number, e: MouseEvent) {
   if (e.detail === 0) tapCard(k)
 }
+/**
+ * 「還有更多卡片」的灰色影子：貼在左右第二張側卡的外緣。
+ * 照透視（perspective 900px）算第二張側卡外緣投影到畫面上離中心多遠——卡片大小有上限之後，
+ * 影子不能再貼著整塊區域的邊（大螢幕上會離卡片很遠）。數字跟 cardStyle 的位置、角度一致。
+ */
+const PERSPECTIVE = 900
+const moreStyle = computed(() => {
+  const w = cardW.value
+  const th = (52 * Math.PI) / 180
+  const x = w * (0.42 + 0.27) + (w / 2) * Math.cos(th)
+  const z = -w * 0.9 + (w / 2) * Math.sin(th)
+  const k = PERSPECTIVE / (PERSPECTIVE - z)
+  const h = (w / 0.72) * k
+  return { '--edge': `${x * k}px`, '--mh': `${h * 0.76}px` }
+})
 function cardStyle(k: number) {
   const r = rel(k)
   const a = Math.abs(r)
@@ -324,8 +339,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           @pointercancel="onUp"
         >
           <!-- 左右各露兩張側卡；那一側還有第三張以後的卡片時，才在外側加一團淡淡的灰色影子 -->
-          <span v-if="index > 2" class="more left" />
-          <span v-if="games.length - 1 - index > 2" class="more right" />
+          <span v-if="index > 2" class="more left" :style="moreStyle" />
+          <span v-if="games.length - 1 - index > 2" class="more right" :style="moreStyle" />
           <button
             v-for="(g, k) in games"
             :id="`mode-${g.id}`"
@@ -502,7 +517,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   animation: none;
 }
 .deck {
-  perspective: 900px;
+  perspective: 900px; /* 改這個數字要一起改 moreStyle 的 PERSPECTIVE */
   perspective-origin: 50% 45%;
 }
 /* 直式卡片：米白底、黑框、右下實心陰影。位置由 cardStyle 算（往右後方疊、滑過的往左出去）。 */
@@ -801,8 +816,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 /* 還有更多卡片時：在那一側最外面加一團柔和的灰色影子（像後面還疊著卡片） */
 .more {
   position: absolute;
-  top: 12%;
-  bottom: 12%;
+  top: 50%;
+  height: var(--mh, 76%);
+  translate: 0 -50%;
   z-index: 1;
   width: 4.5rem;
   border-radius: 50%;
@@ -810,11 +826,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   pointer-events: none;
 }
 .more.left {
-  left: -2.6rem;
+  right: calc(50% + var(--edge, 50%));
   background: radial-gradient(ellipse at 70% 50%, rgb(20 20 20 / 0.2), transparent 70%);
 }
 .more.right {
-  right: -2.6rem;
+  left: calc(50% + var(--edge, 50%));
   background: radial-gradient(ellipse at 30% 50%, rgb(20 20 20 / 0.2), transparent 70%);
 }
 .quick {
