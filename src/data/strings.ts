@@ -370,7 +370,7 @@ export const S = {
     cardsLeft: (n: number) => `${n} 張`,
     noPlay: '沒有能壓過的牌',
     clearSelection: '取消選取',
-    autoPassed: '沒有能壓過的牌，自動過牌',
+    autoPassed: '自動過牌',
     combos: {
       single: '單張',
       pair: '對子',
@@ -394,12 +394,10 @@ export const S = {
       mustLead: '輪到你自由出牌，不能過牌',
     },
     review: {
-      open: '回到牌桌看牌',
+      open: '檢視牌組',
       label: 'HANDS',
-      start: '原本的牌',
-      end: '最後剩下',
       done: '出完了',
-      startNote: '淡色的是這一局已經出掉的牌。',
+      startNote: '每個人開局的牌；淡色的是已經出掉的，深色的是最後剩下的。'
     },
     result: {
       win: '你贏了',
