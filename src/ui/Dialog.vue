@@ -2,7 +2,11 @@
 // 對話框：一塊有黑框與實心陰影的紙，上方一條色帶放小標籤。從下方升起並稍微過頭。
 // flip：結算用——像翻一張牌一樣，從背面（分類色）翻到正面（跟進出遊戲的翻卡片呼應）。
 // cover：暫停用——後面整片蓋住，看不到牌和棋（不能拿暫停來多想）。
-defineProps<{ open: boolean; title?: string; label?: string; wide?: boolean; tone?: 'red' | 'blue' | 'yellow' | 'ink'; flip?: boolean; cover?: boolean }>()
+// closeX：右上角放一顆 ✕ 關閉鈕（取代底下的「關閉」按鈕，內容可以多顯示一些）。
+import { S } from '@/data/strings'
+import IconBtn from './IconBtn.vue'
+
+defineProps<{ open: boolean; title?: string; label?: string; wide?: boolean; tone?: 'red' | 'blue' | 'yellow' | 'ink'; flip?: boolean; cover?: boolean; closeX?: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 </script>
 
@@ -14,6 +18,7 @@ const emit = defineEmits<{ close: [] }>()
       <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip back-${tone ?? 'ink'}` : '']">
         <div class="band halftone" :class="`b-${tone ?? 'ink'}`"><span class="t-label">{{ label }}</span></div>
         <div class="body">
+          <IconBtn v-if="closeX" class="x" icon="close" size="2.1rem" :label="S.common.close" @click="emit('close')" />
           <h2 v-if="title" class="t-black title"><span class="mask"><span>{{ title }}</span></span></h2>
           <div class="scroll-y min-h-0"><slot /></div>
           <div v-if="$slots.actions" class="actions"><slot name="actions" /></div>
@@ -24,6 +29,13 @@ const emit = defineEmits<{ close: [] }>()
 </template>
 
 <style scoped>
+/* 右上角的 ✕：跟標題同一高度 */
+.x {
+  position: absolute;
+  top: 2.35rem;
+  right: 1rem;
+  z-index: 2;
+}
 .backdrop {
   background: rgb(239 233 220 / 0.82);
 }
