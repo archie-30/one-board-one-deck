@@ -1,8 +1,11 @@
 <script setup lang="ts">
 // 排七互動教學：三關（第一手出黑桃 7、從 7 往兩邊接、沒牌可接就蓋最小的）。
 // 畫面簡化成「桌上四排＋你的手牌」，點牌選起、再按出牌／蓋牌。
-import { computed, ref } from 'vue'
+// 動畫：每一關手牌一張張發上來、桌上的牌依序冒出；出的牌從手上飛到桌上的格子（落地壓一下），
+// 蓋的牌翻成背面飛到頭像下面的蓋牌堆；答錯那張牌左右晃一下。系統開「減少動態」時都不動。
+import { computed, nextTick, ref } from 'vue'
 import { playSound } from '@/core/audio'
+import { reducedMotion } from '@/core/motion'
 import { myLook } from '@/core/profile'
 import { online } from '@/core/online'
 import { S } from '@/data/strings'
@@ -46,6 +49,33 @@ function build(n: number): SevensState {
   const s = createSevens([l.hand, [], [], []])
   return { ...s, rows: l.rows.map((r) => (r ? [r[0], r[1]] : null)), first: l.first, turn: 0 }
 }
+// ── 動畫用：每張手牌、桌上的牌、蓋牌堆的元素 ──
+const handEls = new Map<Card, HTMLElement>()
+const tableEls = new Map<Card, Element>()
+const coverEl = ref<HTMLElement>()
+/** 剛飛上桌的那張（不要再播「冒出來」） */
+const flown = ref<Card | null>(null)
+const covered = ref<Card[]>([])
+const EASE = 'cubic-bezier(.22,1,.36,1)'
+
+/** 從 from 的位置飛到 to（to 是已經畫在終點的那個元素） */
+function fly(from: DOMRect, to: Element, flip: boolean) {
+  const r = to.getBoundingClientRect()
+  if (!r.width) return
+  const dx = from.left + from.width / 2 - (r.left + r.width / 2)
+  const dy = from.top + from.height / 2 - (r.top + r.height / 2)
+  const k = from.width / r.width
+  const start = `translate(${dx}px, ${dy}px) scale(${k}) rotate(-6deg)`
+  const frames = flip
+    ? [{ transform: start }, { transform: `translate(${dx / 2}px, ${dy / 2 - 30}px) scale(${(k + 1) / 2}) scaleX(0) rotate(4deg)`, offset: 0.45 }, { transform: 'none' }]
+    : [{ transform: start }, { transform: 'translate(0, -6%) scale(1.06)', offset: 0.8 }, { transform: 'scale(1.06, 0.92)', offset: 0.9 }, { transform: 'none' }]
+  ;(to as HTMLElement).animate(frames, { duration: flip ? 560 : 520, easing: EASE })
+}
+function shake(c: Card) {
+  if (reducedMotion()) return
+  handEls.get(c)?.animate([{ transform: 'none' }, { transform: 'translateX(-0.35rem) rotate(-3deg)' }, { transform: 'translateX(0.35rem) rotate(3deg)' }, { transform: 'translateX(-0.2rem)' }, { transform: 'none' }], { duration: 360 })
+}
+
 function tap(c: Card) {
   if (solved.value || finished.value) return
   if (selected.value === c) return confirm()
@@ -60,16 +90,25 @@ function confirm() {
   const ok = l.want === 'any' ? !covering && legalPlays(state.value, 0).includes(c) : l.want === 'cover' ? covering && c === lowestCover(state.value.hands[0]) : c === l.want
   if (!ok) {
     misses.value++
+    shake(c)
     selected.value = null
     playSound('error')
     return
   }
   const r = applySevens(state.value, covering ? { type: 'cover', player: 0, card: c } : { type: 'play', player: 0, card: c })
   if (!r.ok) return
+  const from = handEls.get(c)?.getBoundingClientRect()
+  flown.value = c
+  if (covering) covered.value = [...covered.value, c]
   state.value = r.state
   selected.value = null
   solved.value = true
   playSound(covering ? 'pass' : 'card')
+  if (!from || reducedMotion()) return
+  void nextTick(() => {
+    const to = covering ? coverEl.value?.lastElementChild : tableEls.get(c)
+    if (to) fly(from, to, covering)
+  })
 }
 function next() {
   if (step.value + 1 >= LESSONS.length) {
@@ -79,6 +118,8 @@ function next() {
   }
   step.value++
   state.value = build(step.value)
+  flown.value = null
+  covered.value = []
   solved.value = false
   misses.value = 0
   selected.value = null
@@ -95,21 +136,41 @@ const hint = computed(() => (!solved.value && misses.value >= 2 ? (lesson.value.
     <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
     <aside class="side">
       <span class="kid"><Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
+      <!-- 蓋牌堆：蓋起來的牌翻成背面飛到這裡 -->
+      <span ref="coverEl" class="cpile">
+        <svg v-for="(c, i) in covered" :key="c" viewBox="-2 -2 78 108" class="cback" :style="{ rotate: `${(i % 2 ? 1 : -1) * 6}deg` }"><CardArt back /></svg>
+      </span>
     </aside>
     <div class="mid">
-      <div class="table">
+      <!-- 換關時整塊重畫：桌上的牌依序冒出、手牌一張張發上來 -->
+      <div :key="`t${step}`" class="table">
         <span class="t-label lab">TABLE</span>
-        <div v-for="suit in ROW_ORDER" :key="suit" class="row">
+        <div v-for="(suit, ri) in ROW_ORDER" :key="suit" class="row">
           <span v-for="r in 13" :key="r" class="slot" :class="{ seven: r === 7 }">
-            <svg v-if="rowCards(suit).some((c) => rankOf(c) === r)" viewBox="-2 -2 78 108" class="tcard pop"><CardArt :rank="RANK_LABELS[r]" :suit="suit" :shadow="false" /></svg>
+            <svg
+              v-if="rowCards(suit).some((c) => rankOf(c) === r)"
+              :ref="(el) => el && tableEls.set(C(suit, r), el as Element)"
+              viewBox="-2 -2 78 108"
+              class="tcard"
+              :class="{ appear: flown !== C(suit, r) }"
+              :style="{ '--d': `${ri * 90 + Math.abs(r - 7) * 50}ms` }"
+            ><CardArt :rank="RANK_LABELS[r]" :suit="suit" :shadow="false" /></svg>
           </span>
         </div>
       </div>
-      <div class="hand">
-        <button v-for="c in state.hands[0]" :key="c" class="hcard" :class="{ sel: selected === c, hint: hint.includes(c) }" @click="tap(c)">
+      <TransitionGroup :key="`h${step}`" tag="div" name="hc" class="hand">
+        <button
+          v-for="(c, i) in state.hands[0]"
+          :key="c"
+          :ref="(el) => (el ? handEls.set(c, el as HTMLElement) : handEls.delete(c))"
+          class="hcard deal"
+          :class="{ sel: selected === c, hint: hint.includes(c) }"
+          :style="{ '--d': `${250 + i * 90}ms` }"
+          @click="tap(c)"
+        >
           <svg viewBox="-2 -2 78 108"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" /></svg>
         </button>
-      </div>
+      </TransitionGroup>
     </div>
     <aside class="guide">
       <GuideNote v-if="!finished" :step="step" :total="LESSONS.length" :text="text.text" :ok="text.ok" :solved="solved" :misses="misses" />
@@ -143,8 +204,52 @@ const hint = computed(() => (!solved.value && misses.value >= 2 ? (lesson.value.
   display: flex;
   width: 5.5rem;
   flex-shrink: 0;
-  align-items: flex-end;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
   padding-bottom: 1rem;
+}
+/* 蓋牌堆（頭像上面） */
+.cpile {
+  position: relative;
+  display: block;
+  width: 2.6rem;
+  height: 3.6rem;
+}
+.cback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* 桌上的牌：從中間的 7 往外依序冒出 */
+.tcard.appear {
+  animation: t-pop 380ms var(--ease-back) var(--d) both;
+}
+@keyframes t-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+/* 手牌：一張張從下面發上來 */
+.hcard.deal {
+  animation: deal 420ms var(--ease-out) var(--d) both;
+}
+@keyframes deal {
+  from {
+    opacity: 0;
+    transform: translateY(2.2rem) rotate(8deg);
+  }
+}
+/* 出掉的牌離開手牌時，剩下的牌滑過去補位 */
+.hc-move {
+  transition: transform 320ms var(--ease-out);
+}
+.hc-leave-active {
+  position: absolute;
+  opacity: 0;
 }
 .kid {
   display: block;
@@ -225,6 +330,18 @@ const hint = computed(() => (!solved.value && misses.value >= 2 ? (lesson.value.
 }
 .hcard.sel {
   transform: translateY(-0.6rem);
+}
+/* 滑鼠移上去：牌先浮起一點 */
+@media (hover: hover) and (pointer: fine) {
+  .hcard:not(.sel):hover {
+    transform: translateY(-0.25rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tcard.appear,
+  .hcard.deal {
+    animation: none;
+  }
 }
 .hcard.sel::after,
 .hcard.hint::after {
