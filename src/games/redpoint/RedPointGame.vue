@@ -8,7 +8,7 @@ import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { stats } from '@/core/settings'
+import { recordResult, stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { RANK_LABELS, isRed, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
@@ -294,6 +294,8 @@ function finish() {
   for (let p = 0; p < 4; p++) moods[p] = w.includes(p) ? 'happy' : 'sad'
   stats.redpoint.rounds++
   if (w.includes(ME)) stats.redpoint.wins++
+  // 並列第一：跟別人平手算和；只有你最高算贏
+  recordResult('redpoint', 'all', !w.includes(ME) ? 'l' : w.length > 1 ? 'd' : 'w')
   stats.redpoint.best = Math.max(stats.redpoint.best, scores.value[ME].points)
   void countUp().then((ok) => {
     if (!ok) return

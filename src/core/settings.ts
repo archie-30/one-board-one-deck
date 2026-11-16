@@ -33,6 +33,8 @@ interface Stats {
   chess: { wins: number; losses: number; draws: number }
   xiangqi: { wins: number; losses: number; draws: number }
   othello: { wins: number; losses: number; draws: number }
+  /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
+  recent: Record<string, string>
 }
 
 export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true }))
@@ -47,6 +49,7 @@ const STATS_DEFAULT: Stats = {
   chess: { wins: 0, losses: 0, draws: 0 },
   xiangqi: { wins: 0, losses: 0, draws: 0 },
   othello: { wins: 0, losses: 0, draws: 0 },
+  recent: {},
 }
 
 export const stats = reactive(loadSave<Stats>('stats', structuredClone(STATS_DEFAULT)))
@@ -71,6 +74,20 @@ export function recordBest(game: 'bigtwo' | 'crazybigtwo' | 'solitaire', level: 
   const g = stats[game]
   g.bestBy[level] = Math.max(g.bestBy[level] ?? 0, value)
   g.best = Math.max(g.best, value)
+}
+
+/** 近百場戰況要記幾場 */
+export const RECENT_MAX = 100
+/** 記一場結果（每個玩法、每個難度各自記；沒有難度的玩法用 'all'） */
+export function recordResult(gameId: string, level: string, result: 'w' | 'l' | 'd') {
+  const key = `${gameId}:${level}`
+  stats.recent[key] = ((stats.recent[key] ?? '') + result).slice(-RECENT_MAX)
+}
+/** 某個玩法某個難度最近幾場的勝負和 */
+export function recentAt(gameId: string, level: string): { n: number; w: number; l: number; d: number } {
+  const s = stats.recent[`${gameId}:${level}`] ?? ''
+  const count = (ch: string) => s.split(ch).length - 1
+  return { n: s.length, w: count('w'), l: count('l'), d: count('d') }
 }
 
 /** 清除所有戰績（設定頁用） */

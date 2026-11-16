@@ -110,6 +110,9 @@ export const S = {
     board: { title: '棋盤', lead: '一張棋盤，兩種棋子。' },
   },
   lobby: {
+    recent: (n: number, w: number, l: number, d: number) => `近 ${n} 場　勝 ${w}　負 ${l}${d ? `　和 ${d}` : ''}`,
+    recentSolo: (n: number, w: number, l: number) => `近 ${n} 局　過關 ${w}　沒過 ${l}`,
+    recentNone: '這個難度還沒有戰績',
     start: '開始遊戲',
     startSub: '對手每局隨機入座',
     tutorial: '新手教學',
@@ -189,7 +192,7 @@ export const S = {
 
   othello: {
     name: '黑白棋',
-    summary: '夾住對方的棋子翻成自己的顏色，最後子多的人獲勝。',
+    summary: '夾住就翻面，角落是好朋友。',
     players: '你 對 1 位對手',
     tags: ['2 人', '約 8 分鐘'],
     black: '黑棋',
@@ -263,7 +266,7 @@ export const S = {
   },
   gomoku: {
     name: '五子棋',
-    summary: '先把五顆棋連成一線的人獲勝。',
+    summary: '連成五顆就贏，四顆記得擋。',
     players: '你 對 1 位對手',
     tags: ['2 人', '約 5 分鐘'],
     black: '黑棋',
@@ -360,7 +363,7 @@ export const S = {
 
   bigtwo: {
     name: '大老二',
-    summary: '四個人比誰先把手上的牌出完。',
+    summary: '比誰先出完，2 最大、3 最可憐。',
     players: '你 對 3 位對手',
     tags: ['4 人', '約 5 分鐘'],
     record: (rounds: number, wins: number, total: number) => `打了 ${rounds} 局　贏 ${wins} 局　總分 ${total > 0 ? '+' : ''}${total}`,
@@ -579,7 +582,7 @@ export const S = {
   },
   crazybigtwo: {
     name: '瘋狂大老二',
-    summary: '兩副牌、每人 26 張，雙胞胎對子最大，一樣大先出的贏。',
+    summary: '兩副牌一起洗，撞牌先出的贏。',
     players: '你 對 3 位對手',
     tags: ['4 人', '兩副牌'],
     overTwenty: '剩 20 張以上 ×2。',
@@ -634,7 +637,7 @@ export const S = {
   },
   redpoint: {
     name: '撿紅點',
-    summary: '用手上的牌湊成十，把紅牌撿回來。',
+    summary: '湊十撿紅牌，黑牌吃了也白吃。',
     players: '你 對 3 位對手',
     tags: ['4 人', '約 4 分鐘'],
     record: (rounds: number, wins: number, best: number) => `打了 ${rounds} 局　贏 ${wins} 局　最高 ${best} 分`,
@@ -717,7 +720,7 @@ export const S = {
 
   solitaire: {
     name: '接龍',
-    summary: '一個人玩：把整副牌依花色從 A 收到 K。',
+    summary: '一個人慢慢排，A 到 K 收回家。',
     players: '單人',
     tags: ['1 人', '約 5 分鐘'],
     record: (played: number, wins: number, best: number) => `玩了 ${played} 局　過關 ${wins} 次　最高 ${best} 分`,
@@ -808,7 +811,7 @@ export const S = {
 
   chess: {
     name: '西洋棋',
-    summary: '把對方的國王將死就贏了。',
+    summary: '把國王逼到無路可逃。',
     players: '你 對 1 位對手',
     tags: ['2 人', '約 15 分鐘'],
     white: '白方',
@@ -898,7 +901,7 @@ export const S = {
 
   xiangqi: {
     name: '象棋',
-    summary: '把對方的「將」將死就贏了。',
+    summary: '楚河漢界，將死對方老帥。',
     players: '你 對 1 位對手',
     tags: ['2 人', '約 15 分鐘'],
     red: '紅方',
@@ -992,7 +995,7 @@ export const S = {
 
   go: {
     name: '圍棋',
-    summary: '用棋子圍地，最後地多的人贏。',
+    summary: '圍地盤比大小，被圍住就提走。',
     players: '你 對 1 位對手',
     tags: ['2 人', '約 10～40 分鐘'],
     record: (w: number, l: number) => `累計　勝 ${w}　負 ${l}`,
