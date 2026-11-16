@@ -9,6 +9,7 @@ import GameSettingsScreen from '@/screens/GameSettingsScreen.vue'
 import NamesScreen from '@/screens/NamesScreen.vue'
 import PlayScreen from '@/screens/PlayScreen.vue'
 import ProfileScreen from '@/screens/ProfileScreen.vue'
+import RoomScreen from '@/screens/RoomScreen.vue'
 import RulesScreen from '@/screens/RulesScreen.vue'
 import TitleScreen from '@/screens/TitleScreen.vue'
 import LaunchOverlay from '@/ui/LaunchOverlay.vue'
@@ -41,6 +42,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         <TitleScreen v-if="route.name === 'title'" :key="routeKey" />
         <NamesScreen v-else-if="route.name === 'names'" :key="routeKey" />
         <ProfileScreen v-else-if="route.name === 'profile'" :key="routeKey" />
+        <RoomScreen v-else-if="route.name === 'room'" :key="routeKey" />
         <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" />
         <RulesScreen v-else-if="route.name === 'rules'" :key="routeKey" :game-id="route.gameId" />
         <GameSettingsScreen v-else-if="route.name === 'settings'" :key="routeKey" :game-id="route.gameId" />

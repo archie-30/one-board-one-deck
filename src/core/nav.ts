@@ -9,6 +9,7 @@ export type Route =
   | { name: 'title' }
   | { name: 'names' }
   | { name: 'profile' }
+  | { name: 'room' }
   | { name: 'category'; category: GameCategory }
   | { name: 'rules' | 'settings' | 'tutorial' | 'play'; gameId: string }
 

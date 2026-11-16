@@ -20,6 +20,8 @@ defineProps<{ name: IconName }>()
     <path v-else-if="name === 'pencil'" d="M4 20l1-5L16 4l4 4L9 19zM13.5 6.5l4 4" />
     <path v-else-if="name === 'bulb'" d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c1 1 1.5 2 1.5 3.5h5c0-1.5.5-2.5 1.5-3.5A6 6 0 0 0 12 3z" />
     <g v-else-if="name === 'badge'"><path d="M3 5.5h18v14H3z" /><circle cx="8.5" cy="11" r="2.2" /><path d="M5.2 16.8c.7-1.7 1.8-2.5 3.3-2.5s2.6.8 3.3 2.5M14.5 10h4M14.5 14h4" /></g>
+    <g v-else-if="name === 'online'"><circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none" /><path d="M8.2 14.8a5.4 5.4 0 0 1 7.6 0M5.2 11.6a9.6 9.6 0 0 1 13.6 0M2.4 8.4a13.6 13.6 0 0 1 19.2 0" /></g>
+    <g v-else-if="name === 'copy'"><path d="M8 8h12v12H8z" /><path d="M16 8V4H4v12h4" /></g>
     <g v-else-if="name === 'lock'"><path d="M5.5 11h13v9h-13z" /><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" /></g>
     <path v-else-if="name === 'sound'" d="M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11" />
     <g v-else-if="name === 'gear'"><path d="M18.94 10.08 L21.49 10.55 L21.49 13.45 L18.94 13.92 L18.26 15.55 L19.73 17.69 L17.69 19.73 L15.55 18.26 L13.92 18.94 L13.45 21.49 L10.55 21.49 L10.08 18.94 L8.45 18.26 L6.31 19.73 L4.27 17.69 L5.74 15.55 L5.06 13.92 L2.51 13.45 L2.51 10.55 L5.06 10.08 L5.74 8.45 L4.27 6.31 L6.31 4.27 L8.45 5.74 L10.08 5.06 L10.55 2.51 L13.45 2.51 L13.92 5.06 L15.55 5.74 L17.69 4.27 L19.73 6.31 L18.26 8.45Z" stroke-linejoin="round" /><circle cx="12" cy="12" r="3.2" /></g>

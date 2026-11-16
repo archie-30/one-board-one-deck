@@ -16,6 +16,7 @@ import type { GameCategory } from '@/games/types'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import OnlineDialog from '@/ui/OnlineDialog.vue'
 import ProfileChip from '@/ui/ProfileChip.vue'
 import Tabs from '@/ui/Tabs.vue'
 
@@ -232,6 +233,8 @@ function cardStyle(k: number) {
 // ── 點最前面的卡片（或按「開始遊戲」）：卡片放大到整個畫面，同時先把遊戲載好，接著直接開始遊戲 ──
 const cardEls: (HTMLElement | null)[] = []
 const launching = ref(false)
+/** 連線對戰的彈窗（右上角「連線」按鈕） */
+const onlineOpen = ref(false)
 async function launch() {
   if (launching.value) return
   const el = cardEls[index.value]
@@ -264,6 +267,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <header class="head">
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
+      <Btn class="on-btn" size="sm" icon="online" @click="onlineOpen = true">{{ S.online.short }}</Btn>
       <ProfileChip />
     </header>
     <div class="rule wipe" style="--i: 1" />
@@ -350,6 +354,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </aside>
     </div>
 
+    <OnlineDialog :open="onlineOpen" :category="category" @close="onlineOpen = false" />
   </section>
 </template>
 
