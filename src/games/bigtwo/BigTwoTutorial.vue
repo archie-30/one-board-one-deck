@@ -4,6 +4,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { myLook } from '@/core/profile'
+import { online } from '@/core/online'
 import { S } from '@/data/strings'
 import { RANK_LABELS, rankOf, sortCards, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { canBeat, identifyCombo } from '@/engine/bigtwo/combos'
@@ -160,7 +161,8 @@ function next() {
         <h2 class="t-black text-[2.4rem] leading-tight"><span class="mask"><span>{{ S.tutorial.finish }}</span></span></h2>
         <p class="text-ink-2">{{ S.tutorial.finishLead }}</p>
         <div class="mt-[0.8rem] flex w-[12rem] flex-col gap-[0.5rem]">
-          <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+          <!-- 在連線房間裡不能自己開局（開始要在房間裡大家準備） -->
+          <Btn v-if="!online.room" tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
           <Btn icon="book" size="sm" block @click="emit('rules')">{{ S.tutorial.rules }}</Btn>
           <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </div>

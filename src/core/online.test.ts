@@ -5,7 +5,8 @@ const guest = (id: string, extra: Partial<RoomPlayer> = {}): RoomPlayer => ({ id
 
 describe('連線房間', () => {
   beforeEach(async () => {
-    await createRoom('我', 'bigtwo')
+    await createRoom('我')
+    online.room!.gameId = 'bigtwo'
   })
 
   it('開房：自己是房主、可以換模式；房號 4 位數', () => {
@@ -34,7 +35,21 @@ describe('連線房間', () => {
     expect(canChangeMode.value).toBe(true)
   })
 
-  it('大家都準備、對戰人數剛好才開始；換模式後準備全部取消', () => {
+  it('開房時還沒選模式，不能開始', async () => {
+    await createRoom('我')
+    setReady(true)
+    expect(online.room!.gameId).toBe('')
+    expect(startState(4)).toMatchObject({ chosen: false, canStart: false })
+  })
+
+  it('人不夠：空位由電腦補上，大家準備好就能開始', () => {
+    const room = online.room!
+    room.players.push(guest('a', { ready: true }))
+    setReady(true)
+    expect(startState(4)).toMatchObject({ ai: 2, canStart: true })
+  })
+
+  it('大家都準備、對戰人數不超過模式人數才開始；換模式後準備全部取消', () => {
     const room = online.room!
     room.players.push(guest('a'), guest('b'), guest('c'))
     expect(startState(4).canStart).toBe(false)

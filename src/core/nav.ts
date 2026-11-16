@@ -41,6 +41,10 @@ export function replace(next: Route) {
     stack[stack.length - 1] = next
   })
 }
+/** 整個換成這幾頁（例如從房間直接回主畫面、進某個分類；返回時照這個順序退） */
+export function resetTo(routes: Route[]) {
+  transition(() => stack.splice(0, stack.length, ...routes))
+}
 /** 返回前要先問一下的頁面（例如個人資料改了還沒儲存）：回傳 false 就先不返回 */
 let backGuard: (() => boolean) | null = null
 export function setBackGuard(fn: (() => boolean) | null) {

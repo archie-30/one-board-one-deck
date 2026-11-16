@@ -1,13 +1,11 @@
 <script setup lang="ts">
 // 連線對戰的入口彈窗：上面輸入房號加入，下面建立新房間。進了房間就換到房間頁。
 // 主畫面（底下那一條）和模式選單（右上角）都用這個。
-import { computed, nextTick, ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { go } from '@/core/nav'
 import { createRoom, isRoomCode, joinRoom, ROOM_CODE_LENGTH } from '@/core/online'
 import { profile } from '@/core/profile'
-import { settings } from '@/core/settings'
 import { S } from '@/data/strings'
-import { onlineGames } from '@/games/registry'
 import type { GameCategory } from '@/games/types'
 import Btn from './Btn.vue'
 import Dialog from './Dialog.vue'
@@ -56,16 +54,11 @@ async function join() {
   go({ name: 'room' })
 }
 
-/** 建立房間：玩法先用這個分類上次選的（從主畫面進來就用撲克牌那邊的） */
-const defaultGame = computed(() => {
-  const cat = props.category ?? 'cards'
-  const list = onlineGames(cat)
-  return list.find((g) => g.id === settings.lastGame[cat])?.id ?? list[0].id
-})
+/** 建立房間：一開始不幫玩家選模式（「未選擇模式」） */
 async function create() {
   if (busy.value) return
   busy.value = true
-  await createRoom(myName(), defaultGame.value)
+  await createRoom(myName())
   busy.value = false
   emit('close')
   go({ name: 'room' })
