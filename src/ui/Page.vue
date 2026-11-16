@@ -4,7 +4,7 @@ import { back } from '@/core/nav'
 import { S } from '@/data/strings'
 import Btn from './Btn.vue'
 
-defineProps<{ title: string; label?: string; num?: string; backLabel?: string }>()
+defineProps<{ title: string; label?: string; num?: string; backLabel?: string; backDisabled?: boolean }>()
 </script>
 
 <template>
@@ -17,7 +17,7 @@ defineProps<{ title: string; label?: string; num?: string; backLabel?: string }>
     <div class="rule wipe" style="--i: 2" />
     <div class="body"><slot /></div>
     <footer class="foot rise" style="--i: 4">
-      <Btn icon="back" size="sm" @click="back()">{{ backLabel ?? S.common.back }}</Btn>
+      <Btn icon="back" size="sm" :disabled="backDisabled" @click="back()">{{ backLabel ?? S.common.back }}</Btn>
       <slot name="foot" />
     </footer>
   </section>
