@@ -13,7 +13,7 @@
 - 切到別的分頁／App、視窗失去焦點時自動暫停，並自動存一份進度（設定可關）；結算中、已結束時不暫停；分頁或 App 被關掉，下次開同一個玩法會問要不要繼續。
 - 手機觸控：`html` 設 `touch-action: manipulation`、viewport 禁止縮放（點兩下不會放大）；長按不跳選單（`main.ts` 擋 `contextmenu`，輸入框除外）。拖曳一律處理 `pointercancel`（被系統打斷時牌／棋子回原位，之後的點擊照常）；接龍手指移動 14px 內算點擊，拖一點點又放回原疊也算點擊。
 - 預設全螢幕：瀏覽器規定要先點一下才能全螢幕，所以開遊戲後第一次點畫面（或按鍵）時自動進入全螢幕（`fullscreen.ts` 的 `autoFullscreen`，只做一次；之後自己退出就不硬拉回去）。設定的「全螢幕」開關同時記住偏好（`settings.fullscreen`，預設開），關掉後下次就不會自動全螢幕。
-- 鏡頭防遮擋（設定，預設開，`settings.avoidCutout`）：開著時 `html` 加上 `avoid-cutout`，`#app` 依系統回報的瀏海／挖孔鏡頭範圍（`safe-area-inset`，存成 `--cut-t/r/b/l`）往內縮，所有東西稍微往上下左右移開；關掉就鋪滿。各畫面不要再自己讀 `safe-area-inset`（會重複內縮）。之後做 Android 版時，WebView 要開「畫到鏡頭區域」（edge-to-edge／`layoutInDisplayCutoutMode`），系統才會回報範圍。
+- 鏡頭防遮擋（設定，預設開，`settings.avoidCutout`）：開著時 `html` 加上 `avoid-cutout`，`#app` 依系統回報的瀏海／挖孔鏡頭範圍（`safe-area-inset`，存成 `--cut-t/r/b/l`）往內縮，所有東西稍微往上下左右移開；關掉就鋪滿。各畫面不要再自己讀 `safe-area-inset`（會重複內縮）。背景效果（輪到誰的漸層 `TurnGlow`、滑鼠橘光）用 `position: fixed` 對整個螢幕畫，鏡頭區也照樣有效果，不能留一條空白邊；左上角按鈕 `.corner` 也是 fixed 在螢幕角落、不跟著內縮（鏡頭通常在短邊中間，角落不會被擋）。之後做 Android 版時，WebView 要開「畫到鏡頭區域」（edge-to-edge／`layoutInDisplayCutoutMode`），系統才會回報範圍。
 - 手機直拿：`index.html` 先只顯示「請把裝置轉成橫向」，加載動畫暫停藏起來；轉成橫向後才開始播（`boot.ts` 的 `untilLandscape`）。
 - 左上角的按鈕（遊戲的選單、教學與模式選單的返回）都用共用的 `.corner`，所有畫面同一個位置。接龍的牌堆依按鈕實際大小往下排，不能被按鈕蓋到。
 - 開啟 App 時先顯示加載畫面（寫在 `index.html`）：三張牌扇開、一張張翻正面，小棋盤上輪流落子，下方進度條。準備好後（字型載入、至少約 1.3 秒）牌扇和棋盤停在主畫面插圖的姿勢，各自飛到主畫面「撲克牌」「棋盤」插圖的位置接上，背景淡掉、主畫面同時進場（`src/core/boot.ts`）。

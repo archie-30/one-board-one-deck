@@ -217,7 +217,8 @@ button {
 
 /* 左上角的按鈕（選單、返回）：所有畫面都在同一個位置 */
 .corner {
-  position: absolute;
+  /* 左上角的按鈕固定在螢幕角落：鏡頭（瀏海、挖孔）通常在短邊中間，角落不會被擋到，開了鏡頭防遮擋也不跟著往內移 */
+  position: fixed;
   left: 0.9rem;
   top: 0.7rem;
   z-index: 700;
