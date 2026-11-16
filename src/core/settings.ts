@@ -37,6 +37,7 @@ interface Stats {
   chess: { wins: number; losses: number; draws: number }
   xiangqi: { wins: number; losses: number; draws: number }
   othello: { wins: number; losses: number; draws: number }
+  sevens: { rounds: number; wins: number }
   /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
   recent: Record<string, string>
 }
@@ -53,6 +54,7 @@ const STATS_DEFAULT: Stats = {
   chess: { wins: 0, losses: 0, draws: 0 },
   xiangqi: { wins: 0, losses: 0, draws: 0 },
   othello: { wins: 0, losses: 0, draws: 0 },
+  sevens: { rounds: 0, wins: 0 },
   recent: {},
 }
 

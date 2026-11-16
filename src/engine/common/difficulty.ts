@@ -194,5 +194,9 @@ export const othelloAt = (st: OthelloStyle, level: Level, who = -1): OthelloStyl
   return out
 }
 
+/** 排七：簡單／困難（跟大老二一樣）。用大老二的「會不會算、手滑」當底，簡單比較傻、困難最會算 */
+export const sevensAt = (st: BigTwoStyle, d: 'easy' | 'hard'): { skill: number; blunder: number } =>
+  d === 'hard' ? { skill: 1, blunder: 0 } : { skill: clamp(st.skill * 0.5), blunder: clamp(0.08 + st.blunder) }
+
 /** 電腦每一步多想多久（毫秒）：挑戰多想一會兒，看起來也比較像在認真算 */
 export const extraThink = (level: Level): number => (level === 'master' ? 900 : level === 'high' ? 300 : 0)
