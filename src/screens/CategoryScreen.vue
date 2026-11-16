@@ -12,7 +12,7 @@ import { reducedMotion } from '@/core/motion'
 import { gamePrefs, recentAt, settings, stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
-import { gamesIn, seatsOf } from '@/games/registry'
+import { gamesIn, getGame, seatsOf } from '@/games/registry'
 import type { GameCategory } from '@/games/types'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
@@ -298,10 +298,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
       <!-- 右上角：在房間裡＝房號（點了回房間）；不在房間＝連線（開房、加入） -->
-      <button v-if="online.room" class="room-tag rise" style="--i: 2" @click="go({ name: 'room' })">
+      <!-- 在房間裡：兩行——房間模式、準備狀況（點了回房間） -->
+      <button v-if="online.room" class="room-tag rise" style="--i: 2" :aria-label="S.online.backRoom" @click="go({ name: 'room' })">
         <Icon name="online" class="ri" />
-        <span class="t-label">{{ S.online.backRoom }}</span>
-        <b class="t-slab">{{ online.room.code }}</b>
+        <span class="rt">
+          <b class="t-black">{{ online.room.gameId ? getGame(online.room.gameId).name : S.online.noMode }}</b>
+          <span class="t-label">{{ S.online.readyLine(online.room.players.filter((p) => p.ready).length, online.room.players.length, !!online.room.players.find((p) => p.me)?.ready) }}</span>
+        </span>
       </button>
       <Btn v-else class="on-btn" size="sm" icon="online" @click="onlineOpen = true">{{ S.online.short }}</Btn>
     </header>
@@ -428,11 +431,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 /* 房間裡換遊戲：右上角的房號，點了回房間 */
 .room-tag {
   display: flex;
-  height: 2.1rem;
+  min-height: 2.4rem;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   border: 0.13rem solid var(--color-ink);
-  background: var(--color-yellow);
+  background: var(--color-card);
   box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
   padding: 0 0.7rem;
 }
@@ -440,9 +443,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   transform: translate(0.15rem, 0.15rem);
   box-shadow: none;
 }
-.room-tag b {
-  font-size: 1.05rem;
-  letter-spacing: 0.08em;
+.rt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+  text-align: left;
+}
+.rt b {
+  font-size: 0.82rem;
+}
+.rt .t-label {
+  font-size: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-3);
 }
 .ri {
   width: 1rem;

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { canChangeMode, changeMode, createRoom, joinRoom, online, recommendMode, setAllowOthers, setReady, setSpectator, startState, type RoomPlayer } from './online'
+import { canChangeMode, changeMode, createRoom, joinRoom, online, recommendMode, setReady, setSpectator, startState, type RoomPlayer } from './online'
 
 const guest = (id: string, extra: Partial<RoomPlayer> = {}): RoomPlayer => ({ id, name: id, host: false, me: false, ready: false, spectator: false, ...extra })
 
 describe('連線房間', () => {
   beforeEach(async () => {
-    await createRoom('我', 'bigtwo')
+    await createRoom('我')
+    online.room!.gameId = 'bigtwo'
   })
 
   it('開房：自己是房主、可以換模式；房號 4 位數', () => {
@@ -18,7 +19,7 @@ describe('連線房間', () => {
     expect(await joinRoom('1234', '我')).toBe('notFound')
   })
 
-  it('不是房主：預設不能換模式，只能推薦；房主打開權限後就能換', () => {
+  it('不是房主：不能換模式，只能推薦', () => {
     const room = online.room!
     room.players[0].host = false
     room.players.push(guest('h', { host: true }))
@@ -28,13 +29,23 @@ describe('連線房間', () => {
     recommendMode('gomoku')
     recommendMode('go')
     expect(room.recommends).toEqual([{ playerId: 'me', gameId: 'go' }])
-    setAllowOthers(true) // 不是房主不能設定
-    expect(room.allowOthers).toBe(false)
-    room.allowOthers = true
-    expect(canChangeMode.value).toBe(true)
   })
 
-  it('大家都準備、對戰人數剛好才開始；換模式後準備全部取消', () => {
+  it('開房時還沒選模式，不能開始', async () => {
+    await createRoom('我')
+    setReady(true)
+    expect(online.room!.gameId).toBe('')
+    expect(startState(4)).toMatchObject({ chosen: false, canStart: false })
+  })
+
+  it('人不夠：空位由電腦補上，大家準備好就能開始', () => {
+    const room = online.room!
+    room.players.push(guest('a', { ready: true }))
+    setReady(true)
+    expect(startState(4)).toMatchObject({ ai: 2, canStart: true })
+  })
+
+  it('大家都準備、對戰人數不超過模式人數才開始；換模式後準備全部取消', () => {
     const room = online.room!
     room.players.push(guest('a'), guest('b'), guest('c'))
     expect(startState(4).canStart).toBe(false)

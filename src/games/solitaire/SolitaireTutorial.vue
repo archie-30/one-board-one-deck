@@ -2,6 +2,7 @@
 // 接龍互動教學：每一課一個小牌桌，照著提示做一步就過關
 import { computed, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
+import { online } from '@/core/online'
 import { S } from '@/data/strings'
 import { applySolitaire, type SolitaireAction, type SolitaireState } from '@/engine/solitaire/rules'
 import Btn from '@/ui/Btn.vue'
@@ -66,7 +67,8 @@ function next() {
           </div>
           <div class="act">
             <template v-if="finished">
-              <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+              <!-- 在連線房間裡不能自己開局（開始要在房間裡大家準備） -->
+          <Btn v-if="!online.room" tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
               <Btn icon="book" size="sm" block @click="emit('rules')">{{ S.tutorial.rules }}</Btn>
               <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
             </template>

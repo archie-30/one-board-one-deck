@@ -34,6 +34,6 @@ export const lessonCards = (text: string): Card[] =>
 /** 瘋狂大老二的教學：梅花 3 先出、雙胞胎對子、先出為主 */
 export const CRAZY_LESSONS: BigTwoLesson[] = [
   { hand: 'C3* D4 H8 SQ', exact: 'C3*' },
-  { hand: 'C3 C3* D9 SK HA', table: 'S2 H2', exact: 'C3 C3*' },
+  { hand: 'C5 C5* D9 SK HA', table: 'S5 H5', exact: 'C5 C5*' },
   { hand: 'D5 H9 SK*', table: 'SK', pass: true },
 ]
