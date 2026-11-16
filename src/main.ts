@@ -5,7 +5,7 @@ import '@fontsource/noto-sans-tc/latin-500.css'
 import '@fontsource/noto-sans-tc/latin-900.css'
 import '@fontsource/alfa-slab-one/latin-400.css'
 import App from './App.vue'
-import { finishBoot } from './core/boot'
+import { finishBoot, startFontLoads } from './core/boot'
 import { warmSounds } from './core/audio'
 import { autoFullscreen } from './core/fullscreen'
 import { route, go } from './core/nav'
@@ -13,6 +13,9 @@ import { settings } from './core/settings'
 import { isStaleChunk, reloadForUpdate, takeReopen } from './core/staleReload'
 import { getGame } from './games/registry'
 import './style.css'
+
+// 字型一開機就開始下載（中文字型很大，不等畫面用到才抓）；加載畫面的進度條照下載進度走
+startFontLoads()
 
 // ?gallery 只在本機開發時用來檢查美術素材
 const gallery = import.meta.env.DEV && location.search.includes('gallery')
