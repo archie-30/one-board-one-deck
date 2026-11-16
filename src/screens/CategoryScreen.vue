@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
+import { isStaleChunk, reloadForUpdate } from '@/core/staleReload'
 import { reducedMotion } from '@/core/motion'
 import { gamePrefs, recentAt, settings, stats } from '@/core/settings'
 import { S } from '@/data/strings'
@@ -209,7 +210,10 @@ async function launch() {
   playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')
   // 放大的同時先下載遊戲畫面，兩件事都好了才換頁
   const loader = (g.component as { __asyncLoader?: () => Promise<unknown> }).__asyncLoader
-  await Promise.all([startLaunch(el, color, g.name, g.players), loader?.().catch(() => {})])
+  let stale = false
+  await Promise.all([startLaunch(el, color, g.name, g.players), loader?.().catch((e) => (stale = isStaleChunk(e)))])
+  // 網站更新過、舊頁面拿不到遊戲檔：重新整理載入最新版（回來時停在這個玩法的卡片上）
+  if (stale && reloadForUpdate({ category: props.category, gameId: g.id })) return
   go({ name: 'play', gameId: g.id })
 }
 
