@@ -4,6 +4,7 @@
 import { ref } from 'vue'
 import { reducedMotion } from '@/core/motion'
 import { go } from '@/core/nav'
+import { online } from '@/core/online'
 import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
 import BoardMini from '@/games/gomoku/BoardMini.vue'
@@ -87,10 +88,11 @@ function hover(side: GameCategory, event: PointerEvent) {
     </button>
     </div>
     <!-- 連線對戰：橫跨撲克牌、棋盤兩塊的底下一條 -->
-    <button class="online rise" :class="{ off: picked }" style="--i: 3" @click="onlineOpen = true">
+    <!-- 已經在房間裡：變成「回到房間」 -->
+    <button class="online rise" :class="{ off: picked }" style="--i: 3" @click="online.room ? go({ name: 'room' }) : (onlineOpen = true)">
       <span class="fill" />
       <Icon name="online" class="oi" />
-      <span class="t-black ot">{{ S.online.open }}</span>
+      <span class="t-black ot">{{ online.room ? S.online.backRoomCode(online.room.code) : S.online.open }}</span>
       <span class="t-label ol">{{ S.online.tag }} — {{ S.online.lead }}</span>
       <Icon name="arrow" class="oa" />
     </button>

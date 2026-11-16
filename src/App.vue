@@ -43,7 +43,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         <NamesScreen v-else-if="route.name === 'names'" :key="routeKey" />
         <ProfileScreen v-else-if="route.name === 'profile'" :key="routeKey" />
         <RoomScreen v-else-if="route.name === 'room'" :key="routeKey" />
-        <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" :pick="route.pick" />
+        <CategoryScreen v-else-if="route.name === 'category'" :key="routeKey" :category="route.category" />
         <RulesScreen v-else-if="route.name === 'rules'" :key="routeKey" :game-id="route.gameId" />
         <GameSettingsScreen v-else-if="route.name === 'settings'" :key="routeKey" :game-id="route.gameId" />
         <component
