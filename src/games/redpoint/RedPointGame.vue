@@ -758,7 +758,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .actions {
   position: absolute;
-  right: max(1rem, env(safe-area-inset-right));
+  right: 1rem;
   bottom: 0.7rem;
   width: 8.4rem;
   z-index: 700;

@@ -205,7 +205,7 @@ function next() {
 }
 .guide {
   position: absolute;
-  right: max(1rem, env(safe-area-inset-right));
+  right: 1rem;
   top: 0.9rem;
   width: 18.5rem;
   z-index: 650;
@@ -273,7 +273,7 @@ function next() {
 }
 .actions {
   position: absolute;
-  right: max(1rem, env(safe-area-inset-right));
+  right: 1rem;
   bottom: 0.7rem;
   display: flex;
   width: 8.6rem;

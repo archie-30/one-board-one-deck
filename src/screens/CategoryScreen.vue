@@ -324,7 +324,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   display: flex;
   height: 100%;
   flex-direction: column;
-  padding: max(0.7rem, env(safe-area-inset-top)) max(1.6rem, env(safe-area-inset-right)) 1rem max(1.4rem, env(safe-area-inset-left));
+  padding: 0.7rem 1.6rem 1rem 1.4rem;
 }
 .mode.locked {
   pointer-events: none;
@@ -341,7 +341,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   align-items: center;
   gap: 0.9rem;
   /* 左邊讓出左上角返回鍵的位置（返回鍵和遊戲裡的選單鍵在同一個地方） */
-  padding-left: calc(0.9rem + 2.4rem + 0.9rem - max(1.4rem, env(safe-area-inset-left)) + max(0.9rem, env(safe-area-inset-left)) - 0.9rem);
+  padding-left: calc(0.9rem + 2.4rem + 0.9rem - 1.4rem + 0.9rem - 0.9rem);
 }
 .title {
   font-size: 2rem;

@@ -1,4 +1,4 @@
-import { createApp } from 'vue'
+import { createApp, watchEffect } from 'vue'
 import '@fontsource/noto-sans-tc/chinese-traditional-500.css'
 import '@fontsource/noto-sans-tc/chinese-traditional-900.css'
 import '@fontsource/noto-sans-tc/latin-500.css'
@@ -8,6 +8,7 @@ import App from './App.vue'
 import { finishBoot } from './core/boot'
 import { warmSounds } from './core/audio'
 import { autoFullscreen } from './core/fullscreen'
+import { settings } from './core/settings'
 import './style.css'
 
 // ?gallery 只在本機開發時用來檢查美術素材
@@ -20,6 +21,9 @@ document.addEventListener('contextmenu', (e) => {
   const t = e.target as HTMLElement | null
   if (!t?.closest('input, textarea')) e.preventDefault()
 })
+
+// 鏡頭防遮擋：設定開著時，整個畫面避開手機的瀏海、挖孔鏡頭（樣式在 style.css 的 --cut-*）
+watchEffect(() => document.documentElement.classList.toggle('avoid-cutout', settings.avoidCutout))
 
 // 預設全螢幕：第一次點畫面時進入（設定可關）
 autoFullscreen()
