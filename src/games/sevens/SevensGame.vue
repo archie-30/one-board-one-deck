@@ -155,7 +155,8 @@ function nextTurn() {
       ;[a, rng] = chooseSevensAction(state.value, st, rng)
       act(a)
     },
-    1300 + st.skill * 700 + Math.random() * 700,
+    // 電腦每一手想一下：約 2.1～3.9 秒
+    2100 + st.skill * 900 + Math.random() * 900,
   )
 }
 
@@ -234,7 +235,61 @@ const status = computed(() => {
   if (s.first) return T.firstLead
   return canPlayAny.value ? T.yourTurn : T.mustCover
 })
+// ── 拖曳出牌：按住手牌往上拖到桌框裡放開＝出這張（沒牌可接時＝蓋這張）；沒拖到桌上就回原位 ──
+let drag: { c: Card; id: number; x0: number; y0: number; base: ReturnType<CardStage['target']>; moving: boolean } | null = null
+let suppressClick = false
+function local(e: PointerEvent) {
+  const r = stageEl.value!.getBoundingClientRect()
+  return { x: e.clientX - r.left, y: e.clientY - r.top }
+}
+function onDown(c: Card, e: PointerEvent) {
+  if (drag || phase.value !== 'play' || !state.value.hands[ME].includes(c) || (e.pointerType === 'mouse' && e.button !== 0)) return
+  const p = local(e)
+  drag = { c, id: e.pointerId, x0: p.x, y0: p.y, base: stage.target(c), moving: false }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+  window.addEventListener('pointercancel', onCancel)
+}
+function onMove(e: PointerEvent) {
+  if (!drag || e.pointerId !== drag.id) return
+  const p = local(e)
+  const dx = p.x - drag.x0
+  const dy = p.y - drag.y0
+  if (!drag.moving && Math.hypot(dx, dy) < (e.pointerType === 'mouse' ? 6 : 14)) return
+  drag.moving = true
+  stage.move(drag.c, { ...drag.base, x: drag.base.x + dx, y: drag.base.y + dy, r: 0, s: 1.06, z: 1000 }, { instant: true })
+}
+function stopDrag() {
+  window.removeEventListener('pointermove', onMove)
+  window.removeEventListener('pointerup', onUp)
+  window.removeEventListener('pointercancel', onCancel)
+  const d = drag
+  drag = null
+  return d
+}
+function onUp(e: PointerEvent) {
+  if (!drag || e.pointerId !== drag.id) return
+  const d = stopDrag()!
+  if (!d.moving) return
+  suppressClick = true
+  window.setTimeout(() => (suppressClick = false), 0)
+  const p = local(e)
+  const b = L.value.box
+  const onTable = p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h
+  if (onTable && myTurn.value) {
+    selected.value = d.c
+    acted.value = true
+    if (act(canPlayAny.value ? { type: 'play', player: ME, card: d.c } : { type: 'cover', player: ME, card: d.c })) return
+  }
+  sync()
+}
+function onCancel() {
+  if (stopDrag()) sync()
+}
+onBeforeUnmount(() => stopDrag())
+
 function tapCard(c: Card) {
+  if (suppressClick) return
   if (phase.value !== 'play' || !state.value.hands[ME].includes(c)) return
   if (selected.value === c && myTurn.value) return confirm()
   selected.value = selected.value === c ? null : c
@@ -300,6 +355,7 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
         class="sprite"
         :class="{ mine: state.hands[ME].includes(c), sel: selected === c }"
         :style="{ width: `${L.cw}px`, height: `${ch}px`, marginLeft: `${-L.cw / 2}px`, marginTop: `${-ch / 2}px` }"
+        @pointerdown="onDown(c, $event)"
         @click="tapCard(c)"
       >
         <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="rankText(c)" :suit="suitOf(c)" /></svg>
@@ -399,7 +455,8 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
   display: none;
 }
 .sprite.mine {
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
 }
 .sprite.sel::after {
   content: '';

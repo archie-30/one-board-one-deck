@@ -56,8 +56,8 @@ export function sevensPoses(L: SevensLayout, s: SevensState, selected: Card | nu
     const y = box.y + L.rowH * (ri + 0.5) + cw * 0.08
     for (let r = row[0]; r <= row[1]; r++) {
       const c = suit * 13 + r - 1
-      // 7 在最上面，往兩邊一張壓一張（離 7 越遠越下面），點數都露得出來
-      out.set(c, { x: box.x + box.w / 2 + (r - 7) * step, y, r: 0, s: tableScale, f: 1, z: 200 + ri * 20 + (14 - Math.abs(r - 7)) })
+      // 點數大的壓在點數小的上面：左右兩邊都是露出每張牌的左上角（點數、花色），跟左邊一樣好讀
+      out.set(c, { x: box.x + box.w / 2 + (r - 7) * step, y, r: 0, s: tableScale, f: 1, z: 200 + ri * 20 + r })
     }
   })
   s.covered.forEach((pile, p) => {
