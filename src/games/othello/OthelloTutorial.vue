@@ -2,7 +2,7 @@
 // 黑白棋互動教學：每一關擺好盤面，照提示下一手（點格子預覽，再按「落子」）
 import { computed, ref } from 'vue'
 import { playSound } from '@/core/audio'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { applyOthello, createOthello, legalMoves, toIndex, type Disc, type OthelloState } from '@/engine/othello/rules'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -83,7 +83,7 @@ function next() {
     <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
     <aside class="side">
       <div class="who">
-        <span class="kid"><Avatar :look="PLAYER_LOOK" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
+        <span class="kid"><Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
         <span class="bowl"><Bowl black /></span>
       </div>
     </aside>

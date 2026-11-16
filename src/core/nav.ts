@@ -8,6 +8,7 @@ import type { GameCategory } from '@/games/types'
 export type Route =
   | { name: 'title' }
   | { name: 'names' }
+  | { name: 'profile' }
   | { name: 'category'; category: GameCategory }
   | { name: 'rules' | 'settings' | 'tutorial' | 'play'; gameId: string }
 

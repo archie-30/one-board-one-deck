@@ -2,7 +2,7 @@
 // 撿紅點互動教學：和對局一樣的牌桌與動畫，一步一步練習配對、挑紅牌、墊牌、翻牌
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { RANK_LABELS, parseCard, parseCards, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { applyRedPoint, createRedPoint, matches, targetsFor, type RedPointState } from '@/engine/redpoint/rules'
@@ -217,7 +217,7 @@ async function next() {
     </div>
 
     <div class="me" :style="{ left: `${layout.seats[0].kid.x - layout.seats[0].kid.w / 2}px`, width: `${layout.seats[0].kid.w}px`, height: `${layout.seats[0].kid.w}px` }">
-      <Avatar :look="PLAYER_LOOK" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" />
+      <Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" />
     </div>
 
     <div v-if="!finished" class="actions">

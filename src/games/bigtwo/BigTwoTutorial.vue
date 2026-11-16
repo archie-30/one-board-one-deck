@@ -3,7 +3,7 @@
 // crazy：瘋狂大老二的教學（兩副牌、雙胞胎對子、先出為主）
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { RANK_LABELS, rankOf, sortCards, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { canBeat, identifyCombo } from '@/engine/bigtwo/combos'
@@ -184,7 +184,7 @@ function next() {
     </div>
 
     <div class="me" :style="{ left: `${layout.seats[0].kid.x - layout.seats[0].kid.w / 2}px`, width: `${layout.seats[0].kid.w}px`, height: `${layout.seats[0].kid.w}px` }">
-      <Avatar :look="PLAYER_LOOK" :mood="finished ? 'happy' : solved ? 'happy' : misses ? 'shock' : 'think'" />
+      <Avatar :look="myLook()" :mood="finished ? 'happy' : solved ? 'happy' : misses ? 'shock' : 'think'" />
     </div>
     <p class="combo t-black" :style="{ bottom: `${layout.cw * 1.62}px` }">{{ comboName }}</p>
 

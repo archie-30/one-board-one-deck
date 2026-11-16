@@ -8,7 +8,7 @@ import { playSound } from '@/core/audio'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordResult, stats } from '@/core/settings'
 import { asLevel, chessAt, extraThink } from '@/engine/common/difficulty'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { seedRng, type RngState } from '@/engine/common/rng'
 import type { Promo } from '@/engine/chess/rules'
@@ -209,7 +209,9 @@ function finish(wait = 900) {
   if (w === null) record.draws++
   else if (w === human.value) record.wins++
   else record.losses++
-  recordResult(A.kind, level, w === null ? 'd' : w === human.value ? 'w' : 'l')
+  // 表現：贏得越快越高；輸的話撐越久越高
+  const plies = (state.value as { history?: unknown[] }).history?.length ?? 60
+  recordResult(A.kind, level, w === null ? 'd' : w === human.value ? 'w' : 'l', w === human.value ? 1 - plies / 200 : plies / 120)
   moods.value = w === null ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === null ? 'draw' : 'lose')
@@ -333,7 +335,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
         </svg>
       </div>
       <div class="who rise" :class="{ active: phase === 'playing' && A.turn(state) === human }">
-        <span class="av"><Avatar :look="PLAYER_LOOK" :mood="moods[0]" /></span>
+        <span class="av"><Avatar :look="myLook()" :mood="moods[0]" /></span>
       </div>
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && A.turn(state) === human }" />{{ S.common.you }}</p>
       <p v-if="phase !== 'rps'" class="t-label tg">{{ seatName(human) }}</p>

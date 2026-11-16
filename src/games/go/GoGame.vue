@@ -8,7 +8,7 @@ import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordResult, stats } from '@/core/settings'
 import { asLevel, extraThink, goAt } from '@/engine/common/difficulty'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { chooseGoMove } from '@/engine/go/ai'
@@ -287,7 +287,9 @@ function finish() {
   const win = score.value.winner === human.value
   if (win) stats.go.wins++
   else stats.go.losses++
-  recordResult('go', level, win ? 'w' : 'l')
+  // 表現：贏或輸幾目（輸 40 目以上＝0）
+  const m = score.value.margin
+  recordResult('go', level, win ? 'w' : 'l', win ? m / 40 : 1 - m / 40)
   moods.value = win ? ['happy', 'sad'] : ['sad', 'happy']
   playSound(win ? 'win' : 'lose')
   later(() => (resultOpen.value = true), 500)
@@ -449,7 +451,7 @@ const resultLine = computed(() => {
 
     <aside class="side left">
       <div class="who rise" :class="{ active: phase === 'playing' && state.turn === human }">
-        <span class="av"><Avatar :look="PLAYER_LOOK" :mood="moods[0]" /></span>
+        <span class="av"><Avatar :look="myLook()" :mood="moods[0]" /></span>
         <span :ref="(el) => (bowlEls[0] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 1" /></span>
       </div>
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>

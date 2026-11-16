@@ -8,7 +8,7 @@ import { useGrace } from '@/core/grace'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordResult, stats } from '@/core/settings'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { TURN_SECONDS } from '@/data/timer'
 import { sevensAt } from '@/engine/common/difficulty'
@@ -51,7 +51,7 @@ let seed = saved ? saved.seed : (Date.now() >>> 0) % 2147483647
 let rng: RngState = saved ? saved.rng : seedRng(seed + 7)
 const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'hard')
 const names = [S.common.you, ...opponents.map((o) => o.name)]
-const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
+const looks = [myLook(), ...opponents.map((o) => o.look)]
 
 const state = shallowRef<SevensState>(saved ? saved.state : dealSevens(seed))
 const grace = useGrace(props.options, state, () => state.value.turn === ME)
@@ -197,7 +197,11 @@ function finish() {
   for (let p = 0; p < 4; p++) moods[p] = w.includes(p) ? 'happy' : 'sad'
   stats.sevens.rounds++
   if (w.includes(ME)) stats.sevens.wins++
-  recordResult('sevens', difficulty, !w.includes(ME) ? 'l' : w.length > 1 ? 'd' : 'w')
+  // 表現：贏的話看比第二名少罰幾分，輸的話看比第一名多罰幾分
+  const pen = pens.value
+  const others = pen.filter((_, p) => p !== ME)
+  const perf = w.includes(ME) ? (Math.min(...others) - pen[ME]) / 40 : 1 - (pen[ME] - Math.min(...pen)) / 60
+  recordResult('sevens', difficulty, !w.includes(ME) ? 'l' : w.length > 1 ? 'd' : 'w', perf)
   playSound(w.includes(ME) ? 'win' : 'lose')
   later(() => (resultOpen.value = true), 900)
 }

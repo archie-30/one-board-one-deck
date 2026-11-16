@@ -1,6 +1,7 @@
 // 設定與戰績（會自動存檔）
 import { reactive, watch } from 'vue'
 import type { Difficulty } from '@/engine/common/types'
+import { gainXp, resetProfile } from './profile'
 import { loadSave, writeSave } from './storage'
 
 export interface GamePrefs {
@@ -84,10 +85,14 @@ export function recordBest(game: 'bigtwo' | 'crazybigtwo' | 'solitaire', level: 
 
 /** 近百場戰況要記幾場 */
 export const RECENT_MAX = 100
-/** 記一場結果（每個玩法、每個難度各自記；沒有難度的玩法用 'all'） */
-export function recordResult(gameId: string, level: string, result: 'w' | 'l' | 'd') {
+/**
+ * 記一場結果（每個玩法、每個難度各自記；沒有難度的玩法用 'all'），同時給經驗值（個人資料）。
+ * perf：這一局的表現 0～1（贏多少／輸的話差多少，1＝差一點就贏），算不出來就不給（當 0.5）。
+ */
+export function recordResult(gameId: string, level: string, result: 'w' | 'l' | 'd', perf?: number) {
   const key = `${gameId}:${level}`
   stats.recent[key] = ((stats.recent[key] ?? '') + result).slice(-RECENT_MAX)
+  gainXp(gameId, level, result, perf)
 }
 /** 某個玩法某個難度最近幾場的勝負和 */
 export function recentAt(gameId: string, level: string): { n: number; w: number; l: number; d: number } {
@@ -99,6 +104,7 @@ export function recentAt(gameId: string, level: string): { n: number; w: number;
 /** 清除所有戰績（設定頁用） */
 export function resetStats() {
   Object.assign(stats, structuredClone(STATS_DEFAULT))
+  resetProfile()
 }
 
 watch(settings, (v) => writeSave('settings', v), { deep: true })

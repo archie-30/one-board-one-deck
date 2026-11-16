@@ -7,7 +7,7 @@ import { useGrace } from '@/core/grace'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordResult, stats } from '@/core/settings'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { TURN_SECONDS } from '@/data/timer'
 import { asLevel, extraThink, othelloAt } from '@/engine/common/difficulty'
@@ -215,7 +215,10 @@ function finish() {
   if (w === 3) stats.othello.draws++
   else if (w === human.value) stats.othello.wins++
   else stats.othello.losses++
-  recordResult('othello', level, w === 3 ? 'd' : w === human.value ? 'w' : 'l')
+  // 表現：子數差（贏越多越高；輸的話差越少越高）
+  const mine = human.value === 1 ? count.value.black : count.value.white
+  const diff = mine - (count.value.black + count.value.white - mine)
+  recordResult('othello', level, w === 3 ? 'd' : w === human.value ? 'w' : 'l', w === 3 ? 0.5 : diff > 0 ? diff / 40 : 1 + diff / 40)
   moods.value = w === 3 ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === 3 ? 'draw' : 'lose')
@@ -340,7 +343,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
 
     <aside class="side left">
       <div class="who rise" :class="{ active: phase === 'playing' && state.turn === human }">
-        <span class="av"><Avatar :look="PLAYER_LOOK" :mood="moods[0]" /></span>
+        <span class="av"><Avatar :look="myLook()" :mood="moods[0]" /></span>
         <span :ref="(el) => (bowlEls[0] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 1" /></span>
       </div>
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>

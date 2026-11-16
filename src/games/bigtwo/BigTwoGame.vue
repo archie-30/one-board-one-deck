@@ -8,7 +8,7 @@ import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordBest, recordResult, stats } from '@/core/settings'
 import { asBigTwoDifficulty, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { chooseBigTwoAction, legalPlays } from '@/engine/bigtwo/ai'
 import { RANK_2, RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
@@ -72,7 +72,7 @@ const DEAL_GAP = crazy ? 13 : 24
 // 困難模式不會出現新手打法的電腦
 const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'hard')
 const names = [S.common.you, ...opponents.map((o) => o.name)]
-const looks = [PLAYER_LOOK, ...opponents.map((o) => o.look)]
+const looks = [myLook(), ...opponents.map((o) => o.look)]
 const tableTotals = ref(saved ? saved.tableTotals.slice() : [0, 0, 0, 0])
 
 let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
@@ -278,7 +278,11 @@ function finish() {
   if (s.winner === ME) record.wins++
   record.totals[ME] = (record.totals[ME] ?? 0) + scores.value[ME].points
   recordBest(crazy ? 'crazybigtwo' : 'bigtwo', difficulty, scores.value[ME].points)
-  recordResult(props.game.id, difficulty, s.winner === ME ? 'w' : 'l')
+  // 表現：贏的話看別人平均剩幾張，輸的話看自己出掉幾成
+  const startN = crazy ? 26 : 13
+  const left = s.hands.map((h) => h.length)
+  const perf = s.winner === ME ? (left.reduce((a, b) => a + b, 0) / 3) / startN : 1 - left[ME] / startN
+  recordResult(props.game.id, difficulty, s.winner === ME ? 'w' : 'l', perf)
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')

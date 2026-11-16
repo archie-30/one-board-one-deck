@@ -15,6 +15,7 @@ import type { GameCategory } from '@/games/types'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import ProfileChip from '@/ui/ProfileChip.vue'
 import Tabs from '@/ui/Tabs.vue'
 import AppSettings from './AppSettings.vue'
 
@@ -230,6 +231,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
       <IconBtn icon="gear" :label="S.appSettings.title" @click="settingsOpen = true" />
+      <ProfileChip />
     </header>
     <div class="rule wipe" style="--i: 1" />
 

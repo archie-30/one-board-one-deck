@@ -7,7 +7,7 @@ import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordResult, stats } from '@/core/settings'
 import { asLevel, extraThink, gomokuAt } from '@/engine/common/difficulty'
-import { PLAYER_LOOK } from '@/data/names'
+import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { chooseGomokuMove } from '@/engine/gomoku/ai'
@@ -192,7 +192,9 @@ function finish() {
   if (w === 3) stats.gomoku.draws++
   else if (w === human.value) stats.gomoku.wins++
   else stats.gomoku.losses++
-  recordResult('gomoku', level, w === 3 ? 'd' : w === human.value ? 'w' : 'l')
+  // 表現：贏得越快越高；輸的話撐越久越高
+  const n = state.value.moves.length
+  recordResult('gomoku', level, w === 3 ? 'd' : w === human.value ? 'w' : 'l', w === human.value ? 1 - n / 120 : n / 80)
   moods.value = w === 3 ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === 3 ? 'draw' : 'lose')
@@ -306,7 +308,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
 
     <aside class="side left">
       <div class="who rise" :class="{ active: phase === 'playing' && state.turn === human }">
-        <span class="av"><Avatar :look="PLAYER_LOOK" :mood="moods[0]" /></span>
+        <span class="av"><Avatar :look="myLook()" :mood="moods[0]" /></span>
         <span :ref="(el) => (bowlEls[0] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 1" /></span>
       </div>
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>
