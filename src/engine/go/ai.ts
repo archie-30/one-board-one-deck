@@ -114,12 +114,17 @@ export function chooseGoMove(state: GoState, style: GoAiStyle, rng: RngState): [
   const pool = scored.filter((m) => m.score >= floor).slice(0, 1 + Math.round(s.noise * 5))
   const pick = pool[Math.floor(r * pool.length)]
 
-  // 沒有值得下的地方就虛手；對方剛虛手而且自己領先時也虛手
-  if (pick.score < 1.5) return [{ type: 'pass' }, rng]
-  if (state.passes === 1 && pick.score < 5) {
+  // 什麼時候虛手（像真人一樣「差不多了」就收手，不要一直下到填滿）：
+  //   棋盤越滿，越覺得剩下的都是小地方，門檻越高
+  const filled = state.board.filter((v) => v !== 0).length / state.board.length
+  //   會算的人收得比較晚（肯把收官的小地方下完），不會算的人比較早就收手
+  const bar = (filled < 0.3 ? 1.5 : filled < 0.45 ? 4 : filled < 0.55 ? 7 : 10) * (1.25 - s.skill * 0.75)
+  if (pick.score < bar) return [{ type: 'pass' }, rng]
+  //   對方剛虛手：還有大棋就繼續下；只剩小地方、或已經落後很多（翻不了盤），就跟著虛手結算
+  if (state.passes === 1) {
     const sc = scoreGo(state)
     const mine = state.turn === 1 ? sc.black - sc.white : sc.white - sc.black
-    if (mine > 0) return [{ type: 'pass' }, rng]
+    if (pick.score < 8 || (mine > 0 && pick.score < 12) || mine < -state.size * 2) return [{ type: 'pass' }, rng]
   }
   return [{ type: 'play', index: pick.index }, rng]
 }

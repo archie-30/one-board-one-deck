@@ -139,7 +139,7 @@ export const gomokuAt = (st: GomokuStyle, level: Level, who = -1): GomokuStyle =
 const GO: Record<Level, Pick<GoStyle, 'skill' | 'noise'>> = {
   low: { skill: 0.05, noise: 0.9 },
   mid: { skill: 0.35, noise: 0.5 },
-  high: { skill: 0.65, noise: 0.25 },
+  high: { skill: 0.6, noise: 0.32 },
   master: { skill: 0.9, noise: 0.08 },
 }
 export const goAt = (st: GoStyle, level: Level, who = -1): GoStyle => goHabit({ ...st, ...GO[level] }, habitOf(who, level))

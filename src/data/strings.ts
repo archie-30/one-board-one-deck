@@ -1012,7 +1012,7 @@ export const S = {
     cpuTurn: (name: string) => `${name}思考中…`,
     place: '落子',
     pass: '虛手',
-    passConfirm: '再按一次',
+    passConfirm: '再按一次虛手',
     resign: '認輸',
     passed: (name: string) => `${name}虛手`,
     bothPassed: '雙方都虛手了，開始算地',
