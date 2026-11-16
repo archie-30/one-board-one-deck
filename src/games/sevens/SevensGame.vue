@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 排七：你在下面，三位電腦在左、上、右。桌子中間是四排（黑桃、紅心、方塊、梅花），7 在正中間往兩邊接。
-// 點手牌選起來，再按「出牌」（或再點一次同一張）；完全沒有牌可以接時，按鈕變成「蓋牌」，選一張蓋起來當罰分。
+// 點手牌選起來，再按「出牌」（再點一次同一張＝取消選取；規則設定可改成再點一次就出牌），也可以直接拖到桌上；完全沒有牌可以接時，按鈕變成「蓋牌」，選一張蓋起來當罰分。
 // 每張牌都是獨立的精靈（沿用大老二的 CardStage），發牌、出牌、蓋牌都一張一張飛。
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
@@ -155,8 +155,8 @@ function nextTurn() {
       ;[a, rng] = chooseSevensAction(state.value, st, rng)
       act(a)
     },
-    // 電腦每一手想一下：約 2.1～3.9 秒
-    2100 + st.skill * 900 + Math.random() * 900,
+    // 電腦每一手想一下：約 2.8～5 秒
+    2800 + st.skill * 1100 + Math.random() * 1100,
   )
 }
 
@@ -168,7 +168,8 @@ function act(a: SevensAction): boolean {
     return false
   }
   state.value = r.state
-  selected.value = null
+  // 只有自己出完才把選起的牌放下；電腦出牌時你先選好的牌留著
+  if (a.player === ME || (selected.value !== null && !r.state.hands[ME].includes(selected.value))) selected.value = null
   message.value = ''
   const p = a.player
   if (moods[p] === 'think') moods[p] = 'idle'
@@ -285,17 +286,27 @@ function onUp(e: PointerEvent) {
     acted.value = true
     if (act(canPlayAny.value ? { type: 'play', player: ME, card: d.c } : { type: 'cover', player: ME, card: d.c })) return
   }
-  sync()
+  backToHand(d.c)
 }
 function onCancel() {
-  if (stopDrag()) sync()
+  const d = stopDrag()
+  if (d?.moving) backToHand(d.c)
+}
+/** 沒出成：牌滑回手上自己的位置。一路都照它在手牌裡的疊放順序（從旁邊那張底下塞回去），
+ *  不會飛在最上面、落地那一刻才突然跑到下一張底下（看起來像下一張閃一下）；落地時輕輕壓一下。 */
+function backToHand(c: Card) {
+  sync()
+  const pose = sevensPoses(L.value, state.value, selected.value, gathered.value).get(c)
+  if (!pose) return
+  stage.move(c, pose, { dur: 380, arc: L.value.cw * 0.3, flightZ: pose.z, land: true })
 }
 onBeforeUnmount(() => stopDrag())
 
 function tapCard(c: Card) {
   if (suppressClick) return
   if (phase.value !== 'play' || !state.value.hands[ME].includes(c)) return
-  if (selected.value === c && myTurn.value) return confirm()
+  // 點第二下：預設是取消選取；規則設定「點第二下出牌」打開的話就直接出這張
+  if (selected.value === c && myTurn.value && props.options.tapPlay === true) return confirm()
   selected.value = selected.value === c ? null : c
   message.value = ''
   playSound('cardPick')
@@ -348,7 +359,7 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
         <span class="nm t-black"><span class="hl" />{{ names[p] }}</span>
         <span class="t-label tg">{{ opponents[p - 1].tag }}</span>
       </div>
-      <span v-if="state.covered[p].length" class="pen t-slab" :style="{ left: `${L.coverAt[p].x}px`, top: `${L.coverAt[p].y + ch * 0.32}px` }">{{ T.coveredCount(state.covered[p].length) }}</span>
+      <span v-if="state.covered[p].length" class="pen t-slab" :style="{ left: `${L.coverTag[p].x}px`, top: `${L.coverTag[p].y}px` }">{{ T.coveredCount(state.covered[p].length) }}</span>
     </template>
 
     <div class="cards">
@@ -370,9 +381,14 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
     <p class="status" :class="{ mine: myTurn && !message, warn: !!message || (myTurn && !canPlayAny) }" :style="{ top: `${L.box.y + L.box.h - 4}px` }">{{ status }}</p>
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
-    <div class="actions">
+    <div class="actions" :class="{ over: phase === 'over' }">
       <Btn v-if="phase !== 'over'" class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || selected === null" @click="confirm">{{ canPlayAny || !myTurn ? T.play : T.cover }}</Btn>
-      <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
+      <!-- 結束後看桌面：看結果＋再來一局＋離開對局排成一排（手牌都出完了，下面是空的） -->
+      <template v-else>
+        <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn class="rise" size="sm" icon="again" style="--i: 1" @click="newRound">{{ S.common.again }}</Btn>
+        <Btn class="rise" tone="ink" size="lg" arrow style="--i: 2" @click="resultOpen = true">{{ S.common.showResult }}</Btn>
+      </template>
     </div>
 
     <CursorGlow />
@@ -462,6 +478,15 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
   cursor: grab;
   touch-action: none;
 }
+/* 滑鼠移到自己的手牌上：那張牌先浮起一點（預覽要出哪張），跟大老二一樣 */
+@media (hover: hover) and (pointer: fine) {
+  .sprite.mine {
+    transition: translate 160ms var(--ease-out);
+  }
+  .sprite.mine:hover {
+    translate: 0 -7%;
+  }
+}
 .sprite.sel::after {
   content: '';
   position: absolute;
@@ -533,7 +558,7 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
 .pen {
   position: absolute;
   z-index: 3;
-  translate: -50% 0;
+  translate: -50% -50%;
   font-size: 0.65rem;
   color: var(--color-red);
   white-space: nowrap;
@@ -567,6 +592,12 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
   flex-direction: column;
   gap: 0.45rem;
   z-index: 700;
+}
+.actions.over {
+  width: auto;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0.6rem;
 }
 .score {
   width: 100%;

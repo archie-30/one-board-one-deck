@@ -14,6 +14,8 @@ export interface SevensLayout extends Layout {
   rowH: number
   /** 每個人蓋牌堆的位置 */
   coverAt: { x: number; y: number }[]
+  /** 「蓋 N 張」字樣的位置（文字中心） */
+  coverTag: { x: number; y: number }[]
 }
 
 /** 由上往下：黑桃、紅心、方塊、梅花 */
@@ -38,8 +40,16 @@ export function sevensLayout(W: number, H: number): SevensLayout {
     coverAt: [
       { x: cw * 2.25, y: H - cw * 0.85 },
       { x: W - cw * 2.15, y: H * 0.66 },
-      { x: W / 2 - cw * 2.9, y: cw * 0.62 },
+      // 上方那位：放在他手牌的右邊（左邊是名字和頭像，下面是 TABLE 框）
+      { x: W / 2 + cw * 3.3, y: cw * 0.62 },
       { x: cw * 2.15, y: H * 0.66 },
+    ],
+    // 字樣：上方那位放在牌疊右邊（放下面會壓到桌框），其他人放在牌疊下面
+    coverTag: [
+      { x: cw * 2.25, y: H - cw * 0.85 + ch * 0.38 },
+      { x: W - cw * 2.15, y: H * 0.66 + ch * 0.38 },
+      { x: W / 2 + cw * 4.25, y: cw * 0.62 },
+      { x: cw * 2.15, y: H * 0.66 + ch * 0.38 },
     ],
   }
 }

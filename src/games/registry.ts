@@ -120,7 +120,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.sevens.rules, [...TR.cards, TR.sevens]),
     tutorial: defineAsyncComponent(() => import('./sevens/SevensTutorial.vue')),
     component: defineAsyncComponent(() => import('./sevens/SevensGame.vue')),
-    settings: [choice('difficulty', S.sevens.settings.difficulty, 'easy'), timer()],
+    settings: [choice('difficulty', S.sevens.settings.difficulty, 'easy'), toggle('tapPlay', S.sevens.settings.tapPlay, false, { group: 'other', live: true }), timer()],
   },
   {
     id: 'redpoint',
