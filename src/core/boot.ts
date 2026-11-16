@@ -35,17 +35,37 @@ function liftOf(el: Element | null) {
   return m.m42
 }
 
+/** 手機直拿時（和 index.html、App.vue 的「請轉成橫向」同一個條件） */
+const PORTRAIT = '(orientation: portrait) and (max-width: 700px)'
+/** 等到手機轉成橫向（本來就是橫向就馬上往下） */
+function untilLandscape(): Promise<void> {
+  const mq = window.matchMedia?.(PORTRAIT)
+  if (!mq?.matches) return Promise.resolve()
+  return new Promise((ok) => {
+    const check = () => {
+      if (mq.matches) return
+      mq.removeEventListener('change', check)
+      ok()
+    }
+    mq.addEventListener('change', check)
+  })
+}
+
 export async function finishBoot() {
   const boot = document.getElementById('boot')
   const root = document.documentElement
   if (!boot) {
     root.classList.remove('booting')
+    document.getElementById('boot-rotate')?.remove()
     return
   }
+  // 直拿時先只顯示「請轉成橫向」，轉過來才開始加載動畫（動畫在直拿時是暫停的）
+  await untilLandscape()
+  document.getElementById('boot-rotate')?.remove()
   const started = performance.now()
   const fonts = document.fonts?.ready ?? Promise.resolve()
   await Promise.race([fonts, wait(4000)]) // 字型萬一卡住也不要一直擋著
-  await wait(Math.max(0, 1300 - started)) // 至少轉一下，不要一閃而過
+  await wait(Math.max(0, 1300 - (performance.now() - started))) // 至少轉一下，不要一閃而過
   await new Promise((ok) => requestAnimationFrame(ok))
 
   const cardsArt = document.querySelector('.home .panel.cards .art')

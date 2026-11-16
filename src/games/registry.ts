@@ -89,7 +89,7 @@ export const GAMES: GameDef[] = [
     cover: CrazyBigTwoCover,
     tags: S.crazybigtwo.tags,
     best: (o) => bestAt('crazybigtwo', String(o.difficulty ?? 'easy')),
-    rulesIntro: withTimer(S.crazybigtwo.rules, [...TR.cards, TR.bigtwo]),
+    rulesIntro: withTimer(S.crazybigtwo.rules, [...TR.cardsCrazy, TR.bigtwo]),
     tutorial: defineAsyncComponent(() => import('./bigtwo/CrazyTutorial.vue')),
     component: defineAsyncComponent(() => import('./bigtwo/BigTwoGame.vue')),
     settings: [
