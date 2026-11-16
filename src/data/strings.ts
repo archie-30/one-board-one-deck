@@ -136,7 +136,7 @@ export const S = {
     mid: '中',
     high: '大',
     fullscreen: '全螢幕',
-    fullscreenHelp: '在瀏覽器裡玩時，把網址列和工具列藏起來。',
+    fullscreenHelp: '在瀏覽器裡玩時，把網址列和工具列藏起來。開著的話，下次打開遊戲第一次點畫面就自動全螢幕。',
     fullscreenNo: '這個瀏覽器不支援全螢幕。',
     autoPause: '離開時自動暫停並保存',
     autoPauseHelp: '切到別的分頁、App 或離開視窗時，自動暫停並保存對局；下次打開同一個玩法會問要不要繼續。',

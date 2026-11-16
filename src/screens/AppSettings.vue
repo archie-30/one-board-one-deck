@@ -53,7 +53,7 @@ function close() {
           <p class="t-black lb">{{ T.fullscreen }}</p>
           <p class="help">{{ fullscreenSupported ? T.fullscreenHelp : T.fullscreenNo }}</p>
         </div>
-        <Switch :on="isFullscreen" :label="T.fullscreen" :disabled="!fullscreenSupported" @change="(v) => setFullscreen(v)" />
+        <Switch :on="isFullscreen" :label="T.fullscreen" :disabled="!fullscreenSupported" @change="(v) => ((settings.fullscreen = v), setFullscreen(v))" />
       </div>
       <div class="row">
         <div>

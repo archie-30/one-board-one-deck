@@ -18,6 +18,8 @@ interface Settings {
   reduceMotion: boolean
   /** 切走分頁／App、離開視窗時自動暫停並保存進度 */
   autoPause: boolean
+  /** 開遊戲後第一次點畫面就自動全螢幕（瀏覽器規定要先點一下才能全螢幕） */
+  fullscreen: boolean
 }
 
 interface Stats {
@@ -33,7 +35,7 @@ interface Stats {
   othello: { wins: number; losses: number; draws: number }
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true }))
 
 const STATS_DEFAULT: Stats = {
   gomoku: { wins: 0, losses: 0, draws: 0 },
