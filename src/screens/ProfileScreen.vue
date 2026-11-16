@@ -453,11 +453,15 @@ const totals = computed(() => {
   opacity: 0;
 }
 .side {
+  position: relative;
+  z-index: 1;
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
   gap: 0.5rem;
+  /* 下面「返回／儲存」那一排只用到左邊：右邊的清單往下延伸到那一排的高度，多顯示一些 */
+  margin-bottom: -2.6rem;
 }
 .bar-top {
   display: flex;
