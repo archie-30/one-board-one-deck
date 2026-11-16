@@ -6,7 +6,7 @@ import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { stats } from '@/core/settings'
+import { recordResult, stats } from '@/core/settings'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
 import { TURN_SECONDS } from '@/data/timer'
@@ -215,6 +215,7 @@ function finish() {
   if (w === 3) stats.othello.draws++
   else if (w === human.value) stats.othello.wins++
   else stats.othello.losses++
+  recordResult('othello', level, w === 3 ? 'd' : w === human.value ? 'w' : 'l')
   moods.value = w === 3 ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === 3 ? 'draw' : 'lose')

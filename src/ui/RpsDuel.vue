@@ -121,7 +121,8 @@ function finish() {
   align-items: flex-end;
   justify-content: center;
   gap: 1.2rem;
-  padding-top: 3.2rem;
+  /* 手勢放在頭像旁邊（不放頭上），手機橫拿高度不夠時也不會被裁掉 */
+  padding: 0.4rem 0 0.2rem;
 }
 .side {
   position: relative;
@@ -132,8 +133,8 @@ function finish() {
 }
 .who {
   display: block;
-  width: 4.6rem;
-  height: 4.6rem;
+  width: 4rem;
+  height: 4rem;
 }
 .who :deep(svg) {
   width: 100%;
@@ -141,7 +142,8 @@ function finish() {
 }
 .reveal {
   position: absolute;
-  top: -2.6rem;
+  top: 0.3rem;
+  left: -2.2rem;
   width: 2.4rem;
   height: 2.4rem;
   padding: 0.35rem;
@@ -168,9 +170,13 @@ function finish() {
   font-size: 2rem;
   color: var(--color-red);
 }
+.side + .verdict + .side .reveal {
+  left: auto;
+  right: -2.2rem;
+}
 .verdict {
   width: 13rem;
-  padding-bottom: 1.6rem;
+  padding-bottom: 1.4rem;
   text-align: center;
   font-size: 1.2rem;
   line-height: 1.4;

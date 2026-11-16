@@ -3,7 +3,7 @@
 // 規則都在引擎（applySolitaire），這裡只管流程、計時與存紀錄。
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
-import { bestAt, recordBest, stats } from '@/core/settings'
+import { bestAt, recordBest, recordResult, stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import {
@@ -140,6 +140,7 @@ function settleStuck() {
   stopClock()
   total.value = finalScore(scoreOf(state.value), seconds.value, false)
   recordBest('solitaire', String(props.options.difficulty ?? 'easy'), total.value)
+  recordResult('solitaire', String(props.options.difficulty ?? 'easy'), 'l')
   playSound('lose')
   window.setTimeout(() => (resultOpen.value = true), 500)
 }
@@ -192,6 +193,7 @@ function win() {
   total.value = finalScore(scoreOf(state.value), seconds.value, true)
   stats.solitaire.wins++
   recordBest('solitaire', String(props.options.difficulty ?? 'easy'), total.value)
+  recordResult('solitaire', String(props.options.difficulty ?? 'easy'), 'w')
   if (!stats.solitaire.fastest || seconds.value < stats.solitaire.fastest) stats.solitaire.fastest = seconds.value
   playSound('win')
   window.setTimeout(() => (resultOpen.value = true), 900)
@@ -338,7 +340,13 @@ const bonus = computed(() => timeBonus(seconds.value))
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  gap: 0.25rem;
   border-bottom: 0.07rem solid var(--color-ink);
+}
+/* 窄螢幕：「時間」「步數」不換行 */
+.nums dt {
+  white-space: nowrap;
+  letter-spacing: 0.05em;
 }
 .nums dd {
   font-size: 1rem;

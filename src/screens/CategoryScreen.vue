@@ -7,7 +7,7 @@ import { back, go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
-import { gamePrefs, settings } from '@/core/settings'
+import { gamePrefs, recentAt, settings, stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
 import { gamesIn } from '@/games/registry'
@@ -44,6 +44,14 @@ function setQuick(v: string) {
   gamePrefs(game.value.id).options[quick.value.key] = v
   quickTick.value++
 }
+/** 近百場戰況：跟著目前選的難度（沒有難度的玩法看全部） */
+const recent = computed(() => {
+  void quickTick.value
+  void stats.recent
+  const r = recentAt(game.value.id, quick.value ? quickValue.value : 'all')
+  if (!r.n) return S.lobby.recentNone
+  return game.value.id === 'solitaire' ? S.lobby.recentSolo(r.n, r.w, r.l) : S.lobby.recent(r.n, r.w, r.l, r.d)
+})
 /** 最高分：跟著目前選的難度變 */
 const bestNow = computed(() => {
   void quickTick.value
@@ -293,6 +301,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <span class="t-label">{{ quick.label }}</span>
             <Tabs class="small" :choices="quick.choices" :value="quickValue" hot="master" @change="setQuick" />
           </div>
+          <p class="recent rise" style="--i: 3">{{ recent }}</p>
           <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="launch">{{ S.lobby.start }}</Btn>
           <div class="minor rise" style="--i: 4">
             <button class="link" @click="open('tutorial')"><span>{{ S.lobby.tutorial }}</span><Icon name="arrow" class="ar" /></button>
@@ -635,6 +644,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-size: 2.4rem;
   line-height: 1;
   color: var(--color-red);
+}
+.recent {
+  margin: -0.15rem 0 0.1rem;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
 }
 .quick-help {
   margin-top: 0.25rem;

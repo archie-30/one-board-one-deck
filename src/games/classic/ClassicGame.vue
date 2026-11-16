@@ -6,7 +6,7 @@ import { useGrace } from '@/core/grace'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { stats } from '@/core/settings'
+import { recordResult, stats } from '@/core/settings'
 import { asLevel, chessAt, extraThink } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
@@ -209,6 +209,7 @@ function finish(wait = 900) {
   if (w === null) record.draws++
   else if (w === human.value) record.wins++
   else record.losses++
+  recordResult(A.kind, level, w === null ? 'd' : w === human.value ? 'w' : 'l')
   moods.value = w === null ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === null ? 'draw' : 'lose')

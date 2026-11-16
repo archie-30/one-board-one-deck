@@ -6,7 +6,7 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { stats } from '@/core/settings'
+import { recordResult, stats } from '@/core/settings'
 import { asLevel, extraThink, goAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
@@ -287,6 +287,7 @@ function finish() {
   const win = score.value.winner === human.value
   if (win) stats.go.wins++
   else stats.go.losses++
+  recordResult('go', level, win ? 'w' : 'l')
   moods.value = win ? ['happy', 'sad'] : ['sad', 'happy']
   playSound(win ? 'win' : 'lose')
   later(() => (resultOpen.value = true), 500)

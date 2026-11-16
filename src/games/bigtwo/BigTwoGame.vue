@@ -6,7 +6,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch 
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { recordBest, stats } from '@/core/settings'
+import { recordBest, recordResult, stats } from '@/core/settings'
 import { asBigTwoDifficulty, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
@@ -278,6 +278,7 @@ function finish() {
   if (s.winner === ME) record.wins++
   record.totals[ME] = (record.totals[ME] ?? 0) + scores.value[ME].points
   recordBest(crazy ? 'crazybigtwo' : 'bigtwo', difficulty, scores.value[ME].points)
+  recordResult(props.game.id, difficulty, s.winner === ME ? 'w' : 'l')
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')

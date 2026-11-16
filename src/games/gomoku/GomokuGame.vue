@@ -5,7 +5,7 @@ import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { stats } from '@/core/settings'
+import { recordResult, stats } from '@/core/settings'
 import { asLevel, extraThink, gomokuAt } from '@/engine/common/difficulty'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
@@ -192,6 +192,7 @@ function finish() {
   if (w === 3) stats.gomoku.draws++
   else if (w === human.value) stats.gomoku.wins++
   else stats.gomoku.losses++
+  recordResult('gomoku', level, w === 3 ? 'd' : w === human.value ? 'w' : 'l')
   moods.value = w === 3 ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === 3 ? 'draw' : 'lose')
