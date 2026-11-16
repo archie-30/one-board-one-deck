@@ -23,6 +23,8 @@ import Dialog from '@/ui/Dialog.vue'
 import Page from '@/ui/Page.vue'
 
 const T = S.online
+/** 開局倒數中：房間裡的按鈕全部反灰，只有「取消準備」能按（取消後倒數停下來才恢復） */
+const locked = computed(() => roomCountdown.value > 0)
 /** 從對局退回來：不播進場上浮（卡片要飛回這裡，位置一開始就要是定位） */
 const returning = launchFx.active && launchFx.mode === 'exit'
 const room = computed(() => online.room)
@@ -76,6 +78,8 @@ onMounted(() => {
   if (!online.room) return back(true)
   // 返回鍵、Esc＝離開房間：只剩自己一個人就直接離開（房主＝解散），不然先問一下
   setBackGuard(() => {
+    // 倒數中不能離開（要先取消準備）
+    if (locked.value) return false
     if ((online.room?.players.length ?? 0) <= 1) void leave()
     else leaveOpen.value = true
     return false
@@ -93,7 +97,7 @@ async function leave() {
 </script>
 
 <template>
-  <Page :title="T.room" label="ROOM" :num="room?.code ?? ''" :back-label="isHost ? T.disband : T.leave">
+  <Page :title="T.room" label="ROOM" :num="room?.code ?? ''" :back-label="isHost ? T.disband : T.leave" :back-disabled="locked">
     <div v-if="room" class="wrap" :class="{ settled: returning }">
       <!-- 房間成員（最多 4 人） -->
       <section class="seats rise" style="--i: 1">
@@ -102,7 +106,7 @@ async function leave() {
           <span class="cnt">{{ T.count(room.players.length, ROOM_MAX) }}</span>
         </p>
         <ul class="list">
-          <li v-for="(p, i) in slots" :key="p ? p.id : `empty${i}`" class="seat" :class="{ empty: !p, me: p?.me, watch: p?.spectator }" @click="p && (viewing = p)">
+          <li v-for="(p, i) in slots" :key="p ? p.id : `empty${i}`" class="seat" :class="{ empty: !p, me: p?.me, watch: p?.spectator, off: locked }" @click="p && !locked && (viewing = p)">
             <span class="av">
               <Avatar v-if="p" :look="p.me ? myLook() : (p.look ?? { shape: 'circle', tone: 'card', fill: 'solid' })" />
               <span v-else class="hole" />
@@ -146,16 +150,16 @@ async function leave() {
           <div class="side">
             <!-- 到房間外逛模式（人還在房間裡） -->
             <div class="nav">
-              <Btn size="sm" icon="home" @click="goHome">{{ T.home }}</Btn>
-              <Btn size="sm" tone="red" @click="goCat('cards')">{{ T.goCards }}</Btn>
-              <Btn size="sm" tone="blue" @click="goCat('board')">{{ T.goBoard }}</Btn>
+              <Btn size="sm" icon="home" :disabled="locked" @click="goHome">{{ T.home }}</Btn>
+              <Btn size="sm" tone="red" :disabled="locked" @click="goCat('cards')">{{ T.goCards }}</Btn>
+              <Btn size="sm" tone="blue" :disabled="locked" @click="goCat('board')">{{ T.goBoard }}</Btn>
             </div>
             <div v-if="room.recommends.length" class="recs">
               <p class="t-label">{{ T.recommends }}</p>
               <div v-for="r in room.recommends" :key="r.playerId" class="rec">
                 <span class="rn">{{ T.recommendBy(nameOf(r.playerId)) }}</span>
                 <b class="t-black">{{ getGame(r.gameId).name }}</b>
-                <button v-if="canChangeMode" class="t-label use" @click="changeMode(r.gameId, seatsOf(getGame(r.gameId)))">{{ T.useIt }}</button>
+                <button v-if="canChangeMode" class="t-label use" :disabled="locked" @click="changeMode(r.gameId, seatsOf(getGame(r.gameId)))">{{ T.useIt }}</button>
               </div>
             </div>
           </div>
@@ -164,13 +168,13 @@ async function leave() {
     </div>
 
     <template #foot>
-      <button class="copy" :aria-label="T.copy" @click="copy">
+      <button class="copy" :aria-label="T.copy" :disabled="locked" @click="copy">
         <Icon :name="copied ? 'check' : 'copy'" class="ci" />
         <span class="t-label">{{ copied ? T.copied : T.copy }}</span>
       </button>
       <!-- 準備：右下角，跟左下的離開房間同一排 -->
       <p class="t-label stline" :class="{ hot: st.canStart, warn: st.tooMany > 0 }">{{ status }}</p>
-      <Btn v-if="showWatch" :icon="me?.spectator ? 'play' : 'pass'" @click="setSpectator(!me?.spectator)">{{ me?.spectator ? T.play : T.watch }}</Btn>
+      <Btn v-if="showWatch" :disabled="locked" :icon="me?.spectator ? 'play' : 'pass'" @click="setSpectator(!me?.spectator)">{{ me?.spectator ? T.play : T.watch }}</Btn>
       <Btn class="readybtn" :tone="me?.ready ? 'ink' : 'red'" :icon="me?.ready ? 'close' : 'check'" :disabled="!game" @click="setReady(!me?.ready)">{{ me?.ready ? T.unready : T.ready }}</Btn>
     </template>
 
@@ -553,6 +557,16 @@ async function leave() {
 .settled .rise,
 .settled.rise {
   animation: none;
+}
+/* 倒數中反灰 */
+.seat.off {
+  cursor: default;
+  opacity: 0.5;
+}
+.use:disabled,
+.copy:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 /* 底下：複製房號（返回鍵的右邊） */
 .copy {
