@@ -509,9 +509,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .card {
   position: absolute;
   left: 50%;
-  top: 0;
+  /* 大螢幕不要跟著放到超大：高度最多 24rem，上下留白置中 */
+  top: calc((100% - min(100%, 24rem)) / 2);
   display: flex;
-  height: 100%;
+  height: min(100%, 24rem);
   aspect-ratio: 0.72;
   flex-direction: column;
   border: 0.14rem solid var(--color-ink);

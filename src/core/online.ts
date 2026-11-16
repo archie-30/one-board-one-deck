@@ -9,7 +9,7 @@
 // - 開始：在房間裡，大家都按「準備」就開始；人不夠的空位由電腦補上。
 // - 模式人數比房間人數少（例如 4 人房玩 2 人的棋）：多出來的人要自己改成「觀戰」，對戰的人數不超過模式人數才能開始。
 // - 只有按「離開房間」（房主是「解散房間」）才會離開；回主畫面、逛模式都還在房間裡。
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import type { Look } from '@/ui/art/look'
 
 export interface RoomPlayer {
@@ -81,6 +81,9 @@ let service: OnlineService = localService
 export function useOnlineService(s: OnlineService) {
   service = s
 }
+
+/** 開局倒數（3、2、1；0＝沒在倒數）。由 App 層的 RoomCountdown 負責倒數與開局 */
+export const roomCountdown = ref(0)
 
 /** 目前所在的房間（沒有就是 null） */
 export const online = reactive<{ room: Room | null }>({ room: null })
