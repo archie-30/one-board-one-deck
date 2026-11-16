@@ -22,6 +22,8 @@ interface Settings {
   fullscreen: boolean
   /** 鏡頭防遮擋：畫面避開手機的瀏海、挖孔鏡頭（往內縮一點） */
   avoidCutout: boolean
+  /** 模式選單：點中間那張卡片也能開始遊戲（關掉就只能按「開始遊戲」） */
+  cardStarts: boolean
 }
 
 interface Stats {
@@ -35,11 +37,12 @@ interface Stats {
   chess: { wins: number; losses: number; draws: number }
   xiangqi: { wins: number; losses: number; draws: number }
   othello: { wins: number; losses: number; draws: number }
+  sevens: { rounds: number; wins: number }
   /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
   recent: Record<string, string>
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true }))
 
 const STATS_DEFAULT: Stats = {
   gomoku: { wins: 0, losses: 0, draws: 0 },
@@ -51,6 +54,7 @@ const STATS_DEFAULT: Stats = {
   chess: { wins: 0, losses: 0, draws: 0 },
   xiangqi: { wins: 0, losses: 0, draws: 0 },
   othello: { wins: 0, losses: 0, draws: 0 },
+  sevens: { rounds: 0, wins: 0 },
   recent: {},
 }
 

@@ -127,7 +127,7 @@ stage.onLand = () => {
 const ch = computed(() => (layout.value.cw * 108) / 78)
 
 function model(): TableModel {
-  return { hands: state.value.hands, selected: selected.value, pile: pile.value, discard: discard.value, gathered: gathered.value, deck: ALL.length }
+  return { hands: state.value.hands, selected: selected.value, pile: pile.value, discard: discard.value, gathered: gathered.value, deck: ALL.length, twoRows: props.options.twoRows === true }
 }
 
 interface Flight {
@@ -286,6 +286,7 @@ function finish() {
 }
 
 function newRound() {
+  cancelAutoPass()
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   menuOpen.value = false
@@ -380,25 +381,36 @@ function playSelected() {
 
 // 過牌：按一下就過（大老二不用二次確認）
 /** 自動過牌（規則設定可關，預設開）：桌上有牌、而你手上確定沒有任何能壓過的牌，就提示一下再幫你過牌 */
-// 你正在選牌時不會幫你過（免得選到一半牌不見了）：等你把選起的牌放回去再過
+// 自動過牌：右下的「過牌」按鈕變成灰色的「按一次以取消」＋倒數條，1.2 秒內沒按就幫你過牌。
+// 倒數中按那顆按鈕、或去點手牌，就取消這一次的自動過牌（改成自己決定）。
+const AUTO_PASS_MS = 1200
+const autoPassing = ref(false)
+const autoTick = ref(0)
+let autoToken = 0
 function autoPass() {
   const s = state.value
-  if (props.options.autoPass === false || !s.table || legalPlays(s).length) return
+  if (props.options.autoPass === false || !s.table || legalPlays(s).length || selected.value.length) return
+  const token = ++autoToken
+  autoTick.value = token
   message.value = T.autoPassed
+  autoPassing.value = true
   later(() => {
+    if (token !== autoToken) return
+    autoPassing.value = false
     if (state.value !== s || !canPass.value || props.options.autoPass === false) return
-    if (selected.value.length) {
-      const stop = watch(selected, (v) => {
-        if (v.length) return
-        stop()
-        if (state.value === s && canPass.value) autoPass()
-      })
-      return
-    }
     act({ type: 'pass', player: ME })
-  }, 600)
+  }, AUTO_PASS_MS)
 }
+/** 取消這一次的自動過牌 */
+function cancelAutoPass() {
+  if (!autoPassing.value) return
+  autoToken++
+  autoPassing.value = false
+  if (message.value === T.autoPassed) message.value = ''
+}
+watch(selected, (v) => v.length && cancelAutoPass())
 function pass() {
+  if (autoPassing.value) return cancelAutoPass()
   if (!canPass.value) return
   selected.value = []
   acted.value = true
@@ -478,7 +490,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <span class="t-label by rise" style="--i: 2">{{ caption.who }}</span>
     </div>
 
-    <p class="status" :class="{ mine: myTurn && !message, warn: !!message }" :style="{ bottom: `${layout.cw * 1.9}px` }">
+    <p class="status" :class="{ mine: myTurn && !message, warn: !!message }" :style="{ top: `${layout.pile.y + layout.cw * 1.25 - 4}px` }">
       <span v-if="passed[ME]" class="stamp inline pop">{{ T.passed }}</span>
       {{ status }}
     </p>
@@ -491,7 +503,11 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
           <Btn v-if="selected.length" class="clear-sel" size="sm" icon="close" block @click="clearSelection">{{ T.clearSelection }}</Btn>
         </Transition>
         <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</Btn>
-        <Btn class="rise" style="--i: 1" icon="pass" block :disabled="!canPass" @click="pass">{{ T.pass }}</Btn>
+        <!-- 自動過牌倒數中：灰色「按一次以取消」，下面一條 1.2 秒倒數條 -->
+        <div class="pass-wrap rise" style="--i: 1">
+          <Btn :class="{ waiting: autoPassing }" :icon="autoPassing ? undefined : 'pass'" block :disabled="!canPass" @click="pass">{{ autoPassing ? T.autoPassCancel : T.pass }}</Btn>
+          <span v-if="autoPassing" :key="autoTick" class="auto-bar" :style="{ '--ms': `${AUTO_PASS_MS}ms` }" />
+        </div>
       </template>
       <template v-else>
         <Btn v-if="!reviewOpen" class="rise" size="sm" icon="book" block @click="openReview">{{ T.review.open }}</Btn>
@@ -747,6 +763,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   position: absolute;
   left: 0;
   right: 0;
+  /* 貼在 TABLE 框裡面的最下面（top 是框的下緣，往上移一整行），不會壓到框線 */
+  translate: 0 -100%;
   /* 放在牌的下面一層：選起來的牌往上浮時，文字不會蓋住牌 */
   z-index: 0;
   text-align: center;
@@ -881,6 +899,32 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 .review-leave-to {
   opacity: 0;
   transform: translateY(1rem) scale(0.97);
+}
+.pass-wrap {
+  position: relative;
+}
+.pass-wrap .waiting :deep(.face) {
+  color: var(--color-ink-3) !important;
+}
+.pass-wrap .waiting :deep(.lb) {
+  font-size: 0.85em;
+  font-weight: 500;
+}
+.auto-bar {
+  position: absolute;
+  left: 0.25rem;
+  right: 0.45rem;
+  bottom: 0.4rem;
+  height: 0.22rem;
+  background: var(--color-ink-3);
+  transform-origin: left;
+  pointer-events: none;
+  animation: auto-drain var(--ms) linear both;
+}
+@keyframes auto-drain {
+  to {
+    transform: scaleX(0);
+  }
 }
 .clear-sel-enter-active {
   transition:

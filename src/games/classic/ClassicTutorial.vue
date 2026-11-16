@@ -16,7 +16,7 @@ import ClassicBoard from './ClassicBoard.vue'
 import type { ClassicLesson } from './tutorialData'
 
 const props = defineProps<{ adapter: Adapter<St>; lessons: ClassicLesson<St>[]; pieceStyle?: 'text' | 'icon' }>()
-const emit = defineEmits<{ exit: []; play: [] }>()
+const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const A = props.adapter
 const T = A.kind === 'chess' ? S.chess : S.xiangqi
 
@@ -123,6 +123,7 @@ const aspect = A.kind === 'chess' ? '1 / 1' : '94 / 104'
       <div class="act">
         <template v-if="finished">
           <Btn tone="red" size="lg" arrow block @click="emit('play')">{{ S.tutorial.play }}</Btn>
+          <Btn icon="book" size="sm" block @click="emit('rules')">{{ S.tutorial.rules }}</Btn>
           <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </template>
         <Btn v-else-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= lessons.length ? S.common.done : S.common.next }}</Btn>
@@ -165,13 +166,15 @@ const aspect = A.kind === 'chess' ? '1 / 1' : '94 / 104'
   height: 100%;
 }
 .board-wrap {
-  height: 100%;
+  /* 棋盤最高跟畫面一樣高；平板這種比較方的螢幕，最多只能佔到「右邊說明框還留得下約 17 個字寬」為止 */
+  align-self: center;
+  height: min(100%, calc(100vw - 27rem));
   flex-shrink: 0;
   animation: rise 520ms var(--ease-out) both;
 }
 .guide {
   display: flex;
-  min-width: 0;
+  min-width: 15rem;
   flex: 1;
   flex-direction: column;
   justify-content: space-between;
@@ -212,5 +215,14 @@ const aspect = A.kind === 'chess' ? '1 / 1' : '94 / 104'
 .pc svg {
   width: 2.6rem;
   height: 2.6rem;
+}
+/* 說明太長時在框裡捲動，下面的「下一步」按鈕一定留在畫面裡 */
+.guide > :first-child {
+  min-height: 0;
+  overflow-y: auto;
+}
+.guide .act {
+  flex: none;
+  margin-top: 0.6rem;
 }
 </style>

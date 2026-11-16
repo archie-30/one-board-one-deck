@@ -14,6 +14,7 @@ import GoCover from './covers/GoCover.vue'
 import GomokuCover from './covers/GomokuCover.vue'
 import OthelloCover from './covers/OthelloCover.vue'
 import RedPointCover from './covers/RedPointCover.vue'
+import SevensCover from './covers/SevensCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
@@ -104,8 +105,22 @@ export const GAMES: GameDef[] = [
       toggle('allowTwoPair', bs.allowTwoPair, B.allowTwoPair),
       toggle('doubleOverTen', S.crazybigtwo.settings.doubleOverTen, B.doubleOverTen, { group: 'score' }),
       toggle('autoPass', bs.autoPass, true, { group: 'other', live: true }),
+      toggle('twoRows', S.crazybigtwo.settings.twoRows, true, { group: 'other', live: true }),
       timer(),
     ],
+  },
+  {
+    id: 'sevens',
+    category: 'cards',
+    name: S.sevens.name,
+    summary: S.sevens.summary,
+    players: S.sevens.players,
+    cover: SevensCover,
+    tags: S.sevens.tags,
+    rulesIntro: withTimer(S.sevens.rules, [...TR.cards, TR.sevens]),
+    tutorial: defineAsyncComponent(() => import('./sevens/SevensTutorial.vue')),
+    component: defineAsyncComponent(() => import('./sevens/SevensGame.vue')),
+    settings: [choice('difficulty', S.sevens.settings.difficulty, 'easy'), timer()],
   },
   {
     id: 'redpoint',

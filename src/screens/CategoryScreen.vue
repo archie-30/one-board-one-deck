@@ -168,7 +168,8 @@ function onUp(e: PointerEvent) {
 }
 function tapCard(k: number) {
   if (k !== index.value) show(k)
-  else void launch()
+  // 設定「點卡片開始遊戲」關掉時，只能按「開始遊戲」按鈕
+  else if (settings.cardStarts) void launch()
 }
 /** 鍵盤（Enter／空白鍵）按卡片 */
 function onClick(k: number, e: MouseEvent) {
