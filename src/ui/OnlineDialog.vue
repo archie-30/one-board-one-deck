@@ -1,0 +1,192 @@
+<script setup lang="ts">
+// 連線對戰的入口彈窗：上面輸入房號加入，下面建立新房間。進了房間就換到房間頁。
+// 主畫面（底下那一條）和模式選單（右上角）都用這個。
+import { computed, nextTick, ref, watch } from 'vue'
+import { go } from '@/core/nav'
+import { createRoom, isRoomCode, joinRoom, ROOM_CODE_LENGTH } from '@/core/online'
+import { profile } from '@/core/profile'
+import { settings } from '@/core/settings'
+import { S } from '@/data/strings'
+import { onlineGames } from '@/games/registry'
+import type { GameCategory } from '@/games/types'
+import Btn from './Btn.vue'
+import Dialog from './Dialog.vue'
+
+const props = defineProps<{ open: boolean; category?: GameCategory }>()
+const emit = defineEmits<{ close: [] }>()
+const T = S.online
+
+const code = ref('')
+const error = ref('')
+const busy = ref(false)
+const input = ref<HTMLInputElement>()
+watch(
+  () => props.open,
+  (on) => {
+    if (!on) return
+    code.value = ''
+    error.value = ''
+    busy.value = false
+  },
+)
+/** 只收數字 */
+function onInput(e: Event) {
+  const el = e.target as HTMLInputElement
+  code.value = el.value.replace(/\D/g, '').slice(0, ROOM_CODE_LENGTH)
+  el.value = code.value
+  error.value = ''
+}
+const myName = () => profile.name || S.profile.defaultName
+
+async function join() {
+  if (busy.value) return
+  if (!isRoomCode(code.value)) {
+    error.value = T.errors.format
+    void nextTick(() => input.value?.focus())
+    return
+  }
+  busy.value = true
+  const r = await joinRoom(code.value, myName())
+  busy.value = false
+  if (typeof r === 'string') {
+    error.value = T.errors[r]
+    return
+  }
+  emit('close')
+  go({ name: 'room' })
+}
+
+/** 建立房間：玩法先用這個分類上次選的（從主畫面進來就用撲克牌那邊的） */
+const defaultGame = computed(() => {
+  const cat = props.category ?? 'cards'
+  const list = onlineGames(cat)
+  return list.find((g) => g.id === settings.lastGame[cat])?.id ?? list[0].id
+})
+async function create() {
+  if (busy.value) return
+  busy.value = true
+  await createRoom(myName(), defaultGame.value)
+  busy.value = false
+  emit('close')
+  go({ name: 'room' })
+}
+</script>
+
+<template>
+  <Dialog :open="open" :title="T.dialogTitle" :label="T.tag" tone="blue" close-x @close="emit('close')">
+    <label class="t-label lab" for="room-code">{{ T.joinLabel }}</label>
+    <div class="join">
+      <input
+        id="room-code"
+        ref="input"
+        :value="code"
+        class="t-slab code"
+        :class="{ bad: !!error }"
+        type="text"
+        inputmode="numeric"
+        autocomplete="off"
+        enterkeyhint="go"
+        :maxlength="ROOM_CODE_LENGTH"
+        :placeholder="T.joinPh"
+        @input="onInput"
+        @keydown.enter="join"
+      />
+      <Btn tone="ink" :disabled="code.length !== ROOM_CODE_LENGTH || busy" @click="join">{{ T.join }}</Btn>
+    </div>
+    <p class="err" :class="{ on: !!error }">{{ error || '　' }}</p>
+    <p class="or t-label"><span>{{ T.or }}</span></p>
+    <Btn tone="red" size="lg" icon="online" block :disabled="busy" @click="create">{{ T.create }}</Btn>
+    <p class="sub">{{ T.createSub }}</p>
+    <p class="soon">{{ T.soon }}</p>
+  </Dialog>
+</template>
+
+<style scoped>
+.lab {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.join {
+  display: flex;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+.code {
+  min-width: 0;
+  flex: 1;
+  border: 0.14rem solid var(--color-ink);
+  background: var(--color-card);
+  box-shadow: 0.18rem 0.18rem 0 var(--color-ink);
+  padding: 0.1rem 0.6rem;
+  font-size: 1.5rem;
+  letter-spacing: 0.35em;
+  outline: none;
+}
+.code::placeholder {
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--color-ink-3);
+}
+.code:focus {
+  border-color: var(--color-blue);
+  box-shadow: 0.18rem 0.18rem 0 var(--color-blue);
+}
+.code.bad {
+  border-color: var(--color-red);
+  box-shadow: 0.18rem 0.18rem 0 var(--color-red);
+  animation: nope 0.3s linear 1;
+}
+@keyframes nope {
+  25% {
+    transform: translateX(-0.25rem);
+  }
+  75% {
+    transform: translateX(0.25rem);
+  }
+}
+.err {
+  min-height: 1.2rem;
+  padding-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-red);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.err.on {
+  opacity: 1;
+}
+/* 「或是」：左右各一條細線 */
+.or {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.3rem 0 0.7rem;
+  color: var(--color-ink-3);
+}
+.or::before,
+.or::after {
+  content: '';
+  height: 0.1rem;
+  flex: 1;
+  background: var(--color-line);
+}
+.sub {
+  padding-top: 0.45rem;
+  font-size: 0.75rem;
+  color: var(--color-ink-2);
+}
+.soon {
+  margin-top: 0.6rem;
+  border-top: 0.1rem dashed var(--color-ink-3);
+  padding-top: 0.45rem;
+  font-size: 0.68rem;
+  color: var(--color-ink-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .code.bad {
+    animation: none;
+  }
+}
+</style>

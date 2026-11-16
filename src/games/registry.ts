@@ -139,6 +139,7 @@ export const GAMES: GameDef[] = [
   {
     id: 'solitaire',
     category: 'cards',
+    seats: 1,
     name: S.solitaire.name,
     summary: S.solitaire.summary,
     players: S.solitaire.players,
@@ -219,3 +220,8 @@ export const GAMES: GameDef[] = [
 
 export const getGame = (id: string): GameDef => GAMES.find((g) => g.id === id) ?? GAMES[0]
 export const gamesIn = (category: GameCategory): GameDef[] => GAMES.filter((g) => g.category === category)
+
+/** 這個玩法幾個人玩（連線房間的座位數） */
+export const seatsOf = (g: GameDef): number => g.seats ?? (g.category === 'cards' ? 4 : 2)
+/** 可以連線對戰的玩法（單人的接龍不行） */
+export const onlineGames = (category: GameCategory): GameDef[] => gamesIn(category).filter((g) => seatsOf(g) > 1)

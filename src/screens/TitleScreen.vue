@@ -11,12 +11,14 @@ import type { GameCategory } from '@/games/types'
 import Card from '@/ui/art/Card.vue'
 import Icon from '@/ui/art/Icon.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import OnlineDialog from '@/ui/OnlineDialog.vue'
 import ProfileChip from '@/ui/ProfileChip.vue'
 import AppSettings from './AppSettings.vue'
 
 const picked = ref<GameCategory | null>(null)
 const origin = ref({ x: '50%', y: '50%' })
 const settingsOpen = ref(false)
+const onlineOpen = ref(false)
 const hovered = ref<GameCategory | null>(null)
 const fan = [
   { rank: 'A', suit: 2 },
@@ -58,6 +60,8 @@ function hover(side: GameCategory, event: PointerEvent) {
       </div>
     </aside>
 
+    <div class="sides">
+    <div class="row">
     <button
       v-for="side in ['cards', 'board'] as const"
       :key="side"
@@ -81,7 +85,18 @@ function hover(side: GameCategory, event: PointerEvent) {
       <span class="name t-black">{{ side === 'cards' ? S.choose.cards : S.choose.board }}</span>
       <span class="go"><Icon name="arrow" class="ar" /></span>
     </button>
+    </div>
+    <!-- 連線對戰：橫跨撲克牌、棋盤兩塊的底下一條 -->
+    <button class="online rise" :class="{ off: picked }" style="--i: 3" @click="onlineOpen = true">
+      <span class="fill" />
+      <Icon name="online" class="oi" />
+      <span class="t-black ot">{{ S.online.open }}</span>
+      <span class="t-label ol">{{ S.online.tag }} — {{ S.online.lead }}</span>
+      <Icon name="arrow" class="oa" />
+    </button>
+    </div>
 
+    <OnlineDialog :open="onlineOpen" @close="onlineOpen = false" />
     <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
   </section>
 </template>
@@ -90,6 +105,82 @@ function hover(side: GameCategory, event: PointerEvent) {
 .choose {
   display: flex;
   height: 100%;
+}
+.sides {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.row {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+/* 連線對戰：底下一整條，左邊、上面一條粗黑線接著兩塊面板的框線 */
+.online {
+  position: relative;
+  display: flex;
+  height: 3.3rem;
+  flex: none;
+  align-items: center;
+  gap: 0.7rem;
+  overflow: hidden;
+  border: 0;
+  border-top: 0.14rem solid var(--color-ink);
+  border-left: 0.14rem solid var(--color-ink);
+  background: transparent;
+  padding: 0 1.4rem;
+  text-align: left;
+  transition: opacity 300ms ease;
+}
+.online.off {
+  opacity: 0.35;
+  pointer-events: none;
+}
+/* 滑鼠移上去／按下：亮黃色從左邊鋪過來 */
+.online .fill {
+  position: absolute;
+  inset: 0;
+  background: var(--color-yellow);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 360ms var(--ease-out);
+}
+.online:active .fill {
+  transform: scaleX(1);
+}
+@media (hover: hover) and (pointer: fine) {
+  .online:hover .fill {
+    transform: scaleX(1);
+  }
+  .online:hover .oa {
+    transform: translateX(0.35rem);
+  }
+}
+.oi,
+.ot,
+.ol,
+.oa {
+  position: relative;
+}
+.oi {
+  width: 1.35rem;
+  height: 1.35rem;
+  color: var(--color-blue);
+}
+.ot {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.ol {
+  color: var(--color-ink-2);
+}
+.oa {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-left: auto;
+  transition: transform 200ms var(--ease-out);
 }
 .intro {
   position: relative;

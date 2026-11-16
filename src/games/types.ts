@@ -29,6 +29,8 @@ export interface GameDef {
   name: string
   summary: string
   players: string
+  /** 幾個人一起玩（連線房間的座位數）；沒填就照分類：撲克牌 4 人、棋盤 2 人。1＝單人，不能連線 */
+  seats?: number
   /** 選單卡片上的插圖（active = 卡片被選起時） */
   cover: Component
   /** 卡片上的小標籤，例如人數、一局多久 */
