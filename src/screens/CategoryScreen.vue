@@ -205,7 +205,7 @@ async function launch() {
   if (!el || reducedMotion()) return open('play')
   launching.value = true
   const g = game.value
-  const color = getComputedStyle(el.querySelector('.cover') ?? el).backgroundColor
+  const color = getComputedStyle(el.querySelector('.cv') ?? el).backgroundColor
   playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')
   // 放大的同時先下載遊戲畫面，兩件事都好了才換頁
   const loader = (g.component as { __asyncLoader?: () => Promise<unknown> }).__asyncLoader
@@ -261,7 +261,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             :tabindex="k === index ? 0 : -1"
             @click="onClick(k, $event)"
           >
-            <span class="cover halftone"><component :is="g.cover" :active="k === index && !locked" /></span>
+            <span class="cv halftone"><component :is="g.cover" :active="k === index && !locked" /></span>
             <span class="info">
               <span class="t-slab no">{{ pad(k + 1) }}</span>
               <span class="nm t-black">{{ g.name }}</span>
@@ -361,7 +361,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   min-height: 0;
   flex: 1;
   gap: 1.8rem;
-  padding-top: 1rem;
+  padding-top: 0.7rem;
 }
 /* 左半邊：一疊卡片＋下面的翻頁列 */
 .deck-wrap {
@@ -369,7 +369,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   min-width: 0;
   flex: 1.1;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.45rem;
 }
 .deck {
   position: relative;
@@ -396,7 +396,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   top: 0;
   display: flex;
   height: 100%;
-  aspect-ratio: 0.78;
+  aspect-ratio: 0.72;
   flex-direction: column;
   border: 0.14rem solid var(--color-ink);
   border-radius: 0.5rem;
@@ -438,11 +438,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .deck:active .card.front {
   cursor: grabbing;
 }
-.cover {
+/* 卡片上半部的插圖區：叫 .cv（不能叫 .cover，會和封面插圖本身的 class 撞名，
+   卡片的樣式就會套到插圖上，有些手機瀏覽器插圖會整個放大蓋住卡片）。
+   高度固定佔卡片的 46%，色塊到分隔線的位置不會跟著下面說明文字的長短變動 */
+.cv {
   position: relative;
   display: block;
-  min-height: 0;
-  flex: 1;
+  flex: none;
+  height: 44%;
+  overflow: hidden;
   padding: 0.8rem 1rem 0.4rem;
   border-bottom: 0.14rem solid var(--color-ink);
   border-radius: 0.36rem 0.36rem 0 0;
@@ -451,17 +455,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   transition: background-color 260ms ease;
   pointer-events: none;
 }
-.cover {
+.cv {
   background-color: var(--tone);
   --dot: rgb(251 248 241 / 0.18);
 }
 .info {
   position: relative;
   display: flex;
+  min-height: 0;
+  flex: 1;
   flex-direction: column;
   gap: 0.1rem;
   padding: 0.5rem 0.9rem 0.7rem;
   pointer-events: none;
+}
+/* 卡片下半部每一行都不被壓縮（被壓縮時說明會和標籤疊在一起）；標籤固定貼在最下面 */
+.info > * {
+  flex: none;
+}
+.info .tags {
+  margin-top: auto;
+  padding-top: 0.3rem;
 }
 .no {
   font-size: 0.85rem;
@@ -472,6 +486,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   line-height: 1.2;
 }
 .sm {
+  /* 說明最多兩行，再多就用「…」收掉，卡片版面不會被撐開 */
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   font-size: 0.75rem;
   line-height: 1.45;
   color: var(--color-ink-2);
