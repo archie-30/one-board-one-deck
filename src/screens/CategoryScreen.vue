@@ -3,7 +3,8 @@
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { back, go } from '@/core/nav'
+import { back, go, replace } from '@/core/nav'
+import { online, setRoomGame } from '@/core/online'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
 import { isStaleChunk, reloadForUpdate } from '@/core/staleReload'
@@ -11,7 +12,7 @@ import { reducedMotion } from '@/core/motion'
 import { gamePrefs, recentAt, settings, stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
-import { gamesIn } from '@/games/registry'
+import { gamesIn, onlineGames, seatsOf } from '@/games/registry'
 import type { GameCategory } from '@/games/types'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
@@ -20,10 +21,11 @@ import OnlineDialog from '@/ui/OnlineDialog.vue'
 import ProfileChip from '@/ui/ProfileChip.vue'
 import Tabs from '@/ui/Tabs.vue'
 
-const props = defineProps<{ category: GameCategory }>()
-const games = computed(() => gamesIn(props.category))
+// pick：連線房間裡「換遊戲」用的同一個卡片頁——只列可以連線的玩法，按鈕變成「選這個遊戲」，選好回到房間
+const props = defineProps<{ category: GameCategory; pick?: boolean }>()
+const games = computed(() => (props.pick ? onlineGames(props.category) : gamesIn(props.category)))
 const n = computed(() => games.value.length)
-const start = games.value.findIndex((g) => g.id === settings.lastGame[props.category])
+const start = games.value.findIndex((g) => g.id === (props.pick && online.room ? online.room.gameId : settings.lastGame[props.category]))
 /** 目前選中的是第幾張。不繞圈：前面的模式疊在左邊、後面的疊在右邊，到頭尾就停住。 */
 const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
@@ -235,7 +237,20 @@ const cardEls: (HTMLElement | null)[] = []
 const launching = ref(false)
 /** 連線對戰的彈窗（右上角「連線」按鈕） */
 const onlineOpen = ref(false)
+/** 房間裡選遊戲：選好就回到房間 */
+function choose() {
+  if (!online.room) return back()
+  playSound('tap')
+  void setRoomGame(game.value.id)
+  back()
+}
+/** 房間裡換分類（撲克牌／棋盤） */
+const cats = (['cards', 'board'] as const).map((value) => ({ value, label: S.category[value].title }))
+function switchCat(c: string) {
+  if (c !== props.category) replace({ name: 'category', category: c as GameCategory, pick: true })
+}
 async function launch() {
+  if (props.pick) return choose()
   if (launching.value) return
   const el = cardEls[index.value]
   if (!el || reducedMotion()) return open('play')
@@ -263,11 +278,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <section class="mode" :class="[`c-${category}`, { locked }]">
-    <div class="corner"><IconBtn icon="home" :label="S.common.home" @click="back()" /></div>
+    <div class="corner"><IconBtn :icon="pick ? 'back' : 'home'" :label="pick ? S.online.backRoom : S.common.home" @click="back()" /></div>
     <header class="head">
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
-      <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
-      <Btn class="on-btn" size="sm" icon="online" @click="onlineOpen = true">{{ S.online.short }}</Btn>
+      <!-- 房間裡換遊戲：可以直接切撲克牌／棋盤；右上角是房號（點了回房間） -->
+      <template v-if="pick">
+        <Tabs class="small cat-tabs rise" style="--i: 1" :choices="cats" :value="category" @change="switchCat" />
+        <p class="t-label rise pk" style="--i: 1">{{ S.online.pickForRoom }}</p>
+        <button v-if="online.room" class="room-tag rise" style="--i: 2" @click="back()">
+          <Icon name="online" class="ri" />
+          <span class="t-label">{{ S.online.room }}</span>
+          <b class="t-slab">{{ online.room.code }}</b>
+        </button>
+      </template>
+      <template v-else>
+        <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
+        <Btn class="on-btn" size="sm" icon="online" @click="onlineOpen = true">{{ S.online.short }}</Btn>
+      </template>
       <ProfileChip />
     </header>
     <div class="rule wipe" style="--i: 1" />
@@ -327,7 +354,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <p class="t-label rise">{{ game.players }}</p>
           <h2 class="t-black name"><span class="mask"><span>{{ game.name }}</span></span></h2>
           <p class="summary rise" style="--i: 2">{{ game.summary }}</p>
-          <div v-if="game.best" class="stats rise" style="--i: 3">
+          <div v-if="game.best && !pick" class="stats rise" style="--i: 3">
             <p class="best">
               <span class="t-label">{{ S.lobby.best }}</span>
               <!-- 寬度先照最高分的位數留好，跳數時不會把旁邊的東西擠來擠去 -->
@@ -337,14 +364,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </div>
         <div class="acts">
           <!-- 難度：固定在「開始遊戲」上面 -->
-          <div v-if="quick" class="quick rise" style="--i: 3" :title="quick.help">
+          <p v-if="pick" class="recent rise solo" style="--i: 3">{{ S.online.seatsFor(seatsOf(game)) }}</p>
+          <div v-else-if="quick" class="quick rise" style="--i: 3" :title="quick.help">
             <span class="t-label">{{ quick.label }}</span>
             <Tabs class="small" :choices="quick.choices" :value="quickValue" hot="master" @change="setQuick" />
             <!-- 近百場戰況：放在難度右邊同一排，不多佔一行（不然下面的小按鈕會被擠出畫面） -->
             <span class="recent">{{ recent }}</span>
           </div>
           <p v-else class="recent rise solo" style="--i: 3">{{ recent }}</p>
-          <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="launch">{{ S.lobby.start }}</Btn>
+          <Btn class="rise" style="--i: 3" tone="red" size="lg" arrow block @click="launch">{{ pick ? S.online.choose : S.lobby.start }}</Btn>
           <div class="minor rise" style="--i: 4">
             <button class="link" @click="open('tutorial')"><span>{{ S.lobby.tutorial }}</span><Icon name="arrow" class="ar" /></button>
             <button class="link" @click="open('rules')"><span>{{ S.lobby.rules }}</span><Icon name="arrow" class="ar" /></button>
@@ -387,6 +415,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-size: 2rem;
   line-height: 1.15;
   letter-spacing: -0.04em;
+}
+.cat-tabs {
+  margin-left: 0.4rem;
+}
+/* 房間裡換遊戲：右上角的房號，點了回房間 */
+.room-tag {
+  display: flex;
+  height: 2.1rem;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0.13rem solid var(--color-ink);
+  background: var(--color-yellow);
+  box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
+  padding: 0 0.7rem;
+}
+.room-tag:active {
+  transform: translate(0.15rem, 0.15rem);
+  box-shadow: none;
+}
+.room-tag b {
+  font-size: 1.05rem;
+  letter-spacing: 0.08em;
+}
+.ri {
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-blue);
 }
 .pk {
   margin-left: auto;

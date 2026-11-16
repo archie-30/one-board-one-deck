@@ -3,19 +3,16 @@
 // 房號在右上角大大顯示，下面可以複製給朋友。離開房間會先問一下。
 // 現在還沒接真的連線（見 core/online.ts），空位會一直顯示「等待加入…」。
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { playSound } from '@/core/audio'
-import { back, setBackGuard } from '@/core/nav'
-import { leaveRoom, online, setRoomGame } from '@/core/online'
+import { back, go, setBackGuard } from '@/core/nav'
+import { leaveRoom, online } from '@/core/online'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
-import { getGame, onlineGames, seatsOf } from '@/games/registry'
-import type { GameCategory } from '@/games/types'
+import { getGame, seatsOf } from '@/games/registry'
 import Avatar from '@/ui/art/Avatar.vue'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import Page from '@/ui/Page.vue'
-import Tabs from '@/ui/Tabs.vue'
 
 const T = S.online
 const room = computed(() => online.room)
@@ -29,13 +26,9 @@ const slots = computed(() => {
 })
 const missing = computed(() => Math.max(0, seats.value - (room.value?.players.length ?? 0)))
 
-const cat = ref<GameCategory>(game.value.category)
-const cats = (['cards', 'board'] as const).map((value) => ({ value, label: S.category[value].title }))
-const list = computed(() => onlineGames(cat.value))
-function pick(id: string) {
-  if (!isHost.value || id === room.value?.gameId) return
-  playSound('tap')
-  void setRoomGame(id)
+/** 換遊戲：到卡片頁（跟房間外選遊戲同一個畫面）挑，選好會回來 */
+function changeGame() {
+  go({ name: 'category', category: game.value.category, pick: true })
 }
 
 // 複製房號
@@ -101,23 +94,26 @@ async function leave() {
         </TransitionGroup>
       </section>
 
-      <!-- 選遊戲 -->
+      <!-- 這次玩什麼：跟模式選單一樣的卡片；房主按「換遊戲」到卡片頁去挑（跟房間外選遊戲同一個畫面） -->
       <section class="pick rise" style="--i: 2">
-        <div class="bar">
-          <Tabs :choices="cats" :value="cat" @change="(v) => (cat = v as GameCategory)" />
-          <span v-if="!isHost" class="t-label note">{{ T.onlyHost }}</span>
-        </div>
-        <ul class="games scroll-y">
-          <li v-for="g in list" :key="g.id">
-            <button class="g" :class="[`c-${g.category}`, { on: g.id === room.gameId }]" :disabled="!isHost" @click="pick(g.id)">
-              <span class="t-black gn">{{ g.name }}</span>
-              <span class="t-label gp">{{ g.tags[0] }}</span>
-            </button>
-          </li>
-        </ul>
-        <div class="go">
-          <span class="t-label miss">{{ missing ? T.needMore(missing) : '' }}</span>
-          <Btn tone="red" size="lg" arrow :disabled="missing > 0 || !isHost">{{ T.start }}</Btn>
+        <p class="t-label">{{ T.current }}</p>
+        <div class="now">
+          <div class="mcard" :class="`c-${game.category}`">
+            <span class="cv halftone"><component :is="game.cover" active /></span>
+            <span class="info">
+              <span class="t-label cat">{{ S.category[game.category].title }}</span>
+              <span class="nm t-black">{{ game.name }}</span>
+              <span class="sm">{{ game.summary }}</span>
+            </span>
+          </div>
+          <div class="side">
+            <Btn v-if="isHost" icon="again" @click="changeGame">{{ T.change }}</Btn>
+            <p v-else class="t-label note">{{ T.hostPicking }}</p>
+            <div class="go">
+              <span class="t-label miss">{{ missing ? T.needMore(missing) : '' }}</span>
+              <Btn tone="red" size="lg" arrow block :disabled="missing > 0 || !isHost">{{ T.start }}</Btn>
+            </div>
+          </div>
         </div>
       </section>
     </div>
@@ -282,52 +278,28 @@ async function leave() {
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.4rem;
+  min-height: 0;
 }
-.bar {
+.now {
   display: flex;
-  align-items: center;
-  gap: 0.8rem;
-}
-.note {
-  color: var(--color-ink-3);
-}
-.games {
-  display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
-  align-content: start;
-  gap: 0.55rem;
-  padding: 0.1rem 0.4rem 0.4rem 0.1rem;
+  gap: 1.2rem;
 }
-.g {
+/* 跟模式選單一樣的直式卡片（縮小版） */
+.mcard {
   display: flex;
-  width: 100%;
+  height: 100%;
+  max-height: 17rem;
+  aspect-ratio: 0.72;
+  flex: none;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  border: 0.13rem solid var(--color-ink);
-  border-left: 0.4rem solid var(--tone);
+  overflow: hidden;
+  border: 0.14rem solid var(--color-ink);
+  border-radius: 0.5rem;
   background: var(--color-card);
-  box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
-  padding: 0.35rem 0.6rem;
-  text-align: left;
-  transition:
-    transform 110ms var(--ease-out),
-    background-color 200ms ease,
-    color 200ms ease;
-}
-.g:active:not(:disabled) {
-  transform: translate(0.15rem, 0.15rem);
-  box-shadow: none;
-}
-.g.on {
-  background: var(--color-ink);
-  color: var(--color-card);
-}
-.g:disabled:not(.on) {
-  opacity: 0.55;
+  box-shadow: 0.35rem 0.35rem 0 var(--color-ink);
 }
 .c-cards {
   --tone: var(--color-red);
@@ -335,20 +307,59 @@ async function leave() {
 .c-board {
   --tone: var(--color-blue);
 }
-.gn {
-  font-size: 1rem;
+/* 插圖區：跟模式選單的卡片一樣（固定 44% 高、超出的裁掉，動畫不會跑到下面的字上） */
+.mcard .cv {
+  position: relative;
+  display: block;
+  height: 44%;
+  flex: none;
+  overflow: hidden;
+  padding: 0.6rem 0.8rem 0.3rem;
+  border-bottom: 0.14rem solid var(--color-ink);
+  background-color: var(--tone);
+  --dot: rgb(251 248 241 / 0.18);
 }
-.gp {
-  font-size: 0.55rem;
-  opacity: 0.75;
+.mcard .info {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.7rem;
+}
+.cat {
+  color: var(--tone);
+}
+.mcard .nm {
+  font-size: 1.35rem;
+  line-height: 1.15;
+}
+.mcard .sm {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--color-ink-2);
+}
+.side {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.note {
+  color: var(--color-ink-3);
 }
 .go {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.9rem;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  margin-top: auto;
 }
 .miss {
+  min-height: 1em;
+  text-align: right;
   color: var(--color-ink-3);
 }
 /* 底下：複製房號（返回鍵的右邊） */

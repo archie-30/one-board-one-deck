@@ -10,7 +10,7 @@ export type Route =
   | { name: 'names' }
   | { name: 'profile' }
   | { name: 'room' }
-  | { name: 'category'; category: GameCategory }
+  | { name: 'category'; category: GameCategory; pick?: boolean }
   | { name: 'rules' | 'settings' | 'tutorial' | 'play'; gameId: string }
 
 const stack = reactive<Route[]>([{ name: 'title' }])
@@ -18,7 +18,7 @@ const stack = reactive<Route[]>([{ name: 'title' }])
 export const route = computed(() => stack[stack.length - 1])
 export const routeKey = computed(() => {
   const r = route.value
-  return r.name + ('gameId' in r ? r.gameId : 'category' in r ? r.category : '')
+  return r.name + ('gameId' in r ? r.gameId : 'category' in r ? r.category + (r.pick ? ':pick' : '') : '')
 })
 
 type VT = { startViewTransition?: (cb: () => Promise<void>) => unknown }

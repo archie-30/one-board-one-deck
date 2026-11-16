@@ -108,17 +108,21 @@ async function create() {
 }
 .join {
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 0.6rem;
 }
+/* 輸入框跟「加入」按鈕一樣高（中號按鈕 2.4rem）、陰影一樣深，上下對齊 */
 .code {
+  box-sizing: border-box;
+  height: 2.4rem;
   min-width: 0;
   flex: 1;
-  border: 0.14rem solid var(--color-ink);
+  border: 2px solid var(--color-ink);
   background: var(--color-card);
-  box-shadow: 0.18rem 0.18rem 0 var(--color-ink);
-  padding: 0.1rem 0.6rem;
-  font-size: 1.5rem;
+  box-shadow: 0.22rem 0.22rem 0 var(--color-ink);
+  padding: 0 0.6rem;
+  font-size: 1.35rem;
+  line-height: 1;
   letter-spacing: 0.35em;
   outline: none;
 }
@@ -131,11 +135,11 @@ async function create() {
 }
 .code:focus {
   border-color: var(--color-blue);
-  box-shadow: 0.18rem 0.18rem 0 var(--color-blue);
+  box-shadow: 0.22rem 0.22rem 0 var(--color-blue);
 }
 .code.bad {
   border-color: var(--color-red);
-  box-shadow: 0.18rem 0.18rem 0 var(--color-red);
+  box-shadow: 0.22rem 0.22rem 0 var(--color-red);
   animation: nope 0.3s linear 1;
 }
 @keyframes nope {

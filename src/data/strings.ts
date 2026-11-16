@@ -266,6 +266,13 @@ export const S = {
     leaveLead: '你是房主，離開後房間會關掉，裡面的人也會一起離開。',
     leaveLeadGuest: '離開後要再輸入房號才能回來。',
     stay: '留下來',
+    current: '這次玩',
+    change: '換遊戲',
+    hostPicking: '房主選遊戲中',
+    backRoom: '回房間',
+    pickForRoom: '幫房間選一個遊戲',
+    seatsFor: (n: number) => `連線對戰　${n} 人`,
+    choose: '選這個遊戲',
   },
   appSettings: {
     title: '設定',

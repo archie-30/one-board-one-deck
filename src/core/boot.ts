@@ -5,6 +5,49 @@
 //   4. 落定後換成主畫面真正的插圖，移除加載畫面
 import { reducedMotion } from './motion'
 
+// ── 字型與進度條 ──
+// 中文字型兩個字重各約 1MB。以前要等畫面用到才開始下載，而且只等畫面上已經用到的那一個：
+// 進度條跑到七成就停住等字型（看起來卡在 2/3），另一個字重進主畫面後才開始下載（粗體字晚到）。
+// 現在一開機就三個字型一起下載，進度條照真正下載完幾個往前走，等待時慢慢往前爬不會停住。
+const FONTS = ['900 1em "Noto Sans TC"', '500 1em "Noto Sans TC"', '400 1em "Alfa Slab One"']
+/** 程式載好時進度條的位置（之前由 index.html 的 CSS 動畫跑到這裡） */
+const BASE = 0.3
+let fontsDone: Promise<void> = Promise.resolve()
+let loaded = 0
+/** 開機一開始就呼叫：三個字型同時開始下載 */
+export function startFontLoads() {
+  const fonts = document.fonts
+  if (!fonts?.load) return
+  fontsDone = Promise.all(
+    FONTS.map((spec) =>
+      fonts
+        .load(spec, '一A1')
+        .catch(() => [])
+        .then(() => void loaded++),
+    ),
+  ).then(() => undefined)
+}
+
+/** 進度條：照時間穩穩往前走（越接近終點越慢，最多到九成二），每下載好一個字型就至少到那一格；全部好了才補滿 */
+let barRaf = 0
+function runBar(fill: HTMLElement) {
+  const cs = getComputedStyle(fill)
+  const m = new DOMMatrixReadOnly(cs.transform === 'none' ? undefined : cs.transform)
+  let shown = Math.max(0, Math.min(1, m.a))
+  fill.getAnimations().forEach((a) => a.cancel())
+  fill.style.animation = 'none'
+  const t0 = performance.now()
+  const tick = (now: number) => {
+    const byTime = BASE + (0.92 - BASE) * (1 - Math.exp(-(now - t0) / 2500))
+    const byCount = BASE + (loaded / FONTS.length) * (1 - BASE)
+    const goal = Math.max(byTime, byCount)
+    shown += (goal - shown) * 0.1
+    fill.style.transform = `scaleX(${shown})`
+    barRaf = requestAnimationFrame(tick)
+  }
+  barRaf = requestAnimationFrame(tick)
+}
+
 const wait = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms))
 const EASE = 'cubic-bezier(.22,1,.36,1)'
 
@@ -63,9 +106,13 @@ export async function finishBoot() {
   await untilLandscape()
   document.getElementById('boot-rotate')?.remove()
   const started = performance.now()
-  const fonts = document.fonts?.ready ?? Promise.resolve()
-  await Promise.race([fonts, wait(4000)]) // 字型萬一卡住也不要一直擋著
-  await wait(Math.max(0, 1300 - (performance.now() - started))) // 至少轉一下，不要一閃而過
+  const fillEl = boot.querySelector<HTMLElement>('.fill')
+  if (fillEl && !reducedMotion()) runBar(fillEl)
+  // 三個字型都下載好才進主畫面（進去後粗體字不會晚到）；網路太慢最多等 6 秒，之後字型照樣會補上
+  await Promise.race([fontsDone, wait(6000)])
+  await (document.fonts?.ready ?? Promise.resolve())
+  await wait(Math.max(0, 900 - (performance.now() - started))) // 至少轉一下，不要一閃而過
+  cancelAnimationFrame(barRaf)
   await new Promise((ok) => requestAnimationFrame(ok))
 
   const cardsArt = document.querySelector('.home .panel.cards .art')
@@ -76,6 +123,7 @@ export async function finishBoot() {
   const bg = boot.querySelector<HTMLElement>('.bg')!
 
   // 減少動態，或不是停在主畫面：直接淡掉
+  cancelAnimationFrame(barRaf)
   if (reducedMotion() || !cardsArt || !boardArt || !fan || !goban) {
     root.classList.remove('booting')
     boot.style.transition = 'opacity 300ms ease'
