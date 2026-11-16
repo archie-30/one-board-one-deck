@@ -42,6 +42,16 @@ export const HABITS: readonly (readonly [Habit, Habit, Habit, Habit])[] = [
   ['hoard', 'edge', 'bomb', 'edge'], // 17 小黑
   ['rush', 'rush', 'combo', 'rush'], // 18 阿達
   ['turtle', 'pairs', 'block', 'center'], // 19 阿蓮
+  ['rush', 'combo', 'block', 'rush'], // 20 阿傑
+  ['turtle', 'calm', 'hoard', 'turtle'], // 21 小芳
+  ['bomb', 'rush', 'bomb', 'rush'], // 22 阿偉
+  ['edge', 'center', 'small', 'calm'], // 23 佩佩
+  ['calm', 'block', 'center', 'hoard'], // 24 大頭
+  ['rush', 'combo', 'rush', 'bomb'], // 25 阿翔
+  ['hoard', 'turtle', 'hoard', 'block'], // 26 小琪
+  ['pairs', 'pairs', 'center', 'turtle'], // 27 阿國
+  ['block', 'calm', 'rush', 'center'], // 28 惠美
+  ['small', 'edge', 'calm', 'block'], // 29 阿德
 ]
 
 /** 這位對手（編號 who）在這個難度的小習慣；不認得的對手沒有習慣 */

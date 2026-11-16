@@ -110,14 +110,14 @@ describe('撿紅點：AI', () => {
     const [a] = chooseRedPointAction(s, 'normal', seedRng(1))
     expect(a).toEqual({ type: 'play', player: 0, card: C('S9'), target: C('HA') })
   })
-  it('20 位對手都能把一局正常打完，總分 208', () => {
-    for (let p = 0; p < 20; p++) {
+  it('30 位對手都能把一局正常打完，總分 208', () => {
+    for (let p = 0; p < 30; p++) {
       let s = dealRedPoint(p * 17 + 3)
       let rng = seedRng(p)
       let guard = 0
       while (s.phase !== 'over' && guard++ < 200) {
         let a
-        ;[a, rng] = chooseRedPointAction(s, PERSONAS[(p + s.turn * 5) % 20].redpoint, rng)
+        ;[a, rng] = chooseRedPointAction(s, PERSONAS[(p + s.turn * 5) % PERSONAS.length].redpoint, rng)
         s = must(s, a)
       }
       expect(s.phase).toBe('over')

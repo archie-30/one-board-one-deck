@@ -1,4 +1,4 @@
-// 20 位對手的個性：每個人在大老二與五子棋各有一套打法參數。
+// 30 位對手的個性：每個人在大老二與五子棋各有一套打法參數。
 // 純資料，不依賴 UI；名字與長相在 UI 層（src/data/names.ts）用同一個編號對應。
 
 /** 大老二的打法 */
@@ -111,7 +111,7 @@ export interface Persona {
 }
 
 /**
- * 撿紅點與圍棋的打法由同一個人的個性推出來，所以 20 位對手在每款遊戲都各不相同：
+ * 撿紅點與圍棋的打法由同一個人的個性推出來，所以 30 位對手在每款遊戲都各不相同：
  * 大老二的「會不會算、衝動、手滑」對應撿紅點；五子棋的「攻守、隨機、看不看得懂」對應圍棋。
  */
 function derive(bigtwo: BigTwoStyle, gomoku: GomokuStyle): Pick<Persona, 'redpoint' | 'go' | 'chess' | 'othello'> {
@@ -209,6 +209,36 @@ export const PERSONAS: Persona[] = [
   // 19 阿蓮：溫和但不好惹
   P({ skill: 0.7, aggression: 0.5, hoard: 0.7, lead: 'pairs', bomb: 0.4, block: 0.85, blunder: 0.02 },
     { attack: 0.9, defense: 1.1, sharp: true, noise: 0.2, center: 0.7, blind: 0.01 }),
+  // 20 阿傑：眼明手快，會算又敢壓
+  P({ skill: 0.8, aggression: 0.85, hoard: 0.4, lead: 'combo', bomb: 0.6, block: 0.8, blunder: 0.02 },
+    { attack: 1.25, defense: 0.95, sharp: true, noise: 0.1, center: 0.6, blind: 0.01 }),
+  // 21 小芳：小心翼翼，寧可過牌也不亂出
+  P({ skill: 0.65, aggression: 0.25, hoard: 0.85, lead: 'small', bomb: 0.2, block: 0.7, blunder: 0.02 },
+    { attack: 0.7, defense: 1.3, sharp: true, noise: 0.15, center: 0.5, blind: 0.02 }),
+  // 22 阿偉：愛賭一把，炸彈一定丟
+  P({ skill: 0.45, aggression: 0.9, hoard: 0.15, lead: 'big', bomb: 1, block: 0.4, blunder: 0.07 },
+    { attack: 1.4, defense: 0.6, sharp: false, noise: 0.45, center: 0.2, blind: 0.08 }),
+  // 23 佩佩：隨興，想到什麼出什麼
+  P({ skill: 0.3, aggression: 0.55, hoard: 0.35, lead: 'mixed', bomb: 0.5, block: 0.3, blunder: 0.14 },
+    { attack: 1, defense: 0.75, sharp: false, noise: 0.7, center: 0.4, blind: 0.14 }),
+  // 24 大頭：算很細，很少出錯
+  P({ skill: 0.9, aggression: 0.45, hoard: 0.75, lead: 'combo', bomb: 0.35, block: 0.95, blunder: 0 },
+    { attack: 1.05, defense: 1.1, sharp: true, noise: 0.03, center: 0.8, blind: 0 }),
+  // 25 阿翔：速戰速決，先丟大把
+  P({ skill: 0.55, aggression: 0.8, hoard: 0.1, lead: 'combo', bomb: 0.7, block: 0.5, blunder: 0.05 },
+    { attack: 1.3, defense: 0.75, sharp: true, noise: 0.3, center: 0.3, blind: 0.05 }),
+  // 26 小琪：留一手，好牌捨不得出
+  P({ skill: 0.7, aggression: 0.4, hoard: 0.95, lead: 'small', bomb: 0.3, block: 0.75, blunder: 0.02 },
+    { attack: 0.85, defense: 1.15, sharp: true, noise: 0.2, center: 0.6, blind: 0.02 }),
+  // 27 阿國：固執，愛出對子
+  P({ skill: 0.5, aggression: 0.6, hoard: 0.6, lead: 'pairs', bomb: 0.4, block: 0.5, blunder: 0.05 },
+    { attack: 0.95, defense: 0.95, sharp: false, noise: 0.35, center: 1, blind: 0.06 }),
+  // 28 惠美：見機行事，會擋也會壓
+  P({ skill: 0.75, aggression: 0.6, hoard: 0.6, lead: 'mixed', bomb: 0.45, block: 0.9, blunder: 0.02 },
+    { attack: 1.05, defense: 1.05, sharp: true, noise: 0.12, center: 0.55, blind: 0.01 }),
+  // 29 阿德：老實，照順序從小出
+  P({ skill: 0.45, aggression: 0.5, hoard: 0.45, lead: 'small', bomb: 0.3, block: 0.45, blunder: 0.06 },
+    { attack: 0.9, defense: 0.9, sharp: true, noise: 0.4, center: 0.7, blind: 0.07 }),
 ]
 
 /** 以前的「簡單／普通」對應到兩組固定打法（測試與教學用） */

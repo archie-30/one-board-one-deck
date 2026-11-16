@@ -1,8 +1,7 @@
 <script setup lang="ts">
-// 幫電腦取名字：20 位對手各一格。改完（離開輸入框或按 Enter）就存；留空＝用預設名字；不能跟別人重複。
+// 幫電腦取名字：30 位對手各一格。改完（離開輸入框或按 Enter）就存；留空＝用預設名字；名字可以重複。
 // 恢復預設：有改過的名字，字一個個從下面翻上來換成預設名字（由上往下一格格接著換）。
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentNames, resetOpponentNames, setOpponentName } from '@/core/names'
 import { NAME_MAX_WIDTH } from '@/data/namePool'
@@ -17,18 +16,9 @@ watch(
   () => opponentNames.names.slice(),
   (v) => (drafts.value = v),
 )
-/** 哪一格剛剛跟別人重複（顯示紅框與提示） */
-const clash = ref(-1)
-let clashTimer = 0
-
 function commit(i: number) {
   if (drafts.value[i] === opponentNames.names[i]) return
-  if (setOpponentName(i, drafts.value[i]) === 'duplicate') {
-    clash.value = i
-    playSound('error')
-    window.clearTimeout(clashTimer)
-    clashTimer = window.setTimeout(() => (clash.value = -1), 2200)
-  } else if (clash.value === i) clash.value = -1
+  setOpponentName(i, drafts.value[i])
   drafts.value[i] = opponentNames.names[i]
 }
 /** 恢復預設時正在換字的格子（第幾個開始換） */
@@ -38,7 +28,6 @@ let swapTimer = 0
 function reset() {
   const before = opponentNames.names.slice()
   resetOpponentNames()
-  clash.value = -1
   const changed = opponentNames.names.map((n, i) => (n !== before[i] ? i : -1)).filter((i) => i >= 0)
   if (!changed.length || reducedMotion()) return
   swapping.value = new Map(changed.map((i, order) => [i, order]))
@@ -50,10 +39,10 @@ onBeforeUnmount(() => window.clearTimeout(swapTimer))
 </script>
 
 <template>
-  <Page :title="S.names.title" label="OPPONENTS" num="20">
+  <Page :title="S.names.title" label="OPPONENTS" num="30">
     <div class="scroll-y h-full pr-[0.8rem]">
       <ul class="grid">
-        <li v-for="(o, i) in OPPONENTS" :key="i" class="row rise" :class="{ clash: clash === i }" :style="{ '--i': Math.min(i, 8) * 0.5 }">
+        <li v-for="(o, i) in OPPONENTS" :key="i" class="row rise" :style="{ '--i': Math.min(i, 8) * 0.5 }">
           <span class="av"><Avatar :look="o.look" /></span>
           <label class="field">
             <span class="t-label no">{{ String(i + 1).padStart(2, '0') }} · {{ o.tag }}</span>
@@ -77,7 +66,6 @@ onBeforeUnmount(() => window.clearTimeout(swapTimer))
             </span>
             </span>
           </label>
-          <span v-if="clash === i" class="warn">{{ S.names.duplicate }}</span>
         </li>
       </ul>
     </div>
@@ -169,28 +157,6 @@ input.hide {
     transform: translateY(110%) rotate(8deg);
   }
 }
-.clash input {
-  border-color: var(--color-red);
-  animation: nudge 260ms ease-in-out 2;
-}
-.warn {
-  position: absolute;
-  right: 0.2rem;
-  bottom: -0.95rem;
-  font-size: 0.65rem;
-  color: var(--color-red);
-}
-@keyframes nudge {
-  25% {
-    transform: translateX(-0.2rem);
-  }
-  75% {
-    transform: translateX(0.2rem);
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .clash input {
-    animation: none;
   }
-}
 </style>
