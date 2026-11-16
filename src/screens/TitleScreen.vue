@@ -6,7 +6,6 @@ import { reducedMotion } from '@/core/motion'
 import { go } from '@/core/nav'
 import { playSound } from '@/core/audio'
 import { S } from '@/data/strings'
-import { VERSION } from '@/data/version'
 import BoardMini from '@/games/gomoku/BoardMini.vue'
 import type { GameCategory } from '@/games/types'
 import Card from '@/ui/art/Card.vue'
@@ -56,7 +55,6 @@ function hover(side: GameCategory, event: PointerEvent) {
         <ProfileChip />
         <IconBtn icon="gear" :label="S.choose.settings" @click="settingsOpen = true" />
         <IconBtn icon="badge" :label="S.names.open" @click="go({ name: 'names' })" />
-        <span class="t-label ver">{{ VERSION.number }}</span>
       </div>
     </aside>
 
@@ -111,9 +109,6 @@ function hover(side: GameCategory, event: PointerEvent) {
 }
 .brand .red {
   color: var(--color-red);
-}
-.ver {
-  color: var(--color-ink-3);
 }
 .rule {
   height: 0.22rem;
