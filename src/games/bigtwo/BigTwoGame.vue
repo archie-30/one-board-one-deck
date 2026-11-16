@@ -52,7 +52,10 @@ interface Saved {
 }
 const saved = (props.resume ?? null) as Saved | null
 
-const options = { ...props.options } as unknown as BigTwoOptions
+/** 瘋狂大老二：同一個畫面，用兩副牌（104 張、每人 26 張） */
+const crazy = props.game.id === 'crazybigtwo'
+const options = { ...props.options, decks: crazy ? 2 : 1 } as unknown as BigTwoOptions
+const record = crazy ? stats.crazybigtwo : stats.bigtwo
 /** 規則設定的「倒數計時」 */
 const timed = props.options.timer !== false
 /** 難度：只決定電腦多強 */
@@ -61,7 +64,9 @@ const difficulty = asBigTwoDifficulty(props.options.difficulty)
 const level = bigtwoLevel(difficulty)
 const T = S.bigtwo
 const ME = 0
-const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
+const ALL: Card[] = Array.from({ length: crazy ? 104 : 52 }, (_, i) => i)
+/** 發牌時每張牌的間隔（兩副牌發快一點，總時間差不多） */
+const DEAL_GAP = crazy ? 13 : 24
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
 // 困難模式不會出現新手打法的電腦
@@ -122,7 +127,7 @@ stage.onLand = () => {
 const ch = computed(() => (layout.value.cw * 108) / 78)
 
 function model(): TableModel {
-  return { hands: state.value.hands, selected: selected.value, pile: pile.value, discard: discard.value, gathered: gathered.value }
+  return { hands: state.value.hands, selected: selected.value, pile: pile.value, discard: discard.value, gathered: gathered.value, deck: ALL.length }
 }
 
 interface Flight {
@@ -176,11 +181,11 @@ function deal() {
   const hands = state.value.hands
   const order = new Map<Card, number>()
   hands.forEach((h, seat) => h.forEach((c, k) => order.set(c, k * 4 + seat)))
-  sync({ cards: ALL, stagger: 24, dur: 320, arc: 16, order: (c) => order.get(c) ?? 0 })
+  sync({ cards: ALL, stagger: DEAL_GAP, dur: 320, arc: 16, order: (c) => order.get(c) ?? 0 })
   later(() => {
     phase.value = 'play'
     nextTurn()
-  }, 52 * 24 + 420)
+  }, ALL.length * DEAL_GAP + 420)
 }
 
 function nextTurn() {
@@ -269,10 +274,10 @@ function finish() {
   const s = state.value
   scores.value = scoreBigTwo(s)
   tableTotals.value = scores.value.map((sc, p) => tableTotals.value[p] + sc.points)
-  stats.bigtwo.rounds++
-  if (s.winner === ME) stats.bigtwo.wins++
-  stats.bigtwo.totals[ME] = (stats.bigtwo.totals[ME] ?? 0) + scores.value[ME].points
-  recordBest('bigtwo', difficulty, scores.value[ME].points)
+  record.rounds++
+  if (s.winner === ME) record.wins++
+  record.totals[ME] = (record.totals[ME] ?? 0) + scores.value[ME].points
+  recordBest(crazy ? 'crazybigtwo' : 'bigtwo', difficulty, scores.value[ME].points)
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
   playSound(s.winner === ME ? 'win' : 'lose')
@@ -301,7 +306,7 @@ function newRound() {
     state.value = dealBigTwo(seed, options)
     startHands.value = state.value.hands
     deal()
-  }, 52 * 7 + 480)
+  }, ALL.length * 7 + 480)
 }
 
 // ── 保存進度並退出 ──
@@ -412,8 +417,8 @@ function onTimeout() {
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`)
 const doubleNotes = computed(() => {
   const notes: string[] = []
-  if (options.doubleOverTen) notes.push(T.result.overTen)
-  if (options.doubleTwos) notes.push(T.result.twos)
+  if (options.doubleOverTen) notes.push(crazy ? S.crazybigtwo.overTwenty : T.result.overTen)
+  if (options.doubleTwos && !crazy) notes.push(T.result.twos)
   return notes.length ? notes.join('') : T.result.noDoubles
 })
 const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
@@ -451,7 +456,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <span v-if="passed[p] && p !== ME" :key="`pass${p}`" class="stamp pop" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.passed }}</span>
     </template>
 
-    <!-- 52 張牌 -->
+    <!-- 每一張牌（大老二 52 張、瘋狂大老二 104 張） -->
     <div class="cards">
       <div
         v-for="c in ALL"
@@ -559,7 +564,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <b class="t-black">{{ T.result.howTitle }}</b>
         {{ T.result.base }}{{ doubleNotes }}
       </p>
-      <p class="lifetime t-black">{{ T.result.lifetime(signed(stats.bigtwo.totals[ME] ?? 0)) }}</p>
+      <p class="lifetime t-black">{{ T.result.lifetime(signed(record.totals[ME] ?? 0)) }}</p>
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>

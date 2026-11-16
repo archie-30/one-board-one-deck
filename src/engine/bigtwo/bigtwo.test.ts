@@ -380,3 +380,76 @@ describe('大老二：電腦不偷看別人的牌', () => {
     }
   })
 })
+
+describe('瘋狂大老二（兩副牌）', () => {
+  const X: BigTwoOptions = { ...D, decks: 2 }
+  /** 第二副牌的同一張牌 */
+  const twin = (text: string) => parseCard(text) + 52
+  const cx = (cards: number[]) => identifyCombo(cards, X)!
+  it('104 張、每人 26 張，兩副牌的每一張各出現兩次', () => {
+    const s = dealBigTwo(7, X)
+    expect(s.hands.map((h) => h.length)).toEqual([26, 26, 26, 26])
+    const all = s.hands.flat()
+    expect(new Set(all).size).toBe(104)
+  })
+  it('雙胞胎對子（同花色同數字）比任何一般對子大；雙胞胎之間再比點數花色', () => {
+    const t3 = cx([parseCard('C3'), twin('C3')])
+    const p2 = cx(parseCards('S2 H2'))
+    expect(canBeat(t3, p2, X)).toBe(true)
+    expect(canBeat(p2, t3, X)).toBe(false)
+    const t4 = cx([parseCard('D4'), twin('D4')])
+    expect(canBeat(t4, t3, X)).toBe(true)
+  })
+  it('關鍵最大張一模一樣：後出的壓不過（先出為主）', () => {
+    const a = cx([parseCard('SK')])
+    const b = cx([twin('SK')])
+    expect(canBeat(b, a, X)).toBe(false)
+    const pa = cx(parseCards('SK HK'))
+    const pb = cx([twin('SK'), parseCard('DK')])
+    expect(canBeat(pb, pa, X)).toBe(false)
+    const sa = cx(parseCards('C4 D5 H6 S7 C8'))
+    const sb = cx([parseCard('D4'), parseCard('C5'), parseCard('C6'), parseCard('D7'), twin('C8')])
+    expect(canBeat(sb, sa, X)).toBe(false)
+  })
+  it('葫蘆、鐵支也看關鍵最大張的花色', () => {
+    const f1 = cx(parseCards('C9 D9 H9 C4 D4'))
+    const f2 = cx([twin('C9'), twin('D9'), parseCard('S9'), parseCard('C5'), parseCard('D5')])
+    expect(canBeat(f2, f1, X)).toBe(true)
+    expect(canBeat(f1, f2, X)).toBe(false)
+  })
+  it('梅花 3 在兩個人手上：從第二小的牌開始比，小的人先出；第一手要有梅花 3', () => {
+    const a = [parseCard('C3'), parseCard('H3'), parseCard('S9')]
+    const b = [twin('C3'), parseCard('D3'), parseCard('SA')]
+    const s = createBigTwo([a, b, parseCards('C4 D4 H4'), parseCards('C5 D5 H5')], X)
+    expect(s.turn).toBe(1)
+    expect(s.firstTurn).toBe(true)
+    expect(checkPlay(s, 1, [parseCard('D3')])).toEqual({ ok: false, reason: 'needClubThree' })
+    expect(checkPlay(s, 1, [twin('C3')]).ok).toBe(true)
+    // 第二小也一樣就繼續往下比
+    const c = [parseCard('C3'), parseCard('D3'), parseCard('S9')]
+    const d = [twin('C3'), twin('D3'), parseCard('H9')]
+    expect(createBigTwo([c, d, parseCards('C4'), parseCards('C5')], X).turn).toBe(1)
+    // 兩張梅花 3 都在同一個人手上
+    expect(createBigTwo([parseCards('C9'), [parseCard('C3'), twin('C3')], parseCards('C4'), parseCards('C5')], X).turn).toBe(1)
+  })
+  it('計分：剩 20 張以上才加倍，2 不加倍', () => {
+    const s = createBigTwo([parseCards('C3'), [...parseCards('S2 H2 D2'), ...Array.from({ length: 18 }, (_, i) => 52 + i + 4)], parseCards('C4 D4'), parseCards('C5')], X)
+    const after = must(s, { type: 'play', player: 0, cards: parseCards('C3') })
+    const sc = scoreBigTwo(after)
+    expect(sc[1]).toMatchObject({ cards: 21, multiplier: 2, points: -42 })
+    expect(sc[2]).toMatchObject({ cards: 2, multiplier: 1 })
+  })
+  it('電腦也能打完一局兩副牌（不會出不合法的牌、牌面一樣的牌型不重複列）', () => {
+    let s = dealBigTwo(11, X)
+    let rng = seedRng(3)
+    for (let k = 0; k < 600 && s.winner < 0; k++) {
+      let a
+      ;[a, rng] = chooseBigTwoAction(s, PERSONAS[k % PERSONAS.length].bigtwo, rng)
+      s = must(s, a)
+    }
+    expect(s.winner).toBeGreaterThanOrEqual(0)
+    const combos = listCombos([parseCard('C3'), twin('C3'), parseCard('D3')], X)
+    expect(combos.filter((c) => c.type === 'single')).toHaveLength(2)
+    expect(combos.filter((c) => c.type === 'pair')).toHaveLength(2)
+  })
+})

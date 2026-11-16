@@ -101,10 +101,12 @@ export function identifyCombo(cardsIn: readonly Card[], opts: BigTwoOptions): Co
   if (n === 1) return { type: 'single', cards, key: [rankOf(cards[0]), sp(cards[0])] }
   if (n === 2) {
     if (rankOf(cards[0]) !== rankOf(cards[1])) return null
+    // 兩副牌：同花色同數字的「雙胞胎對子」比任何一般對子大（最前面多一項 1）
+    if (opts.decks === 2) return { type: 'pair', cards, key: [suitOf(cards[0]) === suitOf(cards[1]) ? 1 : 0, rankOf(cards[0]), sp(cards[1])] }
     return { type: 'pair', cards, key: [rankOf(cards[0]), sp(cards[1])] }
   }
   if (n === 3) {
-    if (rankOf(cards[0]) === rankOf(cards[2])) return opts.allowTriple ? { type: 'triple', cards, key: [rankOf(cards[0])] } : null
+    if (rankOf(cards[0]) === rankOf(cards[2])) return opts.allowTriple ? { type: 'triple', cards, key: [rankOf(cards[0]), sp(cards[2])] } : null
     const small = opts.allowSmallStraight ? smallStraightKey(cards, opts) : null
     return small ? { type: 'smallStraight', cards, key: small } : null
   }
@@ -114,8 +116,10 @@ export function identifyCombo(cardsIn: readonly Card[], opts: BigTwoOptions): Co
   for (const c of cards) counts.set(rankOf(c), (counts.get(rankOf(c)) ?? 0) + 1)
   const groups = [...counts.entries()].sort((a, b) => b[1] - a[1])
 
-  if (groups[0][1] === 4) return { type: 'four', cards, key: [groups[0][0]] }
-  if (groups[0][1] === 3 && groups[1][1] === 2) return { type: 'fullHouse', cards, key: [groups[0][0]] }
+  // 關鍵最大張：那幾張同點數的牌裡最大的花色（一副牌時點數就分得出大小；兩副牌時才會用到花色）
+  const topSuit = (rank: number) => Math.max(...cards.filter((c) => rankOf(c) === rank).map(sp))
+  if (groups[0][1] === 4) return { type: 'four', cards, key: [groups[0][0], topSuit(groups[0][0])] }
+  if (groups[0][1] === 3 && groups[1][1] === 2) return { type: 'fullHouse', cards, key: [groups[0][0], topSuit(groups[0][0])] }
   // 兩對（規則選項）：比大的那一對的點數，一樣大再比那一對裡最大的花色
   if (opts.allowTwoPair && groups[0][1] === 2 && groups[1][1] === 2) {
     const high = Math.max(groups[0][0], groups[1][0])
@@ -158,5 +162,7 @@ export function canBeat(play: Combo, prev: Combo, opts: BigTwoOptions): boolean 
 export function comboStrength(combo: Combo): number {
   const cls = FIVE_CLASS[combo.type]
   if (cls !== undefined) return 100 + cls * 60 + combo.key[0] * 4 + (combo.key[1] ?? 0)
+  // 兩副牌的對子：[雙胞胎, 點數, 花色]，雙胞胎再加一截
+  if (combo.type === 'pair' && combo.key.length === 3) return combo.key[0] * 60 + combo.key[1] * 4 + combo.key[2]
   return combo.key[0] * 4 + (combo.key[1] ?? 0)
 }

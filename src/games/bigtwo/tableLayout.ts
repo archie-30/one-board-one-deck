@@ -16,6 +16,8 @@ export interface TableModel {
   discard: Card[]
   /** 發牌前、收牌時：牌都在桌子中間的牌堆 */
   gathered: boolean
+  /** 一共幾張牌（大老二 52、瘋狂大老二 104；沒給就是 52） */
+  deck?: number
 }
 
 export interface Seat {
@@ -73,21 +75,26 @@ export function cardPoses(L: Layout, m: TableModel): Map<Card, Pose> {
   const { W, H, cw } = L
 
   if (m.gathered) {
-    for (let c = 0; c < 52; c++) out.set(c, { x: L.pile.x - c * 0.25, y: L.pile.y - c * 0.35, r: hash(c, 1) * 4, s: 0.62, f: 0, z: 10 + c })
+    const total = m.deck ?? 52
+    const k = 52 / total
+    for (let c = 0; c < total; c++) out.set(c, { x: L.pile.x - c * 0.25 * k, y: L.pile.y - c * 0.35 * k, r: hash(c, 1) * 4, s: 0.62, f: 0, z: 10 + c })
     return out
   }
 
   // 你的手牌：微微拱起的扇形
   const mine = m.hands[0]
   const n = mine.length
-  const span = W * 0.5
+  // 牌多（瘋狂大老二 26 張）時扇形拉寬一點
+  const span = W * (n > 13 ? 0.56 : 0.5)
+  const bend = n > 13 ? 13 / n : 1
   const gap = n > 1 ? Math.min(cw * 0.62, (span - cw) / (n - 1)) : 0
   mine.forEach((c, i) => {
     const k = i - (n - 1) / 2
     out.set(c, {
       x: W / 2 + k * gap,
-      y: H - cw * 0.74 + k * k * 0.9 - (m.selected.includes(c) ? cw * 0.32 : 0),
-      r: k * 1.3,
+      // 牌多（26 張）時拱得平一點、斜得少一點，兩端才不會掉出畫面
+      y: H - cw * 0.74 + k * k * 0.9 * bend * bend - (m.selected.includes(c) ? cw * 0.32 : 0),
+      r: k * 1.3 * bend,
       s: 1,
       f: 1,
       z: 300 + i,
@@ -98,7 +105,8 @@ export function cardPoses(L: Layout, m: TableModel): Map<Card, Pose> {
   const top = m.hands[2]
   top.forEach((c, i) => {
     const k = i - (top.length - 1) / 2
-    out.set(c, { x: W / 2 + cw * 0.6 + k * cw * 0.17, y: cw * 0.62, r: k * 1.6, s: BACK, f: 0, z: 100 + i })
+    const step = Math.min(0.17, 2.4 / Math.max(1, top.length))
+    out.set(c, { x: W / 2 + cw * 0.6 + k * cw * step, y: cw * 0.62, r: k * 1.6 * (step / 0.17), s: BACK, f: 0, z: 100 + i })
   })
   // 左右對手：直向一排牌背
   for (const seat of [1, 3]) {
@@ -106,7 +114,8 @@ export function cardPoses(L: Layout, m: TableModel): Map<Card, Pose> {
     const hand = m.hands[seat]
     hand.forEach((c, i) => {
       const k = i - (hand.length - 1) / 2
-      out.set(c, { x: seat === 1 ? W - cw * 2.15 : cw * 2.15, y: H * 0.3 + k * cw * 0.13, r: side * 90 + k * 1.4 * side, s: BACK, f: 0, z: 100 + i })
+      const step = Math.min(0.13, 1.8 / Math.max(1, hand.length))
+      out.set(c, { x: seat === 1 ? W - cw * 2.15 : cw * 2.15, y: H * 0.3 + k * cw * step, r: side * 90 + k * 1.4 * side * (step / 0.13), s: BACK, f: 0, z: 100 + i })
     })
   }
 

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // 大老二互動教學：用和對局一樣的牌桌與動畫，一步一步出牌
+// crazy：瘋狂大老二的教學（兩副牌、雙胞胎對子、先出為主）
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { PLAYER_LOOK } from '@/data/names'
 import { S } from '@/data/strings'
-import { RANK_LABELS, parseCards, rankOf, sortCards, suitOf, type Card } from '@/engine/bigtwo/cards'
+import { RANK_LABELS, rankOf, sortCards, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { canBeat, identifyCombo } from '@/engine/bigtwo/combos'
-import { DEFAULT_BIGTWO_OPTIONS as OPTS } from '@/engine/bigtwo/options'
+import { DEFAULT_BIGTWO_OPTIONS, type BigTwoOptions } from '@/engine/bigtwo/options'
 import Avatar from '@/ui/art/Avatar.vue'
 import CardArt from '@/ui/art/Card.vue'
 import Btn from '@/ui/Btn.vue'
@@ -14,11 +15,15 @@ import GuideNote from '@/ui/GuideNote.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import { CardStage } from './cardStage'
 import { cardPoses, makeLayout, type Layout, type PileGroup } from './tableLayout'
-import { BIGTWO_LESSONS } from './tutorialData'
+import { BIGTWO_LESSONS, CRAZY_LESSONS, lessonCards as parseCards } from './tutorialData'
 
 const emit = defineEmits<{ exit: []; play: [] }>()
+const props = defineProps<{ crazy?: boolean }>()
 const T = S.bigtwo
-const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
+const OPTS: BigTwoOptions = props.crazy ? { ...DEFAULT_BIGTWO_OPTIONS, decks: 2 } : DEFAULT_BIGTWO_OPTIONS
+const LESSONS = props.crazy ? CRAZY_LESSONS : BIGTWO_LESSONS
+const TEXT = props.crazy ? S.crazybigtwo.tutorial : T.tutorial
+const ALL: Card[] = Array.from({ length: props.crazy ? 104 : 52 }, (_, i) => i)
 
 const step = ref(0)
 const solved = ref(false)
@@ -28,8 +33,8 @@ const hand = ref<Card[]>([])
 const selected = ref<Card[]>([])
 const pile = ref<PileGroup[]>([])
 const olderPile = computed(() => new Set(pile.value.slice(0, -1).flatMap((g) => g.cards)))
-const lesson = computed(() => BIGTWO_LESSONS[step.value])
-const text = computed(() => T.tutorial[step.value])
+const lesson = computed(() => LESSONS[step.value])
+const text = computed(() => TEXT[step.value])
 const used = computed(() => new Set([...hand.value, ...pile.value.flatMap((g) => g.cards)]))
 const comboName = computed(() => {
   const c = selected.value.length ? identifyCombo(selected.value, OPTS) : null
@@ -58,7 +63,7 @@ function sync(fly: Card[] = [], instant = false) {
 }
 
 function load(n: number) {
-  const l = BIGTWO_LESSONS[n]
+  const l = LESSONS[n]
   hand.value = sortCards(parseCards(l.hand), OPTS.suitOrder)
   pile.value = l.table ? [{ id: ++groupId, cards: parseCards(l.table), from: 2 }] : []
   selected.value = []
@@ -132,7 +137,7 @@ function pass() {
 }
 
 function next() {
-  if (step.value + 1 >= BIGTWO_LESSONS.length) {
+  if (step.value + 1 >= LESSONS.length) {
     finished.value = true
     playSound('correct')
     return
@@ -150,7 +155,7 @@ function next() {
     <div class="corner"><IconBtn icon="back" :label="S.common.back" @click="emit('exit')" /></div>
 
     <div class="guide">
-      <GuideNote v-if="!finished" :step="step" :total="BIGTWO_LESSONS.length" :text="text.text" :ok="text.ok" :solved="solved" :misses="misses" />
+      <GuideNote v-if="!finished" :step="step" :total="LESSONS.length" :text="text.text" :ok="text.ok" :solved="solved" :misses="misses" />
       <div v-else class="done pop">
         <h2 class="t-black text-[2.4rem] leading-tight"><span class="mask"><span>{{ S.tutorial.finish }}</span></span></h2>
         <p class="text-ink-2">{{ S.tutorial.finishLead }}</p>
@@ -183,7 +188,7 @@ function next() {
     <p class="combo t-black" :style="{ bottom: `${layout.cw * 1.62}px` }">{{ comboName }}</p>
 
     <div v-if="!finished" class="actions">
-      <Btn v-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= BIGTWO_LESSONS.length ? S.common.done : S.common.next }}</Btn>
+      <Btn v-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= LESSONS.length ? S.common.done : S.common.next }}</Btn>
       <template v-else>
         <Btn tone="red" size="lg" arrow block :disabled="!selected.length" @click="play">{{ T.play }}</Btn>
         <Btn icon="pass" block :disabled="!lesson.table" @click="pass">{{ T.pass }}</Btn>
