@@ -18,6 +18,8 @@ export interface TableModel {
   gathered: boolean
   /** 一共幾張牌（大老二 52、瘋狂大老二 104；沒給就是 52） */
   deck?: number
+  /** 手牌超過 13 張時分成上下兩排（瘋狂大老二的規則設定）：上排比較小的牌，一部分壓在下排後面 */
+  twoRows?: boolean
 }
 
 export interface Seat {
@@ -81,23 +83,30 @@ export function cardPoses(L: Layout, m: TableModel): Map<Card, Pose> {
     return out
   }
 
-  // 你的手牌：微微拱起的扇形
+  // 你的手牌：微微拱起的扇形。牌多又開了「分兩排」：前一半（比較小的牌）放上排、後一半放下排，
+  // 上排往上挪一點、壓在下排後面（只露出上半截的點數花色）
   const mine = m.hands[0]
-  const n = mine.length
-  // 牌多（瘋狂大老二 26 張）時扇形拉寬一點
-  const span = W * (n > 13 ? 0.56 : 0.5)
-  const bend = n > 13 ? 13 / n : 1
-  const gap = n > 1 ? Math.min(cw * 0.62, (span - cw) / (n - 1)) : 0
-  mine.forEach((c, i) => {
-    const k = i - (n - 1) / 2
-    out.set(c, {
-      x: W / 2 + k * gap,
-      // 牌多（26 張）時拱得平一點、斜得少一點，兩端才不會掉出畫面
-      y: H - cw * 0.74 + k * k * 0.9 * bend * bend - (m.selected.includes(c) ? cw * 0.32 : 0),
-      r: k * 1.3 * bend,
-      s: 1,
-      f: 1,
-      z: 300 + i,
+  const rows = m.twoRows && mine.length > 13 ? [mine.slice(0, Math.ceil(mine.length / 2)), mine.slice(Math.ceil(mine.length / 2))] : [mine]
+  const ch = (cw * 108) / 78
+  rows.forEach((row, ri) => {
+    const n = row.length
+    // 牌多（瘋狂大老二 26 張擠成一排）時扇形拉寬一點
+    const span = W * (n > 13 ? 0.56 : 0.5)
+    const bend = n > 13 ? 13 / n : 1
+    const gap = n > 1 ? Math.min(cw * 0.62, (span - cw) / (n - 1)) : 0
+    const lift = rows.length > 1 && ri === 0 ? ch * 0.42 : 0
+    row.forEach((c, i) => {
+      const k = i - (n - 1) / 2
+      out.set(c, {
+        x: W / 2 + k * gap,
+        // 牌多時拱得平一點、斜得少一點，兩端才不會掉出畫面
+        y: H - cw * 0.74 - lift + k * k * 0.9 * bend * bend - (m.selected.includes(c) ? cw * 0.32 : 0),
+        r: k * 1.3 * bend,
+        s: 1,
+        f: 1,
+        // 上排在下排後面
+        z: 300 + ri * 40 + i,
+      })
     })
   })
 

@@ -380,6 +380,7 @@ export const S = {
     noPlay: '沒有能壓過的牌',
     clearSelection: '取消選取',
     autoPassed: '自動過牌',
+    autoPassCancel: '按一次以取消',
     combos: {
       single: '單張',
       pair: '對子',
@@ -589,6 +590,10 @@ export const S = {
     tags: ['4 人', '兩副牌'],
     overTwenty: '剩 20 張以上 ×2。',
     settings: {
+      twoRows: {
+        label: '手牌分兩排',
+        help: '26 張牌擠成一排太密時，分成上下兩排：上排放比較小的牌，一部分壓在下排後面。'
+      },
       doubleOverTen: {
         label: '剩很多牌加倍',
         help: '手上還剩 20 張以上，扣分 ×2。兩副牌最多有 8 張 2，所以不會因為 2 再加倍。',

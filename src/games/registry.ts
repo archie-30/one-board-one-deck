@@ -104,6 +104,7 @@ export const GAMES: GameDef[] = [
       toggle('allowTwoPair', bs.allowTwoPair, B.allowTwoPair),
       toggle('doubleOverTen', S.crazybigtwo.settings.doubleOverTen, B.doubleOverTen, { group: 'score' }),
       toggle('autoPass', bs.autoPass, true, { group: 'other', live: true }),
+      toggle('twoRows', S.crazybigtwo.settings.twoRows, true, { group: 'other', live: true }),
       timer(),
     ],
   },
