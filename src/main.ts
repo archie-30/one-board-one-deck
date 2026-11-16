@@ -8,13 +8,39 @@ import App from './App.vue'
 import { finishBoot } from './core/boot'
 import { warmSounds } from './core/audio'
 import { autoFullscreen } from './core/fullscreen'
+import { route, go } from './core/nav'
 import { settings } from './core/settings'
+import { isStaleChunk, reloadForUpdate, takeReopen } from './core/staleReload'
+import { getGame } from './games/registry'
 import './style.css'
 
 // ?gallery 只在本機開發時用來檢查美術素材
 const gallery = import.meta.env.DEV && location.search.includes('gallery')
 if (gallery) import('./dev/Gallery.vue').then((m) => createApp(m.default).mount('#app'))
-else createApp(App).mount('#app')
+else {
+  const app = createApp(App)
+  // 網站更新後舊頁面拿不到舊版遊戲檔（畫面會空白）：重新整理一次載入最新版，回到那個玩法的模式選單
+  app.config.errorHandler = (err) => {
+    console.error(err)
+    if (isStaleChunk(err)) reloadAtCurrentGame()
+  }
+  app.mount('#app')
+}
+function reloadAtCurrentGame() {
+  const r = route.value
+  if ('gameId' in r) {
+    const game = getGame(r.gameId)
+    reloadForUpdate({ category: game.category, gameId: game.id })
+  } else if (r.name === 'category') reloadForUpdate({ category: r.category, gameId: settings.lastGame[r.category] ?? '' })
+  else reloadForUpdate()
+}
+window.addEventListener('vite:preloadError', (e) => {
+  e.preventDefault()
+  reloadAtCurrentGame()
+})
+window.addEventListener('unhandledrejection', (e) => {
+  if (isStaleChunk(e.reason)) reloadAtCurrentGame()
+})
 
 // 手機長按不跳出選單（會打斷拖牌、拖棋子）；輸入框照常可以長按
 document.addEventListener('contextmenu', (e) => {
@@ -31,4 +57,10 @@ autoFullscreen()
 // 開機加載畫面：準備好後接到主畫面（見 core/boot.ts）
 // 音效在背景執行緒先算好（不佔主畫面）
 warmSounds()
-void finishBoot()
+// 因為網站更新而重新整理過：回到剛剛那個玩法的模式選單（那張卡片已經選好）
+const reopen = gallery ? null : takeReopen()
+void finishBoot().then(() => {
+  if (!reopen || (reopen.category !== 'cards' && reopen.category !== 'board')) return
+  if (reopen.gameId) settings.lastGame[reopen.category] = reopen.gameId
+  go({ name: 'category', category: reopen.category })
+})
