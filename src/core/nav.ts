@@ -40,6 +40,12 @@ export function replace(next: Route) {
     stack[stack.length - 1] = next
   })
 }
-export function back() {
+/** 返回前要先問一下的頁面（例如個人資料改了還沒儲存）：回傳 false 就先不返回 */
+let backGuard: (() => boolean) | null = null
+export function setBackGuard(fn: (() => boolean) | null) {
+  backGuard = fn
+}
+export function back(force = false) {
+  if (!force && backGuard && !backGuard()) return
   if (stack.length > 1) transition(() => stack.pop())
 }

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { gainXp, hasTitle, levelOf, profile, resetProfile, unlockQueue } from './profile'
+import { gainXp, hasTitle, levelOf, profile, resetProfile, saveProfile, unlockQueue } from './profile'
 import { XP_GAME_CAP, XP_PER_LEVEL } from '@/data/profile'
 
 describe('個人資料：經驗值與稱號', () => {
   beforeEach(() => resetProfile())
 
   it('一開始有 3 個免費稱號、Lv 1', () => {
-    expect(profile.titles).toEqual(['rookie', 'chill', 'snack'])
+    expect(profile.titles).toEqual(['rookie', 'passby', 'messy'])
+    expect(profile.equipped).toEqual(['rookie'])
     expect(levelOf(profile.xp)).toBe(1)
   })
 
@@ -33,23 +34,36 @@ describe('個人資料：經驗值與稱號', () => {
     expect(gainXp('chess', 'master', 'w', 0.3)).toBeGreaterThan(gainXp('chess', 'low', 'w', 0.3))
   })
 
-  it('贏第一場解鎖稱號並排進解鎖彈窗；最難難度贏一場解鎖第三個', () => {
+  it('贏 5 場才解鎖第一個稱號並排進解鎖彈窗；最難難度要贏 3 場', () => {
     unlockQueue.splice(0)
+    for (let i = 0; i < 4; i++) gainXp('sevens', 'easy', 'w')
+    expect(hasTitle('sevensA')).toBe(false)
     gainXp('sevens', 'easy', 'w')
-    expect(hasTitle('sevens1')).toBe(true)
+    expect(hasTitle('sevensA')).toBe(true)
+    expect(unlockQueue.at(-1)!.items).toContainEqual({ kind: 'title', id: 'sevensA' })
+    gainXp('sevens', 'hard', 'w')
+    gainXp('sevens', 'hard', 'w')
     expect(hasTitle('sevensTop')).toBe(false)
-    expect(unlockQueue.at(-1)!.items).toContainEqual({ kind: 'title', id: 'sevens1' })
     gainXp('sevens', 'hard', 'w')
     expect(hasTitle('sevensTop')).toBe(true)
   })
 
+  it('儲存：最多裝 2 個稱號，沒解鎖的、沒解鎖的頭像零件都不採用', () => {
+    saveProfile({ name: '  小明  ', equipped: ['rookie', 'passby', 'messy'], look: { shape: 'drop', tone: 'red', fill: 'dots', acc: 'crown' } })
+    expect(profile.name).toBe('小明')
+    expect(profile.equipped).toEqual(['rookie', 'passby'])
+    expect(profile.look).toEqual({ shape: 'circle', tone: 'red', fill: 'solid', acc: 'none' })
+    saveProfile({ name: '', equipped: ['lv100'], look: profile.look })
+    expect(profile.equipped).toEqual([])
+  })
+
   it('升級時頭像零件跟著解鎖', () => {
     unlockQueue.splice(0)
-    profile.xp = XP_PER_LEVEL * 2 - 1 // Lv 2，再一點就 Lv 3（網點）
+    profile.xp = XP_PER_LEVEL * 2 - 1 // Lv 2，再一點就 Lv 3（鈷藍）
     gainXp('go', 'low', 'l', 0)
     const items = unlockQueue.flatMap((u) => u.items)
     expect(items).toContainEqual({ kind: 'level', level: 3 })
-    expect(items).toContainEqual({ kind: 'avatar', part: 'fill', value: 'dots' })
+    expect(items).toContainEqual({ kind: 'avatar', part: 'tone', value: 'blue' })
   })
 
   it('格式化：經驗、稱號歸零，名字留著', () => {

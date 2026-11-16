@@ -53,6 +53,7 @@ function hover(side: GameCategory, event: PointerEvent) {
         <span class="mask" style="--i: 2"><span>{{ S.title.line2 }}</span></span>
       </h1>
       <div class="foot rise" style="--i: 5">
+        <ProfileChip />
         <IconBtn icon="gear" :label="S.choose.settings" @click="settingsOpen = true" />
         <IconBtn icon="badge" :label="S.names.open" @click="go({ name: 'names' })" />
         <span class="t-label ver">{{ VERSION.number }}</span>
@@ -83,23 +84,14 @@ function hover(side: GameCategory, event: PointerEvent) {
       <span class="go"><Icon name="arrow" class="ar" /></span>
     </button>
 
-    <!-- 右上角：個人資料（頭像＋等級） -->
-    <div class="me rise" style="--i: 3"><ProfileChip /></div>
     <AppSettings :open="settingsOpen" @close="settingsOpen = false" />
   </section>
 </template>
 
 <style scoped>
 .choose {
-  position: relative;
   display: flex;
   height: 100%;
-}
-.me {
-  position: absolute;
-  top: 0.9rem;
-  right: 1.2rem;
-  z-index: 2;
 }
 .intro {
   position: relative;
@@ -142,6 +134,9 @@ function hover(side: GameCategory, event: PointerEvent) {
   align-items: center;
   gap: 0.7rem;
   margin-top: 1rem;
+}
+.foot > * {
+  flex: none;
 }
 .panel {
   position: relative;

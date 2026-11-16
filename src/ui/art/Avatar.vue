@@ -54,10 +54,19 @@ const SHAPES: Record<Look['shape'], string> = {
   diamond: 'M30 2 58 30 30 58 2 30z',
   half: 'M4 50a26 26 0 0 1 52 0z',
   pill: 'M18 8h24a12 12 0 0 1 12 12v20a12 12 0 0 1-12 12H18A12 12 0 0 1 6 40V20A12 12 0 0 1 18 8z',
+  hex: 'M30 3 54 16.5v27L30 57 6 43.5v-27z',
+  drop: 'M30 3C40 16 54 28 54 38a24 19 0 0 1-48 0C6 28 20 16 30 3z',
 }
 // 眼睛的位置跟著形狀走
-const EYE_Y: Record<Look['shape'], number> = { circle: 28, square: 27, triangle: 38, diamond: 29, half: 38, pill: 27 }
+const EYE_Y: Record<Look['shape'], number> = { circle: 28, square: 27, triangle: 38, diamond: 29, half: 38, pill: 27, hex: 29, drop: 38 }
 const ey = computed(() => EYE_Y[props.look.shape])
+// 頭頂的高度（帽子、皇冠、蝴蝶結放這裡）
+const TOP_Y: Record<Look['shape'], number> = { circle: 4, square: 6, triangle: 5, diamond: 4, half: 24, pill: 8, hex: 4, drop: 5 }
+const top = computed(() => TOP_Y[props.look.shape])
+const acc = computed(() => props.look.acc ?? 'none')
+/** 飾品線條：墨黑的頭用米白，不然看不到 */
+const line = computed(() => (props.look.tone === 'ink' ? 'var(--color-card)' : 'var(--color-ink)'))
+const shade = computed(() => (light.value ? 'rgb(251 248 241 / .3)' : 'rgb(20 20 20 / .2)'))
 </script>
 
 <template>
@@ -65,11 +74,15 @@ const ey = computed(() => EYE_Y[props.look.shape])
     <defs>
       <pattern :id="`dt${id}`" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2.5" cy="2.5" r="1.1" :fill="light ? 'rgb(251 248 241 / .4)' : 'rgb(20 20 20 / .25)'" /></pattern>
       <pattern :id="`st${id}`" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="6" :fill="light ? 'rgb(251 248 241 / .3)' : 'rgb(20 20 20 / .2)'" /></pattern>
+      <pattern :id="`ck${id}`" width="10" height="10" patternUnits="userSpaceOnUse"><rect width="5" height="5" :fill="shade" /><rect x="5" y="5" width="5" height="5" :fill="shade" /></pattern>
+      <pattern :id="`gr${id}`" width="7" height="7" patternUnits="userSpaceOnUse"><path d="M0 0.6h7M0.6 0v7" :stroke="shade" stroke-width="1.2" /></pattern>
+      <clipPath :id="`cl${id}`"><path :d="SHAPES[look.shape]" /></clipPath>
     </defs>
     <g class="body">
       <path :d="SHAPES[look.shape]" fill="var(--color-ink)" transform="translate(3 3)" />
       <path :d="SHAPES[look.shape]" :fill="fill" stroke="var(--color-ink)" stroke-width="2.4" stroke-linejoin="round" />
-      <path v-if="look.fill !== 'solid'" :d="SHAPES[look.shape]" :fill="`url(#${look.fill === 'dots' ? 'dt' : 'st'}${id})`" />
+      <rect v-if="look.fill === 'split'" x="0" y="31" width="60" height="30" :fill="shade" :clip-path="`url(#cl${id})`" />
+      <path v-else-if="look.fill !== 'solid'" :d="SHAPES[look.shape]" :fill="`url(#${({ dots: 'dt', stripes: 'st', checker: 'ck', grid: 'gr' } as Record<string, string>)[look.fill]}${id})`" />
       <g class="eyes" :fill="eye" :stroke="eye" stroke-width="2.4" stroke-linecap="round">
         <template v-if="mood === 'happy'">
           <path :d="`M20 ${ey + 2}q3-5 6 0M34 ${ey + 2}q3-5 6 0`" fill="none" />
@@ -92,6 +105,43 @@ const ey = computed(() => EYE_Y[props.look.shape])
           <rect x="35" :y="ey - 4" width="4" height="8" rx="2" stroke="none" />
         </g>
       </g>
+      <!-- 飾品（玩家頭像才有） -->
+      <g v-if="acc !== 'none'" class="acc" stroke-linejoin="round" stroke-linecap="round">
+        <g v-if="acc === 'blush'" fill="var(--color-red)" :opacity="look.tone === 'red' ? 0 : 0.5">
+          <ellipse cx="17" :cy="ey + 6" rx="3.6" ry="2" />
+          <ellipse cx="43" :cy="ey + 6" rx="3.6" ry="2" />
+        </g>
+        <g v-else-if="acc === 'glasses'" fill="none" :stroke="line" stroke-width="1.8">
+          <circle cx="23" :cy="ey" r="5.6" />
+          <circle cx="37" :cy="ey" r="5.6" />
+          <path :d="`M28.6 ${ey}h2.8M17.4 ${ey - 1}l-4-2M42.6 ${ey - 1}l4-2`" />
+        </g>
+        <g v-else-if="acc === 'shades'" fill="var(--color-ink)" :stroke="line" stroke-width="1.4">
+          <path :d="`M16 ${ey - 4}h12v4a5 5 0 0 1-12 0zM32 ${ey - 4}h12v4a5 5 0 0 1-12 0z`" />
+          <path :d="`M28 ${ey - 3}h4`" fill="none" />
+        </g>
+        <g v-else-if="acc === 'monocle'" fill="none" :stroke="line" stroke-width="1.6">
+          <circle cx="37" :cy="ey" r="5.6" />
+          <path :d="`M42 ${ey + 3}q4 6 1 12`" stroke-dasharray="1.5 1.5" />
+        </g>
+        <path v-else-if="acc === 'mustache'" :d="`M30 ${ey + 9}c-3-4-8-4-10 0 3-1 6 1 10 1zM30 ${ey + 9}c3-4 8-4 10 0-3-1-6 1-10 1z`" :fill="line" :stroke="line" stroke-width="1" />
+        <g v-else-if="acc === 'bow'" fill="var(--color-red)" stroke="var(--color-ink)" stroke-width="1.6">
+          <path :d="`M40 ${top + 2}l-9-5v10zM40 ${top + 2}l9-5v10z`" />
+          <circle cx="40" :cy="top + 2" r="2.2" fill="var(--color-yellow)" />
+        </g>
+        <g v-else-if="acc === 'party'" stroke="var(--color-ink)" stroke-width="1.6">
+          <path :d="`M22 ${top + 2}L30 ${top - 16}L38 ${top + 2}z`" fill="var(--color-blue)" />
+          <path :d="`M25.5 ${top - 6}l6 3M27.5 ${top - 11}l4 2`" stroke="var(--color-yellow)" stroke-width="2" />
+          <circle cx="30" :cy="top - 16" r="2.6" fill="var(--color-yellow)" />
+        </g>
+        <g v-else-if="acc === 'headphones'" stroke="var(--color-ink)" stroke-width="2.4" fill="var(--color-red)">
+          <path :d="`M9 ${ey + 2}V${ey - 4}a21 21 0 0 1 42 0v6`" fill="none" />
+          <rect x="4" :y="ey - 4" width="7" height="12" rx="2" />
+          <rect x="49" :y="ey - 4" width="7" height="12" rx="2" />
+        </g>
+        <ellipse v-else-if="acc === 'halo'" cx="30" :cy="top - 7" rx="12" ry="3.2" fill="none" stroke="var(--color-yellow)" stroke-width="3" class="halo" />
+        <path v-else-if="acc === 'crown'" :d="`M19 ${top + 3}h22l2-13-7 6-6-9-6 9-7-6z`" fill="var(--color-yellow)" stroke="var(--color-ink)" stroke-width="1.8" />
+      </g>
     </g>
   </svg>
   <Teleport to="body">
@@ -103,6 +153,14 @@ const ey = computed(() => EYE_Y[props.look.shape])
 .avatar {
   display: block;
   overflow: visible;
+}
+.halo {
+  animation: halo 2.4s ease-in-out infinite;
+}
+@keyframes halo {
+  50% {
+    transform: translateY(-1.5px);
+  }
 }
 .flip .eyes {
   transform: scaleX(-1);
