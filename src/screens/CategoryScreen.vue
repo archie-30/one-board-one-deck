@@ -323,9 +323,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           @pointerup="onUp"
           @pointercancel="onUp"
         >
-          <!-- 左右各露兩張側卡；那一側還有第三張以後的卡片時，才在外側加一團淡淡的灰色影子 -->
-          <span v-if="index > 2" class="more left" />
-          <span v-if="games.length - 1 - index > 2" class="more right" />
           <button
             v-for="(g, k) in games"
             :id="`mode-${g.id}`"
@@ -509,9 +506,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .card {
   position: absolute;
   left: 50%;
-  top: 0;
+  /* 大螢幕不要跟著放到超大：高度最多 24rem，上下留白置中 */
+  top: calc((100% - min(100%, 24rem)) / 2);
   display: flex;
-  height: 100%;
+  height: min(100%, 24rem);
   aspect-ratio: 0.72;
   flex-direction: column;
   border: 0.14rem solid var(--color-ink);
@@ -798,24 +796,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   color: var(--color-ink-3);
 }
 /* 還有更多卡片時：在那一側最外面加一團柔和的灰色影子（像後面還疊著卡片） */
-.more {
-  position: absolute;
-  top: 12%;
-  bottom: 12%;
-  z-index: 1;
-  width: 4.5rem;
-  border-radius: 50%;
-  filter: blur(10px);
-  pointer-events: none;
-}
-.more.left {
-  left: -2.6rem;
-  background: radial-gradient(ellipse at 70% 50%, rgb(20 20 20 / 0.2), transparent 70%);
-}
-.more.right {
-  right: -2.6rem;
-  background: radial-gradient(ellipse at 30% 50%, rgb(20 20 20 / 0.2), transparent 70%);
-}
 .quick {
   display: flex;
   align-items: center;

@@ -293,6 +293,8 @@ export const S = {
       waitReady: (n: number, all: number) => `大家按準備就開始（${n}／${all}）`,
       go: '大家都準備好了，開始！',
       countdown: (n: number) => `大家都準備好了，${n} 秒後開始`,
+      starting: '準備開始',
+      startNow: '開始！',
     },
     backRoom: '回到房間',
     backRoomCode: (code: string) => `回到房間 ${code}`,
