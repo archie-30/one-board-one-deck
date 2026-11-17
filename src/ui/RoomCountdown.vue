@@ -10,19 +10,23 @@ import { playSound } from '@/core/audio'
 import { startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { go, resetTo, route } from '@/core/nav'
-import { backToRoom, matchStart, online, roomCountdown } from '@/core/online'
+import { backToRoom, imHere, matchStart, online, roomCountdown } from '@/core/online'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 
 const T = S.online.status
-/** 被房主請出房間：跳一個說明（在哪一頁都看得到） */
-const kickedOpen = ref(false)
+/** 被房主請出房間、太久沒回應被移出：跳一個說明（在哪一頁都看得到） */
+const outReason = ref<'' | 'kicked' | 'idle'>('')
 watch(
   () => online.closed,
-  (r) => r === 'kicked' && (kickedOpen.value = true),
+  (r) => (r === 'kicked' || r === 'idle') && (outReason.value = r),
 )
+/** 房間太久沒開始遊戲：伺服器問「還在嗎」，每個人都跳視窗，10 秒內要按「我還在」 */
+const askHere = computed(() => !!online.room?.checkEnd && !online.room.checked)
+const hereMs = computed(() => Math.max(0, (online.room?.checkEnd ?? 0) - Date.now() - 1500))
+watch(askHere, (on) => on && playSound('tap'))
 const end = computed(() => online.room?.countdownEnd ?? 0)
 /** 畫面上顯示的字：3、2、1、開始！（空字串＝不顯示） */
 const shown = ref('')
@@ -100,15 +104,36 @@ async function launch(gameId: string) {
       <span :key="shown" class="t-slab num" :class="{ go: shown === T.startNow }">{{ shown }}</span>
     </div>
   </Transition>
-  <Dialog :open="kickedOpen" :title="S.online.kickedTitle" label="ROOM" tone="ink" @close="kickedOpen = false">
-    <p class="text-[0.9rem] text-ink-2">{{ S.online.kickedLead }}</p>
+  <Dialog :open="!!outReason" :title="outReason === 'idle' ? S.online.idleOutTitle : S.online.kickedTitle" label="ROOM" tone="ink" @close="outReason = ''">
+    <p class="text-[0.9rem] text-ink-2">{{ outReason === 'idle' ? S.online.idleOutLead : S.online.kickedLead }}</p>
     <template #actions>
-      <Btn tone="ink" block @click="kickedOpen = false">{{ S.online.ok }}</Btn>
+      <Btn tone="ink" block @click="outReason = ''">{{ S.online.ok }}</Btn>
+    </template>
+  </Dialog>
+  <Dialog :open="askHere" :title="S.online.idleTitle" label="ROOM" tone="ink" @close="imHere">
+    <p class="text-[0.9rem] text-ink-2">{{ S.online.idleLead }}</p>
+    <span :key="online.room?.checkEnd" class="here-bar" :style="{ '--ms': `${hereMs}ms` }" />
+    <template #actions>
+      <Btn tone="red" icon="check" block @click="imHere">{{ S.online.idleHere }}</Btn>
     </template>
   </Dialog>
 </template>
 
 <style scoped>
+/* 「還在嗎」的 10 秒倒數條 */
+.here-bar {
+  display: block;
+  height: 0.25rem;
+  margin-top: 0.7rem;
+  background: var(--color-red);
+  transform-origin: left;
+  animation: here-drain var(--ms) linear forwards;
+}
+@keyframes here-drain {
+  to {
+    transform: scaleX(0);
+  }
+}
 /* 疊在所有東西上面（過場層 3000 之上），不擋操作 */
 .cd {
   position: fixed;

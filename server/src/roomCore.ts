@@ -9,7 +9,9 @@
 // - 倒數中有人取消準備、改觀戰、換模式、有人加入／斷線 → 倒數停下來。
 // - 開局後不能加入；大家都回到房間才回到「等待中」。
 // - 房主按離開＝解散房間；其他人離開就只是自己走。
-// - 斷線：位子留一段時間（GRACE_MS）等他連回來；過了就移出房間（房主斷太久就換下一位當房主）。
+// - 斷線：位子留一段時間（GRACE_MS）等他連回來；過了就移出房間。房主斷線 30 秒（HOST_GRACE_MS）就換最早進來、還連著的人當房主。
+// - 閒置：房間 10 分鐘（IDLE_MS）都沒開始遊戲，就問每個人「還在嗎」（check）；10 秒內沒按「我還在」（here）的人移出房間，
+//   全部的人都移出就關房（不要有沒人用的房間一直佔著伺服器）。
 import { GAME_SEATS, parseRules } from './games'
 import { canMatch, matchTick, schedule, startMatch, type LogEntry, type MatchState } from './match/run'
 
@@ -19,6 +21,12 @@ export const COUNTDOWN_MS = 3000
 export const GRACE_MS = 45_000
 /** 開房／加入後，多久內要連上 WebSocket（不然當作斷線） */
 export const CONNECT_MS = 20_000
+/** 房主斷線多久就換人當房主 */
+export const HOST_GRACE_MS = 30_000
+/** 房間多久沒開始遊戲就問大家「還在嗎」 */
+export const IDLE_MS = 10 * 60_000
+/** 問「還在嗎」之後幾毫秒內要回答（畫面上 10 秒，多給一點網路延遲） */
+export const CHECK_MS = 10_000 + 1500
 
 export interface Profile {
   name: string
@@ -42,6 +50,8 @@ export interface Member extends Profile {
   spectator: boolean
   /** 斷線中：幾點之前要連回來（0＝連線中） */
   away: number
+  /** 斷線的時間（房主斷太久就換人；0＝連線中或還沒連上過） */
+  lostAt?: number
   /** 開局後還在對局裡（還沒回到房間） */
   inGame: boolean
   joined: number
@@ -65,6 +75,10 @@ export interface RoomState {
   match?: MatchState
   /** 這個房間開過幾局 */
   matchN?: number
+  /** 幾點要問大家「還在嗎」（等待中才算；0＝對局中） */
+  idleAt?: number
+  /** 正在問「還在嗎」：幾點前要回答、已經回答的人 */
+  check?: { until: number; ok: string[] }
 }
 
 export type Intent =
@@ -77,6 +91,8 @@ export type Intent =
   | { t: 'rules'; gameId: string; options: Record<string, string | boolean> }
   /** 房主把某人請出房間 */
   | { t: 'kick'; id: string }
+  /** 回答「還在嗎」：我還在 */
+  | { t: 'here' }
 
 /** 對局中出牌：內容由各玩法自己檢查（match/defs.ts 的 parse） */
 export type Act = { t: 'act'; a: unknown }
@@ -150,6 +166,7 @@ export function parseMessage(raw: unknown): Intent | Hello | Act | null {
       return typeof o.gameId === 'string' && o.gameId in GAME_SEATS ? { t: o.t, gameId: o.gameId } : null
     case 'leave':
     case 'back':
+    case 'here':
       return { t: o.t }
     case 'kick':
       return typeof o.id === 'string' && /^[0-9a-f]{4,32}$/.test(o.id) ? { t: 'kick', id: o.id } : null
@@ -183,7 +200,7 @@ function newMember(p: Profile, host: boolean, now: number, rand: Rand): Member {
 
 export function createRoomState(code: string, host: Profile, now: number, rand: Rand): { room: RoomState; member: Member } {
   const member = newMember(host, true, now, rand)
-  return { room: { code, gameId: '', players: [member], recommends: [], phase: 'lobby', startAt: 0, seed: 0 }, member }
+  return { room: { code, gameId: '', players: [member], recommends: [], phase: 'lobby', startAt: 0, seed: 0, idleAt: now + IDLE_MS }, member }
 }
 
 export type JoinFail = 'full' | 'started'
@@ -264,14 +281,14 @@ export function applyIntent(room: RoomState, pid: string, it: Intent, now: numbe
     case 'leave':
       // 房主離開＝解散
       if (me.host) return { changed: true, left: true, closed: 'disbanded' }
-      removeMember(room, pid)
+      removeMember(room, pid, now)
       syncCountdown(room, now)
       return { changed: true, left: true, closed: room.players.length ? undefined : 'empty' }
     case 'kick': {
       // 只有房主能請人出去；不能請自己；對局中（還有人沒回到房間）不行
       const who = room.players.find((p) => p.id === it.id)
       if (!me.host || !who || who === me || room.phase === 'playing') return { changed: false }
-      removeMember(room, who.id)
+      removeMember(room, who.id, now)
       syncCountdown(room, now)
       return { changed: true, kicked: who.id }
     }
@@ -280,8 +297,19 @@ export function applyIntent(room: RoomState, pid: string, it: Intent, now: numbe
       me.inGame = false
       // 離開對局：他的位子改由電腦代打
       schedule(room, now)
-      if (room.phase === 'playing' && !room.players.some((p) => p.inGame)) toLobby(room)
+      if (room.phase === 'playing' && !room.players.some((p) => p.inGame)) toLobby(room, now)
       break
+    case 'here': {
+      // 回答「還在嗎」：大家都回答了就不問了，重新計時
+      const c = room.check
+      if (!c || c.ok.includes(pid)) return { changed: false }
+      c.ok.push(pid)
+      if (room.players.every((p) => c.ok.includes(p.id))) {
+        room.check = undefined
+        room.idleAt = now + IDLE_MS
+      }
+      return { changed: true }
+    }
     case 'rules':
       // 只有房主能定規則
       if (!me.host) return { changed: false }
@@ -292,19 +320,22 @@ export function applyIntent(room: RoomState, pid: string, it: Intent, now: numbe
   return { changed: true }
 }
 
-function removeMember(room: RoomState, pid: string) {
+function removeMember(room: RoomState, pid: string, now: number) {
   const gone = room.players.find((p) => p.id === pid)
   room.players = room.players.filter((p) => p.id !== pid)
   room.recommends = room.recommends.filter((r) => r.playerId !== pid)
   // 房主走了（斷線太久）：最早進來的人接手
   if (gone?.host && room.players.length) room.players[0].host = true
-  if (room.phase === 'playing' && !room.players.some((p) => p.inGame)) toLobby(room)
+  if (room.phase === 'playing' && !room.players.some((p) => p.inGame)) toLobby(room, now)
+  if (room.check) room.check.ok = room.check.ok.filter((id) => id !== pid)
 }
 
 /** 大家都回到房間：對局收掉，回到等待中 */
-function toLobby(room: RoomState) {
+function toLobby(room: RoomState, now: number) {
   room.phase = 'lobby'
   room.match = undefined
+  // 打完回到房間：重新計時「還在嗎」
+  room.idleAt = now + IDLE_MS
 }
 
 /** 斷線：取消準備，位子留一段時間 */
@@ -312,6 +343,7 @@ export function disconnect(room: RoomState, pid: string, now: number): boolean {
   const m = room.players.find((p) => p.id === pid)
   if (!m || m.away) return false
   m.away = now + GRACE_MS
+  m.lostAt = now
   m.ready = false
   syncCountdown(room, now)
   // 對局中斷線：輪到他時由電腦代打
@@ -323,21 +355,51 @@ export function connect(room: RoomState, pid: string, now = 0): boolean {
   const m = room.players.find((p) => p.id === pid)
   if (!m || !m.away) return false
   m.away = 0
+  m.lostAt = 0
   // 連回來：輪到他時又換回自己出（倒數重新算）
   schedule(room, now)
   return true
 }
 
 /** 時間到要處理的事：斷線太久的人移出房間、倒數結束開局 */
-export function tick(room: RoomState, now: number, seed: number): { changed: boolean; started: boolean; closed?: CloseReason; entries: LogEntry[] } {
+export function tick(room: RoomState, now: number, seed: number): { changed: boolean; started: boolean; closed?: CloseReason; entries: LogEntry[]; removed: string[] } {
   let changed = false
+  const removed: string[] = []
   for (const p of [...room.players]) {
     if (p.away && p.away <= now) {
-      removeMember(room, p.id)
+      removeMember(room, p.id, now)
       changed = true
     }
   }
-  if (!room.players.length) return { changed: true, started: false, closed: 'empty', entries: [] }
+  // 房主斷線 30 秒：換最早進來、還連著的人當房主（斷線的人位子照樣留著等他連回來）
+  const host = room.players.find((p) => p.host)
+  if (host?.away && host.lostAt && now >= host.lostAt + HOST_GRACE_MS - 50) {
+    const next = room.players.find((p) => p !== host && !p.away)
+    if (next) {
+      host.host = false
+      next.host = true
+      changed = true
+    }
+  }
+  // 閒置：等待中太久沒開始遊戲就問大家「還在嗎」；時間到沒回答的人移出房間
+  if (room.phase === 'lobby') {
+    if (!room.idleAt) room.idleAt = now + IDLE_MS
+    if (room.check && now >= room.check.until - 50) {
+      const ok = room.check.ok
+      for (const p of [...room.players])
+        if (!ok.includes(p.id)) {
+          removed.push(p.id)
+          removeMember(room, p.id, now)
+        }
+      room.check = undefined
+      room.idleAt = now + IDLE_MS
+      changed = true
+    } else if (!room.check && now >= room.idleAt - 50) {
+      room.check = { until: now + CHECK_MS, ok: [] }
+      changed = true
+    }
+  }
+  if (!room.players.length) return { changed: true, started: false, closed: 'empty', entries: [], removed }
   if (changed) syncCountdown(room, now)
   let started = false
   if (room.phase === 'countdown' && room.startAt <= now + 50) {
@@ -352,17 +414,23 @@ export function tick(room: RoomState, now: number, seed: number): { changed: boo
       // 能同步的玩法：伺服器發牌、當裁判（其他玩法還是各自在自己的裝置上跟電腦打）
       if (canMatch(room.gameId)) startMatch(room, seed, now)
       started = true
+      // 開始遊戲了：不用問「還在嗎」
+      room.check = undefined
+      room.idleAt = 0
     } else room.phase = 'lobby'
     changed = true
   }
   // 對局：電腦出牌、真人時間到
   const entries = started ? [] : matchTick(room, now)
-  return { changed, started, entries }
+  return { changed, started, entries, removed }
 }
 
 /** 下一次要叫醒伺服器的時間（0＝不用） */
 export function nextWake(room: RoomState): number {
   const times = room.players.map((p) => p.away).filter((t) => t > 0)
+  const host = room.players.find((p) => p.host)
+  if (host?.away && host.lostAt && room.players.some((p) => !p.away)) times.push(host.lostAt + HOST_GRACE_MS)
+  if (room.phase === 'lobby') times.push(room.check ? room.check.until : room.idleAt || 1)
   if (room.phase === 'countdown') times.push(room.startAt)
   if (room.match && !room.match.over && room.match.nextAt) times.push(room.match.nextAt)
   if (room.match && !room.match.over && room.match.undoUntil) times.push(room.match.undoUntil)
@@ -376,6 +444,10 @@ export interface RoomView {
   phase: Phase
   /** 離開局還有幾毫秒（倒數中才有） */
   startIn: number
+  /** 正在問「還在嗎」：還有幾毫秒要回答（0＝沒在問） */
+  checkIn: number
+  /** 自己已經回答「我還在」 */
+  checked: boolean
   players: { id: string; name: string; host: boolean; me: boolean; ready: boolean; spectator: boolean; away: boolean; look?: Profile['look']; level?: number; titles?: string[] }[]
   recommends: { playerId: string; gameId: string }[]
   /** 電腦補位用的名字：跟著房主 */
@@ -389,6 +461,8 @@ export function viewFor(room: RoomState, pid: string, now: number): RoomView {
     gameId: room.gameId,
     phase: room.phase,
     startIn: room.phase === 'countdown' ? Math.max(0, room.startAt - now) : 0,
+    checkIn: room.check ? Math.max(0, room.check.until - now) : 0,
+    checked: !!room.check?.ok.includes(pid),
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,

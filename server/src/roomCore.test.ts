@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GAME_SEATS } from './games'
-import { addMember, applyIntent, canStart, connect, CONNECT_MS, COUNTDOWN_MS, createRoomState, disconnect, GRACE_MS, nextWake, parseMessage, parseProfile, tick, viewFor, type RoomState } from './roomCore'
+import { addMember, applyIntent, canStart, CHECK_MS, connect, CONNECT_MS, COUNTDOWN_MS, createRoomState, disconnect, GRACE_MS, HOST_GRACE_MS, IDLE_MS, nextWake, parseMessage, parseProfile, tick, viewFor, type RoomState } from './roomCore'
 
 let n = 0
 const rand = (bytes: number) => (n++).toString(16).padStart(bytes * 2, '0')
@@ -132,6 +132,59 @@ describe('連線房間（伺服器規則）', () => {
     expect(r.players[0]).toMatchObject({ id: ids[1], host: true })
     disconnect(r, ids[1], T0 + 300)
     expect(tick(r, T0 + 300 + GRACE_MS, 1).closed).toBe('empty')
+  })
+
+  it('房主斷線 30 秒：換最早進來、還連著的人當房主；他的位子照樣留著', () => {
+    const { room: r, ids } = room(['A', 'B', 'C'])
+    disconnect(r, ids[1], T0 + 50)
+    disconnect(r, ids[0], T0 + 100)
+    expect(nextWake(r)).toBe(T0 + 100 + HOST_GRACE_MS)
+    tick(r, T0 + 100 + HOST_GRACE_MS - 1000, 1)
+    expect(r.players[0].host).toBe(true)
+    tick(r, T0 + 100 + HOST_GRACE_MS, 1)
+    // B 也斷線了，所以換 C
+    expect(r.players.map((p) => p.host)).toEqual([false, false, true])
+    expect(r.players).toHaveLength(3)
+    connect(r, ids[0], T0 + 40_000)
+    expect(r.players[0].host).toBe(false)
+  })
+
+  it('閒置 10 分鐘沒開始遊戲：問大家還在嗎，10 秒內沒回答的人移出；都回答就重新計時', () => {
+    const { room: r, ids } = room(['A', 'B', 'C'])
+    expect(nextWake(r)).toBe(T0 + IDLE_MS)
+    tick(r, T0 + IDLE_MS, 1)
+    expect(r.check).toBeTruthy()
+    expect(viewFor(r, ids[1], T0 + IDLE_MS).checkIn).toBe(CHECK_MS)
+    applyIntent(r, ids[0], { t: 'here' }, T0 + IDLE_MS + 1000)
+    applyIntent(r, ids[2], { t: 'here' }, T0 + IDLE_MS + 2000)
+    expect(viewFor(r, ids[0], T0 + IDLE_MS + 2000).checked).toBe(true)
+    const t = tick(r, T0 + IDLE_MS + CHECK_MS, 1)
+    expect(t.removed).toEqual([ids[1]])
+    expect(r.players.map((p) => p.id)).toEqual([ids[0], ids[2]])
+    // 剩下的都回答：不問了、重新計時
+    const t2 = T0 + IDLE_MS * 2 + CHECK_MS
+    tick(r, t2, 1)
+    applyIntent(r, ids[0], { t: 'here' }, t2)
+    applyIntent(r, ids[2], { t: 'here' }, t2)
+    expect(r.check).toBeUndefined()
+    expect(r.idleAt).toBe(t2 + IDLE_MS)
+    // 都沒回答：房間關掉
+    tick(r, t2 + IDLE_MS, 1)
+    expect(tick(r, t2 + IDLE_MS + CHECK_MS, 1)).toMatchObject({ closed: 'empty', removed: [ids[0], ids[2]] })
+  })
+
+  it('閒置：對局中不問；打完回到房間重新計時', () => {
+    const { room: r, ids } = room(['A', 'B'])
+    applyIntent(r, ids[0], { t: 'mode', gameId: 'gomoku' }, T0)
+    readyAll(r, ids)
+    tick(r, T0 + COUNTDOWN_MS, 7)
+    expect(r.phase).toBe('playing')
+    tick(r, T0 + IDLE_MS + 5000, 1)
+    expect(r.check).toBeUndefined()
+    const back = T0 + IDLE_MS * 2
+    for (const id of ids) applyIntent(r, id, { t: 'back' }, back)
+    expect(r.phase).toBe('lobby')
+    expect(r.idleAt).toBe(back + IDLE_MS)
   })
 
   it('進房後一直沒連上 WebSocket：當作斷線，時間到移出', () => {
