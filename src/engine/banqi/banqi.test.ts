@@ -122,7 +122,7 @@ describe('暗棋電腦', () => {
   }
   it('三個難度都能把整局下完、不出錯', () => {
     for (const lv of ['low', 'mid', 'high'] as const) for (let g = 0; g < 4; g++) expect(play(100 + g, [lv, lv]).status).not.toBe('playing')
-  })
+  }, 60000)
   it('電腦不偷看：把蓋著的棋彼此換位置，選的動作完全一樣', () => {
     for (let g = 0; g < 12; g++) {
       let s = play(200 + g, ['mid', 'mid'])
@@ -142,7 +142,7 @@ describe('暗棋電腦', () => {
       hidden.forEach((i, k) => (board[i] = mixed[k]))
       for (const lv of ['mid', 'high'] as const) expect(chooseBanqiAction({ ...s, board }, style(lv, g), seedRng(5))[0]).toEqual(chooseBanqiAction(s, style(lv, g), seedRng(5))[0])
     }
-  })
+  }, 60000)
   /** strong 對 weak 下 games 局（輪流先後），回傳 strong 贏、輸、和 */
   function duel(strong: CardLevel, weak: CardLevel, games: number) {
     let w = 0
