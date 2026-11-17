@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 主畫面：左邊一欄是遊戲名稱，中間「撲克牌」、右邊「棋盤」兩塊大面板。
 // 滑鼠移上去：圖微微動（預覽）。點一下：從點的位置染上顏色、圖動起來，接著直接進入模式選單。
-import { ref } from 'vue'
+// 剛進主畫面時先鎖住所有點擊、按鍵：等加載畫面接手完、標題與面板的進場動畫都跑完才放開（從別頁回來也一樣）。
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { reducedMotion } from '@/core/motion'
 import { go } from '@/core/nav'
 import { online } from '@/core/online'
@@ -17,6 +18,34 @@ import ProfileChip from '@/ui/ProfileChip.vue'
 import AppSettings from './AppSettings.vue'
 
 const picked = ref<GameCategory | null>(null)
+/** 進場動畫還在跑：先不能點 */
+const locked = ref(true)
+const root = ref<HTMLElement>()
+const nextFrame = () => new Promise<void>((ok) => requestAnimationFrame(() => ok()))
+/** 動畫中按鍵（Enter、空白鍵）也擋掉 */
+const blockKeys = (e: KeyboardEvent) => {
+  if (locked.value) (e.preventDefault(), e.stopPropagation())
+}
+let alive = true
+onMounted(async () => {
+  window.addEventListener('keydown', blockKeys, true)
+  const until = performance.now() + 8000
+  // 1. 加載畫面還在（字型下載、牌扇飛到插圖上）：等它整個收掉
+  const html = document.documentElement
+  while (alive && performance.now() < until && (document.getElementById('boot') || html.classList.contains('booting') || html.classList.contains('boot-handoff'))) await nextFrame()
+  await nextFrame()
+  // 2. 主畫面自己的進場動畫（文字滑上來、面板上浮）：等跑完（一直循環的動畫不算；最多等 2.5 秒）
+  const finite = (root.value?.getAnimations({ subtree: true }) ?? []).filter((a) => {
+    const it = a.effect?.getTiming().iterations
+    return it !== Infinity && a.playState !== 'finished'
+  })
+  await Promise.race([Promise.allSettled(finite.map((a) => a.finished)), new Promise((ok) => window.setTimeout(ok, 2500))])
+  if (alive) locked.value = false
+})
+onBeforeUnmount(() => {
+  alive = false
+  window.removeEventListener('keydown', blockKeys, true)
+})
 const origin = ref({ x: '50%', y: '50%' })
 const settingsOpen = ref(false)
 const onlineOpen = ref(false)
@@ -28,7 +57,7 @@ const fan = [
 ]
 
 function tap(side: GameCategory, event: MouseEvent) {
-  if (picked.value) return
+  if (picked.value || locked.value) return
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
   origin.value = { x: `${event.clientX - rect.left}px`, y: `${event.clientY - rect.top}px` }
   picked.value = side
@@ -42,7 +71,7 @@ function hover(side: GameCategory, event: PointerEvent) {
 </script>
 
 <template>
-  <section class="choose home">
+  <section ref="root" class="choose home" :class="{ locked }">
     <aside class="intro">
       <!-- 招牌：ONE BOARD／ONE DECK 兩行大字 -->
       <header class="brand t-slab" :aria-label="S.title.label">
@@ -107,6 +136,10 @@ function hover(side: GameCategory, event: PointerEvent) {
 .choose {
   display: flex;
   height: 100%;
+}
+/* 進場動畫跑完前不能點（滑鼠預覽也先不動） */
+.choose.locked {
+  pointer-events: none;
 }
 .sides {
   display: flex;
