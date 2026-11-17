@@ -5,6 +5,7 @@ import { DurableObject } from 'cloudflare:workers'
 import { json } from './directory'
 import type { Env } from './env'
 import { Bucket } from './limits'
+import { entryFor, matchIntro, playerAct, type LogEntry } from './match/run'
 import { addMember, applyIntent, connect, createRoomState, disconnect, nextWake, parseMessage, parseProfile, sameToken, tick, viewFor, type CloseReason, type RoomState } from './roomCore'
 
 const hex = (bytes: number) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('')
@@ -87,12 +88,22 @@ export class Room extends DurableObject<Env> {
         if (other !== ws && (other.deserializeAttachment() as Attachment | null)?.pid === m.id) other.close(4000, 'replaced')
       }
       ws.serializeAttachment({ pid: m.id } satisfies Attachment)
-      connect(room, m.id)
+      connect(room, m.id, now)
       await this.save()
       this.broadcast()
+      // 對局進行中連回來：重送開局資訊和到目前為止的每一步（客戶端照編號補上沒收到的）
+      if (room.match && room.match.seats.some((x) => x.pid === m.id)) this.sendIntro(ws, m.id, true)
       return
     }
     if (!att) return ws.close(4401, 'auth')
+    // 對局中出牌：伺服器檢查是不是輪到他、合不合規則，通過才算數，再告訴大家
+    if (msg.t === 'act') {
+      const entries = playerAct(room, att.pid, msg.a, now)
+      if (!entries.length) return this.send(ws, { t: 'error', code: 'act' })
+      await this.save()
+      this.sendEntries(entries)
+      return
+    }
     const r = applyIntent(room, att.pid, msg, now)
     if (r.left) {
       ws.serializeAttachment(null)
@@ -132,10 +143,36 @@ export class Room extends DurableObject<Env> {
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]
     const r = tick(room, Date.now(), seed)
     if (r.closed) return this.closeRoom(r.closed)
-    if (r.started) for (const ws of this.ctx.getWebSockets()) this.send(ws, { t: 'start', gameId: room.gameId, seed: room.seed })
-    if (r.changed) {
-      await this.save()
-      this.broadcast()
+    // 開局：先送對局資訊（自己的手牌等），再說「開始」
+    if (r.started) {
+      for (const ws of this.ctx.getWebSockets()) {
+        const att = ws.deserializeAttachment() as Attachment | null
+        if (att && room.match) this.sendIntro(ws, att.pid, false)
+        this.send(ws, { t: 'start', gameId: room.gameId })
+      }
+    }
+    if (r.changed || r.entries.length) await this.save()
+    if (r.changed) this.broadcast()
+    if (r.entries.length) this.sendEntries(r.entries)
+  }
+
+  /** 對局開局資訊（每個人自己的視角）；withLog：連回來的人一起補上到目前為止的每一步 */
+  private sendIntro(ws: WebSocket, pid: string, withLog: boolean) {
+    const m = this.room?.match
+    if (!m) return
+    const intro = matchIntro(m, pid)
+    this.send(ws, { t: 'match', ...intro, log: withLog ? m.log.map((e) => ({ seq: e.seq, ev: entryFor(e, intro.seat), ...(e.end ? { end: true } : {}) })) : [] })
+  }
+
+  /** 對局的新動作：每個人收到自己看得到的版本 */
+  private sendEntries(entries: LogEntry[]) {
+    const m = this.room?.match
+    if (!m) return
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null
+      if (!att) continue
+      const seat = m.seats.findIndex((x) => x.pid === att.pid)
+      for (const e of entries) this.send(ws, { t: 'mact', n: m.n, seq: e.seq, ev: entryFor(e, seat), ...(e.end ? { end: true } : {}) })
     }
   }
 

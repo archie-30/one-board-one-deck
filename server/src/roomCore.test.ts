@@ -141,7 +141,7 @@ describe('連線房間（伺服器規則）', () => {
     expect(parseMessage('{"t":"room","room":{}}')).toBeNull()
     expect(parseMessage('not json')).toBeNull()
     expect(parseMessage('[1]')).toBeNull()
-    expect(parseMessage(JSON.stringify({ t: 'recommend', gameId: 'go', pad: 'x'.repeat(600) }))).toBeNull()
+    expect(parseMessage(JSON.stringify({ t: 'recommend', gameId: 'go', pad: 'x'.repeat(1100) }))).toBeNull()
     expect(parseMessage('{"t":"hello","pid":"abcd1234","token":"zz"}')).toBeNull()
   })
 
