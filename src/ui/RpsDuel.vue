@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // 猜拳決定先後手：你和對手面對面，出拳時兩個人一起甩手三下，然後亮出手勢。
 // 分出勝負後結果停一下（約 1.3 秒）就自動開始，不用再按「開始」。
-import { onBeforeUnmount, ref } from 'vue'
+// 連線（remote）：自己出拳後送給伺服器，等兩邊都出了，伺服器把結果（remote.result）送回來才亮出手勢；時間到也由伺服器判。
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import type { Opponent } from '@/core/opponents'
 import { myLook } from '@/core/profile'
@@ -15,12 +16,20 @@ import Btn from './Btn.vue'
 import Dialog from './Dialog.vue'
 import TurnTimer from './TurnTimer.vue'
 
+/** 連線猜拳：伺服器送來的結果（round 每次有新結果就加一）；mine／theirs 是 null＝那個人時間到沒出拳 */
+export interface RemoteRps {
+  round: number
+  theirPicked: boolean
+  result: { mine: RpsHand | null; theirs: RpsHand | null; outcome: 1 | 0 | -1 } | null
+}
 // seconds：要在幾秒內出拳（0 = 不計時），時間到沒出拳就算輸
-const props = withDefaults(defineProps<{ open: boolean; opponent: Opponent; lead?: string; seconds?: number }>(), { seconds: 0 })
-const emit = defineEmits<{ done: [playerWins: boolean]; back: [] }>()
+const props = withDefaults(defineProps<{ open: boolean; opponent: Opponent; lead?: string; seconds?: number; remote?: RemoteRps | null }>(), { seconds: 0, remote: null })
+const emit = defineEmits<{ done: [playerWins: boolean]; back: []; pick: [hand: RpsHand] }>()
 
 let rng = seedRng(Date.now())
-const phase = ref<'pick' | 'shake' | 'show'>('pick')
+const phase = ref<'pick' | 'wait' | 'shake' | 'show'>('pick')
+/** 連線：對方時間到沒出拳 */
+const theyMissed = ref(false)
 const mine = ref<RpsHand>('rock')
 const theirs = ref<RpsHand>('rock')
 const outcome = ref<1 | 0 | -1>(0)
@@ -30,6 +39,8 @@ const timedOut = ref(false)
 
 /** 時間到還沒出拳：直接算輸 */
 function timeout() {
+  // 連線：時間到由伺服器判（結果會送回來）
+  if (props.remote) return
   if (phase.value !== 'pick') return
   let cpu: RpsHand
   ;[cpu, rng] = randomRps(rng)
@@ -53,11 +64,45 @@ onBeforeUnmount(() => window.clearTimeout(startTimer))
 
 function choose(hand: RpsHand) {
   if (phase.value !== 'pick') return
+  // 連線：送出去，等伺服器把兩邊的結果送回來
+  if (props.remote) {
+    mine.value = hand
+    phase.value = 'wait'
+    playSound('tap')
+    emit('pick', hand)
+    return
+  }
   let cpu: RpsHand
   ;[cpu, rng] = randomRps(rng)
+  reveal(hand, cpu, resolveRps(hand, cpu))
+}
+// 連線：伺服器送來這一輪的結果
+watch(
+  () => props.remote?.round,
+  () => {
+    const r = props.remote?.result
+    if (!r) return
+    theyMissed.value = r.theirs === null
+    if (r.mine === null) {
+      // 自己時間到沒出拳
+      theirs.value = r.theirs ?? 'rock'
+      outcome.value = -1
+      timedOut.value = true
+      phase.value = 'show'
+      round.value++
+      playSound('error')
+      moods.value = ['sad', 'happy']
+      autoStart()
+      return
+    }
+    reveal(r.mine, r.theirs ?? 'rock', r.outcome)
+  },
+)
+/** 兩個人一起甩手三下，然後亮出手勢 */
+function reveal(hand: RpsHand, cpu: RpsHand, result: 1 | 0 | -1) {
   mine.value = hand
   theirs.value = cpu
-  outcome.value = resolveRps(hand, cpu)
+  outcome.value = result
   phase.value = 'shake'
   round.value++
   playSound('tap')
@@ -79,6 +124,7 @@ function finish() {
   if (phase.value !== 'show') return
   const win = outcome.value === 1
   timedOut.value = false
+  theyMissed.value = false
   phase.value = 'pick'
   moods.value = ['idle', 'idle']
   emit('done', win)
@@ -96,13 +142,15 @@ function finish() {
         <span class="t-black nm">{{ S.common.you }}</span>
       </div>
       <p class="verdict t-black" :class="{ win: phase === 'show' && outcome === 1 }">
-        <span v-if="phase === 'show'" :key="`v${round}`" class="mask"><span>{{ timedOut ? S.rps.timeout(opponent.name) : outcome === 0 ? S.rps.draw : outcome === 1 ? S.rps.win : S.rps.lose(opponent.name) }}</span></span>
+        <span v-if="phase === 'show'" :key="`v${round}`" class="mask"><span>{{ timedOut ? S.rps.timeout(opponent.name) : theyMissed ? S.rps.theyMissed(opponent.name) : outcome === 0 ? S.rps.draw : outcome === 1 ? S.rps.win : S.rps.lose(opponent.name) }}</span></span>
+        <span v-else-if="phase === 'wait'" class="wait">{{ S.rps.waiting(opponent.name) }}</span>
         <span v-else class="t-slab vs">{{ S.rps.vs }}</span>
       </p>
       <div class="side">
-        <span v-if="phase === 'show'" :key="`t${round}`" class="reveal pop"><Icon :name="theirs" /></span>
+        <span v-if="phase === 'show' && !theyMissed" :key="`t${round}`" class="reveal pop"><Icon :name="theirs" /></span>
         <span class="who" :class="{ shake: phase === 'shake' }"><Avatar :look="opponent.look" :mood="moods[1]" flip talk /></span>
         <span class="t-black nm">{{ opponent.name }}</span>
+        <span v-if="remote?.theirPicked && (phase === 'pick' || phase === 'wait')" class="t-label picked">{{ S.rps.picked }}</span>
       </div>
     </div>
     <template #actions>
@@ -116,6 +164,25 @@ function finish() {
 </template>
 
 <style scoped>
+.wait {
+  display: block;
+  max-width: 7rem;
+  font-size: 0.85rem;
+  font-weight: 900;
+  color: var(--color-ink-2);
+  text-align: center;
+  animation: breathe 1.4s ease-in-out infinite;
+}
+.picked {
+  position: absolute;
+  bottom: -1.1rem;
+  color: var(--color-blue);
+}
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
 .duel {
   display: flex;
   align-items: flex-end;

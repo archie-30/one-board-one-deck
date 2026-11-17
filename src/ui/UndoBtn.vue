@@ -4,7 +4,8 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { S } from '@/data/strings'
 import Btn from './Btn.vue'
 
-const props = defineProps<{ disabled: boolean; used: boolean }>()
+/** waiting：連線時已經申請、在等對方同意 */
+const props = defineProps<{ disabled: boolean; used: boolean; waiting?: boolean }>()
 const emit = defineEmits<{ undo: [] }>()
 const armed = ref(false)
 let timer = 0
@@ -27,5 +28,5 @@ onBeforeUnmount(() => window.clearTimeout(timer))
 </script>
 
 <template>
-  <Btn size="sm" icon="back" :tone="armed ? 'yellow' : 'plain'" :disabled="disabled || used" @click="press">{{ used ? S.common.undoUsed : armed ? S.common.undoConfirm : S.common.undo }}</Btn>
+  <Btn size="sm" icon="back" :tone="armed ? 'yellow' : 'plain'" :disabled="disabled || used || waiting" @click="press">{{ used ? S.common.undoUsed : waiting ? S.common.undoWaiting : armed ? S.common.undoConfirm : S.common.undo }}</Btn>
 </template>

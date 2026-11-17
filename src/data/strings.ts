@@ -61,6 +61,13 @@ export const S = {
     undo: '悔棋',
     undoConfirm: '再按一次悔棋',
     undoUsed: '已悔過棋',
+    /** 連線：悔棋要對方同意 */
+    undoAsk: (name: string) => `${name}想悔棋`,
+    undoAskLead: '同意的話，棋局會退回他上一步之前。',
+    undoAgree: '同意',
+    undoRefuse: '不同意',
+    undoWaiting: '等對方同意…',
+    undoRefused: (name: string) => `${name}不同意悔棋`,
     viewBoard: '查看棋盤',
     showResult: '看結果',
     saveExit: '保存進度並退出',
@@ -371,6 +378,9 @@ export const S = {
     go: '開始',
     vs: 'VS',
     timeout: (name: string) => `時間到沒出拳，${name}先下`,
+    theyMissed: (name: string) => `${name}沒出拳，你先下`,
+    waiting: (name: string) => `等${name}出拳…`,
+    picked: '出好了',
   },
   tutorial: {
     title: '互動教學',
