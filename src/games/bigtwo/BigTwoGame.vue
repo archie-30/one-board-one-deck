@@ -495,6 +495,9 @@ const canPass = computed(() => myTurn.value && state.value.table !== null)
 function clearSelection() {
   if (!selected.value.length) return
   selected.value = []
+  // 選起來往上抬的牌一起放回手牌的位置
+  playSound('cardPick')
+  sync()
 }
 const selectedCombo = computed(() => (selected.value.length ? identifyCombo(selected.value, options) : null))
 const status = computed(() => {
