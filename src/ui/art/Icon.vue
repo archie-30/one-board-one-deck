@@ -21,6 +21,7 @@ defineProps<{ name: IconName }>()
     <path v-else-if="name === 'bulb'" d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c1 1 1.5 2 1.5 3.5h5c0-1.5.5-2.5 1.5-3.5A6 6 0 0 0 12 3z" />
     <g v-else-if="name === 'badge'"><path d="M3 5.5h18v14H3z" /><circle cx="8.5" cy="11" r="2.2" /><path d="M5.2 16.8c.7-1.7 1.8-2.5 3.3-2.5s2.6.8 3.3 2.5M14.5 10h4M14.5 14h4" /></g>
     <g v-else-if="name === 'online'"><circle cx="12" cy="18.5" r="1.4" fill="currentColor" stroke="none" /><path d="M8.2 14.8a5.4 5.4 0 0 1 7.6 0M5.2 11.6a9.6 9.6 0 0 1 13.6 0M2.4 8.4a13.6 13.6 0 0 1 19.2 0" /></g>
+    <g v-else-if="name === 'swap'"><path d="M4 8h15M15 4l4 4-4 4" /><path d="M20 16H5M9 12l-4 4 4 4" /></g>
     <g v-else-if="name === 'copy'"><path d="M8 8h12v12H8z" /><path d="M16 8V4H4v12h4" /></g>
     <g v-else-if="name === 'lock'"><path d="M5.5 11h13v9h-13z" /><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" /></g>
     <path v-else-if="name === 'sound'" d="M4 9h4l5-4v14l-5-4H4zM16.5 9a4 4 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11" />

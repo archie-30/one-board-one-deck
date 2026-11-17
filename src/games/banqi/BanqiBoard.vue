@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 暗棋棋盤：4 × 8 的格子，每格一顆圓棋子。蓋著的棋是背面（墨黑＋米白網點），翻開的棋寫中文字（紅／黑）。
+// 暗棋棋盤：4 × 8 的格子，每格一顆圓棋子。蓋著的棋是背面（鈷藍＋一圈米白細線），翻開的棋寫中文字（紅／黑）。
 // 動畫：剛翻開的棋像翻牌一樣轉過來；走過去的棋從原本那格滑過來；被吃的棋在原地縮小消失。
 // 純畫面：點哪一格就往外丟 pick(格子)，規則與輪到誰由外面決定。
 import { computed, nextTick, ref, watch } from 'vue'
@@ -62,8 +62,7 @@ const isFlip = (i: number) => props.lastMove?.flip && props.lastMove.to === i
             <text x="20" y="27.5" class="ch">{{ nameOf(c.p) }}</text>
           </template>
           <template v-else>
-            <circle cx="20" cy="20" r="11" fill="none" stroke="rgb(251 248 241 / .35)" stroke-width="1.4" stroke-dasharray="2 2.4" />
-            <circle cx="20" cy="20" r="3" fill="var(--color-red)" />
+            <circle cx="20" cy="20" r="12.6" fill="none" stroke="var(--color-card)" stroke-width="1.3" opacity="0.7" />
           </template>
         </svg>
       </span>
@@ -114,7 +113,7 @@ const isFlip = (i: number) => props.lastMove?.flip && props.lastMove.to === i
   fill: var(--color-card);
 }
 .pc.down .disc {
-  fill: var(--color-ink);
+  fill: var(--color-blue);
 }
 .pc.red .ring,
 .pc.red .ch {

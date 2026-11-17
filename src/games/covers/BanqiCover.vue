@@ -22,9 +22,8 @@ const hidden = [
     </g>
     <g v-for="([r, c], k) in hidden" :key="k">
       <circle :cx="x(c) + 1.5" :cy="y(r) + 1.8" r="14" fill="var(--color-ink)" />
-      <circle :cx="x(c)" :cy="y(r)" r="14" fill="var(--color-ink)" stroke="var(--color-ink)" stroke-width="1.4" />
-      <circle :cx="x(c)" :cy="y(r)" r="9" fill="none" stroke="rgb(251 248 241 / .35)" stroke-width="1.2" stroke-dasharray="2 2.2" />
-      <circle :cx="x(c)" :cy="y(r)" r="2.4" fill="var(--color-red)" />
+      <circle :cx="x(c)" :cy="y(r)" r="14" fill="var(--color-blue)" stroke="var(--color-ink)" stroke-width="1.4" />
+      <circle :cx="x(c)" :cy="y(r)" r="10.2" fill="none" stroke="var(--color-card)" stroke-width="1.1" opacity="0.7" />
     </g>
     <!-- 黑將：被吃掉 -->
     <g class="victim">
@@ -37,9 +36,8 @@ const hidden = [
       <g class="walk">
         <g class="back">
           <circle cx="1.5" cy="1.8" r="14" fill="var(--color-ink)" />
-          <circle cx="0" cy="0" r="14" fill="var(--color-ink)" stroke="var(--color-ink)" stroke-width="1.4" />
-          <circle cx="0" cy="0" r="9" fill="none" stroke="rgb(251 248 241 / .35)" stroke-width="1.2" stroke-dasharray="2 2.2" />
-          <circle cx="0" cy="0" r="2.4" fill="var(--color-red)" />
+          <circle cx="0" cy="0" r="14" fill="var(--color-blue)" stroke="var(--color-ink)" stroke-width="1.4" />
+          <circle cx="0" cy="0" r="10.2" fill="none" stroke="var(--color-card)" stroke-width="1.1" opacity="0.7" />
         </g>
         <g class="face">
           <circle cx="1.5" cy="1.8" r="14" fill="var(--color-ink)" />

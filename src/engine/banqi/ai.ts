@@ -4,11 +4,11 @@
 //   難度（banqiAt）：低只看一步、不太管會不會被吃、常常亂走；中看一步但會顧自己被吃；
 //   高再多想一步（對方最好的回應），翻棋也會想對方怎麼回。
 import { nextRandom, type RngState } from '../common/rng'
-import { ALL_PIECES, applyBanqi, colOf, colorOf, kindOf, legalActions, outranks, rowOf, SIZE, targetsFrom, type BanqiAction, type BanqiState, type Color, type Piece } from './rules'
+import { ALL_PIECES, applyBanqi, COLS, colOf, colorOf, kindOf, legalActions, outranks, rowOf, ROWS, SIZE, targetsFrom, type BanqiAction, type BanqiState, type Color, type Piece } from './rules'
 
 export interface BanqiStyle {
-  /** 1 = 只看自己這一步；2 = 再看對方最好的回應 */
-  depth: 1 | 2
+  /** 1 = 只看自己這一步；2 = 再看對方最好的回應；3 = 再看自己接著怎麼回 */
+  depth: 1 | 2 | 3
   /** 0～1：會不會顧「走完被吃」 */
   safety: number
   /** 0～1：喜歡吃子、往前壓 */
@@ -19,6 +19,8 @@ export interface BanqiStyle {
   blunder: number
   /** 0～1：主動靠近自己吃得掉的對方棋子（不然很容易互相閃到 50 步和棋） */
   chase?: number
+  /** 翻棋之後往後算幾步（預設 1：只看對方怎麼回） */
+  flipDepth?: number
 }
 
 /** 棋子的價值：帥最大但怕兵；炮能隔子打任何棋，比大小上的排名值錢 */
@@ -59,6 +61,41 @@ function bestGain(s: BanqiState, color: Color): number {
   return best
 }
 
+/** 圍堵：對方每顆「我吃得掉、它又吃不了我」的棋，還有幾條安全的退路（越少越好，堵死就跑不掉）。
+ *  殘局要贏就得把它逼到角落，光是靠近，它會一直閃到 50 步和棋 */
+function trapScore(s: BanqiState, me: Color): number {
+  let total = 0
+  for (let j = 0; j < SIZE; j++) {
+    const t = s.board[j]
+    if (!t || !s.up[j] || colorOf(t) === me) continue
+    // 我有沒有棋能吃它（而且它吃不回來）
+    let hunted = false
+    for (let i = 0; i < SIZE && !hunted; i++) {
+      const p = s.board[i]
+      if (p && s.up[i] && colorOf(p) === me && kindOf(p) !== 'C' && outranks(p, t) && !outranks(t, p)) hunted = true
+    }
+    if (!hunted) continue
+    let safe = 0
+    for (const n of neighbors(j)) {
+      if (s.board[n]) continue
+      // 走過去會不會被我旁邊的棋吃
+      if (!neighbors(n).some((m) => m !== j && s.board[m] && s.up[m] && colorOf(s.board[m]!) === me && outranks(s.board[m]!, t))) safe++
+    }
+    total += (4 - safe) * valueOf(t, s) * 0.06
+  }
+  return total
+}
+function neighbors(i: number): number[] {
+  const r = rowOf(i)
+  const c = colOf(i)
+  const out: number[] = []
+  if (r > 0) out.push(i - COLS)
+  if (r < ROWS - 1) out.push(i + COLS)
+  if (c > 0) out.push(i - 1)
+  if (c < COLS - 1) out.push(i + 1)
+  return out
+}
+
 /** 追擊：每顆自己翻開的棋，離最近一顆「吃得掉、又不會反過來吃它」的對方棋有多遠（越近越好） */
 function chaseScore(s: BanqiState, me: Color): number {
   let total = 0
@@ -86,7 +123,12 @@ function evaluate(s: BanqiState, me: Color, st: BanqiStyle): number {
   }
   let mat = 0
   for (const p of s.captured) mat += colorOf(p) === me ? -valueOf(p, s) : valueOf(p, s)
-  if (st.chase) mat += chaseScore(s, me) * st.chase
+  if (st.chase) {
+    // 棋都翻開了（殘局）：追得更積極，並把對方逼到沒有退路
+    const open = !s.up.some((u, i) => !u && s.board[i])
+    mat += chaseScore(s, me) * st.chase * (open ? 2.5 : 1)
+    if (open) mat += (trapScore(s, me) - trapScore(s, me === 'r' ? 'b' : 'r')) * st.chase
+  }
   const toMove = s.colors[s.turn]
   if (!toMove) return mat
   // 接下來輪到的人可以吃多少：輪到我＝好事；輪到對方＝我可能被吃
@@ -107,32 +149,48 @@ function flipValue(s: BanqiState, at: number, me: Color, st: BanqiStyle, reply: 
     board[at] = p
     const r = applyBanqi({ ...s, board }, { type: 'flip', at })
     if (!r.ok) continue
-    total += n * (reply ? replyValue(r.state, me, st) : evaluate(r.state, me, st))
+    // 翻棋最多再看對方怎麼回（看更深太慢，翻出來的又是猜的）
+    total += n * (reply ? replyValue(r.state, me, st, st.flipDepth ?? 1) : evaluate(r.state, me, st))
   }
   return total / pool.length
 }
 
-/** 對方最好的回應之後的分數（對方翻棋就當作局面不變：他也不知道會翻出什麼） */
-function replyValue(s: BanqiState, me: Color, st: BanqiStyle): number {
-  if (s.status !== 'playing') return evaluate(s, me, st)
-  let worst = evaluate(s, me, st)
-  for (const a of legalActions(s)) {
-    if (a.type !== 'move') continue
+/** 輪到 s.turn 的那一方往後算 depth 步（只算走棋、吃子；翻棋太難猜，當作「局面先不動」——也就是可以選擇不走棋）。
+ *  回傳從 me 的角度看的分數。用 alpha-beta 剪枝，吃子先算。 */
+function search(s: BanqiState, depth: number, me: Color, st: BanqiStyle, alpha: number, beta: number): number {
+  const stand = evaluate(s, me, st)
+  if (depth <= 0 || s.status !== 'playing') return stand
+  const side = s.colors[s.turn]
+  if (!side) return stand
+  const mine = side === me
+  // 「不走棋（去翻別的）」當作底線：局面不變
+  let best = stand
+  if (mine) alpha = Math.max(alpha, best)
+  else beta = Math.min(beta, best)
+  if (alpha >= beta) return best
+  const moves = legalActions(s).filter((a) => a.type !== 'flip')
+  // 吃子先算：剪枝比較快
+  moves.sort((a, b) => (b.type === 'move' && s.board[b.to] ? 1 : 0) - (a.type === 'move' && s.board[a.to] ? 1 : 0))
+  for (const a of moves) {
     const r = applyBanqi(s, a)
     if (!r.ok) continue
-    // 對方連吃：讓他把最好的那口吃完
-    let next = r.state
-    while (next.chainAt >= 0) {
-      const more = legalActions(next).filter((x) => x.type === 'move')
-      if (!more.length) break
-      const r2 = applyBanqi(next, more[0])
-      if (!r2.ok) break
-      next = r2.state
+    // 連吃：同一方再走一次，不算一步深度
+    const v = search(r.state, r.state.chainAt >= 0 ? depth : depth - 1, me, st, alpha, beta)
+    if (mine) {
+      if (v > best) best = v
+      alpha = Math.max(alpha, v)
+    } else {
+      if (v < best) best = v
+      beta = Math.min(beta, v)
     }
-    if (next.chainAt >= 0) next = (applyBanqi(next, { type: 'end' }) as { ok: true; state: BanqiState }).state
-    worst = Math.min(worst, evaluate(next, me, st))
+    if (alpha >= beta) break
   }
-  return worst
+  return best
+}
+
+/** 對方最好的回應之後的分數（往後算 depth - 1 步） */
+function replyValue(s: BanqiState, me: Color, st: BanqiStyle, depth = st.depth - 1): number {
+  return search(s, depth, me, st, -Infinity, Infinity)
 }
 
 /** 一個動作的分數 */
@@ -142,8 +200,15 @@ function actionValue(s: BanqiState, a: BanqiAction, me: Color, st: BanqiStyle): 
   const r = applyBanqi(s, a)
   if (!r.ok) return -Infinity
   // 還在連吃：當作接著能吃（之後再決定）
-  if (r.state.chainAt >= 0) return evaluate({ ...r.state, chainAt: -1 }, me, st) + 1
+  // 連吃中：自己接著再選（還在同一步）
+  if (r.state.chainAt >= 0) return search(r.state, st.depth, me, st, -Infinity, Infinity)
   return reply ? replyValue(r.state, me, st) : evaluate(r.state, me, st)
+}
+
+/** 這一格是不是我上一步剛離開的地方（來回晃） */
+function myLast(s: BanqiState, from: number, to: number): boolean {
+  const b = s.before
+  return !!b && !b.flip && b.to === from && b.from === to
 }
 
 /** 選一個動作。回傳 [動作, 新的亂數狀態]；沒有動作可做是 null */
@@ -165,8 +230,12 @@ export function chooseBanqiAction(s: BanqiState, st: BanqiStyle, rng: RngState):
   }
   let best = acts[0]
   let bestV = -Infinity
+  // 很久沒人吃子：與其來回晃，不如去翻棋找機會（越久越想翻）；來回走回剛剛那格扣一點
+  const urge = Math.max(0, s.quiet - 4) * 0.07
   for (const a of acts) {
     let v = a.type === 'end' ? evaluate({ ...s, chainAt: -1, turn: s.turn === 0 ? 1 : 0 }, me, st) : actionValue(s, a, me, st)
+    if (a.type === 'flip') v += urge
+    else if (a.type === 'move' && !s.board[a.to]) v -= 0.3 + (myLast(s, a.from, a.to) ? 0.6 : 0)
     ;[r, rng] = nextRandom(rng)
     v += (r - 0.5) * st.noise * 12
     if (v > bestV) ((bestV = v), (best = a))
