@@ -218,5 +218,17 @@ export function banqiAt(st: ChessStyle, d: CardLevel): { depth: 1 | 2 | 3; safet
   return { depth: 1, safety: clamp(0.3 + st.safety * 0.4), attack: st.attack, noise: 0.5, blunder: 0.12, chase: 0, flipDepth: 1 }
 }
 
+/**
+ * 西洋跳棋（低／中／高／挑戰）：
+ *   低：只看一步、常常隨手走；中：看三步、偶爾隨手走；高：看五步、很少失誤；挑戰：一層一層往深算（局面數用完為止）、完全不失誤
+ * 有子可吃時會多看一層（吃子途中不停下來誤判）。
+ */
+export function checkersAt(st: ChessStyle, level: Level): { depth: number; noise: number; blunder: number; nodes: number } {
+  if (level === 'master') return { depth: 14, noise: 0, blunder: 0, nodes: 20000 }
+  if (level === 'high') return { depth: 5, noise: 0.05, blunder: 0, nodes: 20000 }
+  if (level === 'mid') return { depth: 3, noise: clamp(0.2 + st.noise * 0.3), blunder: 0.04, nodes: 8000 }
+  return { depth: 1, noise: clamp(0.6 + st.noise * 0.4), blunder: 0.22, nodes: 2000 }
+}
+
 /** 電腦每一步多想多久（毫秒）：挑戰多想一會兒，看起來也比較像在認真算 */
 export const extraThink = (level: Level): number => (level === 'master' ? 900 : level === 'high' ? 300 : 0)
