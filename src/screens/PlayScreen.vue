@@ -6,6 +6,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { revealLaunch, startExit } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { back } from '@/core/nav'
+import { online } from '@/core/online'
 import { GRACE_AFTER_MS } from '@/core/grace'
 import { clearResume, flushResume, getResume, setResume } from '@/core/resume'
 import { S } from '@/data/strings'
@@ -16,7 +17,9 @@ import Dialog from '@/ui/Dialog.vue'
 
 const props = defineProps<{ gameId: string }>()
 const game = getGame(props.gameId)
-const saved = getResume(props.gameId)
+/** 連線對戰（在房間裡開的局）：不讀、也不存「沒玩完的紀錄」，大家都從新的一局開始 */
+const onlineMatch = !!online.room
+const saved = onlineMatch ? null : getResume(props.gameId)
 
 const options = ref(resolveOptions(game))
 // 暫停選單裡改了「不影響公平」的選項（例如棋子樣式）：馬上套用到這一局；其他選項要下一局才生效
@@ -50,6 +53,7 @@ function autoPause() {
   const g = gameRef.value
   if (!g || leaving || !settings.autoPause) return
   g.pause?.()
+  if (onlineMatch) return
   const data = g.snapshot?.() ?? null
   if (data) setResume(props.gameId, data, keep())
   else clearResume(props.gameId)
@@ -85,7 +89,7 @@ function keep() {
   return rest
 }
 function onSave(data: unknown) {
-  setResume(props.gameId, data, keep())
+  if (!onlineMatch) setResume(props.gameId, data, keep())
   void leave(true)
 }
 
@@ -95,7 +99,7 @@ async function leave(saved = false) {
   if (leaving) return
   leaving = true
   // 不保存直接離開：把自動存下的進度也刪掉
-  if (!saved) clearResume(props.gameId)
+  if (!saved && !onlineMatch) clearResume(props.gameId)
   if (reducedMotion()) return back()
   const css = getComputedStyle(document.documentElement)
   const color = css.getPropertyValue(game.category === 'cards' ? '--color-red' : '--color-blue').trim()

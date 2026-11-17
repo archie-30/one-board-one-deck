@@ -155,6 +155,23 @@ describe('連線房間（伺服器規則）', () => {
     expect(parseProfile({ name: 'a', titles: ['a', 'b', 'c'] })).toBeNull()
   })
 
+  it('電腦補位的名字跟著房主；房主換人就跟著新房主；名字格式不對整份不收', () => {
+    const { room: r, member } = createRoomState('2222', { name: 'A', bots: ['小明', '', '阿花'] }, T0, rand)
+    const b = addMember(r, { name: 'B', bots: ['別人取的'] }, T0, rand)
+    if (typeof b === 'string') throw new Error(b)
+    connect(r, member.id)
+    connect(r, b.id)
+    expect(viewFor(r, b.id, T0).botNames).toEqual(['小明', '', '阿花'])
+    // 看不到別人的名字表（只給房主那份）
+    expect(JSON.stringify(viewFor(r, member.id, T0))).not.toContain('別人取的')
+    disconnect(r, member.id, T0)
+    tick(r, T0 + GRACE_MS, 1)
+    expect(viewFor(r, b.id, T0).botNames).toEqual(['別人取的'])
+    expect(parseProfile({ name: 'a', bots: Array(31).fill('x') })).toBeNull()
+    expect(parseProfile({ name: 'a', bots: [1] })).toBeNull()
+    expect(parseProfile({ name: 'a', bots: ['  超級長的名字超級長的名字超級長  '] })!.bots![0]).toHaveLength(12)
+  })
+
   it('伺服器認得的玩法都是 2～4 人', () => {
     for (const s of Object.values(GAME_SEATS)) expect(s).toBeGreaterThanOrEqual(2)
   })

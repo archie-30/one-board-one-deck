@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // 連線對戰的入口彈窗：上面輸入房號加入，下面建立新房間。進了房間就換到房間頁。
 // 主畫面（底下那一條）和模式選單（右上角）都用這個。
+// 連線一定要有玩家名稱：個人資料還沒取名字的話，最上面多一格先取名字（存進個人資料）。
 import { nextTick, ref, watch } from 'vue'
 import { go } from '@/core/nav'
 import { createRoom, isRoomCode, joinRoom, ROOM_CODE_LENGTH } from '@/core/online'
-import { levelOf, myLook, profile } from '@/core/profile'
+import { opponentNames } from '@/core/names'
+import { levelOf, myLook, profile, tidyName } from '@/core/profile'
 import { S } from '@/data/strings'
 import type { GameCategory } from '@/games/types'
 import Btn from './Btn.vue'
@@ -18,6 +20,11 @@ const code = ref('')
 const error = ref('')
 const busy = ref(false)
 const input = ref<HTMLInputElement>()
+/** 還沒取名字：要先填 */
+const needName = ref(!profile.name)
+const nameDraft = ref('')
+const nameBad = ref(false)
+const nameInput = ref<HTMLInputElement>()
 watch(
   () => props.open,
   (on) => {
@@ -25,8 +32,25 @@ watch(
     code.value = ''
     error.value = ''
     busy.value = false
+    needName.value = !profile.name
+    nameDraft.value = ''
+    nameBad.value = false
   },
 )
+/** 確認有名字：沒取名字（或名字不能用）就提示、不連線 */
+function ensureName(): boolean {
+  if (!needName.value) return !!profile.name
+  const name = tidyName(nameDraft.value)
+  if (!name) {
+    error.value = T.errors.noName
+    nameBad.value = true
+    void nextTick(() => nameInput.value?.focus())
+    return false
+  }
+  profile.name = name
+  nameBad.value = false
+  return true
+}
 /** 只收數字 */
 function onInput(e: Event) {
   const el = e.target as HTMLInputElement
@@ -35,10 +59,10 @@ function onInput(e: Event) {
   error.value = ''
 }
 /** 進房時給伺服器的個人資料（別人點你的頭像看得到） */
-const myCard = () => ({ name: profile.name || S.profile.defaultName, look: myLook(), level: levelOf(profile.xp), titles: profile.equipped.slice(0, 2) })
+const myCard = () => ({ name: profile.name, look: myLook(), level: levelOf(profile.xp), titles: profile.equipped.slice(0, 2), bots: opponentNames.names.slice() })
 
 async function join() {
-  if (busy.value) return
+  if (busy.value || !ensureName()) return
   if (!isRoomCode(code.value)) {
     error.value = T.errors.format
     void nextTick(() => input.value?.focus())
@@ -57,7 +81,7 @@ async function join() {
 
 /** 建立房間：一開始不幫玩家選模式（「未選擇模式」） */
 async function create() {
-  if (busy.value) return
+  if (busy.value || !ensureName()) return
   busy.value = true
   const r = await createRoom(myCard())
   busy.value = false
@@ -72,6 +96,22 @@ async function create() {
 
 <template>
   <Dialog :open="open" :title="T.dialogTitle" :label="T.tag" tone="blue" close-x @close="emit('close')">
+    <template v-if="needName">
+      <label class="t-label lab" for="room-name">{{ T.nameLabel }}</label>
+      <input
+        id="room-name"
+        ref="nameInput"
+        v-model="nameDraft"
+        class="code name"
+        :class="{ bad: nameBad }"
+        type="text"
+        autocomplete="nickname"
+        enterkeyhint="next"
+        maxlength="24"
+        :placeholder="T.nameHint"
+        @input="(nameBad = false), (error = '')"
+      />
+    </template>
     <label class="t-label lab" for="room-code">{{ T.joinLabel }}</label>
     <div class="join">
       <input
@@ -79,7 +119,7 @@ async function create() {
         ref="input"
         :value="code"
         class="t-slab code"
-        :class="{ bad: !!error }"
+        :class="{ bad: !!error && !nameBad }"
         type="text"
         inputmode="numeric"
         autocomplete="off"
@@ -139,6 +179,15 @@ async function create() {
   border-color: var(--color-red);
   box-shadow: 0.22rem 0.22rem 0 var(--color-red);
   animation: nope 0.3s linear 1;
+}
+.code.name {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.7rem;
+  font-family: 'Noto Sans TC', sans-serif;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
 }
 @keyframes nope {
   25% {
