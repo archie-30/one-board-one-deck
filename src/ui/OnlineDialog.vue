@@ -4,7 +4,7 @@
 import { nextTick, ref, watch } from 'vue'
 import { go } from '@/core/nav'
 import { createRoom, isRoomCode, joinRoom, ROOM_CODE_LENGTH } from '@/core/online'
-import { profile } from '@/core/profile'
+import { levelOf, myLook, profile } from '@/core/profile'
 import { S } from '@/data/strings'
 import type { GameCategory } from '@/games/types'
 import Btn from './Btn.vue'
@@ -34,7 +34,8 @@ function onInput(e: Event) {
   el.value = code.value
   error.value = ''
 }
-const myName = () => profile.name || S.profile.defaultName
+/** 進房時給伺服器的個人資料（別人點你的頭像看得到） */
+const myCard = () => ({ name: profile.name || S.profile.defaultName, look: myLook(), level: levelOf(profile.xp), titles: profile.equipped.slice(0, 2) })
 
 async function join() {
   if (busy.value) return
@@ -44,7 +45,7 @@ async function join() {
     return
   }
   busy.value = true
-  const r = await joinRoom(code.value, myName())
+  const r = await joinRoom(code.value, myCard())
   busy.value = false
   if (typeof r === 'string') {
     error.value = T.errors[r]
@@ -58,8 +59,12 @@ async function join() {
 async function create() {
   if (busy.value) return
   busy.value = true
-  await createRoom(myName())
+  const r = await createRoom(myCard())
   busy.value = false
+  if (typeof r === 'string') {
+    error.value = T.errors[r]
+    return
+  }
   emit('close')
   go({ name: 'room' })
 }

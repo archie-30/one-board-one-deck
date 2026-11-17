@@ -155,3 +155,7 @@ keystore.properties
 android/app/build/
 android/.gradle/
 android/local.properties
+
+# Cloudflare 本機暫存
+server/.wrangler/
+server/.dev.vars

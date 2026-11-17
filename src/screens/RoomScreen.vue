@@ -8,7 +8,7 @@
 //   大家都準備好、對戰人數不超過模式人數就開始（空位由電腦補上；之後接連線時由伺服器開局）。
 //   只有按左下「離開房間」（房主是「解散房間」）才會離開；只剩自己一個人時不用再確認。點成員看玩家資料（彈窗）。
 // 現在還沒接真的連線（見 core/online.ts），只有自己一個人。
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { launch as launchFx } from '@/core/launch'
 import { back, resetTo, setBackGuard } from '@/core/nav'
 import { canChangeMode, changeMode, isHost, leaveRoom, online, ROOM_MAX, roomCountdown, setReady, setSpectator, startState, type RoomPlayer } from '@/core/online'
@@ -74,7 +74,7 @@ async function copy() {
 // 離開房間：先問一下
 const leaveOpen = ref(false)
 onMounted(() => {
-  // 重新整理後房間就不在了（還沒接連線）：直接回上一頁
+  // 不在房間裡（例如重新整理後沒接回去）：直接回上一頁
   if (!online.room) return back(true)
   // 返回鍵、Esc＝離開房間：只剩自己一個人就直接離開（房主＝解散），不然先問一下
   setBackGuard(() => {
@@ -89,6 +89,13 @@ onBeforeUnmount(() => {
   setBackGuard(null)
   window.clearTimeout(copyTimer)
 })
+// 被請出房間（房主解散、斷線太久）：回上一頁
+watch(
+  () => online.room,
+  (r) => {
+    if (!r && online.closed) back(true)
+  },
+)
 async function leave() {
   leaveOpen.value = false
   await leaveRoom()
