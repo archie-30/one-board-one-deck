@@ -112,14 +112,7 @@ export class Room extends DurableObject<Env> {
     }
     if (r.closed) return this.closeRoom(r.closed)
     // 被請出房間的人：告訴他、關掉他的連線
-    if (r.kicked) {
-      for (const o of this.ctx.getWebSockets()) {
-        if ((o.deserializeAttachment() as Attachment | null)?.pid !== r.kicked) continue
-        o.serializeAttachment(null)
-        this.send(o, { t: 'closed', reason: 'kicked' })
-        o.close(1000, 'kicked')
-      }
-    }
+    if (r.kicked) this.dropMember(r.kicked, 'kicked')
     if (r.changed) {
       await this.save()
       this.broadcast()
@@ -151,6 +144,8 @@ export class Room extends DurableObject<Env> {
     if (!room) return
     const seed = crypto.getRandomValues(new Uint32Array(1))[0]
     const r = tick(room, Date.now(), seed)
+    // 太久沒回答「還在嗎」被移出房間的人：告訴他、關掉他的連線
+    for (const pid of r.removed) this.dropMember(pid, 'idle')
     if (r.closed) return this.closeRoom(r.closed)
     // 開局：先送對局資訊（自己的手牌等），再說「開始」
     if (r.started) {
@@ -192,6 +187,16 @@ export class Room extends DurableObject<Env> {
     const t = nextWake(this.room)
     if (t) await this.ctx.storage.setAlarm(t)
     else await this.ctx.storage.deleteAlarm()
+  }
+
+  /** 某人不在房間裡了（被請出、太久沒回應）：告訴他原因、關掉他的連線 */
+  private dropMember(pid: string, reason: string) {
+    for (const o of this.ctx.getWebSockets()) {
+      if ((o.deserializeAttachment() as Attachment | null)?.pid !== pid) continue
+      o.serializeAttachment(null)
+      this.send(o, { t: 'closed', reason })
+      o.close(1000, reason)
+    }
   }
 
   /** 每個人收到自己視角的房間 */

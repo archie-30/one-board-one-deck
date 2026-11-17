@@ -17,6 +17,8 @@ interface RoomView {
   gameId: string
   phase: Room['phase']
   startIn: number
+  checkIn?: number
+  checked?: boolean
   players: Room['players']
   recommends: Room['recommends']
   botNames: string[]
@@ -52,6 +54,8 @@ const toRoom = (v: RoomView): Room => ({
   gameId: v.gameId,
   phase: v.phase,
   countdownEnd: v.startIn > 0 ? Date.now() + v.startIn : 0,
+  checkEnd: v.checkIn && v.checkIn > 0 ? Date.now() + v.checkIn : 0,
+  checked: !!v.checked,
   players: v.players,
   recommends: v.recommends,
   botNames: Array.isArray(v.botNames) ? v.botNames : [],

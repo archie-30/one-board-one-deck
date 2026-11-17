@@ -53,6 +53,10 @@ export interface Room {
   countdownEnd?: number
   /** 電腦補位時用的名字（房主取的，依電腦編號；沒有就用自己的設定） */
   botNames?: string[]
+  /** 房間太久沒開始遊戲，伺服器在問「還在嗎」：幾點前要回答（本機時鐘，0＝沒在問） */
+  checkEnd?: number
+  /** 自己已經回答「我還在」 */
+  checked?: boolean
 }
 
 /** 開房、加入失敗的原因：格式、找不到、滿了、已開局、試太多次、連不上 */
@@ -77,6 +81,8 @@ export type RoomIntent =
   | { t: 'back' }
   /** 房主把某人請出房間 */
   | { t: 'kick'; id: string }
+  /** 回答「還在嗎」 */
+  | { t: 'here' }
   /** 房主的規則設定（開局照這份） */
   | { t: 'rules'; gameId: string; options: Record<string, string | boolean> }
   /** 對局中出牌（內容各玩法自己定） */
@@ -252,6 +258,14 @@ export function kickPlayer(id: string) {
   room.players = room.players.filter((p) => p.id !== id)
   room.recommends = room.recommends.filter((r) => r.playerId !== id)
   send({ t: 'kick', id })
+}
+
+/** 回答「還在嗎」：我還在 */
+export function imHere() {
+  const room = online.room
+  if (!room?.checkEnd || room.checked) return
+  room.checked = true
+  send({ t: 'here' })
 }
 
 /** 改成觀戰／回來對戰（改了就要重新準備） */
