@@ -7,6 +7,7 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { useBoardNet } from '@/core/boardNet'
+import { watchSeats } from '@/core/onlineMatch'
 import { recordResult, stats } from '@/core/settings'
 import { asLevel, extraThink, goAt } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
@@ -21,6 +22,7 @@ import Bowl from '@/ui/art/Bowl.vue'
 import type { Mood } from '@/ui/art/look'
 import Stone from '@/ui/art/Stone.vue'
 import Btn from '@/ui/Btn.vue'
+import RematchBtn from '@/ui/RematchBtn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
@@ -73,6 +75,8 @@ const size = (Number(rules.size) || 19) as GoSize
 const state = ref<GoState>(createGo({ size }))
 const human = ref<Color>(1)
 const opponent = ref(bn ? bn.opponent : pickOpponents(1)[0])
+// 連線：對手離開房間、改由電腦代打時，名字換成「＿（電腦代打）」
+if (bn) watchSeats(bn.net, (ps) => (opponent.value = ps[1]))
 const phase = ref<'rps' | 'playing' | 'counting' | 'scoring' | 'over'>('rps')
 const preview = ref(-1)
 const message = ref('')
@@ -589,7 +593,8 @@ const resultLine = computed(() => {
           <Btn class="mt-[0.5rem]" size="sm" block @click="disputed ? acceptOpponent() : resumePlay()">{{ disputed ? T.byOpponent : T.resume }}</Btn>
         </template>
         <Btn v-else-if="phase === 'over' && !bn" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
-        <Btn v-else-if="phase !== 'over' && !watching" tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0 || !!bn?.sending.value" @click="confirmMove">{{ T.place }}</Btn>
+        <RematchBtn v-else-if="phase === 'over'" tone="ink" block />
+        <Btn v-else-if="!watching" tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0 || !!bn?.sending.value" @click="confirmMove">{{ T.place }}</Btn>
       </div>
     </aside>
 
@@ -610,7 +615,8 @@ const resultLine = computed(() => {
       <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.go.wins, stats.go.losses) }}</p>
       <template #actions>
         <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
-        <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <RematchBtn v-else tone="red" />
+        <Btn icon="exit" @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
       </template>
     </Dialog>
   </section>

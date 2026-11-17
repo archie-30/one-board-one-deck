@@ -496,3 +496,90 @@ describe('難度：高比中強、中比低強（電腦互打）', () => {
     expect(duel('mid', 'low', 2, 150).rate).toBeGreaterThan(0.33)
   }, 60000)
 })
+
+describe('玩到分出名次', () => {
+  const R = { playToRank: true }
+  const play = (s: BigTwoState, player: number, text: string) => {
+    const r = applyBigTwo(s, { type: 'play', player, cards: parseCards(text) })
+    if (!r.ok) throw new Error(r.reason)
+    return r.state
+  }
+  const pass = (s: BigTwoState, player: number) => {
+    const r = applyBigTwo(s, { type: 'pass', player })
+    if (!r.ok) throw new Error(r.reason)
+    return r.state
+  }
+
+  it('第一個人出完不結束；他最後那手照樣要壓，大家都過由他下一位自由出', () => {
+    let s = createBigTwo([parseCards('C3 S2'), parseCards('C5 C6 C7'), parseCards('C8 C9'), parseCards('C10 CJ CQ CK')], R)
+    s = play(s, 0, 'C3')
+    s = play(s, 1, 'C5')
+    s = play(s, 2, 'C8')
+    s = play(s, 3, 'C10')
+    s = play(s, 0, 'S2') // 0 號出完（第 1 名）
+    expect(s.winner).toBe(-1)
+    expect(s.out).toEqual([0])
+    // 分數照 0 號出完那一刻
+    expect(s.scoreHands!.map((h) => h.length)).toEqual([0, 2, 1, 3])
+    expect(s.turn).toBe(1)
+    s = pass(s, 1)
+    s = pass(s, 2)
+    s = pass(s, 3)
+    // 大家都過：0 號已經出完，由 1 號自由出；之後輪不到 0 號
+    expect(s.turn).toBe(1)
+    expect(s.table).toBeNull()
+    s = play(s, 1, 'C6')
+    s = play(s, 2, 'C9')
+    s = play(s, 3, 'CJ')
+    expect(s.turn).toBe(1)
+  })
+
+  it('剩一個人就結束：名次 1～4 都排好，分數照第一個人出完那一刻算', () => {
+    let s = createBigTwo([parseCards('C3 S2'), parseCards('C5 C6'), parseCards('C8 H2'), parseCards('C10 CJ CQ')], R)
+    s = play(s, 0, 'C3')
+    s = play(s, 1, 'C5')
+    s = play(s, 2, 'C8')
+    s = play(s, 3, 'C10')
+    s = play(s, 0, 'S2') // 第 1 名
+    s = pass(s, 1)
+    s = pass(s, 2)
+    s = pass(s, 3)
+    s = play(s, 1, 'C6') // 第 2 名
+    s = play(s, 2, 'H2') // 第 3 名，剩 3 號第 4 名
+    expect(s.out).toEqual([0, 1, 2, 3])
+    expect(s.winner).toBe(0)
+    // 0 號出完時：1 號剩 1 張、2 號剩 1 張 2（×2）、3 號剩 2 張
+    expect(scoreBigTwo(s).map((x) => x.points)).toEqual([5, -1, -2, -2])
+  })
+
+  it('沒開的話照舊：第一個人出完就結束', () => {
+    let s = createBigTwo([parseCards('C3'), parseCards('C5 C6'), parseCards('C8'), parseCards('C10')], {})
+    s = play(s, 0, 'C3')
+    expect(s.winner).toBe(0)
+    expect(s.out).toBeUndefined()
+  })
+})
+
+describe('玩到分出名次：電腦自己打', () => {
+  it('一副、兩副牌都能打到排出 1～4 名', () => {
+    for (const decks of [1, 2] as const) {
+      for (let g = 0; g < 60; g++) {
+        let s = dealBigTwo(g * 7 + 1, { playToRank: true, decks })
+        let rng = seedRng(g)
+        const st = bigtwoAt(PERSONAS[g % 30].bigtwo, bigtwoLevel('mid'))
+        let steps = 0
+        while (s.winner < 0 && steps++ < 2000) {
+          let a
+          ;[a, rng] = chooseBigTwoAction(s, st, rng)
+          const r = applyBigTwo(s, a)
+          expect(r.ok).toBe(true)
+          if (r.ok) s = r.state
+        }
+        expect(s.out).toHaveLength(4)
+        expect(new Set(s.out).size).toBe(4)
+        expect(s.winner).toBe(s.out![0])
+        expect(scoreBigTwo(s).reduce((a, x) => a + x.points, 0)).toBe(0)
+      }
+    }
+  })
+})

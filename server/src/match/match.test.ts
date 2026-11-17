@@ -302,4 +302,37 @@ describe('連線對局（伺服器當裁判）', () => {
     expect(fin.state.phase).toBe('over')
     expect(Array.isArray(fin.dead)).toBe(true)
   })
+
+  it('再玩一次：大家都按了就直接開下一局；有人回到房間就不行', () => {
+    const { room, ids } = started('sevens', 2)
+    let t = runToEnd(room, T0 + COUNTDOWN_MS)
+    const n1 = room.match!.n
+    // 還沒打完不能按（這裡已經打完）；第一個人按了還不會開
+    applyIntent(room, ids[0], { t: 'again' }, t)
+    expect(room.againAt ?? 0).toBe(0)
+    applyIntent(room, ids[1], { t: 'again' }, t)
+    expect(room.againAt).toBe(t)
+    const r = tick(room, t, 99)
+    expect(r.rematch).toBe(true)
+    expect(room.match!.n).toBe(n1 + 1)
+    expect(room.match!.over).toBe(false)
+    expect(room.phase).toBe('playing')
+    // 再打完；一個人回到房間 → 另一個人按再玩一次也不會開
+    t = runToEnd(room, t + 1)
+    applyIntent(room, ids[0], { t: 'back' }, t)
+    expect(applyIntent(room, ids[1], { t: 'again' }, t).changed).toBe(false)
+  })
+
+  it('對局中離開房間：位子由電腦代打（座位記著他的名字）；房主離開不解散、換人當房主', () => {
+    const { room, ids, m } = started('sevens', 3)
+    expect(m.seats[1]).toMatchObject({ pid: ids[1], name: 'P1' })
+    const r = applyIntent(room, ids[0], { t: 'leave' }, T0 + COUNTDOWN_MS + 10)
+    expect(r.closed).toBeUndefined()
+    expect(room.players.map((p) => p.id)).toEqual([ids[1], ids[2]])
+    expect(room.players[0].host).toBe(true)
+    // 對局照樣打得完
+    runToEnd(room, T0 + COUNTDOWN_MS + 20)
+    expect(room.match!.over).toBe(true)
+  })
 })
+

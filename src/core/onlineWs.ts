@@ -19,6 +19,9 @@ interface RoomView {
   startIn: number
   checkIn?: number
   checked?: boolean
+  rules?: Room['rules']
+  matchOver?: boolean
+  again?: string[]
   players: Room['players']
   recommends: Room['recommends']
   botNames: string[]
@@ -56,6 +59,9 @@ const toRoom = (v: RoomView): Room => ({
   countdownEnd: v.startIn > 0 ? Date.now() + v.startIn : 0,
   checkEnd: v.checkIn && v.checkIn > 0 ? Date.now() + v.checkIn : 0,
   checked: !!v.checked,
+  rules: v.rules ?? null,
+  matchOver: !!v.matchOver,
+  again: Array.isArray(v.again) ? v.again : [],
   players: v.players,
   recommends: v.recommends,
   botNames: Array.isArray(v.botNames) ? v.botNames : [],

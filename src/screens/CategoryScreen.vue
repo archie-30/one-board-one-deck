@@ -1,6 +1,8 @@
 <script lang="ts">
 /** 這次是不是從另一個分類切過來的（新的模式選單一建立就讀掉） */
 let swapFlag = false
+/** 在房間裡逛模式時，各分類最後停在哪一張（記下當時的房間模式；房間換了模式就不算，改停在新的房間模式） */
+const browsed: Partial<Record<string, { id: string; room: string }>> = {}
 </script>
 
 <script setup lang="ts">
@@ -30,8 +32,10 @@ import Tabs from '@/ui/Tabs.vue'
 const props = defineProps<{ category: GameCategory }>()
 const games = computed(() => gamesIn(props.category))
 const n = computed(() => games.value.length)
-// 在連線房間裡：一進來停在房間目前的模式
-const start = games.value.findIndex((g) => g.id === (online.room?.gameId ?? settings.lastGame[props.category]))
+// 在連線房間裡：一進來停在房間目前的模式；從規則設定、規則說明等頁回來時，停在剛剛看的那張
+const seen = browsed[props.category]
+const startId = online.room ? (seen && seen.room === online.room.gameId ? seen.id : online.room.gameId || settings.lastGame[props.category]) : settings.lastGame[props.category]
+const start = games.value.findIndex((g) => g.id === startId)
 /** 目前選中的是第幾張。不繞圈：前面的模式疊在左邊、後面的疊在右邊，到頭尾就停住。 */
 const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
@@ -120,6 +124,7 @@ function show(k: number) {
   if (next === index.value) return
   index.value = next
   settings.lastGame[props.category] = games.value[next].id
+  if (online.room) browsed[props.category] = { id: games.value[next].id, room: online.room.gameId }
   playSound('slide')
 }
 /** 往右（+）或往左（−）換幾張 */
@@ -311,6 +316,36 @@ async function launch() {
   go({ name: 'play', gameId: g.id })
 }
 
+// 在房間外逛模式時：房間換了模式，右上角提示「已切換模式」；房主還會看到有人推薦了什麼
+const roomHint = ref('')
+let hintTimer = 0
+function hint(text: string) {
+  roomHint.value = text
+  playSound('tap')
+  window.clearTimeout(hintTimer)
+  hintTimer = window.setTimeout(() => (roomHint.value = ''), 3200)
+}
+watch(
+  () => online.room?.gameId,
+  (now, before) => {
+    if (online.room && now && before !== undefined && now !== before) hint(S.online.switchedTo(getGame(now).name))
+  },
+)
+watch(
+  () => (online.room ? online.room.recommends.map((r) => `${r.playerId}:${r.gameId}`) : []),
+  (now, before) => {
+    const room = online.room
+    const me = room?.players.find((p) => p.me)
+    if (!room || !me?.host) return
+    const added = now.find((k) => !before.includes(k))
+    if (!added) return
+    const [pid, gid] = added.split(':')
+    if (pid === me.id) return
+    hint(S.online.newRecommend(room.players.find((p) => p.id === pid)?.name ?? S.online.someone, getGame(gid).name))
+  },
+)
+onBeforeUnmount(() => window.clearTimeout(hintTimer))
+
 function onKey(e: KeyboardEvent) {
   if (locked.value) return
   if (e.key === 'ArrowRight') turn(1)
@@ -340,6 +375,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </span>
       </button>
       <Btn v-else class="on-btn" size="sm" icon="online" @click="onlineOpen = true">{{ S.online.short }}</Btn>
+      <!-- 房間換了模式／有人推薦：在右上角按鈕下面冒一下 -->
+      <Transition name="rhint">
+        <p v-if="roomHint" :key="roomHint" class="room-hint t-black" role="status">{{ roomHint }}</p>
+      </Transition>
     </header>
     <div class="rule wipe" style="--i: 1" />
 
@@ -446,6 +485,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   --tone: var(--color-blue);
 }
 .head {
+  position: relative;
   display: flex;
   min-height: 2.4rem;
   align-items: center;
@@ -534,6 +574,47 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   }
 }
 /* 房間裡換遊戲：右上角的房號，點了回房間 */
+.room-hint {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 40;
+  max-width: 18rem;
+  border: 0.13rem solid var(--color-ink);
+  background: var(--color-yellow);
+  box-shadow: 0.15rem 0.15rem 0 var(--color-ink);
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.room-hint::before {
+  content: '';
+  position: absolute;
+  right: 1.2rem;
+  top: -0.42rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  background: var(--color-yellow);
+  border-left: 0.13rem solid var(--color-ink);
+  border-top: 0.13rem solid var(--color-ink);
+  rotate: 45deg;
+}
+.rhint-enter-active {
+  transition:
+    opacity 180ms ease,
+    transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.rhint-leave-active {
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease-in;
+}
+.rhint-enter-from,
+.rhint-leave-to {
+  opacity: 0;
+  transform: translateY(-0.4rem) scale(0.95);
+}
 .room-tag {
   display: flex;
   min-height: 2.4rem;

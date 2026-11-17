@@ -31,6 +31,7 @@ const BIGTWO_RULES = {
   allowSmallStraight: B,
   allowFlush: B,
   allowTwoPair: B,
+  playToRank: B,
   doubleOverTen: B,
   timer: B,
 }

@@ -6,7 +6,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch 
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { bringInto, isWatching, joinLiveMatch, matchOpponents, matchPlayers, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
+import { bringInto, isWatching, joinLiveMatch, matchOpponents, matchPlayers, rotate, sendAct, toAbs, toLocal, watchSeats } from '@/core/onlineMatch'
 import { recordBest, recordResult, stats } from '@/core/settings'
 import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
@@ -23,6 +23,7 @@ import Burst from '@/ui/art/Burst.vue'
 import CardArt from '@/ui/art/Card.vue'
 import type { Mood as KidMood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
+import RematchBtn from '@/ui/RematchBtn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
@@ -77,9 +78,17 @@ const DEAL_GAP = crazy ? 13 : 24
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
 // 困難模式不會出現新手打法的電腦
-const opponents = net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
+const opponents = reactive(net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high'))
 const seated = watching ? matchPlayers(net!) : null
-const names = seated ? seated.map((o) => o.name) : [S.common.you, ...opponents.map((o) => o.name)]
+const names = reactive(seated ? seated.map((o) => o.name) : [S.common.you, ...opponents.map((o) => o.name)])
+// 連線：有人離開房間、改由電腦代打時，名字換成「＿（電腦代打）」
+if (net)
+  watchSeats(net, (ps) =>
+    ps.forEach((o, i) => {
+      if (i > 0) ((opponents[i - 1] = o), (names[i] = o.name))
+      else if (watching) names[0] = o.name
+    }),
+  )
 const looks = seated ? seated.map((o) => o.look) : [myLook(), ...opponents.map((o) => o.look)]
 const tableTotals = ref(saved ? saved.tableTotals.slice() : [0, 0, 0, 0])
 
@@ -210,7 +219,7 @@ function nextTurn() {
   moods[s.turn] = 'think'
   const st = bigtwoAt(opp.persona.bigtwo, level, opp.id)
   // 電腦每一手想一下再出：約 2.1～4.8 秒（會算的、愛保留的想比較久；困難再多想一點）
-  const think = 1900 + st.skill * 1000 + (1 - st.aggression) * 600 + extraThink(level) * 0.6 + Math.random() * 800
+  const think = 2900 + st.skill * 1000 + (1 - st.aggression) * 600 + extraThink(level) * 0.6 + Math.random() * 800
   later(() => {
     let action: BigTwoAction
     ;[action, rng] = chooseBigTwoAction(state.value, st, rng)
@@ -245,10 +254,29 @@ function act(action: BigTwoAction): boolean {
     if (p !== ME && big) flash(p, 'smug', 1400)
     if (isBomb(combo.type)) for (let o = 1; o < 4; o++) if (o !== p) flash(o, 'shock', 900)
     const landed = combo.cards.length * 120 + 520
+    // 玩到分出名次：有人出完但還沒結束——標名次，剩下的人繼續打
+    const nowOut = s.out?.length ?? 0
+    if (s.winner < 0 && nowOut > (before.out?.length ?? 0)) {
+      flash(p, 'happy', 1600)
+      message.value = T.result.outNow(p === ME && !watching ? S.common.you : names[p], nowOut)
+    }
     if (s.winner >= 0) {
       // 連線：等伺服器攤牌（別人剩什麼牌）再結算
       if (net) later(nextTurn, landed + 300)
       else later(finish, landed + 500)
+      return true
+    }
+    // 出完的人那一手大家早就過牌了：這一輪結束，桌上的牌推到旁邊
+    if (!s.table) {
+      later(() => {
+        const cards = pile.value.flatMap((g) => g.cards)
+        discard.value = [...discard.value, ...cards]
+        pile.value = []
+        caption.value = null
+        passed.fill(false)
+        sync({ cards, stagger: 22, dur: 380, arc: 10 })
+        later(nextTurn, cards.length * 22 + 420)
+      }, landed + 300)
       return true
     }
     later(nextTurn, landed)
@@ -295,7 +323,7 @@ function finish() {
     recordBest(crazy ? 'crazybigtwo' : 'bigtwo', difficulty, scores.value[ME].points)
     // 表現：贏的話看別人平均剩幾張，輸的話看自己出掉幾成
     const startN = crazy ? 26 : 13
-    const left = s.hands.map((h) => h.length)
+    const left = (s.scoreHands ?? s.hands).map((h) => h.length)
     const perf = s.winner === ME ? (left.reduce((a, b) => a + b, 0) / 3) / startN : 1 - left[ME] / startN
     recordResult(props.game.id, difficulty, s.winner === ME ? 'w' : 'l', perf)
   }
@@ -381,7 +409,17 @@ onBeforeUnmount(() => {
 function fromServer(s: BigTwoState): BigTwoState {
   const m = net!
   const L = (p: number) => (p < 0 ? p : toLocal(m, p))
-  return { ...s, hands: rotate(m, s.hands), lastMoves: rotate(m, s.lastMoves), turn: L(s.turn), winner: L(s.winner), table: s.table ? { ...s.table, player: L(s.table.player) } : null, ...(s.dragon !== undefined ? { dragon: L(s.dragon) } : {}) }
+  return {
+    ...s,
+    hands: rotate(m, s.hands),
+    lastMoves: rotate(m, s.lastMoves),
+    turn: L(s.turn),
+    winner: L(s.winner),
+    table: s.table ? { ...s.table, player: L(s.table.player) } : null,
+    ...(s.dragon !== undefined ? { dragon: L(s.dragon) } : {}),
+    ...(s.out ? { out: s.out.map(L) } : {}),
+    ...(s.scoreHands ? { scoreHands: rotate(m, s.scoreHands) } : {}),
+  }
 }
 /** 開局：自己的手牌是真的；別人的手牌只知道張數，先用「沒看過的牌」當背面 */
 function netStart(): BigTwoState {
@@ -449,6 +487,8 @@ function reveal(fin: BigTwoState & { startHands?: Card[][] }) {
 }
 
 // ── 你的操作 ──
+/** 玩到分出名次：第幾名出完（還沒出完是 0） */
+const placeOf = (p: number) => (state.value.out ? state.value.out.indexOf(p) + 1 : 0)
 const myTurn = computed(() => !watching && phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
 const canPass = computed(() => myTurn.value && state.value.table !== null)
 /** 取消選取：選起的牌全部放回手牌 */
@@ -581,6 +621,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <span class="t-label tg">{{ p === ME ? seated![0].tag : opponents[p - 1].tag }}</span>
       </div>
       <span v-if="passed[p] && p !== ME" :key="`pass${p}`" class="stamp pop" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.passed }}</span>
+      <!-- 玩到分出名次：出完的人標名次 -->
+      <span v-if="placeOf(p)" :key="`rank${p}`" class="stamp rank pop" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.result.rank(placeOf(p)) }}</span>
     </template>
 
     <!-- 每一張牌（大老二 52 張、瘋狂大老二 104 張） -->
@@ -668,6 +710,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <table class="score">
         <thead>
           <tr>
+            <th v-if="state.out">{{ T.result.colRank }}</th>
             <th>{{ T.result.colPlayer }}</th>
             <th>{{ T.result.colLeft }}</th>
             <th>{{ T.result.colTimes }}</th>
@@ -677,6 +720,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         </thead>
         <tbody>
           <tr v-for="(s, p) in scores" :key="p" class="rise" :class="{ winner: p === state.winner }" :style="{ '--i': p + 2 }">
+            <td v-if="state.out" class="num t-slab">{{ placeOf(p) }}</td>
             <td class="who-cell">
               <span class="who-in">
                 <span class="mini"><Avatar :look="looks[p]" :mood="p === state.winner ? 'happy' : 'sad'" /></span>
@@ -693,13 +737,14 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       </table>
       <p class="how">
         <b class="t-black">{{ T.result.howTitle }}</b>
-        {{ T.result.base }}{{ doubleNotes }}
+        {{ T.result.base }}{{ doubleNotes }}{{ state.out ? T.result.rankNote : '' }}
       </p>
       <p v-if="!watching" class="lifetime t-black">{{ T.result.lifetime(signed(record.totals[ME] ?? 0)) }}</p>
       <template #actions>
-        <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn icon="exit" size="sm" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
         <Btn icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>
         <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
+        <RematchBtn v-else tone="red" />
       </template>
     </Dialog>
   </section>
@@ -852,6 +897,18 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   rotate: -12deg;
   pointer-events: none;
 }
+/* 名次：橫的小膠囊（字比「過」多） */
+.stamp.rank {
+  width: auto;
+  height: 1.7rem;
+  margin: -0.85rem 0 0 -2rem;
+  padding: 0 0.55rem;
+  border-radius: 0.9rem;
+  background: var(--color-red);
+  color: var(--color-card);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
 .stamp.inline {
   position: relative;
   display: inline-grid;
@@ -960,8 +1017,17 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 }
 .rv-cards {
   display: flex;
+  min-width: 0;
+  flex: 1;
   min-height: 2.75rem;
   align-items: center;
+  /* 牌太多（瘋狂大老二 26 張）放不下：左右滑動看 */
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem 0.3rem 0.25rem 0;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  touch-action: pan-x;
 }
 .rv-card {
   width: 1.9rem;

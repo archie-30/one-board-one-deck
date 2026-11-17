@@ -9,6 +9,7 @@ import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { useBoardNet } from '@/core/boardNet'
+import { watchSeats } from '@/core/onlineMatch'
 import { myLook } from '@/core/profile'
 import { recordResult, stats } from '@/core/settings'
 import { S } from '@/data/strings'
@@ -21,6 +22,7 @@ import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
 import type { Mood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
+import RematchBtn from '@/ui/RematchBtn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import IconBtn from '@/ui/IconBtn.vue'
@@ -73,6 +75,8 @@ const state = shallowRef<BanqiState>(saved ? saved.state : freshDeal())
 const human = ref<Seat>(saved ? saved.human : 0)
 const grace = useGrace(props.options, state, () => state.value.turn === human.value)
 const opponent = ref(bn ? bn.opponent : saved ? opponentById(saved.opponent) : pickOpponents(1)[0])
+// 連線：對手離開房間、改由電腦代打時，名字換成「＿（電腦代打）」
+if (bn) watchSeats(bn.net, (ps) => (opponent.value = ps[1]))
 const phase = ref<'rps' | 'playing' | 'over'>(saved ? 'playing' : 'rps')
 const selected = ref(-1)
 const message = ref('')
@@ -475,9 +479,10 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
       <div class="act">
         <template v-if="phase === 'over'">
           <Btn v-if="!bn" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+          <RematchBtn v-else tone="ink" block />
           <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
-            <Btn size="sm" block @click="emit('exit')">{{ S.common.quit }}</Btn>
+            <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
           </div>
         </template>
         <template v-else>
@@ -504,9 +509,10 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
       <p class="text-[0.95rem]">{{ T.endReason[state.status] }}</p>
       <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
       <template #actions>
-        <Btn size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn size="sm" icon="exit" @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
+        <RematchBtn v-else tone="red" />
       </template>
     </Dialog>
   </section>

@@ -10,6 +10,9 @@
 // - 開局後不能加入；大家都回到房間才回到「等待中」。
 // - 房主按離開＝解散房間；其他人離開就只是自己走。
 // - 斷線：位子留一段時間（GRACE_MS）等他連回來；過了就移出房間。房主斷線 30 秒（HOST_GRACE_MS）就換最早進來、還連著的人當房主。
+// - 再玩一次：一局打完，大家都還在對局畫面、每個對戰的人都按了「再玩一次」（again）就直接再開一局（不回房間、不倒數）；
+//   有人回到房間（back）就不能再玩一次。
+// - 對局中離開房間：他的位子由電腦代打；房主對局中離開不解散，換下一位當房主。
 // - 閒置：房間 10 分鐘（IDLE_MS）都沒開始遊戲，就問每個人「還在嗎」（check）；10 秒內沒按「我還在」（here）的人移出房間，
 //   全部的人都移出就關房（不要有沒人用的房間一直佔著伺服器）。
 import { GAME_SEATS, parseRules } from './games'
@@ -79,6 +82,10 @@ export interface RoomState {
   idleAt?: number
   /** 正在問「還在嗎」：幾點前要回答、已經回答的人 */
   check?: { until: number; ok: string[] }
+  /** 打完按了「再玩一次」的人 */
+  again?: string[]
+  /** 大家都按了「再玩一次」：幾點開下一局（0＝沒有） */
+  againAt?: number
 }
 
 export type Intent =
@@ -93,6 +100,8 @@ export type Intent =
   | { t: 'kick'; id: string }
   /** 回答「還在嗎」：我還在 */
   | { t: 'here' }
+  /** 打完：再玩一次 */
+  | { t: 'again' }
 
 /** 對局中出牌：內容由各玩法自己檢查（match/defs.ts 的 parse） */
 export type Act = { t: 'act'; a: unknown }
@@ -167,6 +176,7 @@ export function parseMessage(raw: unknown): Intent | Hello | Act | null {
     case 'leave':
     case 'back':
     case 'here':
+    case 'again':
       return { t: o.t }
     case 'kick':
       return typeof o.id === 'string' && /^[0-9a-f]{4,32}$/.test(o.id) ? { t: 'kick', id: o.id } : null
@@ -279,8 +289,8 @@ export function applyIntent(room: RoomState, pid: string, it: Intent, now: numbe
       room.recommends = [...room.recommends.filter((r) => r.playerId !== pid), { playerId: pid, gameId: it.gameId }]
       break
     case 'leave':
-      // 房主離開＝解散
-      if (me.host) return { changed: true, left: true, closed: 'disbanded' }
+      // 房主離開＝解散（對局中離開不解散：別人還在打，換下一位當房主，他的位子由電腦代打）
+      if (me.host && (room.phase !== 'playing' || room.players.length === 1)) return { changed: true, left: true, closed: 'disbanded' }
       removeMember(room, pid, now)
       syncCountdown(room, now)
       return { changed: true, left: true, closed: room.players.length ? undefined : 'empty' }
@@ -292,9 +302,19 @@ export function applyIntent(room: RoomState, pid: string, it: Intent, now: numbe
       syncCountdown(room, now)
       return { changed: true, kicked: who.id }
     }
+    case 'again': {
+      // 一局打完、大家都還在對局畫面才能再玩一次
+      if (!canAgain(room) || me.spectator) return { changed: false }
+      room.again = [...new Set([...(room.again ?? []), pid])]
+      if (againReady(room)) room.againAt = now
+      return { changed: true }
+    }
     case 'back':
       if (!me.inGame) return { changed: false }
       me.inGame = false
+      // 有人回到房間：不能再玩一次了
+      room.again = []
+      room.againAt = 0
       // 離開對局：他的位子改由電腦代打
       schedule(room, now)
       if (room.phase === 'playing' && !room.players.some((p) => p.inGame)) toLobby(room, now)
@@ -320,6 +340,16 @@ export function applyIntent(room: RoomState, pid: string, it: Intent, now: numbe
   return { changed: true }
 }
 
+/** 能不能「再玩一次」：一局打完、還沒有人回到房間 */
+export function canAgain(room: RoomState): boolean {
+  return room.phase === 'playing' && !!room.match?.over && room.players.every((p) => p.inGame)
+}
+/** 每個對戰的人都按了「再玩一次」 */
+function againReady(room: RoomState): boolean {
+  const players = room.players.filter((p) => !p.spectator)
+  return canAgain(room) && players.length > 0 && players.every((p) => room.again?.includes(p.id))
+}
+
 function removeMember(room: RoomState, pid: string, now: number) {
   const gone = room.players.find((p) => p.id === pid)
   room.players = room.players.filter((p) => p.id !== pid)
@@ -328,6 +358,9 @@ function removeMember(room: RoomState, pid: string, now: number) {
   if (gone?.host && room.players.length) room.players[0].host = true
   if (room.phase === 'playing' && !room.players.some((p) => p.inGame)) toLobby(room, now)
   if (room.check) room.check.ok = room.check.ok.filter((id) => id !== pid)
+  if (room.again) room.again = room.again.filter((id) => id !== pid)
+  // 走掉的是唯一還沒按「再玩一次」的人：剩下的人直接再開一局
+  if (againReady(room)) room.againAt = now
 }
 
 /** 大家都回到房間：對局收掉，回到等待中 */
@@ -362,7 +395,7 @@ export function connect(room: RoomState, pid: string, now = 0): boolean {
 }
 
 /** 時間到要處理的事：斷線太久的人移出房間、倒數結束開局 */
-export function tick(room: RoomState, now: number, seed: number): { changed: boolean; started: boolean; closed?: CloseReason; entries: LogEntry[]; removed: string[] } {
+export function tick(room: RoomState, now: number, seed: number): { changed: boolean; started: boolean; rematch?: boolean; closed?: CloseReason; entries: LogEntry[]; removed: string[] } {
   let changed = false
   const removed: string[] = []
   for (const p of [...room.players]) {
@@ -420,6 +453,15 @@ export function tick(room: RoomState, now: number, seed: number): { changed: boo
     } else room.phase = 'lobby'
     changed = true
   }
+  // 再玩一次：大家都按了，直接開下一局（大家還在對局畫面，不倒數、不送 start）
+  if (room.againAt && now >= room.againAt - 50) {
+    room.againAt = 0
+    if (againReady(room)) {
+      room.again = []
+      startMatch(room, seed, now)
+      return { changed: true, started: false, rematch: true, entries: [], removed }
+    }
+  }
   // 對局：電腦出牌、真人時間到
   const entries = started ? [] : matchTick(room, now)
   return { changed, started, entries, removed }
@@ -432,6 +474,7 @@ export function nextWake(room: RoomState): number {
   if (host?.away && host.lostAt && room.players.some((p) => !p.away)) times.push(host.lostAt + HOST_GRACE_MS)
   if (room.phase === 'lobby') times.push(room.check ? room.check.until : room.idleAt || 1)
   if (room.phase === 'countdown') times.push(room.startAt)
+  if (room.againAt) times.push(room.againAt)
   if (room.match && !room.match.over && room.match.nextAt) times.push(room.match.nextAt)
   if (room.match && !room.match.over && room.match.undoUntil) times.push(room.match.undoUntil)
   return times.length ? Math.min(...times) : 0
@@ -448,7 +491,13 @@ export interface RoomView {
   checkIn: number
   /** 自己已經回答「我還在」 */
   checked: boolean
-  players: { id: string; name: string; host: boolean; me: boolean; ready: boolean; spectator: boolean; away: boolean; look?: Profile['look']; level?: number; titles?: string[] }[]
+  /** 這一局打完了（可以再玩一次） */
+  matchOver: boolean
+  /** 按了「再玩一次」的人 */
+  again: string[]
+  /** 房主的規則設定（大家看得到；只送會影響對局的） */
+  rules: { gameId: string; options: Record<string, string | boolean> } | null
+  players: { id: string; name: string; host: boolean; me: boolean; ready: boolean; spectator: boolean; away: boolean; inGame: boolean; look?: Profile['look']; level?: number; titles?: string[] }[]
   recommends: { playerId: string; gameId: string }[]
   /** 電腦補位用的名字：跟著房主 */
   botNames: string[]
@@ -463,6 +512,9 @@ export function viewFor(room: RoomState, pid: string, now: number): RoomView {
     startIn: room.phase === 'countdown' ? Math.max(0, room.startAt - now) : 0,
     checkIn: room.check ? Math.max(0, room.check.until - now) : 0,
     checked: !!room.check?.ok.includes(pid),
+    rules: room.rules ?? null,
+    matchOver: !!room.match?.over,
+    again: room.again ?? [],
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -471,6 +523,7 @@ export function viewFor(room: RoomState, pid: string, now: number): RoomView {
       ready: p.ready,
       spectator: p.spectator,
       away: !!p.away,
+      inGame: p.inGame,
       ...(p.look ? { look: p.look } : {}),
       ...(p.level ? { level: p.level } : {}),
       ...(p.titles ? { titles: p.titles } : {}),

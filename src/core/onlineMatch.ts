@@ -8,7 +8,7 @@
 //
 // 別人的手牌：只知道張數。畫面上先隨便放幾張「沒看過的牌」當背面，等他真的打出某張牌時，
 // 把那張牌跟他手上的某張背面換位（CardStage.adopt），看起來就像從他手上打出來。
-import { shallowRef } from 'vue'
+import { ref, shallowRef, watch } from 'vue'
 import { OPPONENTS } from '@/data/names'
 import { S } from '@/data/strings'
 import { PERSONAS } from '@/engine/common/personas'
@@ -23,6 +23,8 @@ export interface MatchSeat {
   pid?: string
   /** 這個座位的電腦打法（真人離開時由它代打；名字、長相也用它） */
   bot: number
+  /** 真人的名字（他離開房間、由電腦代打時註明是誰的位子） */
+  name?: string
 }
 
 export interface MatchIntro {
@@ -55,6 +57,10 @@ export interface LiveMatch extends MatchIntro {
 
 /** 目前的連線對局（沒有就是 null） */
 export const liveMatch = shallowRef<LiveMatch | null>(null)
+/** 目前這一局打完了（伺服器攤牌了） */
+export const liveOver = ref(false)
+/** 對局還沒打完就要離開：App 層跳確認視窗（有值＝視窗打開，按「離開房間」就呼叫它） */
+export const leaveMid = shallowRef<(() => void) | null>(null)
 
 /** 伺服器送來開局資訊（開局時；斷線連回來也會重送，附上到目前為止的每一步） */
 export function receiveMatch(intro: MatchIntro & { log?: MatchEvent[] }) {
@@ -65,6 +71,7 @@ export function receiveMatch(intro: MatchIntro & { log?: MatchEvent[] }) {
     return
   }
   const { log, ...rest } = intro
+  liveOver.value = false
   liveMatch.value = { ...rest, queue: [], lastSeq: 0, onEvent: null, onReject: null }
   for (const e of log ?? []) receiveAct(intro.n, e)
 }
@@ -74,6 +81,7 @@ export function receiveAct(n: number, e: MatchEvent) {
   const m = liveMatch.value
   if (!m || m.n !== n || e.seq <= m.lastSeq) return
   m.lastSeq = e.seq
+  if (e.end) liveOver.value = true
   m.queue.push(e)
   m.onEvent?.()
 }
@@ -113,9 +121,18 @@ export function matchPlayers(m: MatchIntro): Opponent[] {
     const bot = opponentById(seat.bot)
     if (!seat.pid) return bot
     const p = online.room?.players.find((x) => x.id === seat.pid)
+    // 他離開房間了：位子由電腦代打，名字註明
+    if (!p && online.room) return { ...bot, name: S.online.botFor(seat.name ?? bot.name), tag: S.online.botTag }
     const look: Look = p?.look ?? OPPONENTS[seat.bot].look
     return { ...bot, name: p?.name ?? S.online.someone, look, tag: S.online.humanTag, persona: PERSONAS[seat.bot] }
   })
+}
+/** 有人離開房間（改由電腦代打）時，把畫面上的名字換掉：fn 收到每個座位（自己的視角）現在的樣子 */
+export function watchSeats(m: MatchIntro, fn: (players: Opponent[]) => void) {
+  watch(
+    () => online.room?.players.map((p) => p.id).join(',') ?? '',
+    () => fn(matchPlayers(m)),
+  )
 }
 
 /** 在別人的「背面手牌」裡放進一張真的牌：如果那張牌不在他手上，就跟他手上某張背面換位（keep 裡的牌不換） */

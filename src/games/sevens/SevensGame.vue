@@ -7,7 +7,7 @@ import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { bringInto, isWatching, joinLiveMatch, matchOpponents, matchPlayers, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
+import { bringInto, isWatching, joinLiveMatch, matchOpponents, matchPlayers, rotate, sendAct, toAbs, toLocal, watchSeats } from '@/core/onlineMatch'
 import { recordResult, stats } from '@/core/settings'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
@@ -22,10 +22,12 @@ import Avatar from '@/ui/art/Avatar.vue'
 import CardArt from '@/ui/art/Card.vue'
 import type { Mood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
+import RematchBtn from '@/ui/RematchBtn.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
 import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import Icon from '@/ui/art/Icon.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
 import TurnTimer from '@/ui/TurnTimer.vue'
 import { sevensLayout, sevensPoses, type SevensLayout } from './layout'
@@ -38,6 +40,8 @@ interface Saved {
   opponents: number[]
   seed: number
   rng: number
+  /** 每個人開局的牌（結算「檢視牌組」用；舊存檔沒有） */
+  startHands?: Card[][]
 }
 const saved = (props.resume ?? null) as Saved | null
 /** 連線對局：伺服器發牌、當裁判（沒有就是一般的單人對電腦） */
@@ -58,12 +62,23 @@ const difficulty = asCardLevel(rules.difficulty)
 
 let seed = saved ? saved.seed : (Date.now() >>> 0) % 2147483647
 let rng: RngState = saved ? saved.rng : seedRng(seed + 7)
-const opponents = net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
+const opponents = reactive(net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high'))
 const seated = watching ? matchPlayers(net!) : null
-const names = seated ? seated.map((o) => o.name) : [S.common.you, ...opponents.map((o) => o.name)]
+const names = reactive(seated ? seated.map((o) => o.name) : [S.common.you, ...opponents.map((o) => o.name)])
+// 連線：有人離開房間、改由電腦代打時，名字換成「＿（電腦代打）」
+if (net)
+  watchSeats(net, (ps) =>
+    ps.forEach((o, i) => {
+      if (i > 0) ((opponents[i - 1] = o), (names[i] = o.name))
+      else if (watching) names[0] = o.name
+    }),
+  )
 const looks = seated ? seated.map((o) => o.look) : [myLook(), ...opponents.map((o) => o.look)]
 
 const state = shallowRef<SevensState>(net ? netStart() : saved ? saved.state : dealSevens(seed))
+/** 每個人開局的牌（結算「檢視牌組」：接到桌上的變淡、蓋掉的加紅框）；連線時等伺服器攤牌才知道 */
+const startHands = shallowRef<Card[][] | null>(net ? null : saved ? (saved.startHands ?? null) : state.value.hands)
+const reviewOpen = ref(false)
 const grace = useGrace(props.options, state, () => state.value.turn === ME)
 const phase = ref<'deal' | 'play' | 'over'>(saved ? 'play' : 'deal')
 const gathered = ref(!saved)
@@ -170,7 +185,7 @@ function nextTurn() {
       act(a)
     },
     // 電腦每一手想一下：約 2.8～5 秒
-    2800 + st.skill * 1100 + Math.random() * 1100,
+    3800 + st.skill * 1100 + Math.random() * 1100,
   )
 }
 
@@ -243,6 +258,8 @@ function newRound() {
     ;[k, rng] = nextInt(rng, 2147483646)
     seed = k + 1
     state.value = dealSevens(seed)
+    startHands.value = state.value.hands
+    reviewOpen.value = false
     acted.value = false
     deal()
   }, 52 * 7 + 480)
@@ -347,7 +364,8 @@ function pump() {
   }
 }
 /** 伺服器攤牌：背面的牌換成真的（位置不動），再結算 */
-function reveal(fin: SevensState) {
+function reveal(fin: SevensState & { startHands?: Card[][] }) {
+  if (fin.startHands) startHands.value = rotate(net!, fin.startHands)
   const real = fromServer(fin)
   const pairs: [number, number][] = []
   const b = hiddenZones(state.value)
@@ -464,7 +482,7 @@ const acted = ref(!!saved)
 const canSave = computed(() => !net && phase.value === 'play' && acted.value)
 function snapshot(): Saved | null {
   if (!canSave.value) return null
-  return { state: state.value, opponents: opponents.map((o) => o.id), seed, rng }
+  return { state: state.value, opponents: opponents.map((o) => o.id), seed, rng, startHands: startHands.value ?? undefined }
 }
 function saveAndExit() {
   const data = snapshot()
@@ -473,6 +491,12 @@ function saveAndExit() {
 defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menuOpen.value = true), snapshot })
 
 const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
+/** 開局的牌照花色、點數排好 */
+const sortedStart = (p: number) => (startHands.value?.[p] ?? []).slice().sort((a, b) => suitOf(a) - suitOf(b) || rankOf(a) - rankOf(b))
+function openReview() {
+  resultOpen.value = false
+  reviewOpen.value = true
+}
 const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a) - rankOf(b))
 </script>
 
@@ -520,11 +544,37 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
       <Btn v-if="phase !== 'over' && !watching" class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || selected === null || sending" @click="confirm">{{ canPlayAny || !myTurn ? T.play : T.cover }}</Btn>
       <!-- 結束後看桌面：看結果＋再來一局＋離開對局排成一排（手牌都出完了，下面是空的） -->
       <template v-else-if="phase === 'over'">
-        <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
         <Btn v-if="!net" class="rise" size="sm" icon="again" style="--i: 1" @click="newRound">{{ S.common.again }}</Btn>
+        <RematchBtn v-else class="rise" size="sm" style="--i: 1" />
+        <Btn v-if="startHands && !reviewOpen" class="rise" size="sm" icon="book" style="--i: 1" @click="openReview">{{ T.review.open }}</Btn>
         <Btn class="rise" tone="ink" size="lg" arrow style="--i: 2" @click="resultOpen = true">{{ S.common.showResult }}</Btn>
       </template>
     </div>
+
+    <!-- 結算後「檢視牌組」：每個人開局的牌，接到桌上的變淡、蓋掉的加紅框 -->
+    <Transition name="review">
+      <section v-if="reviewOpen && phase === 'over' && !resultOpen && startHands" class="review">
+        <header class="rv-head">
+          <span class="t-label">{{ T.review.label }}</span>
+          <span class="t-black rv-title">{{ T.review.open }}</span>
+          <button class="rv-close" :aria-label="S.common.close" @click="reviewOpen = false"><Icon name="close" /></button>
+        </header>
+        <div v-for="p in [0, 1, 2, 3]" :key="`rv${p}`" class="rv-row" :class="{ win: won.includes(p) }">
+          <span class="rv-av"><Avatar :look="looks[p]" :mood="won.includes(p) ? 'happy' : 'idle'" /></span>
+          <span class="rv-name t-black">{{ names[p] }}</span>
+          <span class="rv-cards">
+            <svg v-for="(c, k) in sortedStart(p)" :key="c" viewBox="-2 -2 78 108" class="rv-card" :class="{ cov: state.covered[p].includes(c) }" :style="{ '--k': k }">
+              <CardArt :rank="rankText(c)" :suit="suitOf(c)" :shadow="false" />
+              <rect v-if="!state.covered[p].includes(c)" x="0" y="0" width="70" height="100" rx="6" class="rv-wash" />
+              <rect v-else x="0" y="0" width="70" height="100" rx="6" class="rv-red" />
+            </svg>
+          </span>
+          <span class="rv-pen t-slab" :class="{ red: won.includes(p) }">{{ pens[p] }}</span>
+        </div>
+        <p class="rv-note">{{ T.review.note }}</p>
+      </section>
+    </Transition>
 
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" @save-exit="saveAndExit" />
@@ -559,15 +609,152 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
       <p class="how">{{ T.how }}</p>
       <p v-if="!watching" class="lifetime t-black">{{ T.record(stats.sevens.rounds, stats.sevens.wins) }}</p>
       <template #actions>
-        <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn icon="exit" size="sm" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn v-if="startHands" icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
+        <RematchBtn v-else tone="red" />
       </template>
     </Dialog>
   </section>
 </template>
 
 <style scoped>
+.review {
+  position: absolute;
+  left: 50%;
+  top: 0.6rem;
+  z-index: 650;
+  width: min(40rem, 78vw);
+  translate: -50% 0;
+  border: 0.14rem solid var(--color-ink);
+  background: var(--color-card);
+  box-shadow: 0.35rem 0.35rem 0 var(--color-ink);
+  padding: 0.55rem 0.8rem 0.6rem;
+}
+.rv-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 0.13rem solid var(--color-ink);
+  margin-bottom: 0.3rem;
+}
+.rv-title {
+  font-size: 0.95rem;
+}
+.rv-close {
+  position: relative;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin-left: auto;
+}
+.rv-close::after {
+  content: '';
+  position: absolute;
+  inset: -0.4rem;
+}
+.rv-close :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.rv-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.18rem 0;
+}
+.rv-row + .rv-row {
+  border-top: 0.06rem dashed var(--color-ink-3);
+}
+.rv-av {
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: none;
+}
+.rv-av :deep(svg) {
+  width: 100%;
+  height: 100%;
+}
+.rv-name {
+  width: 4.2rem;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+.rv-row.win .rv-name {
+  color: var(--color-red);
+}
+.rv-cards {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  min-height: 2.75rem;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem 0.3rem 0.25rem 0;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  touch-action: pan-x;
+}
+.rv-card {
+  width: 1.9rem;
+  flex: none;
+  filter: drop-shadow(0.05rem 0.06rem 0 rgb(20 20 20 / 0.45));
+  animation: rv-in 260ms var(--ease-out) calc(var(--k) * 22ms) both;
+}
+.rv-card + .rv-card {
+  margin-left: -0.55rem;
+}
+/* 接到桌上的牌：蓋一層紙色變淡（牌本身不透明） */
+.rv-wash {
+  fill: var(--color-card);
+  opacity: 0.68;
+}
+/* 蓋掉的牌（罰分）：紅框 */
+.rv-red {
+  fill: none;
+  stroke: var(--color-red);
+  stroke-width: 5;
+}
+.rv-pen {
+  width: 2rem;
+  flex: none;
+  text-align: right;
+  font-size: 1rem;
+}
+.rv-pen.red {
+  color: var(--color-red);
+}
+.rv-note {
+  padding-top: 0.25rem;
+  font-size: 0.68rem;
+  color: var(--color-ink-2);
+}
+@keyframes rv-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.4rem);
+  }
+}
+.review-enter-active {
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 280ms var(--ease-out);
+}
+.review-leave-active {
+  transition:
+    opacity 160ms ease-in,
+    transform 160ms ease-in;
+}
+.review-enter-from,
+.review-leave-to {
+  opacity: 0;
+  transform: translateY(-0.6rem);
+}
 .felt {
   position: relative;
   isolation: isolate;

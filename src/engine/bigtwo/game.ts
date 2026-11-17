@@ -30,6 +30,10 @@ export interface BigTwoState {
   dragon?: number
   /** 已經出過的牌（公開資訊，電腦用來算哪些大牌還在外面；舊存檔沒有這個欄位） */
   played?: Card[]
+  /** 玩到分出名次：出完的順序（第 1 名、第 2 名…；結束時四個人都在裡面） */
+  out?: number[]
+  /** 玩到分出名次：第一個人出完那一刻大家的手牌（照這份算分） */
+  scoreHands?: Card[][]
 }
 
 /** timeout：時間到被跳過。桌上有牌時等於過牌；輪到自己首出時改由下一位首出（首手的梅花 3 限制也取消）。 */
@@ -122,14 +126,16 @@ export function checkPlay(state: BigTwoState, player: number, cards: readonly Ca
   return { ok: true, state: combo }
 }
 
-/** from 之後下一個這一輪還沒過牌的人；繞一圈都過牌了就回傳 -1 */
-function nextActive(lastMoves: BigTwoState['lastMoves'], from: number): number {
+/** from 之後下一個這一輪還沒過牌（也還沒出完）的人；繞一圈都沒有就回傳 -1 */
+function nextActive(lastMoves: BigTwoState['lastMoves'], from: number, out: readonly number[] = []): number {
   for (let k = 1; k <= PLAYER_COUNT; k++) {
     const p = (from + k) % PLAYER_COUNT
-    if (lastMoves[p] !== 'pass') return p
+    if (lastMoves[p] !== 'pass' && !out.includes(p)) return p
   }
   return -1
 }
+/** 一輪結束、由 p 自由出牌；p 已經出完的話換他下一位還沒出完的人 */
+const leaderAfter = (p: number, out: readonly number[]) => (out.includes(p) ? nextActive([null, null, null, null], p, out) : p)
 
 /**
  * 一輪的規則：過牌之後，這一輪就不能再出牌（輪到他時直接跳過），直到這一輪結束。
@@ -143,24 +149,24 @@ export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<Bi
     // 輪到自己首出卻逾時：這一輪算過牌，改由下一個人首出
     const lastMoves = state.lastMoves.slice()
     lastMoves[action.player] = 'pass'
-    let turn = nextActive(lastMoves, action.player)
+    let turn = nextActive(lastMoves, action.player, state.out)
     // 四個人都逾時跳過：重新開始一輪
-    if (turn < 0) return { ok: true, state: { ...state, turn: (action.player + 1) % PLAYER_COUNT, firstTurn: false, lastMoves: lastMoves.map(() => null) } }
+    if (turn < 0) return { ok: true, state: { ...state, turn: leaderAfter((action.player + 1) % PLAYER_COUNT, state.out ?? []), firstTurn: false, lastMoves: lastMoves.map(() => null) } }
     return { ok: true, state: { ...state, turn, firstTurn: false, lastMoves } }
   }
   if (action.type === 'pass' || action.type === 'timeout') {
     if (!state.table) return { ok: false, reason: 'mustLead' }
     const lastMoves = state.lastMoves.slice()
     lastMoves[action.player] = 'pass'
-    const turn = nextActive(lastMoves, action.player)
+    const turn = nextActive(lastMoves, action.player, state.out)
     const passCount = state.passCount + 1
-    // 繞回最後出牌的人（其他人都過牌了）：這一輪結束
+    // 繞回最後出牌的人（其他人都過牌了）：這一輪結束（他已經出完的話，由他下一位自由出牌）
     if (turn === state.table.player || turn < 0) {
       return {
         ok: true,
         state: {
           ...state,
-          turn: state.table.player,
+          turn: leaderAfter(state.table.player, state.out ?? []),
           table: null,
           passCount: 0,
           lastMoves: state.lastMoves.map(() => null),
@@ -178,8 +184,24 @@ export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<Bi
   lastMoves[action.player] = combo.cards
   const played = [...(state.played ?? []), ...combo.cards]
   const won = hands[action.player].length === 0
+  // 玩到分出名次：出完了先記名次，剩下的人繼續打
+  if (won && state.options.playToRank) {
+    const out = [...(state.out ?? []), action.player]
+    const scoreHands = state.scoreHands ?? hands
+    if (out.length >= PLAYER_COUNT - 1) {
+      // 只剩一個人：他是最後一名，結束
+      for (let p = 0; p < PLAYER_COUNT; p++) if (!out.includes(p)) out.push(p)
+      return { ok: true, state: { ...state, hands, played, table: { player: action.player, combo }, lastMoves, passCount: 0, firstTurn: false, winner: out[0], turn: action.player, out, scoreHands } }
+    }
+    const next = nextActive(lastMoves, action.player, out)
+    if (next < 0) {
+      // 其他人這一輪都已經過牌了：這一輪結束，由他下一位自由出牌
+      return { ok: true, state: { ...state, hands, played, table: null, lastMoves: lastMoves.map(() => null), passCount: 0, firstTurn: false, winner: -1, turn: leaderAfter(action.player, out), out, scoreHands } }
+    }
+    return { ok: true, state: { ...state, hands, played, table: { player: action.player, combo }, lastMoves, passCount: 0, firstTurn: false, winner: -1, turn: next, out, scoreHands } }
+  }
   // 下一個還沒過牌的人；其他人都已經過牌了，就是自己（這一輪結束，下面再清空桌面）
-  const after = nextActive(lastMoves, action.player)
+  const after = nextActive(lastMoves, action.player, state.out)
   if (!won && (after === action.player || after < 0)) {
     return {
       ok: true,
@@ -217,11 +239,12 @@ export interface PlayerScore {
  * 結算：有人出完就結束。
  * 輸家每剩 1 張扣 1 分；剩 10 張以上 ×2；每剩一張 2 再 ×2（兩種加倍可在規則選項關閉）。
  * 贏家得到所有輸家扣分的總和。
+ * 玩到分出名次：照第一個人出完那一刻的手牌算（之後再打只決定名次）。
  */
 export function scoreBigTwo(state: BigTwoState): PlayerScore[] {
   // 兩副牌（每人 26 張）：剩 20 張以上才加倍；2 最多有 8 張，不再因為 2 加倍
   const crazy = state.options.decks === 2
-  const scores = state.hands.map((hand) => {
+  const scores = (state.scoreHands ?? state.hands).map((hand) => {
     const cards = hand.length
     const twos = hand.filter((c) => rankOf(c) === RANK_2).length
     let multiplier = 1

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // 規則選項清單：規則設定頁、暫停選單共用。依分組（規則／計分／其他）排好；難度在模式選單上選，不列在這裡。
-// lockUnsafe：對局中（暫停選單）——會影響公平的選項反灰，顯示「請在局外設定」。
+// lockUnsafe：對局中（暫停選單）——會影響公平的選項反灰，顯示「請在局外設定」（lockNote 可換成別的說明，例如連線房間裡只有房主能改）。
 import { computed } from 'vue'
 import { S } from '@/data/strings'
 import type { GameDef, SettingDef, SettingGroup } from '@/games/types'
 import Tabs from './Tabs.vue'
 
-const props = defineProps<{ game: GameDef; values: Record<string, string | boolean>; lockUnsafe?: boolean }>()
+const props = defineProps<{ game: GameDef; values: Record<string, string | boolean>; lockUnsafe?: boolean; lockNote?: string }>()
 const emit = defineEmits<{ set: [key: string, value: string | boolean] }>()
 
 const ORDER: SettingGroup[] = ['rules', 'score', 'other']
@@ -33,7 +33,7 @@ const even = (d: SettingDef) => d.type === 'choice' && (d.choices.length > 2 || 
             <p class="t-black text-[1rem] leading-snug">
               {{ def.label }}<span v-if="values[def.key] !== def.default" class="dot" />
             </p>
-            <p class="text-[0.78rem] leading-snug text-ink-2">{{ locked(def) ? S.gameSettings.lockedNow : def.help }}</p>
+            <p class="text-[0.78rem] leading-snug text-ink-2">{{ locked(def) ? (lockNote ?? S.gameSettings.lockedNow) : def.help }}</p>
           </div>
           <Tabs
             v-if="def.type === 'choice'"

@@ -2,11 +2,12 @@
 // 對局外框：開始前先看有沒有「保存進度並退出」留下的存檔。
 // 有的話先問要不要接著玩；遊戲要保存時，把它給的資料存起來再離開。
 import { gamePrefs, settings } from '@/core/settings'
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
 import { revealLaunch, startExit } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
-import { back } from '@/core/nav'
-import { online } from '@/core/online'
+import { back, resetTo } from '@/core/nav'
+import { leaveRoom, online } from '@/core/online'
+import { leaveMid, liveMatch, liveOver } from '@/core/onlineMatch'
 import { GRACE_AFTER_MS } from '@/core/grace'
 import { clearResume, flushResume, getResume, setResume } from '@/core/resume'
 import { S } from '@/data/strings'
@@ -93,6 +94,28 @@ function onSave(data: unknown) {
   void leave(true)
 }
 
+// ── 連線對局的離開 ──
+//   遊戲裡的「離開」（暫停選單、結算後的按鈕）＝離開房間、回到自己的主畫面：
+//     還沒打完先跳視窗確認（位子由電腦代打）；打完了直接離開。
+//   「回到房間」（結算後「再玩一次」底下的小按鈕）＝照一般離開遊戲的過場回到房間頁。
+//   確認視窗放在 App 層（RoomCountdown.vue），這裡只交出「確定離開」要做的事。
+function onExit() {
+  if (!onlineMatch) return void leave()
+  if (liveMatch.value && !liveOver.value) leaveMid.value = () => void leaveRoomHome()
+  else void leaveRoomHome()
+}
+onBeforeUnmount(() => (leaveMid.value = null))
+async function leaveRoomHome() {
+  leaveMid.value = null
+  if (leaving) return
+  leaving = true
+  await leaveRoom()
+  resetTo([{ name: 'title' }])
+}
+provide('onlineExits', { toRoom: () => void leave() })
+/** 再玩一次：伺服器開了新的一局（編號換了）→ 遊戲畫面整個換成新的一局 */
+const matchKey = () => (onlineMatch ? (liveMatch.value?.n ?? 0) : 0)
+
 /** 離開遊戲：色塊蓋住畫面 → 回到模式選單 → 卡片翻回去、飛回卡片堆（跟進場的翻卡片呼應） */
 let leaving = false
 async function leave(saved = false) {
@@ -109,7 +132,7 @@ async function leave(saved = false) {
 </script>
 
 <template>
-  <component :is="game.component" v-if="ready" ref="gameRef" :game="game" :options="options" :resume="resume" @exit="leave()" @save="onSave" />
+  <component :is="game.component" v-if="ready" :key="matchKey()" ref="gameRef" :game="game" :options="options" :resume="resume" @exit="onExit" @save="onSave" />
   <Dialog v-else open :title="S.common.resumeTitle" :label="game.name" tone="yellow" @close="leave(true)">
     <p class="text-ink-2">{{ S.common.resumeLead(when) }}</p>
     <p class="mt-[0.3rem] text-[0.8rem] text-ink-3">{{ S.common.resumeNewNote }}</p>

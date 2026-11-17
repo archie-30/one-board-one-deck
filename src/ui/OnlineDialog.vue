@@ -19,6 +19,10 @@ const T = S.online
 const code = ref('')
 const error = ref('')
 const busy = ref(false)
+/** 建立／加入的動畫至少播一下（連線很快時不要一閃而過） */
+const atLeast = () => new Promise<void>((ok) => window.setTimeout(ok, 700))
+/** 正在建立／加入：那一顆按鈕換成「＿中」＋跳動的三個點、底下一條來回跑的線 */
+const pending = ref<'' | 'create' | 'join'>('')
 const input = ref<HTMLInputElement>()
 /** 還沒取名字：連線要先到個人資料取名字（這裡不能填） */
 const needName = ref(!profile.name)
@@ -55,8 +59,10 @@ async function join() {
     return
   }
   busy.value = true
-  const r = await joinRoom(code.value, myCard())
+  pending.value = 'join'
+  const [r] = await Promise.all([joinRoom(code.value, myCard()), atLeast()])
   busy.value = false
+  pending.value = ''
   if (typeof r === 'string') {
     error.value = T.errors[r]
     return
@@ -69,8 +75,10 @@ async function join() {
 async function create() {
   if (busy.value || needName.value) return
   busy.value = true
-  const r = await createRoom(myCard())
+  pending.value = 'create'
+  const [r] = await Promise.all([createRoom(myCard()), atLeast()])
   busy.value = false
+  pending.value = ''
   if (typeof r === 'string') {
     error.value = T.errors[r]
     return
@@ -104,13 +112,15 @@ async function create() {
         @input="onInput"
         @keydown.enter="join"
       />
-      <Btn tone="ink" :disabled="code.length !== ROOM_CODE_LENGTH || busy || needName" @click="join">{{ T.join }}</Btn>
+      <Btn tone="ink" :disabled="code.length !== ROOM_CODE_LENGTH || busy || needName" @click="join"><span v-if="pending === 'join'" class="wait">{{ T.joining }}<i /><i /><i /></span><template v-else>{{ T.join }}</template></Btn>
     </div>
     <p class="err" :class="{ on: !!error }">{{ error || '　' }}</p>
     <p class="or t-label"><span>{{ T.or }}</span></p>
-    <Btn tone="red" size="lg" icon="online" block :disabled="busy || needName" @click="create">{{ T.create }}</Btn>
+    <div class="cwrap" :class="{ going: pending === 'create' }">
+      <Btn tone="red" size="lg" icon="online" block :disabled="busy || needName" @click="create"><span v-if="pending === 'create'" class="wait">{{ T.creating }}<i /><i /><i /></span><template v-else>{{ T.create }}</template></Btn>
+      <span class="run" />
+    </div>
     <p class="sub">{{ T.createSub }}</p>
-    <p class="soon">{{ T.soon }}</p>
   </Dialog>
 </template>
 
@@ -210,12 +220,79 @@ async function create() {
   font-size: 0.75rem;
   color: var(--color-ink-2);
 }
-.soon {
-  margin-top: 0.6rem;
-  border-top: 0.1rem dashed var(--color-ink-3);
-  padding-top: 0.45rem;
-  font-size: 0.68rem;
-  color: var(--color-ink-3);
+/* 建立／加入中：字後面三個點輪流跳；建立房間按鈕底下一條線來回跑 */
+.wait {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.12rem;
+}
+.wait i {
+  display: inline-block;
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 50%;
+  background: currentColor;
+  animation: hop 900ms ease-in-out infinite;
+}
+.wait i:first-of-type {
+  margin-left: 0.2rem;
+}
+.wait i:nth-of-type(2) {
+  animation-delay: 150ms;
+}
+.wait i:nth-of-type(3) {
+  animation-delay: 300ms;
+}
+@keyframes hop {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  30% {
+    transform: translateY(-0.3rem);
+    opacity: 1;
+  }
+}
+.cwrap {
+  position: relative;
+}
+.run {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.55rem;
+  height: 0.2rem;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.cwrap.going .run {
+  opacity: 1;
+}
+.run::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 35%;
+  background: var(--color-red);
+  animation: sweep 1100ms ease-in-out infinite alternate;
+}
+@keyframes sweep {
+  from {
+    left: 0;
+  }
+  to {
+    left: 65%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wait i,
+  .run::before {
+    animation: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .code.bad {

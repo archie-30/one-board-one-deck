@@ -11,6 +11,7 @@ import { startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { go, resetTo, route } from '@/core/nav'
 import { backToRoom, imHere, matchStart, online, roomCountdown } from '@/core/online'
+import { leaveMid } from '@/core/onlineMatch'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
 import Btn from '@/ui/Btn.vue'
@@ -108,6 +109,16 @@ async function launch(gameId: string) {
     <p class="text-[0.9rem] text-ink-2">{{ outReason === 'idle' ? S.online.idleOutLead : S.online.kickedLead }}</p>
     <template #actions>
       <Btn tone="ink" block @click="outReason = ''">{{ S.online.ok }}</Btn>
+    </template>
+  </Dialog>
+ <!-- 連線對局還沒打完就要離開：確認（離開房間、位子由電腦代打） -->
+  <Dialog :open="!!leaveMid" :title="S.online.leaveMidAsk" label="ONLINE" tone="ink" @close="leaveMid = null">
+    <p class="text-[0.9rem] text-ink-2">{{ S.online.leaveMidLead }}</p>
+    <template #actions>
+      <div class="grid w-full grid-cols-2 gap-[0.8rem]">
+        <Btn block @click="leaveMid = null">{{ S.online.stayHere }}</Btn>
+        <Btn tone="red" block icon="exit" @click="leaveMid?.()">{{ S.online.leaveRoom }}</Btn>
+      </div>
     </template>
   </Dialog>
   <Dialog :open="askHere" :title="S.online.idleTitle" label="ROOM" tone="ink" @close="imHere">
