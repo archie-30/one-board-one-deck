@@ -54,6 +54,14 @@ describe('連線對局（伺服器當裁判）', () => {
     })
   }
 
+  it('伺服器的鬧鐘早幾毫秒響也照樣處理（不然對局會卡住）', () => {
+    const { room } = started('sevens', 1)
+    const before = room.match!.log.length
+    const at = nextWake(room)
+    tick(room, at - 20, 1)
+    expect(room.match!.log.length).toBe(before + 1)
+  })
+
   it('只有輪到的人能出；出的牌要在自己手上、合規則；格式不對不收', () => {
     const { room, ids, m } = started('bigtwo')
     const s = m.s as BigTwoState

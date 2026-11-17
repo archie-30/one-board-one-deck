@@ -7,6 +7,7 @@ import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
+import { bringInto, joinLiveMatch, matchOpponents, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
 import { recordResult, stats } from '@/core/settings'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
@@ -14,7 +15,7 @@ import { TURN_SECONDS } from '@/data/timer'
 import { asCardLevel, sevensAt } from '@/engine/common/difficulty'
 import { seedRng, nextInt, type RngState } from '@/engine/common/rng'
 import { chooseSevensAction } from '@/engine/sevens/ai'
-import { applySevens, dealSevens, legalPlays, penalties, RANK_LABELS, rankOf, suitOf, winners, type Card, type SevensAction, type SevensState } from '@/engine/sevens/rules'
+import { applySevens, canPlay, dealSevens, legalPlays, penalties, RANK_LABELS, rankOf, suitOf, winners, type Card, type SevensAction, type SevensState } from '@/engine/sevens/rules'
 import { CardStage } from '@/games/bigtwo/cardStage'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -39,21 +40,25 @@ interface Saved {
   rng: number
 }
 const saved = (props.resume ?? null) as Saved | null
+/** 連線對局：伺服器發牌、當裁判（沒有就是一般的單人對電腦） */
+const net = saved ? null : joinLiveMatch('sevens')
+/** 規則設定：連線時照房主的（點第二下出牌這種還是用自己的） */
+const rules = net ? { ...props.options, ...net.opts } : props.options
 
 const T = S.sevens
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 const SIDES = ['bottom', 'right', 'top', 'left'] as const
-const timed = props.options.timer !== false
-const difficulty = asCardLevel(props.options.difficulty)
+const timed = rules.timer !== false
+const difficulty = asCardLevel(rules.difficulty)
 
 let seed = saved ? saved.seed : (Date.now() >>> 0) % 2147483647
 let rng: RngState = saved ? saved.rng : seedRng(seed + 7)
-const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
+const opponents = net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [myLook(), ...opponents.map((o) => o.look)]
 
-const state = shallowRef<SevensState>(saved ? saved.state : dealSevens(seed))
+const state = shallowRef<SevensState>(net ? netStart() : saved ? saved.state : dealSevens(seed))
 const grace = useGrace(props.options, state, () => state.value.turn === ME)
 const phase = ref<'deal' | 'play' | 'over'>(saved ? 'play' : 'deal')
 const gathered = ref(!saved)
@@ -67,7 +72,8 @@ const timers = new Set<number>()
 function later(fn: () => void, ms: number) {
   const id = window.setTimeout(() => {
     timers.delete(id)
-    if (menuOpen.value) later(fn, 250)
+    // 暫停中電腦也停下來（連線對局不能暫停，別人還在打）
+    if (menuOpen.value && !net) later(fn, 250)
     else fn()
   }, ms)
   timers.add(id)
@@ -133,6 +139,7 @@ function deal() {
 
 let scheduledFor: SevensState | null = null
 function nextTurn() {
+  if (net) return pump()
   const s = state.value
   if (s.over || phase.value !== 'play') return
   // 同一個局面只排一次電腦出牌
@@ -179,7 +186,8 @@ function act(a: SevensAction): boolean {
     playSound('pass')
   } else if (rankOf(m.card) === 7) flash(p, 'smug', 1100)
   sync([m.card], { dur: 440, arc: L.value.cw * 0.9 })
-  if (r.state.over) later(finish, 900)
+  // 連線：結束時等伺服器攤牌（大家蓋了什麼）再結算
+  if (r.state.over && !net) later(finish, 900)
   else later(nextTurn, 520)
   return true
 }
@@ -208,6 +216,8 @@ function finish() {
 }
 
 function newRound() {
+  // 連線對局：再來一局要回房間大家重新準備
+  if (net) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   menuOpen.value = false
@@ -226,6 +236,115 @@ function newRound() {
     acted.value = false
     deal()
   }, 52 * 7 + 480)
+}
+
+// ── 連線對局 ──
+// 伺服器送來的每個動作（包括自己的）照順序套用；動畫播完（nextTurn）再拿下一個。自己出牌先送給伺服器，等它送回來才真的出。
+// 別人的手牌、蓋的牌在這裡只是背面：打出某張牌時把那張換到他手上；蓋牌時只知道「蓋了一張」，拿他手上一張背面蓋過去，結束攤牌時再換成真的。
+const sending = ref(false)
+let waiting = false
+if (net) net.onEvent = () => {
+  if (!waiting) return
+  waiting = false
+  pump()
+}
+if (net) net.onReject = () => {
+  sending.value = false
+  playSound('error')
+}
+onBeforeUnmount(() => {
+  if (net) net.onEvent = net.onReject = null
+})
+function fromServer(s: SevensState): SevensState {
+  const m = net!
+  return { ...s, hands: rotate(m, s.hands), covered: rotate(m, s.covered), turn: toLocal(m, s.turn), lastMove: s.lastMove ? { ...s.lastMove, player: toLocal(m, s.lastMove.player) } : null }
+}
+function netStart(): SevensState {
+  const m = net!
+  const st = m.start as { hand: Card[]; counts: number[]; turn: number; first: boolean }
+  const counts = rotate(m, st.counts)
+  const unknown = ALL.filter((c) => !st.hand.includes(c))
+  let k = 0
+  const hands = counts.map((n, p) => (p === ME ? st.hand.slice() : unknown.slice(k, (k += n))))
+  return { hands, covered: [[], [], [], []], rows: [null, null, null, null], turn: toLocal(m, st.turn), first: st.first, moves: 0, lastMove: null, over: false }
+}
+function mine(a: SevensAction): boolean {
+  if (!net) return act(a)
+  if (sending.value) return false
+  // 先在自己這邊檢查（自己的手牌、桌面都是真的），不能出的就直接提示，不送出去
+  const r = applySevens(state.value, a)
+  if (!r.ok) {
+    message.value = T.errors[r.reason]
+    playSound('error')
+    return false
+  }
+  sending.value = true
+  acted.value = true
+  sendAct({ ...a, player: toAbs(net, a.player) })
+  return true
+}
+/** 別人看不到的牌放在哪幾疊（別人的手牌、別人蓋的牌）；回傳的第 p - 1 疊是第 p 位的手牌 */
+function hiddenZones(s: SevensState): number[][] {
+  return [...s.hands.slice(1).map((h) => h.slice()), ...s.covered.slice(1).map((h) => h.slice())]
+}
+function withZones(s: SevensState, z: number[][]): SevensState {
+  return { ...s, hands: [s.hands[0], ...z.slice(0, 3)], covered: [s.covered[0], ...z.slice(3)] }
+}
+function pump() {
+  const m = net!
+  const e = m.queue.shift()
+  if (!e) {
+    waiting = true
+    const s = state.value
+    if (s.over || phase.value !== 'play') return
+    moods.forEach((v, i) => v === 'think' && (moods[i] = 'idle'))
+    if (s.turn === ME) {
+      if (!legalPlays(s).length) message.value = T.mustCover
+    } else moods[s.turn] = 'think'
+    return
+  }
+  if (e.end) return reveal(e.ev as SevensState)
+  const raw = e.ev as { type: 'play' | 'cover'; player: number; card: number }
+  const p = toLocal(m, raw.player)
+  if (p === ME) sending.value = false
+  let a: SevensAction = { type: raw.type, player: p, card: raw.card }
+  if (p !== ME) {
+    const z = hiddenZones(state.value)
+    if (raw.type === 'play') {
+      const pair = bringInto(z, p - 1, raw.card)
+      if (pair) stage.adopt([[pair[1], pair[0]], [pair[0], pair[1]]])
+    } else {
+      // 蓋牌：他手上一定沒有能接的牌。畫面上他手上的背面如果剛好有能接的，先跟別處沒看過、接不上的牌換掉
+      const s0 = state.value
+      for (const c of z[p - 1].slice()) {
+        if (!canPlay(s0, c)) continue
+        const from = z.findIndex((zone, i) => i !== p - 1 && zone.some((x) => !canPlay(s0, x)))
+        if (from < 0) break
+        const y = z[from].find((x) => !canPlay(s0, x))!
+        z[from][z[from].indexOf(y)] = c
+        z[p - 1][z[p - 1].indexOf(c)] = y
+        stage.adopt([[c, y], [y, c]])
+      }
+      a = { type: 'cover', player: p, card: z[p - 1][0] }
+    }
+    state.value = withZones(state.value, z)
+  }
+  if (!act(a)) {
+    console.warn('online: 套用不了伺服器送來的動作', a)
+    later(nextTurn, 50)
+  }
+}
+/** 伺服器攤牌：背面的牌換成真的（位置不動），再結算 */
+function reveal(fin: SevensState) {
+  const real = fromServer(fin)
+  const pairs: [number, number][] = []
+  const b = hiddenZones(state.value)
+  const r = hiddenZones(real)
+  b.forEach((zone, i) => zone.forEach((c, k) => r[i][k] !== undefined && r[i][k] !== c && pairs.push([c, r[i][k]])))
+  if (pairs.length) stage.adopt(pairs)
+  state.value = real
+  sync()
+  later(finish, 600)
 }
 
 // ── 你的操作 ──
@@ -284,7 +403,7 @@ function onUp(e: PointerEvent) {
   if (onTable && myTurn.value) {
     selected.value = d.c
     acted.value = true
-    if (act(canPlayAny.value ? { type: 'play', player: ME, card: d.c } : { type: 'cover', player: ME, card: d.c })) return
+    if (mine(canPlayAny.value ? { type: 'play', player: ME, card: d.c } : { type: 'cover', player: ME, card: d.c })) return
   }
   backToHand(d.c)
 }
@@ -316,9 +435,11 @@ function confirm() {
   const c = selected.value
   if (!myTurn.value || c === null) return
   acted.value = true
-  act(canPlayAny.value ? { type: 'play', player: ME, card: c } : { type: 'cover', player: ME, card: c })
+  mine(canPlayAny.value ? { type: 'play', player: ME, card: c } : { type: 'cover', player: ME, card: c })
 }
 function onTimeout() {
+  // 連線對局：時間到由伺服器決定
+  if (net) return
   if (!myTurn.value) return
   acted.value = true
   act({ type: 'timeout', player: ME })
@@ -326,7 +447,7 @@ function onTimeout() {
 
 // ── 保存進度並退出 ──
 const acted = ref(!!saved)
-const canSave = computed(() => phase.value === 'play' && acted.value)
+const canSave = computed(() => !net && phase.value === 'play' && acted.value)
 function snapshot(): Saved | null {
   if (!canSave.value) return null
   return { state: state.value, opponents: opponents.map((o) => o.id), seed, rng }
@@ -344,7 +465,7 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
 <template>
   <section ref="stageEl" class="felt">
     <TurnGlow v-for="(side, p) in SIDES" :key="side" :side="side" :on="phase === 'play' && !state.over && state.turn === p" />
-    <TurnTimer v-if="timed" :side="SIDES[state.turn]" :active="phase === 'play' && !state.over && !(grace && state.turn === ME)" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="SIDES[state.turn]" :active="phase === 'play' && !state.over && !(grace && state.turn === ME)" :paused="!net && (menuOpen || resultOpen)" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
 
     <div class="table-box" :style="{ left: `${L.box.x}px`, top: `${L.box.y}px`, width: `${L.box.w}px`, height: `${L.box.h}px` }">
       <span class="t-label lab">TABLE</span>
@@ -382,11 +503,11 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions" :class="{ over: phase === 'over' }">
-      <Btn v-if="phase !== 'over'" class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || selected === null" @click="confirm">{{ canPlayAny || !myTurn ? T.play : T.cover }}</Btn>
+      <Btn v-if="phase !== 'over'" class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || selected === null || sending" @click="confirm">{{ canPlayAny || !myTurn ? T.play : T.cover }}</Btn>
       <!-- 結束後看桌面：看結果＋再來一局＋離開對局排成一排（手牌都出完了，下面是空的） -->
       <template v-else>
         <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
-        <Btn class="rise" size="sm" icon="again" style="--i: 1" @click="newRound">{{ S.common.again }}</Btn>
+        <Btn v-if="!net" class="rise" size="sm" icon="again" style="--i: 1" @click="newRound">{{ S.common.again }}</Btn>
         <Btn class="rise" tone="ink" size="lg" arrow style="--i: 2" @click="resultOpen = true">{{ S.common.showResult }}</Btn>
       </template>
     </div>
@@ -426,7 +547,7 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
-        <Btn tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
+        <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
       </template>
     </Dialog>
   </section>

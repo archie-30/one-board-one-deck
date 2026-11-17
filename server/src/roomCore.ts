@@ -326,7 +326,7 @@ export function tick(room: RoomState, now: number, seed: number): { changed: boo
   if (!room.players.length) return { changed: true, started: false, closed: 'empty', entries: [] }
   if (changed) syncCountdown(room, now)
   let started = false
-  if (room.phase === 'countdown' && room.startAt <= now) {
+  if (room.phase === 'countdown' && room.startAt <= now + 50) {
     if (canStart(room)) {
       room.phase = 'playing'
       room.seed = seed

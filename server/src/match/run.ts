@@ -52,6 +52,8 @@ export const START_DELAY = 4500
 export const SLACK_MS = 2500
 /** 真人離開或斷線：電腦代打，想一下就好 */
 export const AWAY_THINK = 1200
+/** 伺服器的鬧鐘可能早幾毫秒響：差這麼一點就當作到了 */
+export const EARLY_MS = 50
 
 export const canMatch = (gameId: string) => gameId in MATCH_DEFS
 
@@ -139,7 +141,8 @@ export function playerAct(room: RoomState, pid: string, raw: unknown, now: numbe
 /** 時間到：電腦出牌，或真人逾時跳過 */
 export function matchTick(room: RoomState, now: number): LogEntry[] {
   const m = room.match
-  if (!m || m.over || !m.nextAt || now < m.nextAt) return []
+  // 早幾毫秒醒來也算到了
+  if (!m || m.over || !m.nextAt || now < m.nextAt - EARLY_MS) return []
   const def = MATCH_DEFS[m.gameId]
   const t = def.turn(m.s)
   const seat = m.seats[t]

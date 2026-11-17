@@ -151,7 +151,8 @@ export class Room extends DurableObject<Env> {
         this.send(ws, { t: 'start', gameId: room.gameId })
       }
     }
-    if (r.changed || r.entries.length) await this.save()
+    // 每次醒來一定重新排下一次（鬧鐘有時會早幾毫秒響，那次什麼都沒做也要排，不然就再也不會醒來）
+    await this.save()
     if (r.changed) this.broadcast()
     if (r.entries.length) this.sendEntries(r.entries)
   }

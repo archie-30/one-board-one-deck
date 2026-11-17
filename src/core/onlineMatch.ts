@@ -49,6 +49,8 @@ export interface LiveMatch extends MatchIntro {
   lastSeq: number
   /** 有新動作進來時叫一下（遊戲畫面在等的話就接著處理） */
   onEvent: (() => void) | null
+  /** 伺服器沒收自己送的動作（不合規則、不是輪到自己）：遊戲畫面解除「等確認」 */
+  onReject: (() => void) | null
 }
 
 /** 目前的連線對局（沒有就是 null） */
@@ -63,7 +65,7 @@ export function receiveMatch(intro: MatchIntro & { log?: MatchEvent[] }) {
     return
   }
   const { log, ...rest } = intro
-  liveMatch.value = { ...rest, queue: [], lastSeq: 0, onEvent: null }
+  liveMatch.value = { ...rest, queue: [], lastSeq: 0, onEvent: null, onReject: null }
   for (const e of log ?? []) receiveAct(intro.n, e)
 }
 
@@ -74,6 +76,11 @@ export function receiveAct(n: number, e: MatchEvent) {
   m.lastSeq = e.seq
   m.queue.push(e)
   m.onEvent?.()
+}
+
+/** 伺服器說：剛剛送的動作不收 */
+export function rejectAct() {
+  liveMatch.value?.onReject?.()
 }
 
 /** 遊戲畫面開局時拿：這個玩法現在有連線對局、而且自己有座位，才會拿到 */

@@ -71,7 +71,7 @@ describe('連線房間（伺服器規則）', () => {
     applyIntent(r, ids[1], { t: 'ready', on: false }, T0 + 1000)
     expect(r.phase).toBe('lobby')
     applyIntent(r, ids[1], { t: 'ready', on: true }, T0 + 1500)
-    expect(tick(r, T0 + 1500 + COUNTDOWN_MS - 1, 1).started).toBe(false)
+    expect(tick(r, T0 + 1500 + COUNTDOWN_MS - 200, 1).started).toBe(false)
     const t = tick(r, T0 + 1500 + COUNTDOWN_MS, 99)
     expect(t.started).toBe(true)
     expect(r).toMatchObject({ phase: 'playing', seed: 99 })

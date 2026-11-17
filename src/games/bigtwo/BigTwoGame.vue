@@ -362,8 +362,12 @@ if (net) net.onEvent = () => {
   waiting = false
   pump()
 }
+if (net) net.onReject = () => {
+  sending.value = false
+  playSound('error')
+}
 onBeforeUnmount(() => {
-  if (net) net.onEvent = null
+  if (net) net.onEvent = net.onReject = null
 })
 /** 伺服器座位的牌局 → 自己的視角（自己是 0） */
 function fromServer(s: BigTwoState): BigTwoState {
