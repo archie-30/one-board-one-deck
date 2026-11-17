@@ -2,7 +2,7 @@
 import { nextRandom, type RngState } from '../common/rng'
 import { PRESET_STYLES, type BigTwoStyle } from '../common/personas'
 import type { Difficulty } from '../common/types'
-import { RANK_2, RANK_A, faceOf, isClubThree, rankOf, suitOf, type Card } from './cards'
+import { RANK_2, RANK_A, cardPower, faceOf, isClubThree, rankOf, suitOf, type Card } from './cards'
 import { canBeat, comboStrength, identifyCombo, isBomb, isFiveCard, type Combo } from './combos'
 import { PLAYER_COUNT, type BigTwoAction, type BigTwoState } from './game'
 import type { BigTwoOptions } from './options'
@@ -170,6 +170,172 @@ function passValue(s: BigTwoStyle, state: BigTwoState): number {
   return v
 }
 
+// ── 規劃式出牌（最強的電腦用）──
+// 不只看這一手：先把剩下的手牌拆成「最少要出幾手」，再看哪些是全場最大、出了一定拿回出牌權的牌（「王牌」）。
+// 只用自己的手牌和公開資訊（已經出過的牌、每個人剩幾張），不偷看別人的牌。
+
+/** 還沒出現過的牌（別人手上或還沒出，自己不知道在哪）：整副牌 − 自己手上 − 已出過的 */
+function unseenOf(state: BigTwoState, me: number): Card[] {
+  const decks = state.options.decks === 2 ? 2 : 1
+  const gone = new Map<number, number>()
+  const add = (c: Card) => gone.set(faceOf(c), (gone.get(faceOf(c)) ?? 0) + 1)
+  for (const c of state.hands[me]) add(c)
+  for (const c of state.played ?? []) add(c)
+  const out: Card[] = []
+  for (let f = 0; f < 52; f++) for (let k = gone.get(f) ?? 0; k < decks; k++) out.push(f + k * 52)
+  return out
+}
+
+/** 這一手要用的判斷工具：外面最大的單張、最大的一對算一次就好，之後每張牌直接比 */
+interface Judge {
+  opts: BigTwoOptions
+  topSingle: Combo | null
+  topPair: Combo | null
+  memo: Map<string, number>
+}
+function judgeOf(unseen: readonly Card[], opts: BigTwoOptions): Judge {
+  let topSingle: Combo | null = null
+  for (const c of unseen) {
+    const s = identifyCombo([c], opts)!
+    if (!topSingle || canBeat(s, topSingle, opts)) topSingle = s
+  }
+  let topPair: Combo | null = null
+  const byRank = new Map<number, Card[]>()
+  for (const c of unseen) byRank.set(rankOf(c), [...(byRank.get(rankOf(c)) ?? []), c])
+  for (const g of byRank.values())
+    for (let i = 0; i < g.length; i++)
+      for (let j = i + 1; j < g.length; j++) {
+        const p = identifyCombo([g[i], g[j]], opts)
+        if (p && (!topPair || canBeat(p, topPair, opts))) topPair = p
+      }
+  return { opts, topSingle, topPair, memo: new Map() }
+}
+/** 是不是「王牌」：外面已經沒有壓得過它的同類牌。五張牌型很難被壓，當作壓得住 */
+function isBoss(combo: Combo, j: Judge): boolean {
+  const n = combo.cards.length
+  if (n === 1) return !j.topSingle || !canBeat(j.topSingle, combo, j.opts)
+  if (n === 2) return !j.topPair || !canBeat(j.topPair, combo, j.opts)
+  return true
+}
+/** 一手牌的負擔：王牌很輕（一定拿回出牌權）；不是王牌的單張、對子越小越難脫手 */
+function unitCost(combo: Combo, j: Judge): number {
+  if (isBoss(combo, j)) return 3
+  if (combo.cards.length >= 5) return 7
+  return 10 + (12 - Math.max(...combo.cards.map(rankOf))) * 0.5
+}
+
+/** 剩下的牌照點數分成對子與單張（三條不能單出時就是一對＋一張） */
+function leftoverCost(cards: readonly Card[], j: Judge): number {
+  const byRank = new Map<number, Card[]>()
+  for (const c of cards) byRank.set(rankOf(c), [...(byRank.get(rankOf(c)) ?? []), c])
+  let cost = 0
+  for (const g of byRank.values()) {
+    const sorted = g.slice().sort((a, b) => cardPower(a, j.opts.suitOrder) - cardPower(b, j.opts.suitOrder))
+    let i = sorted.length
+    while (i >= 2) {
+      const p = identifyCombo([sorted[i - 2], sorted[i - 1]], j.opts)
+      cost += p ? unitCost(p, j) : 20
+      i -= 2
+    }
+    if (i === 1) cost += unitCost(identifyCombo([sorted[0]], j.opts)!, j)
+  }
+  return cost
+}
+
+/**
+ * 一手牌拆開後的總負擔（越小越好）：先挑五張牌型（一副牌最多試兩手；牌多時一手一手貪心挑），
+ * 剩下的分成對子與單張。fives 是整副手牌能組的五張牌型（只算一次），這裡只用完全在手上的。
+ */
+function planCost(hand: readonly Card[], fives: readonly Combo[], j: Judge): number {
+  if (!hand.length) return -100
+  const key = hand.slice().sort((a, b) => a - b).join(',')
+  const hit = j.memo.get(key)
+  if (hit !== undefined) return hit
+  const inHand = new Set(hand)
+  const mine = fives.filter((f) => f.cards.every((c) => inHand.has(c)))
+  const rest = (used: Set<Card>) => hand.filter((c) => !used.has(c))
+  let best = leftoverCost(hand, j)
+  if (hand.length <= 16) {
+    for (let a = 0; a < mine.length; a++) {
+      const u1 = new Set(mine[a].cards)
+      const ca = unitCost(mine[a], j)
+      best = Math.min(best, ca + leftoverCost(rest(u1), j))
+      for (let b = a + 1; b < mine.length; b++) {
+        if (mine[b].cards.some((c) => u1.has(c))) continue
+        const u2 = new Set([...u1, ...mine[b].cards])
+        best = Math.min(best, ca + unitCost(mine[b], j) + leftoverCost(rest(u2), j))
+      }
+    }
+  } else {
+    let used = new Set<Card>()
+    let acc = 0
+    for (;;) {
+      let pick: Combo | null = null
+      let pickV = acc + leftoverCost(rest(used), j)
+      for (const f of mine) {
+        if (f.cards.some((c) => used.has(c))) continue
+        const u = new Set([...used, ...f.cards])
+        const v = acc + unitCost(f, j) + leftoverCost(rest(u), j)
+        if (v < pickV) ((pickV = v), (pick = f))
+      }
+      if (!pick) break
+      acc += unitCost(pick, j)
+      used = new Set([...used, ...pick.cards])
+      best = Math.min(best, pickV)
+    }
+  }
+  j.memo.set(key, best)
+  return best
+}
+
+/** 規劃式選牌：自由出牌時挑「出完之後剩下最好收尾」的一手；跟牌時比較「過牌」與「壓下去」哪個划算 */
+function plannedAction(state: BigTwoState, plays: Combo[]): Combo | null {
+  const me = state.turn
+  const hand = state.hands[me]
+  const opts = state.options
+  const j = judgeOf(unseenOf(state, me), opts)
+  // 五張牌型只從整副手牌找一次；兩副牌時只留比較小的前 40 手（太多算不完）
+  let fives = listCombos(hand, opts).filter((c) => c.cards.length === 5)
+  if (fives.length > 40) fives = fives.sort((a, b) => comboStrength(a) - comboStrength(b)).slice(0, 40)
+  const without = (c: Combo) => hand.filter((x) => !c.cards.includes(x))
+  const others = state.hands.map((h, p) => (p === me ? 99 : h.length))
+  const minOther = Math.min(...others)
+  /** 別人有人剛好剩這麼多張：出同樣張數又壓不住的牌，會放他走 */
+  const risky = (c: Combo) => others.some((k) => k === c.cards.length) && !isBoss(c, j)
+
+  if (!state.table) {
+    // 收尾：手上只剩一手會輸掉出牌權的牌（其他都是王牌）時，先打王牌，最後才出那手
+    const closing = planCost(hand, fives, j) < 20
+    let best = plays[0]
+    let bestV = Infinity
+    for (const c of plays) {
+      let v = planCost(without(c), fives, j)
+      if (closing && isBoss(c, j)) v -= 12
+      // 同樣好收尾時先出小的
+      v += Math.max(...c.cards.map(rankOf)) * 0.15
+      // 王牌留著搶出牌權；快出完才用
+      if (isBoss(c, j) && c.cards.length < 5 && hand.length - c.cards.length > 3) v += 4
+      if (risky(c)) v += 25
+      if (v < bestV) ((bestV = v), (best = c))
+    }
+    return best
+  }
+
+  const threat = state.hands[state.table.player].length
+  let best: Combo | null = null
+  // 過牌：手牌不變，出牌權留在別人手上；有人快出完時過牌很危險
+  let bestV = planCost(hand, fives, j) + (threat <= 2 || minOther <= 2 ? 30 : 0)
+  for (const c of plays) {
+    let v = planCost(without(c), fives, j)
+    // 壓得住就拿回出牌權；有人快出完時更要用壓得住的牌擋
+    v -= isBoss(c, j) ? (minOther <= 2 ? 16 : 6) : 1.5
+    // 不必要時別浪費 2、炸彈
+    if (hand.length > 6 && threat > 3) v += premium(c) * 2.5
+    if (v < bestV) ((bestV = v), (best = c))
+  }
+  return best
+}
+
 export type AiStyle = Difficulty | BigTwoStyle
 
 const styleOf = (style: AiStyle): BigTwoStyle => (typeof style === 'string' ? PRESET_STYLES[style].bigtwo : style)
@@ -198,6 +364,12 @@ export function chooseBigTwoAction(state: BigTwoState, style: AiStyle, rng: RngS
     ;[v, rng] = nextRandom(rng)
     const pick = plays[Math.floor(v * plays.length)]
     return [{ type: 'play', player, cards: pick.cards }, rng]
+  }
+
+  // 最強的電腦：規劃式出牌
+  if (s.skill >= 0.95 && plays.length) {
+    const pick = plannedAction(state, plays)
+    return [pick ? { type: 'play', player, cards: pick.cards } : { type: 'pass', player }, rng]
   }
 
   if (!state.table) {

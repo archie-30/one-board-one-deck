@@ -7,7 +7,7 @@ import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { recordBest, recordResult, stats } from '@/core/settings'
-import { asBigTwoDifficulty, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
+import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { chooseBigTwoAction, legalPlays } from '@/engine/bigtwo/ai'
@@ -60,7 +60,7 @@ const record = crazy ? stats.crazybigtwo : stats.bigtwo
 const timed = props.options.timer !== false
 /** 難度：只決定電腦多強 */
 /** 難度：簡單／困難（只決定電腦多強） */
-const difficulty = asBigTwoDifficulty(props.options.difficulty)
+const difficulty = asCardLevel(props.options.difficulty)
 const level = bigtwoLevel(difficulty)
 const T = S.bigtwo
 const ME = 0
@@ -70,7 +70,7 @@ const DEAL_GAP = crazy ? 13 : 24
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
 // 困難模式不會出現新手打法的電腦
-const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'hard')
+const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [myLook(), ...opponents.map((o) => o.look)]
 const tableTotals = ref(saved ? saved.tableTotals.slice() : [0, 0, 0, 0])

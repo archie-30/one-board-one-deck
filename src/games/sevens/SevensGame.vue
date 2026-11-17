@@ -11,7 +11,7 @@ import { recordResult, stats } from '@/core/settings'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
 import { TURN_SECONDS } from '@/data/timer'
-import { sevensAt } from '@/engine/common/difficulty'
+import { asCardLevel, sevensAt } from '@/engine/common/difficulty'
 import { seedRng, nextInt, type RngState } from '@/engine/common/rng'
 import { chooseSevensAction } from '@/engine/sevens/ai'
 import { applySevens, dealSevens, legalPlays, penalties, RANK_LABELS, rankOf, suitOf, winners, type Card, type SevensAction, type SevensState } from '@/engine/sevens/rules'
@@ -45,11 +45,11 @@ const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 const SIDES = ['bottom', 'right', 'top', 'left'] as const
 const timed = props.options.timer !== false
-const difficulty = props.options.difficulty === 'hard' ? 'hard' : 'easy'
+const difficulty = asCardLevel(props.options.difficulty)
 
 let seed = saved ? saved.seed : (Date.now() >>> 0) % 2147483647
 let rng: RngState = saved ? saved.rng : seedRng(seed + 7)
-const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'hard')
+const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [myLook(), ...opponents.map((o) => o.look)]
 

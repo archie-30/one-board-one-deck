@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { asBigTwoDifficulty, asLevel, bigtwoAt, bigtwoLevel, chessAt, goAt, gomokuAt, HABITS, habitOf, LEVELS } from './difficulty'
+import { asCardLevel, asLevel, bigtwoAt, bigtwoLevel, chessAt, goAt, gomokuAt, HABITS, habitOf, LEVELS } from './difficulty'
 import { PERSONAS } from './personas'
 
 describe('難度', () => {
@@ -26,10 +26,12 @@ describe('難度', () => {
       }
     })
   })
-  it('大老二只有簡單／困難；舊的低中算簡單、高挑戰算困難', () => {
-    expect(['low', 'mid', 'easy', undefined, 'x'].map(asBigTwoDifficulty)).toEqual(['easy', 'easy', 'easy', 'easy', 'easy'])
-    expect(['high', 'master', 'hard'].map(asBigTwoDifficulty)).toEqual(['hard', 'hard', 'hard'])
-    expect(bigtwoAt(PERSONAS[0].bigtwo, bigtwoLevel('hard')).skill).toBeGreaterThan(bigtwoAt(PERSONAS[0].bigtwo, bigtwoLevel('easy')).skill)
+  it('牌類難度是低／中／高；舊的簡單算中、困難算高', () => {
+    // 舊存檔：簡單 → 中、困難 → 高；四段難度：低 → 低、中 → 中、高／挑戰 → 高
+    expect(['low', 'mid', 'easy', undefined, 'x'].map(asCardLevel)).toEqual(['low', 'mid', 'mid', 'mid', 'mid'])
+    expect(['high', 'master', 'hard'].map(asCardLevel)).toEqual(['high', 'high', 'high'])
+    expect(bigtwoAt(PERSONAS[0].bigtwo, bigtwoLevel('high')).skill).toBeGreaterThan(bigtwoAt(PERSONAS[0].bigtwo, bigtwoLevel('mid')).skill)
+    expect(bigtwoAt(PERSONAS[0].bigtwo, bigtwoLevel('mid')).skill).toBeGreaterThan(bigtwoAt(PERSONAS[0].bigtwo, bigtwoLevel('low')).skill)
   })
   it('圍棋整體比其他棋類弱一點：同一難度圍棋的「會不會算」比大老二低', () => {
     for (const l of LEVELS) expect(goAt(PERSONAS[0].go, l).skill).toBeLessThan(bigtwoAt(PERSONAS[0].bigtwo, l).skill)

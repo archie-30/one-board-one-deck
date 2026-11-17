@@ -39,8 +39,11 @@ interface Stats {
   xiangqi: { wins: number; losses: number; draws: number }
   othello: { wins: number; losses: number; draws: number }
   sevens: { rounds: number; wins: number }
+  banqi: { wins: number; losses: number; draws: number }
   /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
   recent: Record<string, string>
+  /** 牌類難度改成低／中／高的搬家記號（0＝還沒搬，舊存檔或新玩家都會跑一次） */
+  cardLevels: number
 }
 
 export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true }))
@@ -56,21 +59,42 @@ const STATS_DEFAULT: Stats = {
   xiangqi: { wins: 0, losses: 0, draws: 0 },
   othello: { wins: 0, losses: 0, draws: 0 },
   sevens: { rounds: 0, wins: 0 },
+  banqi: { wins: 0, losses: 0, draws: 0 },
   recent: {},
+  cardLevels: 0,
 }
 
+/** 近百場戰況最多記幾場（搬家時用；跟下面的 RECENT_MAX 一樣） */
+const RECENT_MAX_SAVE = 100
 export const stats = reactive(loadSave<Stats>('stats', structuredClone(STATS_DEFAULT)))
 // 舊存檔只有一個最高分：算在當時的預設難度（大老二「中」、接龍「簡單」）
 if (stats.bigtwo.best > 0 && !Object.keys(stats.bigtwo.bestBy).length) stats.bigtwo.bestBy.mid = stats.bigtwo.best
-// 大老二難度從「低／中／高／挑戰」改成「簡單／困難」：低、中的最高分算簡單，高、挑戰的算困難
-{
-  const by = stats.bigtwo.bestBy
-  const old = (k: string) => by[k] ?? 0
-  if (['low', 'mid', 'high', 'master'].some((k) => k in by)) {
-    by.easy = Math.max(by.easy ?? 0, old('low'), old('mid'))
-    by.hard = Math.max(by.hard ?? 0, old('high'), old('master'))
-    for (const k of ['low', 'mid', 'high', 'master']) delete by[k]
+// 牌類（大老二、瘋狂大老二、排七）難度改成低／中／高：簡單 → 中、困難 → 高。
+// 大老二更早是低／中／高／挑戰四段，當時的低、中算簡單（→ 中），高、挑戰算困難（→ 高）。只搬一次（cardLevels 記號）。
+if (stats.cardLevels < 3) {
+  const move = (by: Record<string, number>, legacyFour: boolean) => {
+    const v = (k: string) => by[k] ?? 0
+    const mid = Math.max(v('easy'), legacyFour ? Math.max(v('low'), v('mid')) : 0)
+    const high = Math.max(v('hard'), legacyFour ? Math.max(v('high'), v('master')) : 0)
+    for (const k of Object.keys(by)) delete by[k]
+    if (mid) by.mid = mid
+    if (high) by.high = high
   }
+  move(stats.bigtwo.bestBy, true)
+  move(stats.crazybigtwo.bestBy, false)
+  for (const id of ['bigtwo', 'crazybigtwo', 'sevens']) {
+    for (const [from, to] of [['easy', 'mid'], ['hard', 'high']]) {
+      const k = `${id}:${from}`
+      if (stats.recent[k] !== undefined) {
+        stats.recent[`${id}:${to}`] = ((stats.recent[`${id}:${to}`] ?? '') + stats.recent[k]).slice(-RECENT_MAX_SAVE)
+        delete stats.recent[k]
+      }
+    }
+    const o = settings.games[id]?.options
+    if (o?.difficulty === 'easy') o.difficulty = 'mid'
+    else if (o?.difficulty === 'hard') o.difficulty = 'high'
+  }
+  stats.cardLevels = 3
 }
 if (stats.solitaire.best > 0 && !Object.keys(stats.solitaire.bestBy).length) stats.solitaire.bestBy.easy = stats.solitaire.best
 

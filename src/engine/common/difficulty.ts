@@ -145,16 +145,19 @@ const GO: Record<Level, Pick<GoStyle, 'skill' | 'noise'>> = {
 export const goAt = (st: GoStyle, level: Level, who = -1): GoStyle => goHabit({ ...st, ...GO[level] }, habitOf(who, level))
 
 /**
- * 大老二只有「簡單／困難」兩種（跟接龍一樣）：簡單＝中等的電腦，困難＝最強（挑戰）。
- * 舊存檔裡的低／中算簡單，高／挑戰算困難。
+ * 牌類（大老二、瘋狂大老二、排七）的難度：低／中／高（沒有挑戰）。
+ *   低＝會亂出的電腦、中＝以前的「簡單」、高＝以前的「困難」（最強，跟棋類的挑戰一樣）。
+ * 舊存檔：簡單 → 中、困難 → 高；更早的四段難度：低 → 低、中 → 中、高／挑戰 → 高。
  */
-export type BigTwoDifficulty = 'easy' | 'hard'
-export const asBigTwoDifficulty = (v: unknown): BigTwoDifficulty => (v === 'hard' || v === 'high' || v === 'master' ? 'hard' : 'easy')
-export const bigtwoLevel = (d: BigTwoDifficulty): Level => (d === 'hard' ? 'master' : 'mid')
+export type CardLevel = 'low' | 'mid' | 'high'
+export const CARD_LEVELS: readonly CardLevel[] = ['low', 'mid', 'high']
+export const asCardLevel = (v: unknown): CardLevel => (v === 'low' ? 'low' : v === 'high' || v === 'hard' || v === 'master' ? 'high' : 'mid')
+/** 大老二的難度對到電腦強弱 */
+export const bigtwoLevel = (d: CardLevel): Level => (d === 'high' ? 'master' : d === 'mid' ? 'mid' : 'low')
 
 /** 大老二：會不會算、手滑的機率、判斷的搖擺程度 */
 const BIGTWO: Record<Level, Pick<BigTwoStyle, 'skill' | 'blunder' | 'whim'>> = {
-  low: { skill: 0.1, blunder: 0.2, whim: 0.9 },
+  low: { skill: 0.06, blunder: 0.4, whim: 1.4 },
   mid: { skill: 0.4, blunder: 0.08, whim: 0.55 },
   high: { skill: 0.75, blunder: 0.02, whim: 0.2 },
   master: { skill: 1, blunder: 0, whim: 0 },
@@ -194,9 +197,24 @@ export const othelloAt = (st: OthelloStyle, level: Level, who = -1): OthelloStyl
   return out
 }
 
-/** 排七：簡單／困難（跟大老二一樣）。用大老二的「會不會算、手滑」當底，簡單比較傻、困難最會算 */
-export const sevensAt = (st: BigTwoStyle, d: 'easy' | 'hard'): { skill: number; blunder: number } =>
-  d === 'hard' ? { skill: 1, blunder: 0 } : { skill: clamp(st.skill * 0.5), blunder: clamp(0.08 + st.blunder) }
+/**
+ * 排七：低／中／高（跟大老二一樣）。用大老二的「會不會算、手滑」當底：
+ *   低：幾乎不會算、常常亂接；中：會一點、偶爾亂接（以前的「簡單」）；高：最會算、不失誤（以前的「困難」）
+ */
+export const sevensAt = (st: BigTwoStyle, d: CardLevel): { skill: number; blunder: number } =>
+  d === 'high' ? { skill: 1, blunder: 0 } : d === 'mid' ? { skill: clamp(st.skill * 0.5), blunder: clamp(0.08 + st.blunder) } : { skill: clamp(st.skill * 0.1), blunder: clamp(0.35 + st.blunder) }
+
+/**
+ * 暗棋：低／中／高（跟牌類一樣三段）。
+ *   低：只看一步、不太管走完會不會被吃、常常亂翻亂走
+ *   中：看一步，會顧自己被吃；偶爾隨手走
+ *   高：再多想一步（對方最好的回應），翻棋也會想翻出來之後對方怎麼回；不失誤
+ */
+export function banqiAt(st: ChessStyle, d: CardLevel): { depth: 1 | 2; safety: number; attack: number; noise: number; blunder: number; chase: number } {
+  if (d === 'high') return { depth: 2, safety: clamp(0.7 + st.safety * 0.3), attack: st.attack, noise: 0.03, blunder: 0, chase: 1 }
+  if (d === 'mid') return { depth: 1, safety: st.safety, attack: st.attack, noise: 0.35, blunder: 0.06, chase: 0 }
+  return { depth: 1, safety: 0, attack: st.attack, noise: 1, blunder: 0.3, chase: 0 }
+}
 
 /** 電腦每一步多想多久（毫秒）：挑戰多想一會兒，看起來也比較像在認真算 */
 export const extraThink = (level: Level): number => (level === 'master' ? 900 : level === 'high' ? 300 : 0)

@@ -70,7 +70,7 @@ describe('排七：電腦', () => {
       let rng = seedRng(g)
       for (let k = 0; k < 80 && !s.over; k++) {
         let a
-        ;[a, rng] = chooseSevensAction(s, sevensAt(PERSONAS[(g + s.turn) % PERSONAS.length].bigtwo, g % 2 ? 'hard' : 'easy'), rng)
+        ;[a, rng] = chooseSevensAction(s, sevensAt(PERSONAS[(g + s.turn) % PERSONAS.length].bigtwo, (['low', 'mid', 'high'] as const)[g % 3]), rng)
         s = must(s, a)
       }
       expect(s.over).toBe(true)
@@ -84,7 +84,7 @@ describe('排七：電腦', () => {
       let rng = seedRng(seed)
       for (let k = 0; k < (seed % 20) + 4 && !s.over; k++) {
         let a
-        ;[a, rng] = chooseSevensAction(s, sevensAt(PERSONAS[1].bigtwo, 'hard'), rng)
+        ;[a, rng] = chooseSevensAction(s, sevensAt(PERSONAS[1].bigtwo, 'high'), rng)
         s = must(s, a)
       }
       if (s.over) continue
@@ -93,26 +93,34 @@ describe('排七：電腦', () => {
       const [mixed] = shuffle(others, seedRng(seed * 9))
       let i = 0
       const hands = s.hands.map((h, p) => (p === me ? h : h.map(() => mixed[i++])))
-      const st = sevensAt(PERSONAS[seed % 30].bigtwo, 'hard')
+      const st = sevensAt(PERSONAS[seed % 30].bigtwo, 'high')
       expect(chooseSevensAction({ ...s, hands }, st, seedRng(5))[0]).toEqual(chooseSevensAction(s, st, seedRng(5))[0])
     }
   })
-  it('困難比簡單強：困難的電腦罰分平均比較少', () => {
-    let hard = 0
-    let easy = 0
-    for (let g = 0; g < 200; g++) {
+  /** 一位 strong 難度的電腦對三位 weak 難度：strong 的平均罰分、weak 的平均罰分 */
+  function duel(strong: 'low' | 'mid' | 'high', weak: 'low' | 'mid' | 'high', games = 300) {
+    let a = 0
+    let b = 0
+    for (let g = 0; g < games; g++) {
       let s = dealSevens(1000 + g)
       let rng = seedRng(g)
-      const hardSeat = g % 4
+      const seat = g % 4
       while (!s.over) {
-        let a
-        ;[a, rng] = chooseSevensAction(s, sevensAt(PERSONAS[(g * 3 + s.turn) % 30].bigtwo, s.turn === hardSeat ? 'hard' : 'easy'), rng)
-        s = must(s, a)
+        let act
+        ;[act, rng] = chooseSevensAction(s, sevensAt(PERSONAS[(g * 3 + s.turn) % 30].bigtwo, s.turn === seat ? strong : weak), rng)
+        s = must(s, act)
       }
       const pen = penalties(s)
-      hard += pen[hardSeat]
-      easy += (pen.reduce((t, v) => t + v, 0) - pen[hardSeat]) / 3
+      a += pen[seat]
+      b += (pen.reduce((t, v) => t + v, 0) - pen[seat]) / 3
     }
-    expect(hard).toBeLessThan(easy * 0.8)
+    return { strong: a / games, weak: b / games }
+  }
+  it('難度一級比一級強：高對中、中對低，罰分平均都比較少', () => {
+    const hm = duel('high', 'mid')
+    const ml = duel('mid', 'low')
+    expect(hm.strong).toBeLessThan(hm.weak * 0.85)
+    expect(ml.strong).toBeLessThan(ml.weak * 0.9)
   })
+
 })

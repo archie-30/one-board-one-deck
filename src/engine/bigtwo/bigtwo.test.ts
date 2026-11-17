@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { bigtwoAt, bigtwoLevel, type CardLevel } from '../common/difficulty'
 import { PERSONAS } from '../common/personas'
 import { seedRng } from '../common/rng'
 import { chooseBigTwoAction, legalPlays, listCombos } from './ai'
@@ -461,4 +462,37 @@ describe('瘋狂大老二（兩副牌）', () => {
     expect(combos.filter((c) => c.type === 'single')).toHaveLength(2)
     expect(combos.filter((c) => c.type === 'pair')).toHaveLength(2)
   })
+})
+
+describe('難度：高比中強、中比低強（電腦互打）', () => {
+  /** 一位 strong 難度的電腦對三位 weak 難度：strong 的勝率、平均得分 */
+  function duel(strong: CardLevel, weak: CardLevel, decks: 1 | 2, games: number) {
+    let wins = 0
+    let pts = 0
+    for (let g = 0; g < games; g++) {
+      let s = dealBigTwo(5000 + g, { decks })
+      let rng = seedRng(g + 1)
+      const seat = g % 4
+      for (let step = 0; step < 2000 && s.winner < 0; step++) {
+        const p = PERSONAS[(g * 7 + s.turn * 3) % 30]
+        let a
+        ;[a, rng] = chooseBigTwoAction(s, bigtwoAt(p.bigtwo, bigtwoLevel(s.turn === seat ? strong : weak)), rng)
+        const r = applyBigTwo(s, a)
+        if (!r.ok) throw new Error(r.reason)
+        s = r.state
+      }
+      if (s.winner === seat) wins++
+      pts += scoreBigTwo(s)[seat].points
+    }
+    return { rate: wins / games, avg: pts / games }
+  }
+  // 平均勝率是 25%（四個人）；實測約 高對中 40%、中對低 35%
+  it('大老二：高對三位中、中對三位低，勝率都明顯超過四分之一', () => {
+    expect(duel('high', 'mid', 1, 300).rate).toBeGreaterThan(0.33)
+    expect(duel('mid', 'low', 1, 300).rate).toBeGreaterThan(0.3)
+  }, 60000)
+  it('瘋狂大老二：高對三位中、中對三位低，勝率都明顯超過四分之一', () => {
+    expect(duel('high', 'mid', 2, 150).rate).toBeGreaterThan(0.35)
+    expect(duel('mid', 'low', 2, 150).rate).toBeGreaterThan(0.33)
+  }, 60000)
 })

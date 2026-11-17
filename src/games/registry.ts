@@ -17,6 +17,7 @@ import RedPointCover from './covers/RedPointCover.vue'
 import SevensCover from './covers/SevensCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
+import BanqiCover from './covers/BanqiCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
 type Extra = { group?: SettingGroup; live?: boolean }
@@ -60,12 +61,12 @@ export const GAMES: GameDef[] = [
     players: S.bigtwo.players,
     cover: BigTwoCover,
     tags: S.bigtwo.tags,
-    best: (o) => bestAt('bigtwo', String(o.difficulty ?? 'easy')),
+    best: (o) => bestAt('bigtwo', String(o.difficulty ?? 'mid')),
     rulesIntro: withTimer(S.bigtwo.rules, [...TR.cards, TR.bigtwo]),
     tutorial: defineAsyncComponent(() => import('./bigtwo/BigTwoTutorial.vue')),
     component: defineAsyncComponent(() => import('./bigtwo/BigTwoGame.vue')),
     settings: [
-      choice('difficulty', bs.difficulty, 'easy'),
+      choice('difficulty', bs.difficulty, 'mid'),
       choice('suitOrder', bs.suitOrder, B.suitOrder),
       choice('straightRule', bs.straightRule, B.straightRule),
       toggle('straightFlushSpecial', bs.straightFlushSpecial, B.straightFlushSpecial),
@@ -89,12 +90,12 @@ export const GAMES: GameDef[] = [
     players: S.crazybigtwo.players,
     cover: CrazyBigTwoCover,
     tags: S.crazybigtwo.tags,
-    best: (o) => bestAt('crazybigtwo', String(o.difficulty ?? 'easy')),
+    best: (o) => bestAt('crazybigtwo', String(o.difficulty ?? 'mid')),
     rulesIntro: withTimer(S.crazybigtwo.rules, [...TR.cardsCrazy, TR.bigtwo]),
     tutorial: defineAsyncComponent(() => import('./bigtwo/CrazyTutorial.vue')),
     component: defineAsyncComponent(() => import('./bigtwo/BigTwoGame.vue')),
     settings: [
-      choice('difficulty', bs.difficulty, 'easy'),
+      choice('difficulty', bs.difficulty, 'mid'),
       choice('suitOrder', bs.suitOrder, B.suitOrder),
       choice('straightRule', bs.straightRule, B.straightRule),
       toggle('straightFlushSpecial', bs.straightFlushSpecial, B.straightFlushSpecial),
@@ -120,7 +121,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.sevens.rules, [...TR.cards, TR.sevens]),
     tutorial: defineAsyncComponent(() => import('./sevens/SevensTutorial.vue')),
     component: defineAsyncComponent(() => import('./sevens/SevensGame.vue')),
-    settings: [choice('difficulty', S.sevens.settings.difficulty, 'easy'), toggle('tapPlay', S.sevens.settings.tapPlay, false, { group: 'other', live: true }), timer()],
+    settings: [choice('difficulty', S.sevens.settings.difficulty, 'mid'), toggle('tapPlay', S.sevens.settings.tapPlay, false, { group: 'other', live: true }), timer()],
   },
   {
     id: 'redpoint',
@@ -215,6 +216,24 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./xiangqi/XiangqiTutorial.vue')),
     component: defineAsyncComponent(() => import('./xiangqi/XiangqiGame.vue')),
     settings: [level(), choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text', { group: 'other', live: true }), timer()],
+  },
+  {
+    id: 'banqi',
+    category: 'board',
+    name: S.banqi.name,
+    summary: S.banqi.summary,
+    players: S.banqi.players,
+    cover: BanqiCover,
+    tags: S.banqi.tags,
+    rulesIntro: withTimer(S.banqi.rules, [...TR.board, TR.banqi]),
+    tutorial: defineAsyncComponent(() => import('./banqi/BanqiTutorial.vue')),
+    component: defineAsyncComponent(() => import('./banqi/BanqiGame.vue')),
+    settings: [
+      choice('difficulty', S.banqi.settings.difficulty, 'mid'),
+      toggle('rookSlide', S.banqi.settings.rookSlide, false),
+      toggle('chain', S.banqi.settings.chain, false),
+      timer(),
+    ],
   },
 ]
 
