@@ -5,7 +5,7 @@ import { nextInt, nextRandom, type RngState } from '../common/rng'
 import { PRESET_STYLES, type GoStyle } from '../common/personas'
 import type { Difficulty } from '../common/types'
 import { goBookMoves } from './book'
-import { mcPick } from './mc'
+import { mcPick, wholeBoardBonus } from './mc'
 import { groupAt, neighbors, other, scoreGo, toXY, tryPlay, type Color, type GoAction, type GoState, type Point } from './rules'
 
 export type GoAiStyle = Difficulty | GoStyle
@@ -126,13 +126,20 @@ export function chooseGoMove(state: GoState, style: GoAiStyle, rng: RngState): [
   const pool = scored.filter((m) => m.score >= floor).slice(0, 1 + Math.round(s.noise * 5))
   let pick = pool[Math.floor(r * pool.length)]
   // 挑戰：前幾名各試下到底很多次，看整盤誰的地多，挑最有利的
-  if (s.mc) {
-    const width = state.size <= 9 ? 12 : state.size <= 13 ? 10 : 8
-    const n = Math.max(4, Math.round(s.mc * (state.size <= 9 ? 4 : state.size <= 13 ? 1.7 : 1)))
-    const m = mcPick(state, scored.slice(0, width), n, rng, s.mcPrior ?? 0.5)
+  if (s.mc && state.size <= 9) {
+    // 9 路：前幾名各試下到底，直接比結果
+    const m = mcPick(state, scored.slice(0, 12), Math.round(s.mc * 2.4), rng, 0.5)
     ;[, rng] = nextRandom(rng)
-    if (m) {
-      pick = scored.find((x) => x.index === m.index) ?? pick
+    if (m) pick = scored.find((x) => x.index === m.index) ?? pick
+  } else if (s.mc) {
+    // 大棋盤：試下到底看全局（哪裡還沒定、哪塊棋危險），幫每一點加減分再挑最好的
+    const bonus = wholeBoardBonus(state, Math.round(s.mc * (state.size <= 13 ? 4.8 : 1.6)), rng)
+    ;[, rng] = nextRandom(rng)
+    const k = 0.5
+    let bestV = -Infinity
+    for (const m of scored.slice(0, 40)) {
+      const v = m.score + bonus[m.index] * k
+      if (v > bestV) ((bestV = v), (pick = m))
     }
   }
 

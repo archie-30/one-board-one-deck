@@ -71,8 +71,6 @@ export interface GoStyle {
   book?: boolean
   /** 看整盤：前幾名候選各「隨機下到底」幾次，比誰的地多（0／沒填＝不看）（挑戰） */
   mc?: number
-  /** 看整盤時，候選原本的分數佔多少參考（沒填 0.5） */
-  mcPrior?: number
 }
 
 /** 西洋棋、象棋的打法（兩種棋共用） */
