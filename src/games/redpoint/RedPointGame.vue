@@ -8,6 +8,7 @@ import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
+import { bringInto, joinLiveMatch, matchOpponents, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
 import { recordResult, stats } from '@/core/settings'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
@@ -43,19 +44,23 @@ interface Saved {
   rng: number
 }
 const saved = (props.resume ?? null) as Saved | null
+/** 連線對局：伺服器發牌、當裁判（沒有就是一般的單人對電腦） */
+const net = saved ? null : joinLiveMatch('redpoint')
+/** 規則設定：連線時照房主的 */
+const rules = net ? { ...props.options, ...net.opts } : props.options
 
 const T = S.redpoint
 /** 規則設定的「倒數計時」 */
-const timed = props.options.timer !== false
+const timed = rules.timer !== false
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
-const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3)
+const opponents = net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3)
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [myLook(), ...opponents.map((o) => o.look)]
 
 let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
 let rng = saved ? saved.rng : seedRng(seed)
-const state = shallowRef<RedPointState>(saved ? saved.state : dealRedPoint(seed))
+const state = shallowRef<RedPointState>(net ? netStart() : saved ? saved.state : dealRedPoint(seed))
 const grace = useGrace(props.options, state, () => state.value.turn === 0)
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const busy = ref(true)
@@ -77,8 +82,8 @@ function wait(ms: number): Promise<boolean> {
   return new Promise((resolve) => {
     const id = window.setTimeout(() => {
       timers.delete(id)
-      // 暫停中（選單打開）：等繼續再往下走
-      if (menuOpen.value && ep === epoch) void wait(250).then(resolve)
+      // 暫停中（選單打開）：等繼續再往下走（連線對局不能暫停，別人還在打）
+      if (menuOpen.value && ep === epoch && !net) void wait(250).then(resolve)
       else resolve(ep === epoch)
     }, ms)
     timers.add(id)
@@ -181,6 +186,13 @@ async function nextTurn(): Promise<void> {
   moods.forEach((m, i) => {
     if (m === 'think') moods[i] = 'idle'
   })
+  if (net) {
+    // 連線：手上沒牌的人只翻牌；輪到自己出牌就讓你點；其他時候等伺服器送來下一個動作
+    if (s.phase === 'flip') return flipTop(s.turn)
+    busy.value = s.turn !== ME
+    if (s.turn !== ME) moods[s.turn] = 'think'
+    return pump()
+  }
   // 手上沒牌了（有人被跳過後會發生）：只翻牌堆
   if (s.phase === 'flip') {
     busy.value = true
@@ -232,15 +244,27 @@ async function playCard(player: number, card: Card, target: Card | undefined) {
 
 /** 翻牌堆最上面那張 */
 async function flipTop(player: number): Promise<void> {
-  const s = state.value
-  if (s.phase !== 'flip') return nextTurn()
-  const top = s.pile[0]
+  if (state.value.phase !== 'flip') return nextTurn()
+  // 連線：伺服器已經告訴大家翻出來的是哪張，先把它換到牌堆最上面
+  if (net && knownTop !== null) placeTop(knownTop)
+  const top = state.value.pile[0]
   const S2 = spots.value
   staged.set(top, { x: S2.reveal.x, y: S2.reveal.y, r: 4, s: 0.95, f: 1, z: 650 })
   playSound('flip')
   sync([top], { dur: 380, arc: 16 })
   if (!(await wait(620))) return
   const targets = targetsFor(state.value, top)
+  if (net) {
+    // 自己翻的：能吃兩張以上就讓你選，不然直接送出；別人翻的：等伺服器送來他怎麼吃
+    if (player === ME) {
+      if (targets.length >= 2) {
+        awaitFlip.value = true
+        message.value = T.flipPick
+        busy.value = false
+      } else mine({ type: 'flip', player: ME, target: targets[0] })
+    }
+    return pump()
+  }
   if (targets.length >= 2) {
     if (player === ME) {
       awaitFlip.value = true
@@ -337,6 +361,8 @@ async function countUp(): Promise<boolean> {
 }
 
 async function newRound() {
+  // 連線對局：再來一局要回房間大家重新準備
+  if (net) return
   cancelAll()
   menuOpen.value = false
   resultOpen.value = false
@@ -360,7 +386,7 @@ async function newRound() {
 // ── 保存進度並退出 ──
 /** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
 const acted = ref(!!saved)
-const canSave = computed(() => phase.value === 'play' && acted.value)
+const canSave = computed(() => !net && phase.value === 'play' && acted.value)
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
@@ -374,12 +400,126 @@ function saveAndExit() {
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
 defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menuOpen.value = true), snapshot })
 
+// ── 連線對局 ──
+// 伺服器送來的每個動作（包括自己的）照順序做：出牌、翻牌、逾時，各自播完動畫再拿下一個。
+// 別人的手牌、牌堆在這裡只是背面：打出某張牌時把那張換到他手上；翻牌時伺服器公開最上面那張（top），把它換到牌堆頂。
+const sending = ref(false)
+let waiting = false
+/** 伺服器公開的、下一次要翻的牌堆最上面那張 */
+let knownTop: Card | null = null
+if (net) {
+  net.onEvent = () => {
+    if (!waiting) return
+    waiting = false
+    pump()
+  }
+  net.onReject = () => {
+    sending.value = false
+    busy.value = false
+    playSound('error')
+  }
+}
+onBeforeUnmount(() => {
+  if (net) net.onEvent = net.onReject = null
+})
+function netStart(): RedPointState {
+  const m = net!
+  const st = m.start as { hand: Card[]; counts: number[]; table: Card[]; pile: number; turn: number; phase: RedPointState['phase']; top?: Card }
+  const counts = rotate(m, st.counts)
+  const unknown = ALL.filter((c) => !st.hand.includes(c) && !st.table.includes(c))
+  let k = 0
+  const hands = counts.map((n, p) => (p === ME ? st.hand.slice() : unknown.slice(k, (k += n))))
+  if (st.top !== undefined) knownTop = st.top
+  return { hands, table: st.table.slice(), pile: unknown.slice(k, k + st.pile), captured: [[], [], [], []], turn: toLocal(m, st.turn), phase: st.phase }
+}
+function fromServer(s: RedPointState): RedPointState {
+  const m = net!
+  return { ...s, hands: rotate(m, s.hands), captured: rotate(m, s.captured), turn: toLocal(m, s.turn) }
+}
+/** 看不到的牌：別人的手牌（第 p - 1 疊）＋牌堆（最後一疊） */
+const zonesOf = (s: RedPointState) => [...s.hands.slice(1).map((h) => h.slice()), s.pile.slice()]
+const withZones = (s: RedPointState, z: number[][]): RedPointState => ({ ...s, hands: [s.hands[0], ...z.slice(0, 3)], pile: z[3] })
+/** 把伺服器公開的那張換到牌堆最上面 */
+function placeTop(top: Card) {
+  const z = zonesOf(state.value)
+  if (z[3][0] === top) return
+  const zi = z.findIndex((zone) => zone.includes(top))
+  if (zi < 0) return
+  const old = z[3][0]
+  z[zi][z[zi].indexOf(top)] = old
+  z[3][0] = top
+  stage.adopt([[old, top], [top, old]])
+  state.value = withZones(state.value, z)
+}
+function mine(a: RedPointAction): boolean {
+  if (sending.value) return false
+  sending.value = true
+  busy.value = true
+  acted.value = true
+  sendAct({ ...a, player: toAbs(net!, a.player) })
+  return true
+}
+function pump() {
+  const m = net!
+  const e = m.queue.shift()
+  if (!e) {
+    waiting = true
+    return
+  }
+  // 結束攤牌：牌都已經公開了，正常應該已經結算；萬一對不上就照伺服器的
+  if (e.end) {
+    if (state.value.phase !== 'over') state.value = fromServer(e.ev as RedPointState)
+    sync()
+    return void nextTurn()
+  }
+  const ev = e.ev as { type: 'play' | 'flip' | 'timeout'; player: number; card?: Card; target?: Card; top?: Card }
+  const p = toLocal(m, ev.player)
+  if (p === ME) sending.value = false
+  if (ev.top !== undefined) knownTop = ev.top
+  if (ev.type === 'play') {
+    const card = ev.card!
+    if (p !== ME) {
+      const z = zonesOf(state.value)
+      const pair = bringInto(z, p - 1, card)
+      if (pair) stage.adopt([[pair[1], pair[0]], [pair[0], pair[1]]])
+      state.value = withZones(state.value, z)
+    }
+    const targets = targetsFor(state.value, card)
+    return void playCard(p, card, ev.target ?? (targets.length === 1 ? targets[0] : undefined))
+  }
+  if (ev.type === 'flip') {
+    const top = state.value.pile[0]
+    const targets = targetsFor(state.value, top)
+    awaitFlip.value = false
+    return void finishFlip(p, top, ev.target ?? (targets.length === 1 ? targets[0] : undefined))
+  }
+  void timeoutStep(p)
+}
+/** 伺服器說某人時間到：出牌階段＝整回合跳過；翻牌時還沒選＝翻出的牌留在桌上 */
+async function timeoutStep(p: number) {
+  awaitFlip.value = false
+  busy.value = true
+  const flipping = state.value.phase === 'flip'
+  const top = state.value.pile[0]
+  if (flipping) staged.delete(top)
+  if (!act({ type: 'timeout', player: p })) return
+  if (p === ME) {
+    message.value = S.common.timedOut
+    playSound('error')
+  }
+  selected.value = null
+  if (flipping) sync([top], { dur: 320, arc: 10 })
+  else sync()
+  if (!(await wait(520))) return
+  void nextTurn()
+}
+
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
 // 滑鼠移到自己的手牌上：桌上能跟它配的牌先淡淡亮起來（預覽），點下去才選起
 const hoverCard = ref<Card | null>(null)
 /** 規則設定的「提示可以吃的牌」（預設關）；翻牌後要選吃哪張時一定會亮 */
-const showHints = props.options.hints === true
+const showHints = rules.hints === true
 const peekHits = computed<Card[]>(() => {
   const c = hoverCard.value
   if (c === null || !myTurn.value || selected.value !== null || !state.value.hands[ME].includes(c)) return []
@@ -393,7 +533,12 @@ const hits = computed<Card[]>(() => {
 function tapCard(c: Card) {
   const s = state.value
   if (awaitFlip.value) {
-    if (hits.value.includes(c)) void finishFlip(ME, s.pile[0], c)
+    if (!hits.value.includes(c)) return
+    if (net) {
+      awaitFlip.value = false
+      message.value = ''
+      mine({ type: 'flip', player: ME, target: c })
+    } else void finishFlip(ME, s.pile[0], c)
     return
   }
   if (!myTurn.value) return
@@ -405,11 +550,13 @@ function tapCard(c: Card) {
     return
   }
   // 點桌上能吃的牌 = 直接用選起的手牌去吃
-  if (selected.value !== null && s.table.includes(c) && matches(selected.value, c)) void playCard(ME, selected.value, c)
+  if (selected.value !== null && s.table.includes(c) && matches(selected.value, c)) playMine(selected.value, c)
 }
 
 /** 時間到：出牌階段＝整回合跳過；翻牌時還沒選要吃哪張＝翻出的牌留在桌上 */
 async function onTimeout() {
+  // 連線對局：時間到由伺服器決定
+  if (net) return
   if (awaitFlip.value) {
     awaitFlip.value = false
     busy.value = true
@@ -440,7 +587,14 @@ function playSelected() {
     playSound('error')
     return
   }
-  void playCard(ME, selected.value, targets[0])
+  playMine(selected.value, targets[0])
+}
+/** 自己出牌：連線時送給伺服器（等它送回來才真的出），單人時直接出 */
+function playMine(card: Card, target: Card | undefined) {
+  if (net) {
+    selected.value = null
+    mine({ type: 'play', player: ME, card, ...(target !== undefined ? { target } : {}) })
+  } else void playCard(ME, card, target)
 }
 
 const scores = computed(() => scoreRedPoint(state.value))
@@ -467,7 +621,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.phase !== 'over' && state.turn === p" />
-    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.phase !== 'over' && !(grace && state.turn === 0)" :paused="menuOpen || resultOpen" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.phase !== 'over' && !(grace && state.turn === 0)" :paused="!net && (menuOpen || resultOpen)" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 數牌：每一列一個人，左邊名字、右邊累加的分數 -->
     <template v-if="tally && !resultOpen">
       <div v-for="p in 4" :key="`tl${p}`" class="tally" :class="{ now: countingRow === p - 1 }" :style="{ left: `${spots.box.x + spots.box.w * 0.03}px`, width: `${spots.box.w * 0.94}px`, top: `${rowY(p - 1)}px` }">
@@ -550,7 +704,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       </table>
       <p class="how"><b class="t-black">{{ T.howTitle }}</b>{{ T.how }}</p>
       <template #actions>
-        <Btn tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
+        <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
         <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
       </template>
     </Dialog>
