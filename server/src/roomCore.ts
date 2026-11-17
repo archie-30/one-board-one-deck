@@ -24,7 +24,12 @@ export interface Profile {
   look?: { shape: string; tone: string; fill: string; acc?: string }
   level?: number
   titles?: string[]
+  /** 這位玩家幫電腦取的名字（依電腦編號）；房主的那份給房間裡的電腦補位用 */
+  bots?: string[]
 }
+
+/** 電腦對手的數量（名字最多收幾個） */
+export const BOT_COUNT = 30
 
 export interface Member extends Profile {
   /** 公開的玩家編號（大家看得到） */
@@ -98,6 +103,11 @@ export function parseProfile(raw: unknown): Profile | null {
   if (r.titles !== undefined) {
     if (!Array.isArray(r.titles) || r.titles.length > 2 || !r.titles.every((t) => typeof t === 'string' && WORD.test(t))) return null
     out.titles = r.titles as string[]
+  }
+  if (r.bots !== undefined) {
+    // 每個名字最多 12 字；留空的格子照收（那一位用預設名字）
+    if (!Array.isArray(r.bots) || r.bots.length > BOT_COUNT || !r.bots.every((t) => typeof t === 'string' && t.length <= 40)) return null
+    out.bots = (r.bots as string[]).map((t) => [...t.replace(/[\p{C}]/gu, '').trim()].slice(0, 12).join(''))
   }
   return out
 }
@@ -311,6 +321,8 @@ export interface RoomView {
   startIn: number
   players: { id: string; name: string; host: boolean; me: boolean; ready: boolean; spectator: boolean; away: boolean; look?: Profile['look']; level?: number; titles?: string[] }[]
   recommends: { playerId: string; gameId: string }[]
+  /** 電腦補位用的名字：跟著房主 */
+  botNames: string[]
   /** 只給這位玩家的資料（之後放手牌等；現在是空的） */
   private: Record<string, never>
 }
@@ -333,6 +345,7 @@ export function viewFor(room: RoomState, pid: string, now: number): RoomView {
       ...(p.titles ? { titles: p.titles } : {}),
     })),
     recommends: room.recommends.slice(),
+    botNames: room.players.find((p) => p.host)?.bots ?? [],
     private: {},
   }
 }

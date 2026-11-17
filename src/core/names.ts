@@ -4,6 +4,7 @@
 import { reactive, watch } from 'vue'
 import { BLOCKED_WORDS, NAME_MAX_WIDTH, NAME_POOL } from '@/data/namePool'
 import { OPPONENTS } from '@/data/names'
+import { online } from './online'
 import { loadSave, writeSave } from './storage'
 
 const COUNT = OPPONENTS.length
@@ -58,4 +59,12 @@ export function resetOpponentNames() {
   opponentNames.names = DEFAULTS.slice()
 }
 
-export const opponentName = (id: number): string => opponentNames.names[id] ?? DEFAULTS[id]
+/** 第 id 位電腦的名字。連線房間裡用房主取的名字（大家看到的電腦名字一樣）；房主那一格留空或不雅就用預設名字 */
+export function opponentName(id: number): string {
+  const host = online.room?.botNames
+  if (host) {
+    const n = cleanName(host[id] ?? '')
+    return n && !isBlocked(n) ? n : DEFAULTS[id]
+  }
+  return opponentNames.names[id] ?? DEFAULTS[id]
+}

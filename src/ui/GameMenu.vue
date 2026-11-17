@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 對局中的選單：繼續、規則說明、重新開始、保存進度並退出、離開
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { online } from '@/core/online'
 import { gamePrefs } from '@/core/settings'
 import { S } from '@/data/strings'
 import type { GameDef } from '@/games/types'
@@ -94,7 +95,8 @@ const view = computed(() => (showRules.value ? 'rules' : showOptions.value ? 'op
       <Btn icon="gear" block arrow @click="settingsOpen = true">{{ S.appSettings.title }}</Btn>
       <Btn icon="again" block arrow :tone="restartArmed ? 'yellow' : 'plain'" @click="restart">{{ restartArmed ? S.common.quitConfirm : canSave ? S.common.restartGiveUp : S.common.restart }}</Btn>
       <Btn icon="exit" block arrow :tone="quitArmed ? 'yellow' : 'plain'" @click="quit">{{ quitArmed ? S.common.quitConfirm : canSave ? S.common.quitNoSave : S.common.quit }}</Btn>
-      <Btn v-if="canSave" tone="yellow" icon="check" block arrow @click="emit('saveExit')">{{ S.common.saveExit }}</Btn>
+      <!-- 連線對戰不能保存進度 -->
+      <Btn v-if="canSave && !online.room" tone="yellow" icon="check" block arrow @click="emit('saveExit')">{{ S.common.saveExit }}</Btn>
     </div>
     </Transition>
     <template v-if="showRules || showOptions" #actions>

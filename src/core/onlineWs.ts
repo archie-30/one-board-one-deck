@@ -18,6 +18,7 @@ interface RoomView {
   startIn: number
   players: Room['players']
   recommends: Room['recommends']
+  botNames: string[]
 }
 
 const STORE = 'obod.online.v1'
@@ -52,6 +53,7 @@ const toRoom = (v: RoomView): Room => ({
   countdownEnd: v.startIn > 0 ? Date.now() + v.startIn : 0,
   players: v.players,
   recommends: v.recommends,
+  botNames: Array.isArray(v.botNames) ? v.botNames : [],
 })
 
 const ERRORS: JoinError[] = ['format', 'notFound', 'full', 'started', 'limited']

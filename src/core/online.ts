@@ -51,6 +51,8 @@ export interface Room {
   phase?: 'lobby' | 'countdown' | 'playing'
   /** 倒數結束的時間（本機時鐘，0＝沒在倒數） */
   countdownEnd?: number
+  /** 電腦補位時用的名字（房主取的，依電腦編號；沒有就用自己的設定） */
+  botNames?: string[]
 }
 
 /** 開房、加入失敗的原因：格式、找不到、滿了、已開局、試太多次、連不上 */
@@ -62,6 +64,8 @@ export interface OnlineProfile {
   look?: Look
   level?: number
   titles?: string[]
+  /** 自己幫電腦取的名字（當房主時，房間裡的電腦用這些名字） */
+  bots?: string[]
 }
 
 /** 送給伺服器的「意圖」：只說想做什麼，結果由伺服器決定 */
@@ -109,7 +113,7 @@ function localSync() {
 const localService: OnlineService = {
   async create(me) {
     const code = String(Math.floor(Math.random() * 10 ** ROOM_CODE_LENGTH)).padStart(ROOM_CODE_LENGTH, '0')
-    return { code, gameId: '', recommends: [], phase: 'lobby', countdownEnd: 0, players: [{ id: 'me', name: me.name, host: true, me: true, ready: false, spectator: false }] }
+    return { code, gameId: '', recommends: [], phase: 'lobby', countdownEnd: 0, botNames: me.bots, players: [{ id: 'me', name: me.name, host: true, me: true, ready: false, spectator: false }] }
   },
   async join(code) {
     return isRoomCode(code) ? 'notFound' : 'format'
