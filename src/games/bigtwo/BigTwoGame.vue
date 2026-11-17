@@ -6,6 +6,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch 
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
+import { bringInto, joinLiveMatch, matchOpponents, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
 import { recordBest, recordResult, stats } from '@/core/settings'
 import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
@@ -51,16 +52,20 @@ interface Saved {
   startHands?: Card[][]
 }
 const saved = (props.resume ?? null) as Saved | null
+/** 連線對局：伺服器發牌、當裁判（沒有就是一般的單人對電腦） */
+const net = saved ? null : joinLiveMatch(props.game.id)
+/** 規則設定：連線時照房主的（只有「影響公平」的那些；自動過牌、手牌分兩排這種還是用自己的） */
+const rules = net ? { ...props.options, ...net.opts } : props.options
 
 /** 瘋狂大老二：同一個畫面，用兩副牌（104 張、每人 26 張） */
 const crazy = props.game.id === 'crazybigtwo'
-const options = { ...props.options, decks: crazy ? 2 : 1 } as unknown as BigTwoOptions
+const options = net ? ((net.start as { options: BigTwoOptions }).options) : ({ ...props.options, decks: crazy ? 2 : 1 } as unknown as BigTwoOptions)
 const record = crazy ? stats.crazybigtwo : stats.bigtwo
 /** 規則設定的「倒數計時」 */
-const timed = props.options.timer !== false
+const timed = rules.timer !== false
 /** 難度：只決定電腦多強 */
 /** 難度：簡單／困難（只決定電腦多強） */
-const difficulty = asCardLevel(props.options.difficulty)
+const difficulty = asCardLevel(rules.difficulty)
 const level = bigtwoLevel(difficulty)
 const T = S.bigtwo
 const ME = 0
@@ -70,7 +75,7 @@ const DEAL_GAP = crazy ? 13 : 24
 
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
 // 困難模式不會出現新手打法的電腦
-const opponents = saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
+const opponents = net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
 const names = [S.common.you, ...opponents.map((o) => o.name)]
 const looks = [myLook(), ...opponents.map((o) => o.look)]
 const tableTotals = ref(saved ? saved.tableTotals.slice() : [0, 0, 0, 0])
@@ -81,14 +86,14 @@ const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
     timers.delete(id)
-    // 暫停中（選單打開）：電腦也停下來，等繼續再走
-    if (menuOpen.value) later(fn, 250)
+    // 暫停中（選單打開）：電腦也停下來，等繼續再走（連線對局不能暫停，別人還在打）
+    if (menuOpen.value && !net) later(fn, 250)
     else fn()
   }, ms)
   timers.add(id)
 }
 
-const state = shallowRef<BigTwoState>(saved ? saved.state : dealBigTwo(seed, options))
+const state = shallowRef<BigTwoState>(net ? netStart() : saved ? saved.state : dealBigTwo(seed, options))
 const grace = useGrace(props.options, state, () => state.value.turn === 0)
 const phase = ref<'deal' | 'play' | 'over'>('deal')
 const selected = ref<Card[]>([])
@@ -189,6 +194,7 @@ function deal() {
 }
 
 function nextTurn() {
+  if (net) return pump()
   const s = state.value
   if (s.winner >= 0 || phase.value !== 'play') return
   moods.forEach((_, i) => {
@@ -235,7 +241,9 @@ function act(action: BigTwoAction): boolean {
     if (isBomb(combo.type)) for (let o = 1; o < 4; o++) if (o !== p) flash(o, 'shock', 900)
     const landed = combo.cards.length * 120 + 520
     if (s.winner >= 0) {
-      later(finish, landed + 500)
+      // 連線：等伺服器攤牌（別人剩什麼牌）再結算
+      if (net) later(nextTurn, landed + 300)
+      else later(finish, landed + 500)
       return true
     }
     later(nextTurn, landed)
@@ -290,6 +298,8 @@ function finish() {
 }
 
 function newRound() {
+  // 連線對局：再來一局要回房間大家重新準備
+  if (net) return
   cancelAutoPass()
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
@@ -318,7 +328,7 @@ function newRound() {
 // ── 保存進度並退出 ──
 /** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
 const acted = ref(!!saved)
-const canSave = computed(() => phase.value === 'play' && acted.value)
+const canSave = computed(() => !net && phase.value === 'play' && acted.value)
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
@@ -340,6 +350,91 @@ function saveAndExit() {
 }
 // 給外框用：切走分頁、離開視窗時自動暫停並存下進度
 defineExpose({ pause: () => phase.value !== 'over' && !resultOpen.value && (menuOpen.value = true), snapshot })
+
+// ── 連線對局 ──
+// 伺服器送來的每個動作（包括自己的）照順序套用；動畫播完（nextTurn）再拿下一個。
+// 自己出牌：先送給伺服器，等它送回來才真的出（不會跟別人看到的不一樣）。
+/** 正在等伺服器確認自己的出牌（不能連按） */
+const sending = ref(false)
+let waiting = false
+if (net) net.onEvent = () => {
+  if (!waiting) return
+  waiting = false
+  pump()
+}
+onBeforeUnmount(() => {
+  if (net) net.onEvent = null
+})
+/** 伺服器座位的牌局 → 自己的視角（自己是 0） */
+function fromServer(s: BigTwoState): BigTwoState {
+  const m = net!
+  const L = (p: number) => (p < 0 ? p : toLocal(m, p))
+  return { ...s, hands: rotate(m, s.hands), lastMoves: rotate(m, s.lastMoves), turn: L(s.turn), winner: L(s.winner), table: s.table ? { ...s.table, player: L(s.table.player) } : null, ...(s.dragon !== undefined ? { dragon: L(s.dragon) } : {}) }
+}
+/** 開局：自己的手牌是真的；別人的手牌只知道張數，先用「沒看過的牌」當背面 */
+function netStart(): BigTwoState {
+  const m = net!
+  const st = m.start as { hand: Card[]; counts: number[]; turn: number; firstTurn: boolean; winner: number; options: BigTwoOptions }
+  const counts = rotate(m, st.counts)
+  const unknown = ALL.filter((c) => !st.hand.includes(c))
+  let k = 0
+  const hands = counts.map((n, p) => (p === ME ? st.hand.slice() : unknown.slice(k, (k += n))))
+  return { options: st.options, hands, turn: toLocal(m, st.turn), table: null, lastMoves: [null, null, null, null], passCount: 0, firstTurn: st.firstTurn, winner: st.winner >= 0 ? toLocal(m, st.winner) : -1, played: [] }
+}
+/** 自己的動作：連線時送給伺服器，單人時直接套用 */
+function mine(a: BigTwoAction) {
+  if (!net) return act(a)
+  if (sending.value) return false
+  sending.value = true
+  acted.value = true
+  sendAct({ ...a, player: toAbs(net, a.player) })
+  return true
+}
+/** 拿下一個伺服器送來的動作來套用；還沒有就等 */
+function pump() {
+  const m = net!
+  const e = m.queue.shift()
+  if (!e) {
+    waiting = true
+    const s = state.value
+    if (s.winner >= 0 || phase.value !== 'play') return
+    moods.forEach((_, i) => {
+      if (moods[i] === 'think') moods[i] = 'idle'
+    })
+    if (s.turn === ME) autoPass()
+    else moods[s.turn] = 'think'
+    return
+  }
+  if (e.end) return reveal(e.ev as BigTwoState & { startHands?: Card[][] })
+  const raw = e.ev as BigTwoAction
+  const a = { ...raw, player: toLocal(m, raw.player) } as BigTwoAction
+  if (a.player === ME) ((sending.value = false), cancelAutoPass(), (selected.value = []))
+  // 別人打出的牌：先把那幾張換到他手上的背面位置，看起來就是從他手上打出來
+  if (a.type === 'play' && a.player !== ME) {
+    const hands = state.value.hands.map((h) => h.slice())
+    for (const c of a.cards) {
+      const pair = bringInto(hands, a.player, c, a.cards)
+      if (pair) stage.adopt([[pair[1], pair[0]], [pair[0], pair[1]]])
+    }
+    state.value = { ...state.value, hands }
+  }
+  if (!act(a)) {
+    console.warn('online: 套用不了伺服器送來的動作', a)
+    later(nextTurn, 50)
+    return
+  }
+  if (a.type === 'timeout' && a.player === ME) message.value = S.common.timedOut
+}
+/** 伺服器攤牌：換上每個人真正的牌（背面的牌換成真的，位置不動），再結算 */
+function reveal(fin: BigTwoState & { startHands?: Card[][] }) {
+  const real = fromServer(fin)
+  const pairs: [number, number][] = []
+  for (let p = 1; p < 4; p++) state.value.hands[p].forEach((c, i) => real.hands[p][i] !== undefined && real.hands[p][i] !== c && pairs.push([c, real.hands[p][i]]))
+  if (pairs.length) stage.adopt(pairs)
+  state.value = real
+  if (fin.startHands) startHands.value = rotate(net!, fin.startHands)
+  later(finish, 300)
+}
 
 // ── 你的操作 ──
 const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
@@ -380,7 +475,7 @@ function playSelected() {
   }
   const cards = selected.value
   selected.value = []
-  act({ type: 'play', player: ME, cards })
+  mine({ type: 'play', player: ME, cards })
 }
 
 // 過牌：按一下就過（大老二不用二次確認）
@@ -402,7 +497,7 @@ function autoPass() {
     if (token !== autoToken) return
     autoPassing.value = false
     if (state.value !== s || !canPass.value || props.options.autoPass === false) return
-    act({ type: 'pass', player: ME })
+    mine({ type: 'pass', player: ME })
   }, AUTO_PASS_MS)
 }
 /** 取消這一次的自動過牌 */
@@ -418,10 +513,12 @@ function pass() {
   if (!canPass.value) return
   selected.value = []
   acted.value = true
-  act({ type: 'pass', player: ME })
+  mine({ type: 'pass', player: ME })
 }
 /** 時間到：這一手跳過（桌上有牌＝過牌；輪到你首出＝改由下一位首出） */
 function onTimeout() {
+  // 連線對局：時間到由伺服器決定（它會送來「逾時」）
+  if (net) return
   if (!myTurn.value) return
   selected.value = []
   acted.value = true
@@ -445,7 +542,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.winner < 0 && state.turn === p" />
-    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0 && !(grace && state.turn === 0)" :paused="menuOpen || resultOpen" :seconds="crazy ? TURN_SECONDS.crazy : TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.winner < 0 && !(grace && state.turn === 0)" :paused="!net && (menuOpen || resultOpen)" :seconds="crazy ? TURN_SECONDS.crazy : TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 桌面中央的框 -->
     <!-- 每個人這一輪剛出的牌（小張；一輪結束就清掉） -->
     <template v-for="(seat, p) in layout.seats" :key="`last${p}`">
@@ -506,10 +603,10 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <Transition name="clear-sel">
           <Btn v-if="selected.length" class="clear-sel" size="sm" icon="close" block @click="clearSelection">{{ T.clearSelection }}</Btn>
         </Transition>
-        <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length" @click="playSelected">{{ T.play }}</Btn>
+        <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length || sending" @click="playSelected">{{ T.play }}</Btn>
         <!-- 自動過牌倒數中：灰色「按一次以取消」，下面一條 1.2 秒倒數條 -->
         <div class="pass-wrap rise" style="--i: 1">
-          <Btn :class="{ waiting: autoPassing }" :icon="autoPassing ? undefined : 'pass'" block :disabled="!canPass" @click="pass">{{ autoPassing ? T.autoPassCancel : T.pass }}</Btn>
+          <Btn :class="{ waiting: autoPassing }" :icon="autoPassing ? undefined : 'pass'" block :disabled="!canPass || sending" @click="pass">{{ autoPassing ? T.autoPassCancel : T.pass }}</Btn>
           <span v-if="autoPassing" :key="autoTick" class="auto-bar" :style="{ '--ms': `${AUTO_PASS_MS}ms` }" />
         </div>
       </template>
@@ -589,7 +686,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>
-        <Btn tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
+        <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
       </template>
     </Dialog>
   </section>

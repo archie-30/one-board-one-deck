@@ -69,7 +69,16 @@ export interface OnlineProfile {
 }
 
 /** 送給伺服器的「意圖」：只說想做什麼，結果由伺服器決定 */
-export type RoomIntent = { t: 'ready'; on: boolean } | { t: 'spectate'; on: boolean } | { t: 'mode'; gameId: string } | { t: 'recommend'; gameId: string } | { t: 'back' }
+export type RoomIntent =
+  | { t: 'ready'; on: boolean }
+  | { t: 'spectate'; on: boolean }
+  | { t: 'mode'; gameId: string }
+  | { t: 'recommend'; gameId: string }
+  | { t: 'back' }
+  /** 房主的規則設定（開局照這份） */
+  | { t: 'rules'; gameId: string; options: Record<string, string | boolean> }
+  /** 對局中出牌（內容各玩法自己定） */
+  | { t: 'act'; a: unknown }
 
 /** 房間最多幾人 */
 export const ROOM_MAX = 4
@@ -161,6 +170,8 @@ export function receiveClosed(reason: string) {
 
 const me = () => online.room?.players.find((p) => p.me) ?? null
 const send = (it: RoomIntent) => void service.send(it)
+/** 直接送一個意圖給伺服器（規則設定、對局出牌） */
+export const sendIntent = send
 
 /** 自己能不能換模式（房主，或房主打開了「大家都能換」） */
 export const canChangeMode = computed(() => !!online.room && !!me()?.host)

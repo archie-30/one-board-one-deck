@@ -257,6 +257,8 @@ export const S = {
       network: '連不上伺服器，請檢查網路後再試',
     } as Record<string, string>,
     nameNeed: '連線要先有玩家名稱：請到個人資料取一個名字',
+    someone: '玩家',
+    humanTag: '真人玩家',
     toProfile: '去取名字',
     soon: '目前只連線到房間：開局後各自在自己的裝置上跟電腦對打（對局同步之後再接上）',
     room: '房間',

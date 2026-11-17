@@ -10,6 +10,7 @@ let swapFlag = false
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { back, go, replace } from '@/core/nav'
 import { canChangeMode, changeMode, online, recommendMode } from '@/core/online'
+import { sendRules } from '@/core/onlineMatch'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
 import { isStaleChunk, reloadForUpdate } from '@/core/staleReload'
@@ -279,6 +280,8 @@ function roomPick() {
   if (a === 'change') {
     playSound('tap')
     changeMode(game.value.id, seatsOf(game.value))
+    // 房主的規則設定一起送給伺服器（開局照這份）
+    sendRules(game.value.id)
     go({ name: 'room' })
   } else if (a === 'recommend' && recommendedId.value !== game.value.id) {
     playSound('tap')

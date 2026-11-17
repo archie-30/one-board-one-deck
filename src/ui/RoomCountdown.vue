@@ -11,6 +11,7 @@ import { startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { go, resetTo, route } from '@/core/nav'
 import { backToRoom, matchStart, online, roomCountdown } from '@/core/online'
+import { liveMatch } from '@/core/onlineMatch'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
 
@@ -73,6 +74,9 @@ onBeforeUnmount(() => {
 /** 開局：房間中間那張卡片翻面展開（跟模式選單開始遊戲一樣），同時先把遊戲載好 */
 async function launch(gameId: string) {
   if (!online.room || !gameId) return
+  // 伺服器發牌的對局裡沒有自己的座位（觀戰）：先留在房間（還不能看別人打）
+  const m = liveMatch.value
+  if (m && m.gameId === gameId && m.seat < 0) return
   const g = getGame(gameId)
   const el = document.getElementById(`mode-${g.id}`)
   if (!el || reducedMotion() || route.value.name !== 'room') return go({ name: 'play', gameId: g.id })

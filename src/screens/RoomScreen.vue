@@ -21,6 +21,7 @@ import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import Page from '@/ui/Page.vue'
+import { sendRules } from '@/core/onlineMatch'
 
 const T = S.online
 /** 開局倒數中：房間裡的按鈕全部反灰，只有「取消準備」能按（取消後倒數停下來才恢復） */
@@ -96,6 +97,12 @@ watch(
     if (!r && online.closed) back(true)
   },
 )
+/** 準備／取消準備。房主按準備時，順便把最新的規則設定送給伺服器（開局照這份） */
+function toggleReady() {
+  const on = !me.value?.ready
+  if (on && isHost.value && room.value?.gameId) sendRules(room.value.gameId)
+  setReady(on)
+}
 async function leave() {
   leaveOpen.value = false
   await leaveRoom()
@@ -182,7 +189,7 @@ async function leave() {
       <!-- 準備：右下角，跟左下的離開房間同一排 -->
       <p class="t-label stline" :class="{ hot: st.canStart, warn: st.tooMany > 0 }">{{ status }}</p>
       <Btn v-if="showWatch" :disabled="locked" :icon="me?.spectator ? 'play' : 'pass'" @click="setSpectator(!me?.spectator)">{{ me?.spectator ? T.play : T.watch }}</Btn>
-      <Btn class="readybtn" :tone="me?.ready ? 'ink' : 'red'" :icon="me?.ready ? 'close' : 'check'" :disabled="!game" @click="setReady(!me?.ready)">{{ me?.ready ? T.unready : T.ready }}</Btn>
+      <Btn class="readybtn" :tone="me?.ready ? 'ink' : 'red'" :icon="me?.ready ? 'close' : 'check'" :disabled="!game" @click="toggleReady">{{ me?.ready ? T.unready : T.ready }}</Btn>
     </template>
 
     <Dialog :open="leaveOpen" :title="isHost ? T.disbandAsk : T.leaveAsk" label="ROOM" tone="ink" @close="leaveOpen = false">

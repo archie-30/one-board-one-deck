@@ -93,7 +93,8 @@ const view = computed(() => (showRules.value ? 'rules' : showOptions.value ? 'op
       <Btn icon="book" block arrow @click="showRules = true">{{ S.lobby.rules }}</Btn>
       <Btn v-if="hasOptions" class="" icon="pencil" block arrow @click="showOptions = true">{{ S.lobby.settings }}</Btn>
       <Btn icon="gear" block arrow @click="settingsOpen = true">{{ S.appSettings.title }}</Btn>
-      <Btn icon="again" block arrow :tone="restartArmed ? 'yellow' : 'plain'" @click="restart">{{ restartArmed ? S.common.quitConfirm : canSave ? S.common.restartGiveUp : S.common.restart }}</Btn>
+      <!-- 連線對戰不能自己重新開始（要回房間大家重新準備） -->
+      <Btn v-if="!online.room" icon="again" block arrow :tone="restartArmed ? 'yellow' : 'plain'" @click="restart">{{ restartArmed ? S.common.quitConfirm : canSave ? S.common.restartGiveUp : S.common.restart }}</Btn>
       <Btn icon="exit" block arrow :tone="quitArmed ? 'yellow' : 'plain'" @click="quit">{{ quitArmed ? S.common.quitConfirm : canSave ? S.common.quitNoSave : S.common.quit }}</Btn>
       <!-- 連線對戰不能保存進度 -->
       <Btn v-if="canSave && !online.room" tone="yellow" icon="check" block arrow @click="emit('saveExit')">{{ S.common.saveExit }}</Btn>
