@@ -6,6 +6,7 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { useBoardNet } from '@/core/boardNet'
+import { watchSeats } from '@/core/onlineMatch'
 import { recordResult, stats } from '@/core/settings'
 import { asLevel, extraThink, gomokuAt } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
@@ -20,6 +21,7 @@ import Bowl from '@/ui/art/Bowl.vue'
 import type { Mood as KidMood } from '@/ui/art/look'
 import Stone from '@/ui/art/Stone.vue'
 import Btn from '@/ui/Btn.vue'
+import RematchBtn from '@/ui/RematchBtn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import GameMenu from '@/ui/GameMenu.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
@@ -68,6 +70,8 @@ const T = S.gomoku
 const state = ref<GomokuState>(createGomoku(options))
 const human = ref<Player>(1)
 const opponent = ref(bn ? bn.opponent : pickOpponents(1)[0])
+// 連線：對手離開房間、改由電腦代打時，名字換成「＿（電腦代打）」
+if (bn) watchSeats(bn.net, (ps) => (opponent.value = ps[1]))
 const phase = ref<'rps' | 'playing' | 'over'>('rps')
 const preview = ref(-1)
 const message = ref('')
@@ -404,9 +408,10 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
       <div class="act">
         <template v-if="phase === 'over'">
           <Btn v-if="!bn" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+          <RematchBtn v-else tone="ink" block />
           <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
-            <Btn size="sm" block @click="emit('exit')">{{ S.common.quit }}</Btn>
+            <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
           </div>
         </template>
         <template v-else>
@@ -424,9 +429,10 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>
-        <Btn size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn size="sm" icon="exit" @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
+        <RematchBtn v-else tone="red" />
       </template>
     </Dialog>
   </section>

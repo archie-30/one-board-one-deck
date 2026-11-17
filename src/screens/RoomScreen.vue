@@ -154,7 +154,9 @@ async function leave() {
       <section class="mode rise" style="--i: 2">
         <div class="now">
           <!-- 開局時這張卡片拿起來翻面（RoomCountdown）；打完回來卡片飛回這裡（id 跟模式選單的卡片同一套） -->
-          <div v-if="game" :id="`mode-${game.id}`" class="mcard" :class="[`c-${game.category}`, { lifted: launchFx.active }]">
+          <!-- 換模式：舊卡片翻過去、新卡片翻過來 -->
+          <Transition name="mswap" mode="out-in">
+          <div v-if="game" :id="`mode-${game.id}`" :key="game.id" class="mcard" :class="[`c-${game.category}`, { lifted: launchFx.active }]">
             <span class="cv halftone"><component :is="game.cover" active /></span>
             <span class="info">
               <span class="t-label cat">{{ T.current }}・{{ T.players(seats) }}</span>
@@ -163,7 +165,7 @@ async function leave() {
             </span>
           </div>
           <!-- 開房時還沒選模式 -->
-          <div v-else class="mcard empty">
+          <div v-else key="none" class="mcard empty">
             <span class="cv" />
             <span class="info">
               <span class="t-label cat">{{ T.current }}</span>
@@ -171,6 +173,7 @@ async function leave() {
               <span class="sm">{{ T.noModeLead }}</span>
             </span>
           </div>
+          </Transition>
           <div class="side">
             <!-- 到房間外逛模式（人還在房間裡） -->
             <div class="nav">
@@ -396,6 +399,31 @@ async function leave() {
   container-type: size;
 }
 /* 跟模式選單一樣的直式卡片（縮小版） */
+/* 換模式的卡片：翻過去、再翻過來（只有換模式時；開局拿起卡片的過場不受影響） */
+.mswap-leave-active {
+  transition:
+    transform 200ms cubic-bezier(0.55, 0, 1, 0.45),
+    opacity 200ms ease-in;
+}
+.mswap-enter-active {
+  transition:
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms ease-out;
+}
+.mswap-leave-to {
+  transform: perspective(900px) rotateY(80deg) scale(0.94);
+  opacity: 0;
+}
+.mswap-enter-from {
+  transform: perspective(900px) rotateY(-80deg) scale(0.94);
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mswap-leave-active,
+  .mswap-enter-active {
+    transition: none;
+  }
+}
 .mcard {
   display: flex;
   height: min(100cqh, 17rem);

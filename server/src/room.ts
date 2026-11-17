@@ -147,6 +147,13 @@ export class Room extends DurableObject<Env> {
     // 太久沒回答「還在嗎」被移出房間的人：告訴他、關掉他的連線
     for (const pid of r.removed) this.dropMember(pid, 'idle')
     if (r.closed) return this.closeRoom(r.closed)
+    // 再玩一次：大家還在對局畫面，只送新一局的對局資訊（畫面換成新的一局），不送「開始」
+    if (r.rematch) {
+      for (const ws of this.ctx.getWebSockets()) {
+        const att = ws.deserializeAttachment() as Attachment | null
+        if (att && room.match) this.sendIntro(ws, att.pid, false)
+      }
+    }
     // 開局：先送對局資訊（自己的手牌等），再說「開始」
     if (r.started) {
       for (const ws of this.ctx.getWebSockets()) {

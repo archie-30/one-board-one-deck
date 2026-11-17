@@ -32,6 +32,8 @@ export interface RoomPlayer {
   titles?: string[]
   /** 斷線中（伺服器幫他留位子） */
   away?: boolean
+  /** 還在對局畫面（還沒回到房間） */
+  inGame?: boolean
 }
 
 export interface Recommend {
@@ -57,6 +59,12 @@ export interface Room {
   checkEnd?: number
   /** 自己已經回答「我還在」 */
   checked?: boolean
+  /** 房主的規則設定（只有會影響對局的；連線對局照這份） */
+  rules?: { gameId: string; options: Record<string, string | boolean> } | null
+  /** 這一局打完了（可以再玩一次） */
+  matchOver?: boolean
+  /** 按了「再玩一次」的人 */
+  again?: string[]
 }
 
 /** 開房、加入失敗的原因：格式、找不到、滿了、已開局、試太多次、連不上 */
@@ -83,6 +91,8 @@ export type RoomIntent =
   | { t: 'kick'; id: string }
   /** 回答「還在嗎」 */
   | { t: 'here' }
+  /** 打完：再玩一次 */
+  | { t: 'again' }
   /** 房主的規則設定（開局照這份） */
   | { t: 'rules'; gameId: string; options: Record<string, string | boolean> }
   /** 對局中出牌（內容各玩法自己定） */
@@ -259,6 +269,28 @@ export function kickPlayer(id: string) {
   room.recommends = room.recommends.filter((r) => r.playerId !== id)
   send({ t: 'kick', id })
 }
+
+/** 打完：再玩一次（大家都按了伺服器就直接開下一局） */
+export function voteAgain() {
+  const room = online.room
+  const m = me()
+  if (!room || !m || room.again?.includes(m.id)) return
+  room.again = [...(room.again ?? []), m.id]
+  send({ t: 'again' })
+}
+/** 再玩一次的狀態：open＝還沒有人回到房間（一局打完了沒有，由遊戲畫面那邊知道） */
+export const againState = computed(() => {
+  const room = online.room
+  const m = me()
+  const players = room?.players.filter((p) => !p.spectator) ?? []
+  return {
+    open: !!room && room.players.every((p) => p.inGame !== false),
+    mine: !!m && !!room?.again?.includes(m.id),
+    voted: players.filter((p) => room?.again?.includes(p.id)).length,
+    total: players.length,
+    watching: !!m?.spectator,
+  }
+})
 
 /** 回答「還在嗎」：我還在 */
 export function imHere() {

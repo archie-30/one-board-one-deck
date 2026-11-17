@@ -8,7 +8,7 @@ import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { bringInto, isWatching, joinLiveMatch, matchOpponents, matchPlayers, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
+import { bringInto, isWatching, joinLiveMatch, matchOpponents, matchPlayers, rotate, sendAct, toAbs, toLocal, watchSeats } from '@/core/onlineMatch'
 import { recordResult, stats } from '@/core/settings'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
@@ -22,6 +22,7 @@ import Burst from '@/ui/art/Burst.vue'
 import CardArt from '@/ui/art/Card.vue'
 import type { Mood } from '@/ui/art/look'
 import Btn from '@/ui/Btn.vue'
+import RematchBtn from '@/ui/RematchBtn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
 import GameMenu from '@/ui/GameMenu.vue'
@@ -58,9 +59,17 @@ const T = S.redpoint
 const timed = rules.timer !== false
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
-const opponents = net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3)
+const opponents = reactive(net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3))
 const seated = watching ? matchPlayers(net!) : null
-const names = seated ? seated.map((o) => o.name) : [S.common.you, ...opponents.map((o) => o.name)]
+const names = reactive(seated ? seated.map((o) => o.name) : [S.common.you, ...opponents.map((o) => o.name)])
+// 連線：有人離開房間、改由電腦代打時，名字換成「＿（電腦代打）」
+if (net)
+  watchSeats(net, (ps) =>
+    ps.forEach((o, i) => {
+      if (i > 0) ((opponents[i - 1] = o), (names[i] = o.name))
+      else if (watching) names[0] = o.name
+    }),
+  )
 const looks = seated ? seated.map((o) => o.look) : [myLook(), ...opponents.map((o) => o.look)]
 
 let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
@@ -718,7 +727,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <p class="how"><b class="t-black">{{ T.howTitle }}</b>{{ T.how }}</p>
       <template #actions>
         <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
-        <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <RematchBtn v-else tone="red" />
+        <Btn icon="exit" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
       </template>
     </Dialog>
   </section>

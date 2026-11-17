@@ -148,10 +148,21 @@ function leadValue(combo: Combo, s: BigTwoStyle, hand: readonly Card[], danger: 
   return v
 }
 
+/** 別人手上還有幾張（已經出完、在等名次的人當作很多張，不用擋他） */
+const leftOf = (state: BigTwoState, p: number) => (state.out?.includes(p) ? 99 : state.hands[p].length)
+/** p 的下一位還沒出完的人 */
+function nextIn(state: BigTwoState, p: number): number {
+  for (let k = 1; k <= PLAYER_COUNT; k++) {
+    const q = (p + k) % PLAYER_COUNT
+    if (!state.out?.includes(q)) return q
+  }
+  return p
+}
+
 function followValue(combo: Combo, s: BigTwoStyle, state: BigTwoState): number {
   const table = state.table!
   const hand = state.hands[state.turn]
-  const threat = state.hands[table.player].length
+  const threat = leftOf(state, table.player)
   const bombOverSmall = isBomb(combo.type) && !isBomb(table.combo.type) && !isFiveCard(table.combo.type)
   let v = 30 - (comboStrength(combo) - comboStrength(table.combo)) * (0.25 + s.skill * 0.5)
   v -= breakCost(combo, hand) * s.skill
@@ -163,7 +174,7 @@ function followValue(combo: Combo, s: BigTwoStyle, state: BigTwoState): number {
 
 function passValue(s: BigTwoStyle, state: BigTwoState): number {
   const hand = state.hands[state.turn]
-  const threat = state.hands[state.table!.player].length
+  const threat = leftOf(state, state.table!.player)
   let v = (1 - s.aggression) * 46 - 8
   if (threat <= 3) v -= s.block * 30
   if (hand.length <= 4) v -= 12 * s.skill
@@ -298,7 +309,7 @@ function plannedAction(state: BigTwoState, plays: Combo[]): Combo | null {
   let fives = listCombos(hand, opts).filter((c) => c.cards.length === 5)
   if (fives.length > 40) fives = fives.sort((a, b) => comboStrength(a) - comboStrength(b)).slice(0, 40)
   const without = (c: Combo) => hand.filter((x) => !c.cards.includes(x))
-  const others = state.hands.map((h, p) => (p === me ? 99 : h.length))
+  const others = state.hands.map((_, p) => (p === me ? 99 : leftOf(state, p)))
   const minOther = Math.min(...others)
   /** 別人有人剛好剩這麼多張：出同樣張數又壓不住的牌，會放他走 */
   const risky = (c: Combo) => others.some((k) => k === c.cards.length) && !isBoss(c, j)
@@ -321,7 +332,7 @@ function plannedAction(state: BigTwoState, plays: Combo[]): Combo | null {
     return best
   }
 
-  const threat = state.hands[state.table.player].length
+  const threat = leftOf(state, state.table.player)
   let best: Combo | null = null
   // 過牌：手牌不變，出牌權留在別人手上；有人快出完時過牌很危險
   let bestV = planCost(hand, fives, j) + (threat <= 2 || minOther <= 2 ? 30 : 0)
@@ -373,8 +384,8 @@ export function chooseBigTwoAction(state: BigTwoState, style: AiStyle, rng: RngS
   }
 
   if (!state.table) {
-    const next = state.hands[(player + 1) % PLAYER_COUNT].length
-    const danger = next <= 1 || Math.min(...state.hands.filter((_, p) => p !== player).map((h) => h.length)) <= 1
+    const next = leftOf(state, nextIn(state, player))
+    const danger = next <= 1 || Math.min(...state.hands.map((_, p) => (p === player ? 99 : leftOf(state, p)))) <= 1
     let best = plays[0]
     let bestV = -Infinity
     for (const c of plays) {

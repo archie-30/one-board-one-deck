@@ -15,6 +15,8 @@ import { MATCH_DEFS, type Options } from './defs'
 export interface Seat {
   pid?: string
   bot: number
+  /** 真人的名字（他中途離開、由電腦代打時，畫面上註明是誰的位子） */
+  name?: string
 }
 
 export interface LogEntry {
@@ -104,8 +106,8 @@ export function startMatch(room: RoomState, seed: number, now: number): MatchSta
     Array.from({ length: BOT_TOTAL }, (_, i) => i).filter((i) => !(high && i === BEGINNER_BOT)),
     rng,
   )
-  const humans = room.players.filter((p) => !p.spectator).map((p) => p.id)
-  const seats: Seat[] = Array.from({ length: def.seats }, (_, i) => ({ ...(humans[i] ? { pid: humans[i] } : {}), bot: pool[i] }))
+  const humans = room.players.filter((p) => !p.spectator)
+  const seats: Seat[] = Array.from({ length: def.seats }, (_, i) => ({ ...(humans[i] ? { pid: humans[i].id, name: humans[i].name } : {}), bot: pool[i] }))
   const dealt = def.deal(seed, opts)
   room.matchN = (room.matchN ?? 0) + 1
   const m: MatchState = {
@@ -360,7 +362,7 @@ export function matchIntro(m: MatchState, pid: string) {
     n: m.n,
     gameId: m.gameId,
     seat,
-    seats: m.seats.map((s) => (s.pid ? { pid: s.pid, bot: s.bot } : { bot: s.bot })),
+    seats: m.seats.map((s) => (s.pid ? { pid: s.pid, bot: s.bot, ...(s.name ? { name: s.name } : {}) } : { bot: s.bot })),
     opts: m.opts,
     // 棋類開局時還不知道誰先走（猜拳後才知道），所以給「先走那一方」的視角都一樣（棋類是公開的；暗棋只給有棋沒棋）
     start: MATCH_DEFS[m.gameId].start(m.s0, m.first < 0 || seat < 0 ? -1 : sideOf(m, seat)),

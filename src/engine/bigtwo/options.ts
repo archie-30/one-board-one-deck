@@ -37,6 +37,12 @@ export interface BigTwoOptions {
    * 計分改成剩 20 張以上才加倍、2 不加倍（兩副牌最多 8 張 2）。
    */
   decks?: 1 | 2
+  /**
+   * 玩到分出名次：第一個人出完後不結束，剩下的人繼續打，直到排出 1～4 名。
+   * 分數照原本：第一個人出完那一刻每個人手上剩幾張就扣幾分（之後再打只決定名次）。
+   * 出完的人之後輪到他時跳過；他最後出的那手照樣要壓，大家都過牌時由他下一位（還沒出完的）自由出牌。
+   */
+  playToRank?: boolean
 }
 
 export const DEFAULT_BIGTWO_OPTIONS: BigTwoOptions = {
@@ -51,4 +57,5 @@ export const DEFAULT_BIGTWO_OPTIONS: BigTwoOptions = {
   allowTwoPair: false,
   doubleOverTen: true,
   doubleTwos: true,
+  playToRank: false,
 }

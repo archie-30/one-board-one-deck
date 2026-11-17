@@ -96,7 +96,7 @@ function bigtwoDef(decks: 1 | 2): MatchDef<BigTwoState, BigTwoAction> {
     think(_s, botId, opts, r) {
       const level = bigtwoLevel(asCardLevel(opts.difficulty))
       const st = bigtwoAt(PERSONAS[botId].bigtwo, level, botId)
-      return 1900 + st.skill * 1000 + (1 - st.aggression) * 600 + extraThink(level) * 0.6 + r * 800
+      return 2900 + st.skill * 1000 + (1 - st.aggression) * 600 + extraThink(level) * 0.6 + r * 800
     },
     timeout: (seat) => ({ type: 'timeout', player: seat }),
     // 出的牌、過牌都是公開的
@@ -124,7 +124,7 @@ const sevensDef: MatchDef<SevensState, SevensAction> = {
     return null
   },
   bot: (s, botId, opts, rng) => chooseSevensAction(s, sevensAt(PERSONAS[botId].bigtwo, asCardLevel(opts.difficulty)), rng),
-  think: (_s, _id, _o, r) => 2800 + r * 2200,
+  think: (_s, _id, _o, r) => 3800 + r * 2200,
   timeout: (seat) => ({ type: 'timeout', player: seat }),
   // 時間到：換成實際做的事（接了哪張、還是蓋了一張）；蓋的牌只有自己看得到是哪張
   render(_b, after, a) {
@@ -133,7 +133,8 @@ const sevensDef: MatchDef<SevensState, SevensAction> = {
     return { pub: { type: 'cover', player: a.player, card: -1 }, own: { type: 'cover', player: a.player, card: m.card } }
   },
   start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), turn: s.turn, first: s.first }),
-  reveal: (s) => s,
+  // 攤牌：最後的局面＋每個人開局的牌（結算「檢視牌組」用）
+  reveal: (s, s0) => ({ ...s, startHands: s0.hands }),
 }
 
 // ── 撿紅點 ──
