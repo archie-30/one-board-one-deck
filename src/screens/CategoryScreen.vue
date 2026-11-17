@@ -10,10 +10,12 @@ let swapFlag = false
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { back, go, replace } from '@/core/nav'
 import { canChangeMode, changeMode, online, recommendMode } from '@/core/online'
+import { sendRules } from '@/core/onlineMatch'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
 import { isStaleChunk, reloadForUpdate } from '@/core/staleReload'
 import { reducedMotion } from '@/core/motion'
+import { fullscreenSettled } from '@/core/fullscreen'
 import { gamePrefs, recentAt, settings, stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
@@ -279,6 +281,8 @@ function roomPick() {
   if (a === 'change') {
     playSound('tap')
     changeMode(game.value.id, seatsOf(game.value))
+    // 房主的規則設定一起送給伺服器（開局照這份）
+    sendRules(game.value.id)
     go({ name: 'room' })
   } else if (a === 'recommend' && recommendedId.value !== game.value.id) {
     playSound('tap')
@@ -289,9 +293,12 @@ function roomPick() {
 async function launch() {
   if (inRoom.value) return roomPick()
   if (launching.value) return
-  const el = cardEls[index.value]
-  if (!el || reducedMotion()) return open('play')
+  if (!cardEls[index.value] || reducedMotion()) return open('play')
   launching.value = true
+  // 這一下點擊剛好讓畫面恢復全螢幕的話，先等畫面重排完再拿起卡片（不然翻面動畫會被吃掉）
+  await fullscreenSettled()
+  const el = cardEls[index.value]
+  if (!el) return ((launching.value = false), open('play'))
   const g = game.value
   const color = getComputedStyle(el.querySelector('.cv') ?? el).backgroundColor
   playSound(props.category === 'cards' ? 'shuffle' : 'stonePick')

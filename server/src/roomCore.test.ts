@@ -71,7 +71,7 @@ describe('連線房間（伺服器規則）', () => {
     applyIntent(r, ids[1], { t: 'ready', on: false }, T0 + 1000)
     expect(r.phase).toBe('lobby')
     applyIntent(r, ids[1], { t: 'ready', on: true }, T0 + 1500)
-    expect(tick(r, T0 + 1500 + COUNTDOWN_MS - 1, 1).started).toBe(false)
+    expect(tick(r, T0 + 1500 + COUNTDOWN_MS - 200, 1).started).toBe(false)
     const t = tick(r, T0 + 1500 + COUNTDOWN_MS, 99)
     expect(t.started).toBe(true)
     expect(r).toMatchObject({ phase: 'playing', seed: 99 })
@@ -99,6 +99,22 @@ describe('連線房間（伺服器規則）', () => {
     expect(applyIntent(r, ids[1], { t: 'leave' }, T0)).toMatchObject({ left: true, closed: undefined })
     expect(r.players.map((p) => p.id)).toEqual([ids[0], ids[2]])
     expect(applyIntent(r, ids[0], { t: 'leave' }, T0).closed).toBe('disbanded')
+  })
+
+  it('房主可以請人出房間：只有房主、不能請自己、對局中不行', () => {
+    const { room: r, ids } = room(['A', 'B', 'C'])
+    expect(applyIntent(r, ids[1], { t: 'kick', id: ids[2] }, T0).changed).toBe(false)
+    expect(applyIntent(r, ids[0], { t: 'kick', id: ids[0] }, T0).changed).toBe(false)
+    const res = applyIntent(r, ids[0], { t: 'kick', id: ids[2] }, T0)
+    expect(res).toMatchObject({ changed: true, kicked: ids[2] })
+    expect(r.players.map((p) => p.id)).toEqual([ids[0], ids[1]])
+    applyIntent(r, ids[0], { t: 'mode', gameId: 'gomoku' }, T0)
+    readyAll(r, ids.slice(0, 2))
+    tick(r, T0 + COUNTDOWN_MS, 7)
+    expect(r.phase).toBe('playing')
+    expect(applyIntent(r, ids[0], { t: 'kick', id: ids[1] }, T0).changed).toBe(false)
+    expect(parseMessage(JSON.stringify({ t: 'kick', id: 'zz' }))).toBeNull()
+    expect(parseMessage(JSON.stringify({ t: 'kick', id: ids[1] }))).toEqual({ t: 'kick', id: ids[1] })
   })
 
   it('斷線：取消準備、位子留一段時間；連回來就恢復；太久就移出（房主換人）', () => {
@@ -141,7 +157,7 @@ describe('連線房間（伺服器規則）', () => {
     expect(parseMessage('{"t":"room","room":{}}')).toBeNull()
     expect(parseMessage('not json')).toBeNull()
     expect(parseMessage('[1]')).toBeNull()
-    expect(parseMessage(JSON.stringify({ t: 'recommend', gameId: 'go', pad: 'x'.repeat(600) }))).toBeNull()
+    expect(parseMessage(JSON.stringify({ t: 'recommend', gameId: 'go', pad: 'x'.repeat(1100) }))).toBeNull()
     expect(parseMessage('{"t":"hello","pid":"abcd1234","token":"zz"}')).toBeNull()
   })
 

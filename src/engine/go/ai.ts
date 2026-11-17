@@ -1,9 +1,11 @@
 // 圍棋 AI：依「打法」為每個合法點打分，挑分數最高的；沒有值得下的地方就虛手。
 // 看的東西：提子、救自己被打吃的棋、避免自己送吃、打吃對方、氣的多寡、
 // 勢力範圍（太深入自己的地盤是浪費、太深入對方的地盤太危險）、布局時偏好三四線。
-import { nextRandom, type RngState } from '../common/rng'
+import { nextInt, nextRandom, type RngState } from '../common/rng'
 import { PRESET_STYLES, type GoStyle } from '../common/personas'
 import type { Difficulty } from '../common/types'
+import { goBookMoves } from './book'
+import { mcPick, wholeBoardBonus } from './mc'
 import { groupAt, neighbors, other, scoreGo, toXY, tryPlay, type Color, type GoAction, type GoState, type Point } from './rules'
 
 export type GoAiStyle = Difficulty | GoStyle
@@ -107,12 +109,39 @@ export function chooseGoMove(state: GoState, style: GoAiStyle, rng: RngState): [
   // 下太久了就收手（避免在雙方都不肯虛手時無限下去）
   if (!scored.length || state.moves > state.size * state.size * 1.4) return [{ type: 'pass' }, rng]
 
+  // 挑戰：開局照棋譜（佔空角、掛角）
+  if (s.book && state.passes === 0) {
+    const book = goBookMoves(state).filter((i) => tryPlay(state, i).ok)
+    if (book.length) {
+      let k: number
+      ;[k, rng] = nextInt(rng, book.length)
+      return [{ type: 'play', index: book[k] }, rng]
+    }
+  }
+
   let r: number
   ;[r, rng] = nextRandom(rng)
   const best = scored[0]
   const floor = best.score - 2 - s.noise * 10
   const pool = scored.filter((m) => m.score >= floor).slice(0, 1 + Math.round(s.noise * 5))
-  const pick = pool[Math.floor(r * pool.length)]
+  let pick = pool[Math.floor(r * pool.length)]
+  // 挑戰：前幾名各試下到底很多次，看整盤誰的地多，挑最有利的
+  if (s.mc && state.size <= 9) {
+    // 9 路：前幾名各試下到底，直接比結果
+    const m = mcPick(state, scored.slice(0, 12), Math.round(s.mc * 2.4), rng, 0.5)
+    ;[, rng] = nextRandom(rng)
+    if (m) pick = scored.find((x) => x.index === m.index) ?? pick
+  } else if (s.mc) {
+    // 大棋盤：試下到底看全局（哪裡還沒定、哪塊棋危險），幫每一點加減分再挑最好的
+    const bonus = wholeBoardBonus(state, Math.round(s.mc * (state.size <= 13 ? 4.8 : 1.6)), rng)
+    ;[, rng] = nextRandom(rng)
+    const k = 0.5
+    let bestV = -Infinity
+    for (const m of scored.slice(0, 40)) {
+      const v = m.score + bonus[m.index] * k
+      if (v > bestV) ((bestV = v), (pick = m))
+    }
+  }
 
   // 什麼時候虛手（像真人一樣「差不多了」就收手，不要一直下到填滿）：
   //   棋盤越滿，越覺得剩下的都是小地方，門檻越高

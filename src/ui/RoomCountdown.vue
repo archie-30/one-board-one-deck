@@ -13,8 +13,16 @@ import { go, resetTo, route } from '@/core/nav'
 import { backToRoom, matchStart, online, roomCountdown } from '@/core/online'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
+import Btn from '@/ui/Btn.vue'
+import Dialog from '@/ui/Dialog.vue'
 
 const T = S.online.status
+/** 被房主請出房間：跳一個說明（在哪一頁都看得到） */
+const kickedOpen = ref(false)
+watch(
+  () => online.closed,
+  (r) => r === 'kicked' && (kickedOpen.value = true),
+)
 const end = computed(() => online.room?.countdownEnd ?? 0)
 /** 畫面上顯示的字：3、2、1、開始！（空字串＝不顯示） */
 const shown = ref('')
@@ -74,6 +82,8 @@ onBeforeUnmount(() => {
 async function launch(gameId: string) {
   if (!online.room || !gameId) return
   const g = getGame(gameId)
+  // 觀戰：撲克牌先不支援（留在房間等大家打完）
+  if (g.category === 'cards' && online.room.players.find((p) => p.me)?.spectator) return
   const el = document.getElementById(`mode-${g.id}`)
   if (!el || reducedMotion() || route.value.name !== 'room') return go({ name: 'play', gameId: g.id })
   const color = getComputedStyle(el.querySelector('.cv') ?? el).backgroundColor
@@ -90,6 +100,12 @@ async function launch(gameId: string) {
       <span :key="shown" class="t-slab num" :class="{ go: shown === T.startNow }">{{ shown }}</span>
     </div>
   </Transition>
+  <Dialog :open="kickedOpen" :title="S.online.kickedTitle" label="ROOM" tone="ink" @close="kickedOpen = false">
+    <p class="text-[0.9rem] text-ink-2">{{ S.online.kickedLead }}</p>
+    <template #actions>
+      <Btn tone="ink" block @click="kickedOpen = false">{{ S.online.ok }}</Btn>
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>

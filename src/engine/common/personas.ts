@@ -39,6 +39,10 @@ export interface GomokuStyle {
   look?: number
   /** 會找「連續衝四取勝」，也會先破壞對手的（挑戰） */
   vcf?: boolean
+  /** 開局照棋譜下（花月、浦月）（挑戰） */
+  book?: boolean
+  /** 往後算幾手、整盤一起看形勢（0／沒填＝不算）（挑戰） */
+  depth?: number
 }
 
 /** 撿紅點的打法 */
@@ -63,6 +67,10 @@ export interface GoStyle {
   noise: number
   /** 0～1：偏愛下在棋盤中央（否則偏愛邊角） */
   center: number
+  /** 開局照棋譜（佔角、掛角）（挑戰） */
+  book?: boolean
+  /** 看整盤：前幾名候選各「隨機下到底」幾次，比誰的地多（0／沒填＝不看）（挑戰） */
+  mc?: number
 }
 
 /** 西洋棋、象棋的打法（兩種棋共用） */

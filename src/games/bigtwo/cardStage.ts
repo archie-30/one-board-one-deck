@@ -104,6 +104,22 @@ export class CardStage {
     this.kick()
   }
 
+  /**
+   * 換位：pairs 裡每一組 [a, b]＝「b 這張牌接手 a 現在的位置與動作」（瞬間，不播動畫）。
+   * 連線對局用：別人的手牌在你的裝置上只是背面，打出來才知道是哪張；那時把那張牌換到他手上原本的位置，看起來就像從他手上飛出來。
+   */
+  adopt(pairs: readonly (readonly [number, number])[]) {
+    const snap = new Map(pairs.map(([a]) => [a, { ...this.sprite(a) }]))
+    const now = performance.now()
+    for (const [a, b] of pairs) {
+      const from = snap.get(a)!
+      const s = this.sprite(b)
+      Object.assign(s, { cur: { ...from.cur }, from: { ...from.from }, to: { ...from.to }, start: from.start, dur: from.dur, arc: from.arc, flightZ: from.flightZ, land: from.land, active: from.active, landedAt: from.landedAt })
+      this.apply(s, now)
+    }
+    this.kick()
+  }
+
   destroy() {
     cancelAnimationFrame(this.raf)
     this.raf = 0

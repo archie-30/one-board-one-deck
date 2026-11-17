@@ -114,13 +114,14 @@ export const chessAt = (st: ChessStyle, level: Level, who = -1): ChessStyle => c
  *   低：看不懂跳三跳四、常亂下、有時漏看對手要連五、不太會擋
  *   中：看得懂跳三跳四、偶爾亂挑、偶爾漏看
  *   高：幾乎不亂下、很少漏看，會先試下前幾名、看對手的回應
- *   挑戰：完全不漏看，試下更多手，還會再多看一步（對手回完之後自己的後續）
+ *   挑戰：完全不漏看；開局照棋譜（花月、浦月）；會找連續衝四取勝、先破壞對手的；
+ *         其他時候往後算 6 手（每步只看前 6 名），每個局面看整盤的形勢（search.ts）
  */
-const GOMOKU: Record<Level, Pick<GomokuStyle, 'sharp' | 'noise' | 'blind' | 'look' | 'vcf'>> = {
+const GOMOKU: Record<Level, Pick<GomokuStyle, 'sharp' | 'noise' | 'blind' | 'look' | 'vcf' | 'book' | 'depth'>> = {
   low: { sharp: false, noise: 0.7, blind: 0.35, look: 0 },
   mid: { sharp: true, noise: 0.45, blind: 0.14, look: 0 },
   high: { sharp: true, noise: 0.03, blind: 0.01, look: 0 },
-  master: { sharp: true, noise: 0, blind: 0, look: 0, vcf: true },
+  master: { sharp: true, noise: 0, blind: 0, look: 0, vcf: true, book: true, depth: 6 },
 }
 export const gomokuAt = (st: GomokuStyle, level: Level, who = -1): GomokuStyle => {
   const out = { ...st, ...GOMOKU[level] }
@@ -136,11 +137,11 @@ export const gomokuAt = (st: GomokuStyle, level: Level, who = -1): GomokuStyle =
 }
 
 /** 圍棋：會不會算、亂挑的程度（整體比其他棋類再弱一點點） */
-const GO: Record<Level, Pick<GoStyle, 'skill' | 'noise'>> = {
+const GO: Record<Level, Pick<GoStyle, 'skill' | 'noise' | 'book' | 'mc'>> = {
   low: { skill: 0.05, noise: 0.9 },
   mid: { skill: 0.35, noise: 0.5 },
   high: { skill: 0.6, noise: 0.32 },
-  master: { skill: 0.9, noise: 0.08 },
+  master: { skill: 0.95, noise: 0, book: true, mc: 50 },
 }
 export const goAt = (st: GoStyle, level: Level, who = -1): GoStyle => goHabit({ ...st, ...GO[level] }, habitOf(who, level))
 

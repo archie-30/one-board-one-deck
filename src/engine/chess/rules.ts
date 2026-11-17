@@ -3,7 +3,7 @@
 //   棋子：大寫白、小寫黑；P 兵、N 馬、B 象、R 車、Q 后、K 王；'' 空格。
 //   正式規則：王車易位、吃過路兵、兵升變（自己選后、車、象、馬）。
 //   結束：將死、逼和、同一局面第三次出現、50 回合（100 步）沒吃子也沒動兵、雙方子力都不夠將死、認輸。
-import type { Result } from '@/engine/common/types'
+import type { Result } from '../common/types'
 
 export type Color = 'w' | 'b'
 export type PieceType = 'P' | 'N' | 'B' | 'R' | 'Q' | 'K'

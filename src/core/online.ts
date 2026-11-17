@@ -69,7 +69,18 @@ export interface OnlineProfile {
 }
 
 /** 送給伺服器的「意圖」：只說想做什麼，結果由伺服器決定 */
-export type RoomIntent = { t: 'ready'; on: boolean } | { t: 'spectate'; on: boolean } | { t: 'mode'; gameId: string } | { t: 'recommend'; gameId: string } | { t: 'back' }
+export type RoomIntent =
+  | { t: 'ready'; on: boolean }
+  | { t: 'spectate'; on: boolean }
+  | { t: 'mode'; gameId: string }
+  | { t: 'recommend'; gameId: string }
+  | { t: 'back' }
+  /** 房主把某人請出房間 */
+  | { t: 'kick'; id: string }
+  /** 房主的規則設定（開局照這份） */
+  | { t: 'rules'; gameId: string; options: Record<string, string | boolean> }
+  /** 對局中出牌（內容各玩法自己定） */
+  | { t: 'act'; a: unknown }
 
 /** 房間最多幾人 */
 export const ROOM_MAX = 4
@@ -161,6 +172,8 @@ export function receiveClosed(reason: string) {
 
 const me = () => online.room?.players.find((p) => p.me) ?? null
 const send = (it: RoomIntent) => void service.send(it)
+/** 直接送一個意圖給伺服器（規則設定、對局出牌） */
+export const sendIntent = send
 
 /** 自己能不能換模式（房主，或房主打開了「大家都能換」） */
 export const canChangeMode = computed(() => !!online.room && !!me()?.host)
@@ -230,6 +243,15 @@ function beginMatch() {
 /** 打完回到房間：告訴伺服器（大家都回來了，房間才回到等待中） */
 export function backToRoom() {
   if (online.room?.phase === 'playing') send({ t: 'back' })
+}
+
+/** 房主把某人請出房間（伺服器確認後大家的房間會更新；被請出的人會收到 closed: kicked） */
+export function kickPlayer(id: string) {
+  const room = online.room
+  if (!room || !me()?.host || id === me()?.id) return
+  room.players = room.players.filter((p) => p.id !== id)
+  room.recommends = room.recommends.filter((r) => r.playerId !== id)
+  send({ t: 'kick', id })
 }
 
 /** 改成觀戰／回來對戰（改了就要重新準備） */

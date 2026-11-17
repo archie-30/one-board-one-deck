@@ -228,3 +228,33 @@ describe('五子棋：連續衝四取勝（挑戰的電腦）', () => {
     if (r.ok) expect(findVcf(r.state, 2)).toBe(-1)
   })
 })
+
+describe('挑戰：開局棋譜、往後算', () => {
+  it('白第 2 手貼著或斜著第 1 手下；黑第 3 手照花月、浦月', async () => {
+    const { bookMoves } = await import('./book')
+    const one = play([[7, 7]])
+    for (const i of bookMoves(one)) {
+      const [x, y] = [i % 15, Math.floor(i / 15)]
+      expect(Math.max(Math.abs(x - 7), Math.abs(y - 7))).toBe(1)
+    }
+    // 花月：白貼著 → 黑下在白子旁邊、跟第 1 手斜對
+    for (const i of bookMoves(play([[7, 7], [7, 6]]))) {
+      const [x, y] = [i % 15, Math.floor(i / 15)]
+      expect(y).toBe(6)
+      expect(Math.abs(x - 7)).toBe(1)
+    }
+    // 浦月：白斜對 → 黑下在同時貼著兩顆子的點
+    expect(bookMoves(play([[7, 7], [8, 6]])).sort((a, b) => a - b)).toEqual([toIndex(7, 6), toIndex(8, 7)].sort((a, b) => a - b))
+    // 棋譜以外不管
+    expect(bookMoves(play([[7, 7], [10, 10]]))).toEqual([])
+  })
+
+  it('往後算看得出對手的活三要擋', async () => {
+    const { gomokuAt } = await import('../common/difficulty')
+    const { PERSONAS } = await import('../common/personas')
+    // 白有活三（6,7）（7,7）（8,7），黑隨便在別處；輪到黑：一定要擋在三的兩端之一
+    const s = play([[2, 2], [6, 7], [12, 12], [7, 7], [2, 12], [8, 7]])
+    const [m] = chooseGomokuMove(s, gomokuAt(PERSONAS[0].gomoku, 'master'), seedRng(3))
+    expect([toIndex(5, 7), toIndex(9, 7), toIndex(4, 7), toIndex(10, 7)]).toContain(m)
+  })
+})

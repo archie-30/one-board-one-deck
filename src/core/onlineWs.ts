@@ -3,6 +3,7 @@
 //   之後只送「意圖」（準備、觀戰、換模式、推薦、離開、回到房間）；房間長怎樣、什麼時候倒數開局，都由伺服器通知。
 //   斷線會自動重連（伺服器幫你留位子 45 秒）；憑證存在這個分頁（sessionStorage），重新整理也接得回去。
 import { ONLINE_PING, ONLINE_RETRY, ONLINE_TIMEOUT, ONLINE_URL } from '@/data/onlineServer'
+import { receiveAct, receiveMatch, rejectAct, type MatchEvent, type MatchIntro } from './onlineMatch'
 import { receiveClosed, receiveRoom, receiveStart, type JoinError, type OnlineProfile, type OnlineService, type Room, type RoomIntent } from './online'
 
 interface Creds {
@@ -95,7 +96,7 @@ function connect(): Promise<Room | JoinError> {
     }
     sock.onmessage = (e) => {
       if (sock !== ws || typeof e.data !== 'string' || e.data === 'pong') return
-      let m: { t?: string; room?: RoomView; gameId?: string; reason?: string; code?: string }
+      let m: { t?: string; room?: RoomView; gameId?: string; reason?: string; code?: string; n?: number } & Partial<MatchEvent>
       try {
         m = JSON.parse(e.data)
       } catch {
@@ -107,12 +108,17 @@ function connect(): Promise<Room | JoinError> {
         const room = toRoom(m.room)
         if (waiting) finishWait(room)
         else receiveRoom(room)
-      } else if (m.t === 'start' && m.gameId) receiveStart(m.gameId)
+      } else if (m.t === 'match') receiveMatch(m as unknown as MatchIntro & { log: MatchEvent[] })
+      else if (m.t === 'mact' && typeof m.n === 'number' && typeof m.seq === 'number') receiveAct(m.n, { seq: m.seq, ev: m.ev, end: m.end })
+      else if (m.t === 'start' && m.gameId) receiveStart(m.gameId)
       else if (m.t === 'closed') {
         // 房主解散、自己離開：不用重連
         forget()
         if (m.reason !== 'left') receiveClosed(m.reason ?? 'closed')
-      } else if (m.t === 'error') console.warn('online:', m.code)
+      } else if (m.t === 'error') {
+        if (m.code === 'act') rejectAct()
+        else console.warn('online:', m.code)
+      }
     }
     sock.onclose = (e) => {
       if (sock !== ws) return

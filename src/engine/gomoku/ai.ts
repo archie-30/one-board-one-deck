@@ -2,6 +2,8 @@
 import type { Difficulty } from '../common/types'
 import { nextInt, nextRandom, type RngState } from '../common/rng'
 import { PRESET_STYLES, type GomokuStyle } from '../common/personas'
+import { bookMoves } from './book'
+import { searchBest } from './search'
 import { findVcf } from './vcf'
 import { DIRECTIONS, forbiddenKind, toXY, type GomokuState, type Player, type Stone } from './rules'
 
@@ -155,6 +157,10 @@ function lookAhead(state: GomokuState, top: ScoredMove[], deep = false): number 
   return pick.index
 }
 
+/** 往後算時每一步看前幾名、最多想幾個局面（手機上一步約一秒內） */
+const SEARCH_WIDTH = 6
+const SEARCH_NODES = 4000
+
 /** 這一格能不能下（黑棋禁手開啟時要避開禁手） */
 const canPlay = (s: GomokuState, i: number) => s.board[i] === 0 && !(s.options.forbidden && s.turn === 1 && forbiddenKind(s.board, s.size, i))
 
@@ -165,6 +171,15 @@ export function chooseGomokuMove(state: GomokuState, style: GomokuAiStyle, rng: 
   if (state.moves.length === 0) {
     const mid = Math.floor(state.size / 2)
     return [mid * state.size + mid, rng]
+  }
+  // 挑戰：開局照棋譜（花月、浦月）
+  if (st.book) {
+    const book = bookMoves(state).filter((i) => canPlay(state, i))
+    if (book.length) {
+      let k: number
+      ;[k, rng] = nextInt(rng, book.length)
+      return [book[k], rng]
+    }
   }
   let scored = scoreMoves(state, st)
   if (scored.length === 0) return [state.board.findIndex((v) => v === 0), rng]
@@ -196,6 +211,11 @@ export function chooseGomokuMove(state: GomokuState, style: GomokuAiStyle, rng: 
         if (findVcf({ ...state, board, turn: opp }, opp) < 0) return [m.index, rng]
       }
     }
+  }
+  // 挑戰：往後算幾手，每個局面都看整盤的形勢（只在前幾名裡挑，個性照樣影響排序）
+  if (st.depth && st.depth > 1) {
+    const cands = scored.slice(0, SEARCH_WIDTH).map((m) => m.index)
+    return [searchBest(state, cands, { depth: st.depth, width: SEARCH_WIDTH, nodes: SEARCH_NODES, order: (s) => scoreMoves(s, REPLY).map((m) => m.index) }), rng]
   }
   // 先試下前幾名，看對手最好的回應有多兇，選「自己好、對手回得最不痛」的那一手
   if (st.look && st.look > 0) return [lookAhead(state, scored.slice(0, st.look), st.look >= 10), rng]

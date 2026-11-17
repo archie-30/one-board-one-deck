@@ -1,0 +1,174 @@
+// 各玩法在伺服器上怎麼跑：發牌、套用動作、輪到誰、電腦怎麼出、時間到怎麼辦、每個人看得到什麼。
+// 規則本身直接用前端同一套引擎（src/engine，純函式），伺服器只是當裁判。
+//
+// 「每個人看得到什麼」：
+//   - 開局（start）：自己的手牌、別人剩幾張、桌上公開的牌、輪到誰。別人的手牌、牌堆一律不給。
+//   - 每個動作（render）：大家看到的版本（pub）；有些動作只有做的人看得到細節（own，例如排七蓋了哪張牌）。
+//   - 結束（reveal）：整局攤牌（算分、看別人剩什麼牌）。
+import { chooseBigTwoAction } from '../../../src/engine/bigtwo/ai'
+import type { Card } from '../../../src/engine/bigtwo/cards'
+import { applyBigTwo, dealBigTwo, PLAYER_COUNT, type BigTwoAction, type BigTwoState } from '../../../src/engine/bigtwo/game'
+import { DEFAULT_BIGTWO_OPTIONS, type BigTwoOptions } from '../../../src/engine/bigtwo/options'
+import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink, sevensAt } from '../../../src/engine/common/difficulty'
+import { PERSONAS } from '../../../src/engine/common/personas'
+import type { RngState } from '../../../src/engine/common/rng'
+import { chooseRedPointAction } from '../../../src/engine/redpoint/ai'
+import { applyRedPoint, dealRedPoint, type RedPointAction, type RedPointState } from '../../../src/engine/redpoint/rules'
+import { chooseSevensAction } from '../../../src/engine/sevens/ai'
+import { applySevens, dealSevens, type SevensAction, type SevensState } from '../../../src/engine/sevens/rules'
+import { TURN_SECONDS } from '../../../src/data/timer'
+import { BOARD_DEFS } from './boardDefs'
+
+export type Options = Record<string, string | boolean>
+
+/** 一個動作給大家看的樣子；own 有值時，做動作的那一位看到的是 own（別人看到 pub） */
+export interface Rendered {
+  pub: unknown
+  own?: unknown
+}
+
+export interface MatchDef<S, A> {
+  seats: number
+  /** 每一手幾秒（倒數計時） */
+  seconds: number
+  deal(seed: number, opts: Options): S
+  apply(s: S, a: A): S | null
+  /** 輪到哪個座位（-1 = 結束了） */
+  turn(s: S): number
+  /** 客戶端送來的動作：檢查格式，player 一律換成他自己的座位 */
+  parse(raw: unknown, seat: number): A | null
+  bot(s: S, botId: number, opts: Options, rng: RngState): [A, RngState]
+  /** 電腦每一手想多久（毫秒） */
+  think(s: S, botId: number, opts: Options, r: number): number
+  timeout(seat: number): A
+  render(before: S, after: S, a: A): Rendered
+  /** 開局時 viewer（引擎的座位，-1＝觀戰）看得到的牌局 */
+  start(s: S, viewer: number): unknown
+  /** 結束攤牌（s0：開局的樣子；圍棋算死活要用亂數） */
+  reveal(s: S, s0: S, rng: RngState): unknown
+  /** 開局前要先猜拳決定誰先（兩人的棋類） */
+  rps?: boolean
+  /** 可以悔棋（要對方同意） */
+  undo?: boolean
+  /** 悔棋退到這一方「連著走的那一串」的第一步之前（暗棋連吃） */
+  undoRun?: boolean
+  /** 認輸（任何時候都可以）：side 這一方認輸後的局面 */
+  resign?(s: S, side: number): S | null
+}
+
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+const isCard = (v: unknown, max: number) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < max
+const counts = (hands: readonly unknown[][]) => hands.map((h) => h.length)
+
+// ── 大老二（一副牌）／瘋狂大老二（兩副牌）──
+
+/** 規則設定 → 引擎的選項 */
+function bigtwoOptions(opts: Options, decks: 1 | 2): BigTwoOptions {
+  const o: BigTwoOptions = { ...DEFAULT_BIGTWO_OPTIONS, decks }
+  for (const k of Object.keys(DEFAULT_BIGTWO_OPTIONS) as (keyof BigTwoOptions)[]) {
+    if (k in opts && typeof opts[k] === typeof DEFAULT_BIGTWO_OPTIONS[k]) (o as unknown as Options)[k] = opts[k]
+  }
+  if (decks === 2) o.dragon = false
+  return o
+}
+
+function bigtwoDef(decks: 1 | 2): MatchDef<BigTwoState, BigTwoAction> {
+  const total = decks * 52
+  return {
+    seats: PLAYER_COUNT,
+    seconds: decks === 2 ? TURN_SECONDS.crazy : TURN_SECONDS.cards,
+    deal: (seed, opts) => dealBigTwo(seed, bigtwoOptions(opts, decks)),
+    apply: (s, a) => {
+      const r = applyBigTwo(s, a)
+      return r.ok ? r.state : null
+    },
+    turn: (s) => (s.winner >= 0 ? -1 : s.turn),
+    parse(raw, seat) {
+      if (!isObj(raw)) return null
+      if (raw.type === 'pass') return { type: 'pass', player: seat }
+      if (raw.type === 'play' && Array.isArray(raw.cards) && raw.cards.length >= 1 && raw.cards.length <= 5 && raw.cards.every((c) => isCard(c, total))) return { type: 'play', player: seat, cards: raw.cards as Card[] }
+      return null
+    },
+    bot(s, botId, opts, rng) {
+      const level = bigtwoLevel(asCardLevel(opts.difficulty))
+      return chooseBigTwoAction(s, bigtwoAt(PERSONAS[botId].bigtwo, level, botId), rng)
+    },
+    think(_s, botId, opts, r) {
+      const level = bigtwoLevel(asCardLevel(opts.difficulty))
+      const st = bigtwoAt(PERSONAS[botId].bigtwo, level, botId)
+      return 1900 + st.skill * 1000 + (1 - st.aggression) * 600 + extraThink(level) * 0.6 + r * 800
+    },
+    timeout: (seat) => ({ type: 'timeout', player: seat }),
+    // 出的牌、過牌都是公開的
+    render: (_b, _a, a) => ({ pub: a }),
+    start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), turn: s.turn, firstTurn: s.firstTurn, winner: s.winner, options: s.options }),
+    // 攤牌時連開局的手牌一起給（結算後「檢視牌組」用）
+    reveal: (s, s0) => ({ ...s, startHands: s0.hands }),
+  }
+}
+
+// ── 排七 ──
+
+const sevensDef: MatchDef<SevensState, SevensAction> = {
+  seats: 4,
+  seconds: TURN_SECONDS.cards,
+  deal: (seed) => dealSevens(seed),
+  apply: (s, a) => {
+    const r = applySevens(s, a)
+    return r.ok ? r.state : null
+  },
+  turn: (s) => (s.over ? -1 : s.turn),
+  parse(raw, seat) {
+    if (!isObj(raw) || !isCard(raw.card, 52)) return null
+    if (raw.type === 'play' || raw.type === 'cover') return { type: raw.type, player: seat, card: raw.card as number }
+    return null
+  },
+  bot: (s, botId, opts, rng) => chooseSevensAction(s, sevensAt(PERSONAS[botId].bigtwo, asCardLevel(opts.difficulty)), rng),
+  think: (_s, _id, _o, r) => 2800 + r * 2200,
+  timeout: (seat) => ({ type: 'timeout', player: seat }),
+  // 時間到：換成實際做的事（接了哪張、還是蓋了一張）；蓋的牌只有自己看得到是哪張
+  render(_b, after, a) {
+    const m = after.lastMove!
+    if (!m.covered) return { pub: { type: 'play', player: a.player, card: m.card } }
+    return { pub: { type: 'cover', player: a.player, card: -1 }, own: { type: 'cover', player: a.player, card: m.card } }
+  },
+  start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), turn: s.turn, first: s.first }),
+  reveal: (s) => s,
+}
+
+// ── 撿紅點 ──
+
+const redpointDef: MatchDef<RedPointState, RedPointAction> = {
+  seats: 4,
+  seconds: TURN_SECONDS.cards,
+  deal: (seed) => dealRedPoint(seed),
+  apply: (s, a) => {
+    const r = applyRedPoint(s, a)
+    return r.ok ? r.state : null
+  },
+  turn: (s) => (s.phase === 'over' ? -1 : s.turn),
+  parse(raw, seat) {
+    if (!isObj(raw)) return null
+    if (raw.target !== undefined && !isCard(raw.target, 52)) return null
+    const target = raw.target as number | undefined
+    if (raw.type === 'play' && isCard(raw.card, 52)) return { type: 'play', player: seat, card: raw.card as number, ...(target !== undefined ? { target } : {}) }
+    if (raw.type === 'flip') return { type: 'flip', player: seat, ...(target !== undefined ? { target } : {}) }
+    return null
+  },
+  bot: (s, botId, _opts, rng) => chooseRedPointAction(s, PERSONAS[botId].redpoint, rng),
+  think: (s, _id, _o, r) => (s.phase === 'flip' ? 900 + r * 700 : 1800 + r * 1400),
+  timeout: (seat) => ({ type: 'timeout', player: seat }),
+  // 出的牌公開；輪到翻牌時，牌堆最上面那張翻開（top），大家都看得到
+  render: (_b, after, a) => ({ pub: { ...a, ...(after.phase === 'flip' ? { top: after.pile[0] } : {}) } }),
+  start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), table: s.table, pile: s.pile.length, turn: s.turn, phase: s.phase, ...(s.phase === 'flip' ? { top: s.pile[0] } : {}) }),
+  reveal: (s) => s,
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const MATCH_DEFS: Record<string, MatchDef<any, any>> = {
+  bigtwo: bigtwoDef(1),
+  crazybigtwo: bigtwoDef(2),
+  sevens: sevensDef,
+  redpoint: redpointDef,
+  ...BOARD_DEFS,
+}
