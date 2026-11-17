@@ -161,5 +161,11 @@ describe('暗棋電腦', () => {
     const ml = duel('mid', 'low', 40)
     expect(hm.w).toBeGreaterThan(hm.l * 2)
     expect(ml.w).toBeGreaterThan(ml.l * 2)
+  }, 400000)
+  it('還有很多棋沒翻時，不會一直來回走到 50 步和棋（會去翻棋）', () => {
+    for (let g = 0; g < 8; g++) {
+      const s = play(3000 + g, ['mid', 'mid'])
+      if (s.status === 'quiet') expect(s.up.filter((u, i) => !u && s.board[i]).length).toBeLessThan(4)
+    }
   }, 120000)
 })

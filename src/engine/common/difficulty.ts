@@ -210,10 +210,11 @@ export const sevensAt = (st: BigTwoStyle, d: CardLevel): { skill: number; blunde
  *   中：看一步，會顧自己被吃；偶爾隨手走
  *   高：再多想一步（對方最好的回應），翻棋也會想翻出來之後對方怎麼回；不失誤
  */
-export function banqiAt(st: ChessStyle, d: CardLevel): { depth: 1 | 2; safety: number; attack: number; noise: number; blunder: number; chase: number } {
-  if (d === 'high') return { depth: 2, safety: clamp(0.7 + st.safety * 0.3), attack: st.attack, noise: 0.03, blunder: 0, chase: 1 }
-  if (d === 'mid') return { depth: 1, safety: st.safety, attack: st.attack, noise: 0.35, blunder: 0.06, chase: 0 }
-  return { depth: 1, safety: 0, attack: st.attack, noise: 1, blunder: 0.3, chase: 0 }
+export function banqiAt(st: ChessStyle, d: CardLevel): { depth: 1 | 2 | 3; safety: number; attack: number; noise: number; blunder: number; chase: number; flipDepth: number } {
+  // 高：往後算三步、翻棋也多看一步，完全不失誤；中：看對方怎麼回，偶爾小失誤；低：只看一步、常常隨手走
+  if (d === 'high') return { depth: 3, safety: clamp(0.75 + st.safety * 0.25), attack: st.attack, noise: 0, blunder: 0, chase: 1, flipDepth: 2 }
+  if (d === 'mid') return { depth: 2, safety: clamp(0.55 + st.safety * 0.35), attack: st.attack, noise: 0.12, blunder: 0.02, chase: 0.6, flipDepth: 1 }
+  return { depth: 1, safety: clamp(0.3 + st.safety * 0.4), attack: st.attack, noise: 0.5, blunder: 0.12, chase: 0, flipDepth: 1 }
 }
 
 /** 電腦每一步多想多久（毫秒）：挑戰多想一會兒，看起來也比較像在認真算 */

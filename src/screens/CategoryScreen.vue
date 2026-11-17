@@ -1,9 +1,14 @@
+<script lang="ts">
+/** 這次是不是從另一個分類切過來的（新的模式選單一建立就讀掉） */
+let swapFlag = false
+</script>
+
 <script setup lang="ts">
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { back, go } from '@/core/nav'
+import { back, go, replace } from '@/core/nav'
 import { canChangeMode, changeMode, online, recommendMode } from '@/core/online'
 import { playSound } from '@/core/audio'
 import { launch as launchFx, startLaunch } from '@/core/launch'
@@ -30,6 +35,22 @@ const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 /** 從遊戲退回來：卡片堆不播進場上浮（過場層要量卡片的位置讓卡片飛回去，位置必須一開始就是定位） */
 const returning = launchFx.active && launchFx.mode === 'exit'
+/** 從另一個分類切過來：卡片堆從右邊滑進來 */
+const swappedIn = swapFlag
+swapFlag = false
+/** 左上角「換到撲克牌／棋盤」：卡片往左滑出去、右邊淡掉，再換成另一個分類 */
+const other = computed<GameCategory>(() => (props.category === 'cards' ? 'board' : 'cards'))
+const swapping = ref(false)
+function swapCategory() {
+  if (swapping.value || locked.value) return
+  playSound(other.value === 'cards' ? 'shuffle' : 'stonePick')
+  if (reducedMotion()) return replace({ name: 'category', category: other.value })
+  swapping.value = true
+  window.setTimeout(() => {
+    swapFlag = true
+    replace({ name: 'category', category: other.value })
+  }, 300)
+}
 
 /** 難度這類常用設定：直接在這裡選，不用進「規則設定」 */
 const quick = computed(() => {
@@ -220,11 +241,12 @@ function cardStyle(k: number) {
   const op = Math.max(0, Math.min(1, (2.6 - a) * 1.7))
   // 兩張卡片交錯（離中間半張）時蒙上一層霧：微微模糊＋多蓋一點紙色，在交錯點最濃，
   // 換上下層的那一瞬間被霧遮住，看起來是接續過去，不是閃一下
-  const mist = Math.max(0, 1 - Math.abs(a - 0.5) / 0.38)
+  // 停下來之後，兩側沒選中的卡片也一直帶著一層淡霧（中間那張清清楚楚）
+  const mist = a <= 0.5 ? Math.max(0, 1 - (0.5 - a) / 0.38) : 1 - 0.3 * Math.min(1, (a - 0.5) / 0.5)
   const style: Record<string, string | number> = {
     zIndex: 100 - Math.round(a * 10),
     opacity: op,
-    '--fade': Math.min(0.78, a * 0.5 + mist * 0.32),
+    '--fade': Math.min(0.78, a * 0.5 + mist * (a <= 0.5 ? 0.32 : 0.18)),
     transform: `translateX(-50%) translateX(${x}px) translateZ(${z}px) rotateY(${rot}deg)`,
   }
   if (mist > 0.02) style.filter = `blur(${(mist * 2.4).toFixed(2)}px)`
@@ -292,10 +314,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <section class="mode" :class="[`c-${category}`, { locked }]">
+  <section class="mode" :class="[`c-${category}`, { locked, swapping }]">
     <div class="corner"><IconBtn icon="home" :label="S.common.home" @click="back()" /></div>
     <header class="head">
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
+      <button class="swap rise" :class="`to-${other}`" style="--i: 1" :aria-label="S.lobby.switchTo(S.category[other].title)" @click="swapCategory">
+        <Icon name="swap" class="si" />
+        <span class="t-black">{{ S.category[other].title }}</span>
+      </button>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
       <!-- 右上角：在房間裡＝房號（點了回房間）；不在房間＝連線（開房、加入） -->
       <!-- 在房間裡：兩行——房間模式、準備狀況（點了回房間） -->
@@ -315,7 +341,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <div
           ref="deckEl"
           class="deck"
-          :class="{ settled: returning }"
+          :class="{ settled: returning, swapin: swappedIn }"
           role="listbox"
           :aria-activedescendant="`mode-${game.id}`"
           @pointerdown="onDown"
@@ -424,6 +450,81 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-size: 2rem;
   line-height: 1.15;
   letter-spacing: -0.04em;
+}
+/* 換到另一個分類：小膠囊按鈕，邊框用對方分類的顏色提示 */
+.swap {
+  position: relative;
+  display: flex;
+  height: 2rem;
+  align-items: center;
+  gap: 0.35rem;
+  border: 0.13rem solid var(--color-ink);
+  border-radius: 999px;
+  background: var(--color-card);
+  padding: 0 0.75rem 0 0.55rem;
+  font-size: 0.82rem;
+  box-shadow: 0.15rem 0.15rem 0 var(--to);
+  transition:
+    transform 110ms var(--ease-out),
+    box-shadow 110ms var(--ease-out);
+}
+.swap.to-cards {
+  --to: var(--color-red);
+}
+.swap.to-board {
+  --to: var(--color-blue);
+}
+.swap::after {
+  content: '';
+  position: absolute;
+  inset: -0.4rem;
+}
+.swap:active {
+  transform: translate(0.15rem, 0.15rem);
+  box-shadow: 0 0 0 var(--to);
+}
+.swap .si {
+  width: 1rem;
+  height: 1rem;
+  transition: transform 300ms var(--ease-back);
+}
+.swapping .swap .si {
+  transform: rotate(180deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .swap:hover .si {
+    transform: rotate(180deg);
+  }
+}
+/* 切換分類：卡片堆往左滑出去、右邊的介紹往下淡掉，換頁後新的卡片堆從右邊滑進來 */
+.mode.swapping {
+  pointer-events: none;
+}
+.mode.swapping .deck {
+  animation: swap-out 300ms var(--ease-in-out) forwards;
+}
+.mode.swapping .panel,
+.mode.swapping .title {
+  transition:
+    opacity 260ms,
+    transform 260ms var(--ease-in-out);
+  opacity: 0;
+  transform: translateY(0.6rem);
+}
+.deck.swapin {
+  animation: swap-in 560ms var(--ease-out) both;
+}
+@keyframes swap-out {
+  to {
+    opacity: 0;
+    transform: translateX(-35%);
+  }
+}
+@keyframes swap-in {
+  from {
+    opacity: 0;
+    transform: translateX(35%);
+  }
 }
 /* 房間裡換遊戲：右上角的房號，點了回房間 */
 .room-tag {

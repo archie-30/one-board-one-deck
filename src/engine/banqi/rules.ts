@@ -48,6 +48,8 @@ export interface BanqiState {
   status: BanqiStatus
   winner: Seat | null
   lastMove: { from: number; to: number; flip: boolean } | null
+  /** 再上一步（也就是現在輪到的這一方自己上一步）：電腦用來避免來回晃 */
+  before?: { from: number; to: number; flip: boolean } | null
   /** 被吃掉的棋（照被吃的順序） */
   captured: Piece[]
   plies: number
@@ -219,7 +221,7 @@ export function applyBanqi(s: BanqiState, a: BanqiAction): Result<BanqiState, Ba
     const up = s.up.slice()
     up[a.at] = true
     const colors: [Color | null, Color | null] = s.colors[0] ? s.colors : s.turn === 0 ? [colorOf(s.board[a.at]!), colorOf(s.board[a.at]!) === 'r' ? 'b' : 'r'] : [colorOf(s.board[a.at]!) === 'r' ? 'b' : 'r', colorOf(s.board[a.at]!)]
-    return { ok: true, state: settle({ ...s, up, colors, turn: other(s.turn), quiet: s.quiet + 1, plies: s.plies + 1, lastMove: { from: a.at, to: a.at, flip: true } }) }
+    return { ok: true, state: settle({ ...s, up, colors, turn: other(s.turn), quiet: s.quiet + 1, plies: s.plies + 1, lastMove: { from: a.at, to: a.at, flip: true }, before: s.lastMove }) }
   }
   // 走或吃
   const p = s.board[a.from]
@@ -243,6 +245,7 @@ export function applyBanqi(s: BanqiState, a: BanqiAction): Result<BanqiState, Ba
     quiet: took ? 0 : s.quiet + 1,
     plies: s.chainAt >= 0 ? s.plies : s.plies + 1,
     lastMove: { from: a.from, to: a.to, flip: false },
+    before: s.lastMove,
     chainAt: -1,
   }
   // 連吃：吃完還能再吃就等這個人決定（對方被吃光就直接結束）

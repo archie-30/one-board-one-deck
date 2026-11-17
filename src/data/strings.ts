@@ -218,6 +218,7 @@ export const S = {
     recent: (n: number, w: number, l: number, d: number) => `近 ${n} 場　勝 ${w}　負 ${l}${d ? `　和 ${d}` : ''}`,
     recentSolo: (n: number, w: number, l: number) => `近 ${n} 局　過關 ${w}　沒過 ${l}`,
     recentNone: '還沒有戰績',
+    switchTo: (name: string) => `換到${name}`,
     start: '開始遊戲',
     startSub: '對手每局隨機入座',
     tutorial: '新手教學',
@@ -1305,7 +1306,7 @@ export const S = {
     settings: {
       difficulty: {
         label: '難度',
-        help: '低：常常亂翻、不太管會不會被吃。中：會顧自己的棋。高：多想一步，會追著吃你、不給你機會反吃。',
+        help: '低：只看眼前一步，偶爾隨手走。中：會想你怎麼回，很少失誤。高：往後算三步、不失誤，殘局會把你的棋逼到角落。',
         choices: { low: '低', mid: '中', high: '高' },
       },
       rookSlide: {
