@@ -230,5 +230,17 @@ export function checkersAt(st: ChessStyle, level: Level): { depth: number; noise
   return { depth: 1, noise: clamp(0.6 + st.noise * 0.4), blunder: 0.22, nodes: 2000 }
 }
 
+/**
+ * 星形跳棋（低／中／高／挑戰）：
+ *   低：只看這一步、常常亂挑、偶爾隨手走；中：只看這一步、挑最好的（偶爾小失誤）
+ *   高：再想自己下一步（前 8 名）；挑戰：再想自己下一步（前 24 名）、完全不失誤
+ */
+export function starAt(st: ChessStyle, level: Level): { look: number; width: number; noise: number; blunder: number } {
+  if (level === 'master') return { look: 1, width: 24, noise: 0, blunder: 0 }
+  if (level === 'high') return { look: 1, width: 8, noise: 0.15, blunder: 0 }
+  if (level === 'mid') return { look: 0, width: 0, noise: clamp(0.3 + st.noise * 0.4), blunder: 0.03 }
+  return { look: 0, width: 0, noise: clamp(1.4 + st.noise), blunder: 0.2 }
+}
+
 /** 電腦每一步多想多久（毫秒）：挑戰多想一會兒，看起來也比較像在認真算 */
 export const extraThink = (level: Level): number => (level === 'master' ? 900 : level === 'high' ? 300 : 0)
