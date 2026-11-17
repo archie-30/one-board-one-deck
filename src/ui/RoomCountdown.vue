@@ -1,22 +1,21 @@
 <script setup lang="ts">
-// 連線房間的開局倒數（放在 App 最上層，換頁時不會消失）：
-//   大家都準備好 → 畫面正中間大大的 3、2、1、開始！疊在所有東西上面（連換頁、過場都看得到）。
+// 連線房間的開局倒數（放在 App 最上層，換頁時不會消失）。倒數與開局都聽伺服器的：
+//   伺服器說開始倒數（房間的 countdownEnd）→ 畫面正中間大大的 3、2、1，疊在所有東西上面（連換頁、過場都看得到）；
 //   倒數開始時不在房間頁的人，直接換頁回到房間。
-//   倒數完：房間中間那張模式卡片拿起來、翻面、展開（跟一般開始遊戲一樣的過場），進入對局。
-//   倒數中有人取消準備、改觀戰、換模式就停下來。
-// 現在還沒接連線：在這台機器上開局，空位由電腦補；之後由伺服器通知大家一起開局。
+//   伺服器說開局（matchStart）→「開始！」，房間中間那張模式卡片拿起來、翻面、展開（跟一般開始遊戲一樣的過場），大家同時進入對局。
+//   倒數中有人取消準備、改觀戰、換模式、斷線，伺服器就把倒數取消。
+//   打完離開對局回到房間：告訴伺服器（backToRoom）。
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { go, resetTo, route } from '@/core/nav'
-import { beginMatch, online, roomCountdown, startState } from '@/core/online'
+import { backToRoom, matchStart, online, roomCountdown } from '@/core/online'
 import { S } from '@/data/strings'
-import { getGame, seatsOf } from '@/games/registry'
+import { getGame } from '@/games/registry'
 
 const T = S.online.status
-const game = computed(() => (online.room?.gameId ? getGame(online.room.gameId) : null))
-const canStart = computed(() => !!game.value && startState(seatsOf(game.value)).canStart)
+const end = computed(() => online.room?.countdownEnd ?? 0)
 /** 畫面上顯示的字：3、2、1、開始！（空字串＝不顯示） */
 const shown = ref('')
 let timer = 0
@@ -25,42 +24,56 @@ let hideTimer = 0
 function stop() {
   window.clearInterval(timer)
   roomCountdown.value = 0
-  shown.value = ''
+  if (shown.value !== T.startNow) shown.value = ''
 }
-function tick(n: number) {
+/** 照倒數結束的時間算現在顯示幾（每 0.1 秒檢查一次，換數字時響一聲） */
+function update() {
+  const n = Math.max(1, Math.ceil((end.value - Date.now()) / 1000))
+  if (n === roomCountdown.value) return
   roomCountdown.value = n
   shown.value = String(n)
   playSound('tap')
 }
 
-watch(canStart, (ok) => {
+watch(end, (t) => {
+  window.clearInterval(timer)
+  if (!t) return stop()
   window.clearTimeout(hideTimer)
-  stop()
-  if (!ok) return
   // 不在房間頁：直接換頁回到房間（倒數照樣在最上層）
   if (route.value.name !== 'room') resetTo([{ name: 'title' }, { name: 'room' }])
-  tick(3)
-  timer = window.setInterval(() => {
-    const n = roomCountdown.value - 1
-    if (n > 0) return tick(n)
+  roomCountdown.value = 0
+  update()
+  timer = window.setInterval(update, 100)
+})
+// 伺服器說開局
+watch(
+  () => matchStart.value.n,
+  () => {
     window.clearInterval(timer)
     roomCountdown.value = 0
     shown.value = T.startNow
     playSound('shuffle')
+    window.clearTimeout(hideTimer)
     hideTimer = window.setTimeout(() => (shown.value = ''), 700)
-    void launch()
-  }, 1000)
-})
+    void launch(matchStart.value.gameId)
+  },
+)
+// 打完從對局回到房間
+watch(
+  () => route.value.name,
+  (now, before) => {
+    if (before === 'play' && now !== 'play') backToRoom()
+  },
+)
 onBeforeUnmount(() => {
   stop()
   window.clearTimeout(hideTimer)
 })
 
 /** 開局：房間中間那張卡片翻面展開（跟模式選單開始遊戲一樣），同時先把遊戲載好 */
-async function launch() {
-  const g = game.value
-  if (!g || !canStart.value) return
-  beginMatch()
+async function launch(gameId: string) {
+  if (!online.room || !gameId) return
+  const g = getGame(gameId)
   const el = document.getElementById(`mode-${g.id}`)
   if (!el || reducedMotion() || route.value.name !== 'room') return go({ name: 'play', gameId: g.id })
   const color = getComputedStyle(el.querySelector('.cv') ?? el).backgroundColor
