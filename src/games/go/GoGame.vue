@@ -6,6 +6,8 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
+import { useBoardNet } from '@/core/boardNet'
+import UndoAskDialog from '@/ui/UndoAskDialog.vue'
 import { recordResult, stats } from '@/core/settings'
 import { asLevel, extraThink, goAt } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
@@ -47,14 +49,25 @@ interface Saved {
 }
 const T = S.go
 /** 規則設定的「倒數計時」 */
-const timed = props.options.timer !== false
+/** 連線對局：伺服器當裁判（猜拳、落子、虛手、悔棋、認輸都經過伺服器）；沒有就是一般的單人對電腦 */
+const bn = props.resume
+  ? null
+  : useBoardNet('go', {
+      apply: (ev) => void netApply(ev),
+      undo: (by) => void netUndo(by),
+      resign: (player) => netResign(player),
+      end: (fin) => netEnd(fin as { dead: number[] }),
+    })
+/** 規則設定：連線時照房主的 */
+const rules = bn ? { ...props.options, ...bn.net.opts } : props.options
+const timed = rules.timer !== false
 /** 難度：只決定電腦多強 */
-const level = asLevel(props.options.difficulty)
-const size = (Number(props.options.size) || 19) as GoSize
+const level = asLevel(rules.difficulty)
+const size = (Number(rules.size) || 19) as GoSize
 
 const state = ref<GoState>(createGo({ size }))
 const human = ref<Color>(1)
-const opponent = ref(pickOpponents(1)[0])
+const opponent = ref(bn ? bn.opponent : pickOpponents(1)[0])
 const phase = ref<'rps' | 'playing' | 'counting' | 'scoring' | 'over'>('rps')
 const preview = ref(-1)
 const message = ref('')
@@ -79,12 +92,15 @@ const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
     timers.delete(id)
     // 暫停中（選單打開）：電腦也停下來，等繼續再走
-    if (menuOpen.value) later(fn, 250)
+    if (menuOpen.value && !bn) later(fn, 250)
     else fn()
   }, ms)
   timers.add(id)
 }
-onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
+onBeforeUnmount(() => {
+  timers.forEach((t) => window.clearTimeout(t))
+  bn?.stop()
+})
 
 const ai = computed<Color>(() => other(human.value))
 const myTurn = computed(() => phase.value === 'playing' && !flying.value && state.value.turn === human.value)
@@ -151,10 +167,13 @@ function startAfterRps(playerWins: boolean) {
   undoFrom.value = null
   undoUsed.value = false
   phase.value = 'playing'
+  if (bn) return bn.next()
   if (!playerWins) scheduleCpu()
 }
 
 function restart() {
+  // 連線對局：再來一局要回房間大家重新準備
+  if (bn) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   menuOpen.value = false
@@ -208,7 +227,7 @@ async function act(action: GoAction, who: 0 | 1) {
     message.value = T.passed(who === 0 ? S.common.you : opponent.value.name)
   }
   if (r.state.phase === 'over') return endGame()
-  if (r.state.turn === ai.value) scheduleCpu()
+  if (r.state.turn === ai.value && !bn) scheduleCpu()
   else moods.value = ['idle', 'idle']
 }
 
@@ -239,6 +258,8 @@ function scheduleCpu() {
 function endGame() {
   if (state.value.resigned) return finish()
   phase.value = 'counting'
+  // 連線：死活照伺服器（電腦判斷）算的，等它送來再直接結算
+  if (bn) return
   // 先讓畫面顯示「開始算地」，再做比較花時間的死棋判斷
   later(() => {
     ;[dead.value, rng] = estimateDead(state.value, rng)
@@ -321,15 +342,22 @@ function pick(index: number) {
   playSound('stonePick')
 }
 
-const canUndo = computed(() => phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value)
+// 連線：自己下過（hist 跟著 state 一起變，所以讀一下 state 讓它重新算）
+const canUndo = computed(() => (bn ? (void state.value, phase.value === 'playing' && !flying.value && hist.some((h) => h.side === bn.mySide.value)) : phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value))
 /** 悔棋：電腦還在想就停下來；剛下的棋子飛回各自的棋罐（電腦的先回去），被提掉的子冒回來，局面退回玩家上一步之前 */
 async function undo() {
+  // 連線：送出申請，等對方同意
+  if (bn) return canUndo.value && bn.askUndo()
   if (!canUndo.value || !undoFrom.value) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   const prev = undoFrom.value
   undoFrom.value = null
   undoUsed.value = true
+  await revert(prev)
+}
+/** 退回到 prev：剛下的棋子飛回各自的棋罐（電腦的先回去），被提掉的子冒回來 */
+async function revert(prev: GoState) {
   preview.value = -1
   message.value = ''
   captured.value = null
@@ -357,13 +385,58 @@ async function undo() {
 }
 
 function confirmMove() {
-  if (myTurn.value && preview.value >= 0) void act({ type: 'play', index: preview.value }, 0)
+  if (!myTurn.value || preview.value < 0) return
+  if (bn) {
+    // 連線：送給伺服器，等它送回來才真的落子
+    if (!tryPlay(state.value, preview.value).ok) return
+    acted.value = true
+    bn.send({ type: 'play', index: preview.value })
+    return
+  }
+  void act({ type: 'play', index: preview.value }, 0)
 }
+
+// ── 連線對局：伺服器送來的每一步 ──
+/** 每一步之前的局面與誰下的（悔棋時找「那一方上一手之前」） */
+const hist: { state: GoState; side: number }[] = []
+const sideOfHuman = () => (human.value === 1 ? 0 : 1)
+async function netApply(ev: { type: string; player: number; index?: unknown }) {
+  hist.push({ state: state.value, side: ev.player })
+  const who = ev.player === sideOfHuman() ? 0 : 1
+  await act(ev.type === 'play' ? { type: 'play', index: ev.index as number } : { type: 'pass' }, who)
+  bn!.next()
+}
+async function netUndo(by: number) {
+  const k = hist.map((h) => h.side).lastIndexOf(by)
+  if (k >= 0) {
+    const prev = hist[k].state
+    hist.length = k
+    if (by === sideOfHuman()) undoUsed.value = true
+    await revert(prev)
+  }
+  bn!.next()
+}
+/** 有人認輸（不用輪到他） */
+function netResign(player: number) {
+  if (phase.value === 'playing') {
+    state.value = { ...state.value, phase: 'over', resigned: (player + 1) as Color }
+    finish()
+  }
+  bn!.next()
+}
+/** 雙方都虛手：照伺服器算的死活直接結算 */
+function netEnd(fin: { dead: number[] }) {
+  if (phase.value === 'over') return
+  dead.value = fin.dead ?? []
+  aiDead.value = dead.value
+  finish()
+}
+if (bn) watch(bn.undoRefused, () => (message.value = S.common.undoRefused(opponent.value.name)))
 
 // ── 保存進度並退出／讀回存檔 ──
 /** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
 const acted = ref(!!props.resume)
-const canSave = computed(() => (phase.value === 'playing' || phase.value === 'scoring') && acted.value)
+const canSave = computed(() => !bn && (phase.value === 'playing' || phase.value === 'scoring') && acted.value)
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
@@ -404,6 +477,11 @@ function pass() {
   }
   passArmed.value = false
   window.clearTimeout(passTimer)
+  if (bn) {
+    acted.value = true
+    bn.send({ type: 'pass' })
+    return
+  }
   void act({ type: 'pass' }, 0)
 }
 watch(
@@ -418,6 +496,8 @@ watch(
 onBeforeUnmount(() => window.clearTimeout(passTimer))
 /** 時間到：這一手跳過（等於虛手），換對方 */
 function onTimeout() {
+  // 連線：時間到由伺服器判（等於虛手）
+  if (bn) return
   if (!myTurn.value) return
   preview.value = -1
   passArmed.value = false
@@ -426,6 +506,7 @@ function onTimeout() {
 
 function resign() {
   resignOpen.value = false
+  if (bn) return phase.value === 'playing' && bn.resign()
   if (phase.value === 'playing' && state.value.turn === human.value) void act({ type: 'resign' }, 0)
   else {
     // 不在自己回合也能認輸
@@ -446,7 +527,7 @@ const resultLine = computed(() => {
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
-    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying && !(grace && state.turn === human)" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying && !(grace && state.turn === human)" :paused="!bn && menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
@@ -457,9 +538,9 @@ const resultLine = computed(() => {
       <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>
       <p v-if="phase !== 'rps'" class="t-label tg">{{ colorName(human) }} · {{ T.captured(state.captures[human]) }}</p>
       <div class="small-acts">
-        <Btn size="sm" :tone="passArmed ? 'yellow' : 'plain'" :disabled="!myTurn" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
+        <Btn size="sm" :tone="passArmed ? 'yellow' : 'plain'" :disabled="!myTurn || !!bn?.sending.value" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
         <Btn size="sm" :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
-        <UndoBtn :disabled="!canUndo" :used="undoUsed" @undo="void undo()" />
+        <UndoBtn :disabled="!canUndo" :used="undoUsed" :waiting="!!bn?.undoWaiting.value" @undo="void undo()" />
       </div>
     </aside>
 
@@ -497,14 +578,15 @@ const resultLine = computed(() => {
           <Btn v-else tone="red" size="lg" arrow block @click="confirmScore">{{ T.confirm }}</Btn>
           <Btn class="mt-[0.5rem]" size="sm" block @click="disputed ? acceptOpponent() : resumePlay()">{{ disputed ? T.byOpponent : T.resume }}</Btn>
         </template>
-        <Btn v-else-if="phase === 'over'" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
-        <Btn v-else tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
+        <Btn v-else-if="phase === 'over' && !bn" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+        <Btn v-else-if="phase !== 'over'" tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0 || !!bn?.sending.value" @click="confirmMove">{{ T.place }}</Btn>
       </div>
     </aside>
 
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" @back="emit('exit')" />
+    <RpsDuel :open="phase === 'rps' && (!menuOpen || !!bn)" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
+    <UndoAskDialog v-if="bn" :open="bn.undoAsked.value" :name="opponent.name" @answer="(ok) => bn!.answerUndo(ok)" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
     <Dialog :open="resignOpen" :title="T.resignAsk" :label="game.name" @close="resignOpen = false">
       <template #actions>
@@ -518,7 +600,7 @@ const resultLine = computed(() => {
       <p class="text-[0.95rem]">{{ resultLine }}</p>
       <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.go.wins, stats.go.losses) }}</p>
       <template #actions>
-        <Btn tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
+        <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
         <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
       </template>
     </Dialog>

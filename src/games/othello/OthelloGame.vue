@@ -1,11 +1,13 @@
 <script setup lang="ts">
 // 黑白棋：你在左、對手在右，中間 8 × 8 棋盤。先猜拳決定黑白（贏的人拿黑棋先下）。
 // 棋子從棋罐飛到落點，被夾到的子一顆顆翻面；沒地方下就自動輪空，雙方都沒地方下就結束、數子。
-import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
+import { useBoardNet } from '@/core/boardNet'
+import UndoAskDialog from '@/ui/UndoAskDialog.vue'
 import { recordResult, stats } from '@/core/settings'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
@@ -43,14 +45,23 @@ interface Saved {
 }
 
 /** 規則設定的「倒數計時」 */
-const timed = props.options.timer !== false
+/** 連線對局：伺服器當裁判（猜拳、落子、悔棋都經過伺服器）；沒有就是一般的單人對電腦 */
+const bn = props.resume
+  ? null
+  : useBoardNet('othello', {
+      apply: (ev) => void netApply(ev),
+      undo: (by) => void netUndo(by),
+    })
+/** 規則設定：連線時照房主的 */
+const rules = bn ? { ...props.options, ...bn.net.opts } : props.options
+const timed = rules.timer !== false
 /** 難度：只決定電腦多強 */
-const level = asLevel(props.options.difficulty)
+const level = asLevel(rules.difficulty)
 const T = S.othello
 
 const state = ref<OthelloState>(createOthello())
 const human = ref<Player>(1)
-const opponent = ref(pickOpponents(1)[0])
+const opponent = ref(bn ? bn.opponent : pickOpponents(1)[0])
 const phase = ref<'rps' | 'playing' | 'over'>('rps')
 const preview = ref(-1)
 const message = ref('')
@@ -70,12 +81,15 @@ const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
     timers.delete(id)
     // 暫停中（選單打開）：電腦也停下來，等繼續再走
-    if (menuOpen.value) later(fn, 250)
+    if (menuOpen.value && !bn) later(fn, 250)
     else fn()
   }, ms)
   timers.add(id)
 }
-onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
+onBeforeUnmount(() => {
+  timers.forEach((t) => window.clearTimeout(t))
+  bn?.stop()
+})
 
 const ai = computed<Player>(() => (human.value === 1 ? 2 : 1))
 const myTurn = computed(() => phase.value === 'playing' && !flying.value && state.value.turn === human.value)
@@ -149,10 +163,13 @@ function startAfterRps(playerWins: boolean) {
   human.value = playerWins ? 1 : 2
   reset()
   phase.value = 'playing'
+  if (bn) return bn.next()
   if (!playerWins) scheduleCpu()
 }
 
 function restart() {
+  // 連線對局：再來一局要回房間大家重新準備
+  if (bn) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   menuOpen.value = false
@@ -172,7 +189,7 @@ function after(prev: OthelloState) {
   }
   if (s.over) return finish()
   if (s.skipped) message.value = T.skipped(s.skipped === human.value ? S.common.you : opponent.value.name)
-  if (s.turn === ai.value) scheduleCpu()
+  if (s.turn === ai.value && !bn) scheduleCpu()
   else moods.value = ['idle', 'idle']
 }
 
@@ -252,6 +269,8 @@ function pick(index: number) {
 
 /** 時間到：這一手跳過，換對方 */
 function onTimeout() {
+  // 連線：時間到由伺服器判
+  if (bn) return
   if (!myTurn.value) return
   acted.value = true
   preview.value = -1
@@ -266,15 +285,22 @@ function onTimeout() {
   if (phase.value === 'playing') message.value = S.common.timedOut
 }
 
-const canUndo = computed(() => phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value)
+// 連線：自己下過（hist 跟著 state 一起變，所以讀一下 state 讓它重新算）
+const canUndo = computed(() => (bn ? (void state.value, phase.value === 'playing' && !flying.value && hist.some((h) => h.side === bn.mySide.value)) : phase.value === 'playing' && !flying.value && !!undoFrom.value && !undoUsed.value))
 /** 悔棋：電腦還在想就停下來；剛下的子飛回各自的棋罐（電腦的先回去），被翻過的子再翻回來，局面退回玩家上一步之前 */
 async function undo() {
+  // 連線：送出申請，等對方同意
+  if (bn) return canUndo.value && bn.askUndo()
   if (!canUndo.value || !undoFrom.value) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   const prev = undoFrom.value
   undoFrom.value = null
   undoUsed.value = true
+  await revert(prev)
+}
+/** 退回到 prev：剛下的子飛回各自的棋罐（電腦的先回去），被翻過的子再翻回來 */
+async function revert(prev: OthelloState) {
   preview.value = -1
   message.value = ''
   moods.value = ['idle', 'idle']
@@ -301,13 +327,54 @@ async function undo() {
 }
 
 function confirmMove() {
-  if (myTurn.value && preview.value >= 0) void commit(preview.value, 0)
+  if (!myTurn.value || preview.value < 0) return
+  if (bn) {
+    // 連線：送給伺服器，等它送回來才真的落子
+    if (!flipsFor(state.value.board, preview.value, state.value.turn).length) return
+    acted.value = true
+    bn.send({ type: 'play', index: preview.value })
+    return
+  }
+  void commit(preview.value, 0)
 }
+
+// ── 連線對局：伺服器送來的每一步 ──
+/** 每一步之前的局面與誰下的（悔棋時找「那一方上一手之前」） */
+const hist: { state: OthelloState; side: number }[] = []
+const sideOfHuman = () => (human.value === 1 ? 0 : 1)
+async function netApply(ev: { type: string; player: number; index?: unknown }) {
+  hist.push({ state: state.value, side: ev.player })
+  const who = ev.player === sideOfHuman() ? 0 : 1
+  if (ev.type === 'play') await commit(ev.index as number, who)
+  else {
+    const before = state.value
+    const r = applyOthello(state.value, { type: 'timeout' })
+    if (r.ok) {
+      undoFlip.value = null
+      state.value = r.state
+      if (who === 0) playSound('error')
+      after(before)
+      if (who === 0 && phase.value === 'playing') message.value = S.common.timedOut
+    }
+  }
+  bn!.next()
+}
+async function netUndo(by: number) {
+  const k = hist.map((h) => h.side).lastIndexOf(by)
+  if (k >= 0) {
+    const prev = hist[k].state
+    hist.length = k
+    if (by === sideOfHuman()) undoUsed.value = true
+    await revert(prev)
+  }
+  bn!.next()
+}
+if (bn) watch(bn.undoRefused, () => (message.value = S.common.undoRefused(opponent.value.name)))
 
 // ── 保存進度並退出／讀回存檔 ──
 /** 玩家自己有沒有動過（還沒動過就離開：不必按兩次、也不需要存檔） */
 const acted = ref(!!props.resume)
-const canSave = computed(() => phase.value === 'playing' && acted.value)
+const canSave = computed(() => !bn && phase.value === 'playing' && acted.value)
 /** 目前的進度（可以存檔時才有；還沒動過、已經結束就是 null） */
 function snapshot(): Saved | null {
   if (!canSave.value) return null
@@ -338,7 +405,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
     <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
-    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying && !(grace && state.turn === human)" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying && !(grace && state.turn === human)" :paused="!bn && menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
@@ -379,22 +446,23 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
       </div>
       <div class="act">
         <template v-if="phase === 'over'">
-          <Btn tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+          <Btn v-if="!bn" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
           <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
             <Btn size="sm" block @click="emit('exit')">{{ S.common.quit }}</Btn>
           </div>
         </template>
         <template v-else>
-          <Btn tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0" @click="confirmMove">{{ T.place }}</Btn>
-          <UndoBtn class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" @undo="void undo()" />
+          <Btn tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0 || !!bn?.sending.value" @click="confirmMove">{{ T.place }}</Btn>
+          <UndoBtn class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" :waiting="!!bn?.undoWaiting.value" @undo="void undo()" />
         </template>
       </div>
     </aside>
 
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" @back="emit('exit')" />
+    <RpsDuel :open="phase === 'rps' && (!menuOpen || !!bn)" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
+    <UndoAskDialog v-if="bn" :open="bn.undoAsked.value" :name="opponent.name" @answer="(ok) => bn!.answerUndo(ok)" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" @save-exit="saveAndExit" />
     <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ T.resultLead(count.black, count.white) }}</p>
@@ -402,7 +470,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
       <template #actions>
         <Btn size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
-        <Btn tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
+        <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
       </template>
     </Dialog>
   </section>
