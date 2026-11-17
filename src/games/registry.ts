@@ -17,6 +17,7 @@ import RedPointCover from './covers/RedPointCover.vue'
 import SevensCover from './covers/SevensCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
+import BanqiCover from './covers/BanqiCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
 type Extra = { group?: SettingGroup; live?: boolean }
@@ -215,6 +216,24 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./xiangqi/XiangqiTutorial.vue')),
     component: defineAsyncComponent(() => import('./xiangqi/XiangqiGame.vue')),
     settings: [level(), choice('pieceStyle', S.xiangqi.settings.pieceStyle, 'text', { group: 'other', live: true }), timer()],
+  },
+  {
+    id: 'banqi',
+    category: 'board',
+    name: S.banqi.name,
+    summary: S.banqi.summary,
+    players: S.banqi.players,
+    cover: BanqiCover,
+    tags: S.banqi.tags,
+    rulesIntro: withTimer(S.banqi.rules, [...TR.board, TR.banqi]),
+    tutorial: defineAsyncComponent(() => import('./banqi/BanqiTutorial.vue')),
+    component: defineAsyncComponent(() => import('./banqi/BanqiGame.vue')),
+    settings: [
+      choice('difficulty', S.banqi.settings.difficulty, 'mid'),
+      toggle('rookSlide', S.banqi.settings.rookSlide, false),
+      toggle('chain', S.banqi.settings.chain, false),
+      timer(),
+    ],
   },
 ]
 

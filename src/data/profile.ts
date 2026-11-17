@@ -29,6 +29,7 @@ export const TOP_LEVEL: Record<string, string> = {
   othello: 'master',
   chess: 'master',
   xiangqi: 'master',
+  banqi: 'high',
 }
 
 export type TitleRule =
@@ -59,7 +60,8 @@ export const TITLES: { id: string; rule: TitleRule }[] = [
   { id: 'lv88', rule: { kind: 'level', n: 88 } },
   { id: 'lv100', rule: { kind: 'level', n: 100 } },
   { id: 'lv250', rule: { kind: 'level', n: 250 } },
-  ...ALL_GAMES.flatMap((game) => [
+  // 每個玩法 3 個稱號（暗棋是後來加的：有自己的稱號，但「十項全能」還是原本那十種）
+  ...[...ALL_GAMES, 'banqi'].flatMap((game) => [
     { id: `${game}A`, rule: { kind: 'wins', game, n: 5 } as TitleRule },
     { id: `${game}B`, rule: { kind: 'wins', game, n: 30 } as TitleRule },
     { id: `${game}Top`, rule: (game === 'redpoint' ? { kind: 'wins', game, n: 80 } : { kind: 'top', game, n: 3 }) as TitleRule },

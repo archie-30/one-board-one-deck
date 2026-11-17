@@ -39,6 +39,7 @@ interface Stats {
   xiangqi: { wins: number; losses: number; draws: number }
   othello: { wins: number; losses: number; draws: number }
   sevens: { rounds: number; wins: number }
+  banqi: { wins: number; losses: number; draws: number }
   /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
   recent: Record<string, string>
   /** 牌類難度改成低／中／高的搬家記號（0＝還沒搬，舊存檔或新玩家都會跑一次） */
@@ -58,6 +59,7 @@ const STATS_DEFAULT: Stats = {
   xiangqi: { wins: 0, losses: 0, draws: 0 },
   othello: { wins: 0, losses: 0, draws: 0 },
   sevens: { rounds: 0, wins: 0 },
+  banqi: { wins: 0, losses: 0, draws: 0 },
   recent: {},
   cardLevels: 0,
 }
