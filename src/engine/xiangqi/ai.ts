@@ -1,7 +1,7 @@
 // 象棋電腦對手：子力＋位置分數，交給共用的搜尋挑一步。
-import type { ChessStyle } from '@/engine/common/personas'
-import type { RngState } from '@/engine/common/rng'
-import { chooseMove, MATE, type SearchGame } from '@/engine/common/search'
+import type { ChessStyle } from '../common/personas'
+import type { RngState } from '../common/rng'
+import { chooseMove, MATE, type SearchGame } from '../common/search'
 import { basicLegal, colOf, inCheck, legalMoves, makeMove, rowOf, sideOf, typeOf, type XiangqiState, type XMove } from './rules'
 
 export const VALUE: Record<string, number> = { K: 0, A: 200, B: 200, N: 400, R: 900, C: 450, P: 100 }

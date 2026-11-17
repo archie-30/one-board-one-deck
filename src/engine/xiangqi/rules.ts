@@ -6,7 +6,7 @@
 //   結束：被將死或困斃（輪到自己卻沒有合法的步）都算輸；認輸。
 //   重複局面（簡化版禁長將）：一直將軍造成同一局面第三次出現時，將軍的一方必須換別步；
 //   其他情況同一局面第三次出現就和棋。60 回合（120 步）都沒有吃子也算和棋。
-import type { Result } from '@/engine/common/types'
+import type { Result } from '../common/types'
 
 export type Side = 'r' | 'b'
 export type XType = 'K' | 'A' | 'B' | 'N' | 'R' | 'C' | 'P'

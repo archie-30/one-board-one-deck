@@ -17,6 +17,7 @@ import { applyRedPoint, dealRedPoint, type RedPointAction, type RedPointState } 
 import { chooseSevensAction } from '../../../src/engine/sevens/ai'
 import { applySevens, dealSevens, type SevensAction, type SevensState } from '../../../src/engine/sevens/rules'
 import { TURN_SECONDS } from '../../../src/data/timer'
+import { BOARD_DEFS } from './boardDefs'
 
 export type Options = Record<string, string | boolean>
 
@@ -41,8 +42,16 @@ export interface MatchDef<S, A> {
   think(s: S, botId: number, opts: Options, r: number): number
   timeout(seat: number): A
   render(before: S, after: S, a: A): Rendered
+  /** 開局時 viewer（引擎的座位，-1＝觀戰）看得到的牌局 */
   start(s: S, viewer: number): unknown
-  reveal(s: S): unknown
+  /** 結束攤牌（s0：開局的樣子；圍棋算死活要用亂數） */
+  reveal(s: S, s0: S, rng: RngState): unknown
+  /** 開局前要先猜拳決定誰先（兩人的棋類） */
+  rps?: boolean
+  /** 可以悔棋（要對方同意） */
+  undo?: boolean
+  /** 認輸（任何時候都可以）：side 這一方認輸後的局面 */
+  resign?(s: S, side: number): S | null
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -91,7 +100,8 @@ function bigtwoDef(decks: 1 | 2): MatchDef<BigTwoState, BigTwoAction> {
     // 出的牌、過牌都是公開的
     render: (_b, _a, a) => ({ pub: a }),
     start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), turn: s.turn, firstTurn: s.firstTurn, winner: s.winner, options: s.options }),
-    reveal: (s) => s,
+    // 攤牌時連開局的手牌一起給（結算後「檢視牌組」用）
+    reveal: (s, s0) => ({ ...s, startHands: s0.hands }),
   }
 }
 
@@ -158,4 +168,5 @@ export const MATCH_DEFS: Record<string, MatchDef<any, any>> = {
   crazybigtwo: bigtwoDef(2),
   sevens: sevensDef,
   redpoint: redpointDef,
+  ...BOARD_DEFS,
 }

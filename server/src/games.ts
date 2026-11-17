@@ -20,6 +20,7 @@ export const BEGINNER_BOT = 16
 
 const B = [true, false] as const
 const LEVEL = ['low', 'mid', 'high'] as const
+const LEVEL4 = ['low', 'mid', 'high', 'master'] as const
 const BIGTWO_RULES = {
   difficulty: LEVEL,
   suitOrder: ['shdc', 'shcd'],
@@ -44,6 +45,12 @@ export const MATCH_RULES: Record<string, Record<string, readonly (string | boole
   crazybigtwo: BIGTWO_RULES,
   sevens: { difficulty: LEVEL, timer: B },
   redpoint: { hints: B, timer: B },
+  gomoku: { difficulty: LEVEL4, forbidden: B, overlineWins: B, timer: B },
+  go: { difficulty: LEVEL4, size: ['19', '13', '9'], timer: B },
+  othello: { difficulty: LEVEL4, timer: B },
+  chess: { difficulty: LEVEL4, timer: B },
+  xiangqi: { difficulty: LEVEL4, timer: B },
+  banqi: { difficulty: LEVEL, rookSlide: B, chain: B, timer: B },
 }
 
 /** 檢查房主送來的規則設定：不認得的鍵、不合法的值整份不收 */

@@ -5,6 +5,7 @@ import { entryFor, matchIntro, playerAct, START_DELAY, type MatchState } from '.
 import type { BigTwoState } from '../../../src/engine/bigtwo/game'
 import type { SevensState } from '../../../src/engine/sevens/rules'
 import type { RedPointState } from '../../../src/engine/redpoint/rules'
+import { legalMoves, type OthelloState } from '../../../src/engine/othello/rules'
 
 let n = 0
 const rand = (bytes: number) => (n++).toString(16).padStart(bytes * 2, '0')
@@ -26,6 +27,16 @@ function started(gameId: string, humans = 2, rules: Record<string, string | bool
   const r = tick(room, T0 + COUNTDOWN_MS, 12345)
   expect(r.started).toBe(true)
   return { room, ids, m: room.match! }
+}
+
+/** 讓時間往前走幾步 */
+function runSome(room: RoomState, from: number, steps: number) {
+  let t = from
+  for (let k = 0; k < steps && room.match && !room.match.over; k++) {
+    t = Math.max(t + 1, nextWake(room))
+    tick(room, t, 1)
+  }
+  return t
 }
 
 /** 一直讓時間往前走（電腦出牌、真人逾時）直到結束 */
@@ -152,17 +163,108 @@ describe('連線對局（伺服器當裁判）', () => {
     expect(room.rules!.options.allowFlush).toBe(true)
     expect(parseRules('bigtwo', { allowFlush: 'yes' })).toBeNull()
     expect(parseRules('bigtwo', { hacked: true })).toBeNull()
-    expect(parseRules('gomoku', {})).toBeNull()
+    expect(parseRules('solitaire', {})).toBeNull()
     expect(parseMessage(JSON.stringify({ t: 'act', a: { type: 'pass' } }))).toEqual({ t: 'act', a: { type: 'pass' } })
     expect(parseMessage(JSON.stringify({ t: 'act', a: 3 }))).toBeNull()
   })
 
-  it('還不能同步的玩法（棋類）：照樣開局，但伺服器不發牌', () => {
-    const { room, member } = createRoomState('5678', { name: 'A' }, T0, rand)
-    connect(room, member.id, T0)
-    applyIntent(room, member.id, { t: 'mode', gameId: 'gomoku' }, T0)
-    applyIntent(room, member.id, { t: 'ready', on: true }, T0)
-    expect(tick(room, T0 + COUNTDOWN_MS, 1).started).toBe(true)
-    expect(room.match).toBeUndefined()
+  for (const gameId of ['gomoku', 'go', 'othello', 'chess', 'xiangqi', 'banqi']) {
+    it(`${gameId}：先猜拳（都沒出就隨便一個先），再一路跑到結束`, () => {
+      const { room, m } = started(gameId, 2, gameId === 'go' ? { size: '9' } : {})
+      expect(m.first).toBe(-1)
+      expect(m.rps).not.toBeNull()
+      runToEnd(room, T0 + COUNTDOWN_MS)
+      expect(m.first).toBeGreaterThanOrEqual(0)
+      expect(m.over).toBe(true)
+      expect(m.log[m.log.length - 1].end).toBe(true)
+    }, 60000)
+  }
+
+  it('猜拳：兩人出拳比勝負；平手再來一輪；只有一個人出、時間到就是出的人贏；猜拳中不能下棋', () => {
+    const { room, ids, m } = started('gomoku')
+    const now = T0 + COUNTDOWN_MS + 1000
+    expect(playerAct(room, ids[0], { type: 'place', index: 0 }, now)).toEqual([])
+    expect((playerAct(room, ids[0], { type: 'rps', hand: 'rock' }, now)[0].pub as { type: string }).type).toBe('rpsPicked')
+    // 出過了不能改
+    expect(playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, now)).toEqual([])
+    const tie = playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, now)
+    expect(tie[0].pub).toMatchObject({ type: 'rps', winner: -1 })
+    expect(m.rps).not.toBeNull()
+    playerAct(room, ids[1], { type: 'rps', hand: 'paper' }, now)
+    tick(room, m.rps!.deadline, 1)
+    expect(m.first).toBe(1)
+    expect(m.log[m.log.length - 1].pub).toMatchObject({ type: 'rps', winner: 1, missed: [true, false] })
+  })
+
+  it('悔棋：要對方同意；不同意就算了；每局一次；同意後退回到他上一手之前', () => {
+    const { room, ids, m } = started('gomoku')
+    let now = T0 + COUNTDOWN_MS + 1000
+    playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, now)
+    playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, now)
+    expect(m.first).toBe(0)
+    now += 3000
+    playerAct(room, ids[0], { type: 'place', index: 112 }, now)
+    playerAct(room, ids[1], { type: 'place', index: 113 }, now)
+    // B 還沒下過不能悔；A 申請悔棋
+    expect(playerAct(room, ids[0], { type: 'undo' }, now)[0].pub).toEqual({ type: 'undoAsk', by: 0 })
+    // 自己不能回答自己
+    expect(playerAct(room, ids[0], { type: 'undoReply', ok: true }, now)).toEqual([])
+    expect(playerAct(room, ids[1], { type: 'undoReply', ok: false }, now)[0].pub).toEqual({ type: 'undoNo', by: 0 })
+    expect(playerAct(room, ids[0], { type: 'undo' }, now)).toHaveLength(1)
+    const ok = playerAct(room, ids[1], { type: 'undoReply', ok: true }, now)
+    expect(ok[0].pub).toEqual({ type: 'undo', by: 0, moves: 0 })
+    expect((m.s as { moves: number[] }).moves).toEqual([])
+    // 每局一次
+    playerAct(room, ids[0], { type: 'place', index: 112 }, now)
+    expect(playerAct(room, ids[0], { type: 'undo' }, now)).toEqual([])
+  })
+
+  it('悔棋：對手是電腦就直接同意', () => {
+    const { room, ids, m } = started('othello', 1)
+    let now = T0 + COUNTDOWN_MS + 1000
+    playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, now)
+    tick(room, m.rps?.deadline ?? now, 1)
+    now += 5000
+    const me = (0 - m.first + 2) % 2
+    // 真人自己下兩手（電腦照常回）
+    for (let k = 0; k < 6 && m.acts.filter((x) => x.side === me).length < 2; k++) {
+      const s = m.s as OthelloState
+      if (s.turn - 1 === me) playerAct(room, ids[0], { type: 'play', index: legalMoves(s.board, s.turn)[0] }, now)
+      else tick(room, (now = Math.max(now, nextWake(room))), 1)
+    }
+    const before = m.acts.length
+    const r = playerAct(room, ids[0], { type: 'undo' }, now)
+    expect(r[0].pub).toMatchObject({ type: 'undo', by: me })
+    expect(m.acts.length).toBeLessThan(before)
+  })
+
+  it('認輸：任何時候都可以（不用輪到自己）；五子棋、黑白棋沒有認輸', () => {
+    const { room, ids, m } = started('chess')
+    const now = T0 + COUNTDOWN_MS + 1000
+    playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, now)
+    playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, now)
+    const r = playerAct(room, ids[1], { type: 'resign' }, now + 3000)
+    expect(r[0].pub).toEqual({ type: 'resign', player: 1 })
+    expect(m.over).toBe(true)
+    expect((r[1].pub as { winner: string }).winner).toBe('w')
+    const g = started('gomoku')
+    expect(playerAct(g.room, g.ids[0], { type: 'resign' }, now)).toEqual([])
+  })
+
+  it('暗棋：開局只給「哪裡有棋」，不給是哪顆；翻開時才告訴大家', () => {
+    const { room, m } = started('banqi')
+    const intro = matchIntro(m, m.seats[0].pid!)
+    expect((intro.start as { board: string[] }).board.every((p) => p === '?')).toBe(true)
+    runToEnd(room, T0 + COUNTDOWN_MS)
+    const flip = m.log.find((e) => (e.pub as { type: string }).type === 'flip')!
+    expect(typeof (flip.pub as { piece: string }).piece).toBe('string')
+  })
+
+  it('圍棋：雙方都虛手後，照電腦判斷的死活結算（攤牌時附上死子）', () => {
+    const { room, m } = started('go', 2, { size: '9' })
+    runToEnd(room, T0 + COUNTDOWN_MS)
+    const fin = m.log[m.log.length - 1].pub as { state: { phase: string }; dead: number[] }
+    expect(fin.state.phase).toBe('over')
+    expect(Array.isArray(fin.dead)).toBe(true)
   })
 })
