@@ -38,6 +38,34 @@ export function autoFullscreen() {
 
 /** 下一次點畫面（或按鍵）時進入全螢幕（設定開著才會） */
 let armed = false
+/** 正在進入全螢幕（點畫面那一下觸發的） */
+let entering: Promise<void> | null = null
+
+/**
+ * 等「剛剛那一下點擊觸發的全螢幕」切換完、畫面大小穩定下來（沒有就馬上好）。
+ * 開始遊戲的翻卡片過場要等這個：切全螢幕時手機會停頓、整個畫面重排，
+ * 過場如果同時開始，拿起、翻面那段會被吃掉（看起來像直接跳到色塊），卡片位置也會算錯。
+ */
+export async function fullscreenSettled(): Promise<void> {
+  if (!entering) return
+  await entering
+  // 等大小不再變（最多 0.8 秒）
+  await new Promise<void>((resolve) => {
+    let quiet = 0
+    const done = () => {
+      window.removeEventListener('resize', bump)
+      window.clearTimeout(cap)
+      resolve()
+    }
+    const bump = () => {
+      window.clearTimeout(quiet)
+      quiet = window.setTimeout(done, 160)
+    }
+    const cap = window.setTimeout(done, 800)
+    window.addEventListener('resize', bump)
+    bump()
+  })
+}
 function armOnce() {
   if (armed) return
   armed = true
@@ -45,7 +73,7 @@ function armOnce() {
   const once = () => {
     events.forEach((t) => window.removeEventListener(t, once, true))
     armed = false
-    if (settings.fullscreen) void setFullscreen(true)
+    if (settings.fullscreen) entering = setFullscreen(true).finally(() => (entering = null))
   }
   events.forEach((t) => window.addEventListener(t, once, true))
 }

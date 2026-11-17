@@ -75,6 +75,8 @@ export type RoomIntent =
   | { t: 'mode'; gameId: string }
   | { t: 'recommend'; gameId: string }
   | { t: 'back' }
+  /** 房主把某人請出房間 */
+  | { t: 'kick'; id: string }
   /** 房主的規則設定（開局照這份） */
   | { t: 'rules'; gameId: string; options: Record<string, string | boolean> }
   /** 對局中出牌（內容各玩法自己定） */
@@ -241,6 +243,15 @@ function beginMatch() {
 /** 打完回到房間：告訴伺服器（大家都回來了，房間才回到等待中） */
 export function backToRoom() {
   if (online.room?.phase === 'playing') send({ t: 'back' })
+}
+
+/** 房主把某人請出房間（伺服器確認後大家的房間會更新；被請出的人會收到 closed: kicked） */
+export function kickPlayer(id: string) {
+  const room = online.room
+  if (!room || !me()?.host || id === me()?.id) return
+  room.players = room.players.filter((p) => p.id !== id)
+  room.recommends = room.recommends.filter((r) => r.playerId !== id)
+  send({ t: 'kick', id })
 }
 
 /** 改成觀戰／回來對戰（改了就要重新準備） */

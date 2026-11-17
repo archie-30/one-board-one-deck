@@ -219,6 +219,24 @@ describe('連線對局（伺服器當裁判）', () => {
     expect(playerAct(room, ids[0], { type: 'undo' }, now)).toEqual([])
   })
 
+  it('暗棋也能悔棋：翻開的棋蓋回去', () => {
+    const { room, ids, m } = started('banqi')
+    let now = T0 + COUNTDOWN_MS + 1000
+    playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, now)
+    playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, now)
+    now += 3000
+    playerAct(room, ids[0], { type: 'flip', at: 0 }, now)
+    playerAct(room, ids[1], { type: 'flip', at: 31 }, now)
+    const s0 = m.s as { up: boolean[] }
+    expect(s0.up.filter(Boolean)).toHaveLength(2)
+    playerAct(room, ids[1], { type: 'undo' }, now)
+    expect(playerAct(room, ids[0], { type: 'undoReply', ok: true }, now)[0].pub).toEqual({ type: 'undo', by: 1, moves: 1 })
+    const s1 = m.s as { up: boolean[]; turn: number }
+    expect(s1.up[31]).toBe(false)
+    expect(s1.up[0]).toBe(true)
+    expect(s1.turn).toBe(1)
+  })
+
   it('悔棋：對方 10 秒內沒回答就當作不同意', () => {
     const { room, ids, m } = started('gomoku')
     let now = T0 + COUNTDOWN_MS + 1000

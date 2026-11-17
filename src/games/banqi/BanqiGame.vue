@@ -2,7 +2,9 @@
 // 暗棋對局：你在左、對手在右，中間 4 × 8 的棋盤。開局猜拳，贏的人先翻棋；第一顆翻出什麼顏色就是哪一方。
 // 操作：點蓋著的棋＝翻開；點自己翻開的棋選起來 → 能去的格子出現圓點（能吃的是紅框）→ 點那格走過去。
 // 規則設定開「連吃」時，吃完還能再吃會停在那顆棋上，可以繼續吃或按「不吃了」。
-import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
+// 悔棋：每局一次（按兩次才生效），退回你上一手之前（電腦接著走的也一起退；連吃整串一起退）。
+// 棋子一步步倒回去：走過去的滑回原位、被吃的冒回來、翻開的翻回背面。連線時要對方同意。
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
 import { opponentById, pickOpponents } from '@/core/opponents'
@@ -25,6 +27,7 @@ import IconBtn from '@/ui/IconBtn.vue'
 import RpsDuel from '@/ui/RpsDuel.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
 import TurnTimer from '@/ui/TurnTimer.vue'
+import UndoBtn from '@/ui/UndoBtn.vue'
 import BanqiBoard from './BanqiBoard.vue'
 
 const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
@@ -37,7 +40,7 @@ const bn = props.resume
   : useBoardNet('banqi', {
       watchStart: (leftFirst) => startAfterRps(leftFirst),
       apply: (ev) => netApply(ev),
-      undo: () => bn!.next(),
+      undo: (by) => void netUndo(by),
       resign: (player) => netResign(player),
     })
 /** 觀戰：只能看，畫面左邊是 0 號座位那位玩家 */
@@ -56,6 +59,7 @@ interface Saved {
   human: Seat
   opponent: number
   rng: number
+  undoUsed?: boolean
 }
 const saved = (props.resume ?? null) as Saved | null
 
@@ -77,6 +81,12 @@ const resultOpen = ref(false)
 const resignOpen = ref(false)
 const thinking = ref(false)
 const moods = ref<[Mood, Mood]>(['idle', 'idle'])
+/** 悔棋：每一步之前的局面（side＝走這一步的人；a＝這一步），倒帶用 */
+const hist: { state: BanqiState; side: number; a: BanqiAction }[] = []
+const undoUsed = ref(saved?.undoUsed ?? false)
+/** 悔棋倒帶中（棋盤一步步倒回去） */
+const rewinding = ref(false)
+const rewind = ref<{ key: number; from: number; to: number; flip: boolean } | null>(null)
 const timers = new Set<number>()
 const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
@@ -92,7 +102,7 @@ onBeforeUnmount(() => {
   bn?.stop()
 })
 
-const myTurn = computed(() => !watching && phase.value === 'playing' && !thinking.value && state.value.turn === human.value)
+const myTurn = computed(() => !watching && phase.value === 'playing' && !thinking.value && !rewinding.value && state.value.turn === human.value)
 const myColor = computed<Color | null>(() => state.value.colors[human.value])
 /** 連吃中：只能用那顆棋繼續吃 */
 const chaining = computed(() => myTurn.value && state.value.chainAt >= 0)
@@ -128,6 +138,8 @@ const nameOf = (p: Piece) => S.xiangqi.names[colorOf(p)][kindOf(p) as 'K']
 function startAfterRps(playerWins: boolean) {
   human.value = playerWins ? 0 : 1
   state.value = bn ? netStart() : freshDeal()
+  hist.length = 0
+  undoUsed.value = false
   phase.value = 'playing'
   if (bn) return bn.next()
   if (!playerWins) scheduleCpu()
@@ -142,6 +154,8 @@ function restart() {
   resignOpen.value = false
   opponent.value = pickOpponents(1)[0]
   state.value = freshDeal()
+  hist.length = 0
+  undoUsed.value = false
   selected.value = -1
   message.value = ''
   thinking.value = false
@@ -173,6 +187,7 @@ function commit(a: BanqiAction, who: 0 | 1) {
     playSound('error')
     return false
   }
+  hist.push({ state: state.value, side: state.value.turn, a })
   state.value = r.state
   selected.value = -1
   message.value = ''
@@ -219,6 +234,7 @@ function onTimeout() {
   selected.value = -1
   const r = applyBanqi(state.value, { type: 'timeout' })
   if (!r.ok) return
+  hist.push({ state: state.value, side: state.value.turn, a: { type: 'timeout' } })
   state.value = r.state
   playSound('error')
   if (state.value.status !== 'playing') return finish()
@@ -328,6 +344,7 @@ function netApply(ev: { type: string; player: number; at?: unknown; piece?: unkn
   else {
     const r = applyBanqi(state.value, { type: 'timeout' })
     if (r.ok) {
+      hist.push({ state: state.value, side: state.value.turn, a: { type: 'timeout' } })
       state.value = r.state
       if (who === 0) ((message.value = S.common.timedOut), playSound('error'))
       if (state.value.status !== 'playing') finish()
@@ -344,12 +361,64 @@ function netResign(player: number) {
   bn!.next()
 }
 
+// ── 悔棋 ──
+/** 這一方最後一串連續動作的第一步（連吃是同一個人連著好幾步，要整串一起退；沒走過是 -1） */
+function runStart(side: number): number {
+  let k = hist.map((h) => h.side).lastIndexOf(side)
+  while (k > 0 && hist[k - 1].side === side) k--
+  return k
+}
+const canUndo = computed(() => {
+  void state.value // hist 跟著 state 一起變：讀一下讓它重新算
+  if (watching || phase.value !== 'playing' || rewinding.value) return false
+  const k = runStart(human.value)
+  // 連線：伺服器記得用過沒（UndoBtn 的 used 由 bn 管）；單人：每局一次
+  return k >= 0 && (bn ? true : !undoUsed.value)
+})
+const usedUndo = computed(() => (bn ? bn.undoUsed.value : undoUsed.value))
+const wait = (ms: number) => new Promise<void>((r) => window.setTimeout(r, ms))
+/** 從最後一步一步步倒回到 hist[k] 之前 */
+async function revertTo(k: number) {
+  rewinding.value = true
+  selected.value = -1
+  message.value = ''
+  moods.value = ['idle', 'idle']
+  const steps = hist.splice(k).reverse()
+  for (const h of steps) {
+    state.value = h.state
+    const a = h.a
+    if (a.type === 'flip' || a.type === 'move') {
+      rewind.value = a.type === 'flip' ? { key: (rewind.value?.key ?? 0) + 1, from: a.at, to: a.at, flip: true } : { key: (rewind.value?.key ?? 0) + 1, from: a.from, to: a.to, flip: false }
+      playSound(a.type === 'flip' ? 'piecePick' : 'xqPiece')
+      await wait(340)
+    }
+  }
+  rewinding.value = false
+}
+async function undo() {
+  // 連線：送出申請，等對方同意
+  if (bn) return canUndo.value && bn.askUndo()
+  if (!canUndo.value) return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  thinking.value = false
+  undoUsed.value = true
+  await revertTo(runStart(human.value))
+}
+/** 連線：伺服器說悔棋（by 那一方退回他上一串動作之前） */
+async function netUndo(by: number) {
+  const k = runStart(by)
+  if (k >= 0) await revertTo(k)
+  bn!.next()
+}
+if (bn) watch(bn.undoRefused, () => (message.value = S.common.undoRefused(opponent.value.name)))
+
 // ── 保存進度並退出 ──
 const acted = ref(!!saved)
 const canSave = computed(() => !bn && phase.value === 'playing' && acted.value)
 function snapshot(): Saved | null {
   if (!canSave.value) return null
-  return { state: state.value, human: human.value, opponent: opponent.value.id, rng }
+  return { state: state.value, human: human.value, opponent: opponent.value.id, rng, undoUsed: undoUsed.value }
 }
 function saveAndExit() {
   const data = snapshot()
@@ -382,7 +451,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 
     <div class="board-wrap">
       <div class="board-box">
-        <BanqiBoard :board="state.board" :up="state.up" :selected="activeSel" :targets="targets" :last-move="state.lastMove" :move-key="state.plies * 100 + state.captured.length" :interactive="myTurn" @pick="pick" />
+        <BanqiBoard :board="state.board" :up="state.up" :selected="activeSel" :targets="targets" :last-move="state.lastMove" :move-key="state.plies * 100 + state.captured.length" :interactive="myTurn" :rewind="rewind" @pick="pick" />
       </div>
     </div>
 
@@ -413,7 +482,8 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         </template>
         <template v-else>
           <Btn v-if="chaining" tone="red" block @click="endChain">{{ T.endChain }}</Btn>
-          <Btn v-if="!watching" :class="{ 'mt-[0.5rem]': chaining }" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
+          <UndoBtn v-if="!watching" :class="{ 'mt-[0.5rem]': chaining }" block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="void undo()" />
+          <Btn v-if="!watching" class="mt-[0.5rem]" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
         </template>
       </div>
     </aside>

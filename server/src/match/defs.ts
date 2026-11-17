@@ -50,6 +50,8 @@ export interface MatchDef<S, A> {
   rps?: boolean
   /** 可以悔棋（要對方同意） */
   undo?: boolean
+  /** 悔棋退到這一方「連著走的那一串」的第一步之前（暗棋連吃） */
+  undoRun?: boolean
   /** 認輸（任何時候都可以）：side 這一方認輸後的局面 */
   resign?(s: S, side: number): S | null
 }

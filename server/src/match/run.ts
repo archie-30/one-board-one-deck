@@ -277,8 +277,12 @@ export function playerAct(room: RoomState, pid: string, raw: unknown, now: numbe
 
 // ── 悔棋（要對方同意；對手是電腦或不在就直接同意）──
 
-/** 這一方最後一手在 acts 裡的位置（沒走過是 -1） */
-const lastMoveOf = (m: MatchState, side: number) => m.acts.map((x) => x.side).lastIndexOf(side)
+/** 這一方最後一手在 acts 裡的位置（沒走過是 -1）；undoRun 的玩法退到那一串連續動作的第一步 */
+function lastMoveOf(m: MatchState, side: number): number {
+  let k = m.acts.map((x) => x.side).lastIndexOf(side)
+  if (k >= 0 && MATCH_DEFS[m.gameId].undoRun) while (k > 0 && m.acts[k - 1].side === side) k--
+  return k
+}
 
 function askUndo(room: RoomState, seat: number, now: number): LogEntry[] {
   const m = room.match!

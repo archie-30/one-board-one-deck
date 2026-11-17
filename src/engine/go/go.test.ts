@@ -183,3 +183,33 @@ describe('圍棋：AI', () => {
     }
   })
 })
+
+describe('挑戰：開局棋譜', () => {
+  it('先佔空角（星位或小目），四個角都有人就掛對方的角', async () => {
+    const { goBookMoves } = await import('./book')
+    const s = createGo({ size: 19 })
+    const first = goBookMoves(s)
+    expect(first.length).toBe(12)
+    for (const i of first) {
+      const x = i % 19
+      const y = Math.floor(i / 19)
+      const lines = [Math.min(x, 18 - x), Math.min(y, 18 - y)].sort()
+      expect([[2, 3], [3, 3]]).toContainEqual(lines)
+    }
+    // 四個角：黑佔兩個星位、白佔兩個星位，輪到黑 → 掛白的角（小飛）
+    const t = setup(Array.from({ length: 19 }, () => '.'.repeat(19)))
+    const put = (x: number, y: number, c: Point) => (t.board[toIndex(x, y, 19)] = c)
+    put(3, 3, 1)
+    put(15, 15, 1)
+    put(15, 3, 2)
+    put(3, 15, 2)
+    const ap = goBookMoves(t)
+    expect(ap.length).toBe(4)
+    for (const i of ap) {
+      const x = i % 19
+      const y = Math.floor(i / 19)
+      const near = [[15, 3], [3, 15]].some(([cx, cy]) => Math.abs(cx - x) + Math.abs(cy - y) === 3)
+      expect(near).toBe(true)
+    }
+  })
+})

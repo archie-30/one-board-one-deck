@@ -11,7 +11,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { launch as launchFx } from '@/core/launch'
 import { back, resetTo, setBackGuard } from '@/core/nav'
-import { canChangeMode, changeMode, isHost, leaveRoom, online, ROOM_MAX, roomCountdown, setReady, setSpectator, startState, type RoomPlayer } from '@/core/online'
+import { canChangeMode, changeMode, isHost, kickPlayer, leaveRoom, online, ROOM_MAX, roomCountdown, setReady, setSpectator, startState, type RoomPlayer } from '@/core/online'
 import { levelOf, myLook, profile } from '@/core/profile'
 import type { GameCategory } from '@/games/types'
 import { S } from '@/data/strings'
@@ -44,8 +44,8 @@ const status = computed(() => {
   if (s.canStart) return (roomCountdown.value > 0 ? T.status.countdown(roomCountdown.value) : T.status.go) + ai
   return T.status.waitReady(s.readyCount, s.total) + ai
 })
-/** 人比模式多（或自己已經在觀戰）才出現「改成觀戰／回來對戰」 */
-const showWatch = computed(() => !!me.value && !!game.value && (me.value.spectator || (room.value?.players.length ?? 0) > seats.value))
+/** 人比模式多（或自己已經在觀戰）才出現「改成觀戰／回來對戰」；撲克牌先不支援觀戰（只能「回來對戰」） */
+const showWatch = computed(() => !!me.value && !!game.value && (me.value.spectator || (game.value.category !== 'cards' && (room.value?.players.length ?? 0) > seats.value)))
 const nameOf = (id: string) => room.value?.players.find((p) => p.id === id)?.name ?? ''
 
 /** 到房間外逛模式（人還在房間裡；返回時照主畫面 → 分類的順序退） */
@@ -55,6 +55,16 @@ const goCat = (category: GameCategory) => resetTo([{ name: 'title' }, { name: 'c
 // 點成員：看玩家資料（自己的照個人資料；別人的等接上連線後由伺服器傳來）
 const viewing = ref<RoomPlayer | null>(null)
 const viewLevel = computed(() => (viewing.value?.me ? levelOf(profile.xp) : viewing.value?.level))
+/** 房主請人出房間：按鈕按第一下變黃「再按一次請出房間」，再按才請出（不另外跳確認視窗） */
+const kickArmed = ref(false)
+watch(viewing, () => (kickArmed.value = false))
+function kick() {
+  const p = viewing.value
+  if (!p || p.me || !isHost.value || locked.value) return
+  if (!kickArmed.value) return void (kickArmed.value = true)
+  kickPlayer(p.id)
+  viewing.value = null
+}
 const viewTitles = computed(() => (viewing.value?.me ? profile.equipped : (viewing.value?.titles ?? [])).map((id) => S.profile.titles[id]?.name).filter(Boolean))
 
 // 複製房號
@@ -219,6 +229,9 @@ async function leave() {
           <p v-else class="pnote">{{ T.pNoInfo }}</p>
         </div>
       </div>
+      <template v-if="viewing && !viewing.me && isHost" #actions>
+        <Btn :tone="kickArmed ? 'yellow' : 'plain'" icon="exit" :disabled="locked || room?.phase === 'playing'" @click="kick">{{ kickArmed ? T.kickConfirm : T.kick }}</Btn>
+      </template>
     </Dialog>
   </Page>
 </template>

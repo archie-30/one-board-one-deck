@@ -11,7 +11,7 @@ import Btn from './Btn.vue'
 /** 對方要求悔棋時，幾毫秒內要回答 */
 const ANSWER_MS = 10_000
 
-const props = defineProps<{ disabled: boolean; used: boolean; waiting?: boolean; asked?: boolean }>()
+const props = defineProps<{ disabled: boolean; used: boolean; waiting?: boolean; asked?: boolean; block?: boolean }>()
 const emit = defineEmits<{ undo: []; answer: [ok: boolean] }>()
 const armed = ref(false)
 let timer = 0
@@ -58,7 +58,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="asked" :key="askKey" class="ask pop">
+  <!-- 一般按鈕 ⇄「是否同意」：舊的往下沉、新的往上彈出；一出現也會彈出來 -->
+  <div class="undo-wrap" :class="{ block }">
+  <Transition name="uswap" mode="out-in" appear>
+  <div v-if="asked" :key="`ask${askKey}`" class="ask">
     <p class="ask-q t-black">{{ S.common.undoAsk }}</p>
     <div class="ask-row">
       <button class="half no" @click="answer(false)">{{ S.common.undoRefuse }}</button>
@@ -66,10 +69,43 @@ onBeforeUnmount(() => {
     </div>
     <span class="bar" :style="{ '--ms': `${ANSWER_MS}ms` }" />
   </div>
-  <Btn v-else size="sm" icon="back" :tone="armed ? 'yellow' : 'plain'" :disabled="disabled || used || waiting" @click="press">{{ used ? S.common.undoUsed : waiting ? S.common.undoWaiting : armed ? S.common.undoConfirm : S.common.undo }}</Btn>
+  <Btn v-else key="btn" size="sm" icon="back" :block="block" :tone="armed ? 'yellow' : 'plain'" :disabled="disabled || used || waiting" @click="press">{{ used ? S.common.undoUsed : waiting ? S.common.undoWaiting : armed ? S.common.undoConfirm : S.common.undo }}</Btn>
+  </Transition>
+  </div>
 </template>
 
 <style scoped>
+.undo-wrap {
+  display: inline-block;
+}
+.undo-wrap.block {
+  display: block;
+  width: 100%;
+}
+.uswap-enter-active {
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 180ms ease;
+}
+.uswap-leave-active {
+  transition:
+    transform 160ms ease-in,
+    opacity 160ms ease-in;
+}
+.uswap-enter-from {
+  opacity: 0;
+  transform: translateY(0.6rem) scale(0.92);
+}
+.uswap-leave-to {
+  opacity: 0;
+  transform: translateY(0.5rem) scale(0.94);
+}
+@media (prefers-reduced-motion: reduce) {
+  .uswap-enter-active,
+  .uswap-leave-active {
+    transition: none;
+  }
+}
 /* 對方要求悔棋：一顆按鈕分成左右兩半（左紅不同意、右綠同意），下面一條 10 秒倒數條 */
 .ask {
   position: relative;

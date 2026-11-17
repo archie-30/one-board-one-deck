@@ -75,6 +75,8 @@ export type Intent =
   | { t: 'leave' }
   | { t: 'back' }
   | { t: 'rules'; gameId: string; options: Record<string, string | boolean> }
+  /** 房主把某人請出房間 */
+  | { t: 'kick'; id: string }
 
 /** 對局中出牌：內容由各玩法自己檢查（match/defs.ts 的 parse） */
 export type Act = { t: 'act'; a: unknown }
@@ -149,6 +151,8 @@ export function parseMessage(raw: unknown): Intent | Hello | Act | null {
     case 'leave':
     case 'back':
       return { t: o.t }
+    case 'kick':
+      return typeof o.id === 'string' && /^[0-9a-f]{4,32}$/.test(o.id) ? { t: 'kick', id: o.id } : null
     case 'rules': {
       const r = parseRules(o.gameId, o.options)
       return r ? { t: 'rules', ...r } : null
@@ -221,6 +225,8 @@ export interface IntentResult {
   left?: boolean
   /** 房間關掉了 */
   closed?: CloseReason
+  /** 被房主請出房間的人 */
+  kicked?: string
 }
 
 /** 處理一個意圖。誰送的（pid）由伺服器從連線認出來，不信客戶端說自己是誰 */
@@ -261,6 +267,14 @@ export function applyIntent(room: RoomState, pid: string, it: Intent, now: numbe
       removeMember(room, pid)
       syncCountdown(room, now)
       return { changed: true, left: true, closed: room.players.length ? undefined : 'empty' }
+    case 'kick': {
+      // 只有房主能請人出去；不能請自己；對局中（還有人沒回到房間）不行
+      const who = room.players.find((p) => p.id === it.id)
+      if (!me.host || !who || who === me || room.phase === 'playing') return { changed: false }
+      removeMember(room, who.id)
+      syncCountdown(room, now)
+      return { changed: true, kicked: who.id }
+    }
     case 'back':
       if (!me.inGame) return { changed: false }
       me.inGame = false

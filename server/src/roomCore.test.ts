@@ -101,6 +101,22 @@ describe('連線房間（伺服器規則）', () => {
     expect(applyIntent(r, ids[0], { t: 'leave' }, T0).closed).toBe('disbanded')
   })
 
+  it('房主可以請人出房間：只有房主、不能請自己、對局中不行', () => {
+    const { room: r, ids } = room(['A', 'B', 'C'])
+    expect(applyIntent(r, ids[1], { t: 'kick', id: ids[2] }, T0).changed).toBe(false)
+    expect(applyIntent(r, ids[0], { t: 'kick', id: ids[0] }, T0).changed).toBe(false)
+    const res = applyIntent(r, ids[0], { t: 'kick', id: ids[2] }, T0)
+    expect(res).toMatchObject({ changed: true, kicked: ids[2] })
+    expect(r.players.map((p) => p.id)).toEqual([ids[0], ids[1]])
+    applyIntent(r, ids[0], { t: 'mode', gameId: 'gomoku' }, T0)
+    readyAll(r, ids.slice(0, 2))
+    tick(r, T0 + COUNTDOWN_MS, 7)
+    expect(r.phase).toBe('playing')
+    expect(applyIntent(r, ids[0], { t: 'kick', id: ids[1] }, T0).changed).toBe(false)
+    expect(parseMessage(JSON.stringify({ t: 'kick', id: 'zz' }))).toBeNull()
+    expect(parseMessage(JSON.stringify({ t: 'kick', id: ids[1] }))).toEqual({ t: 'kick', id: ids[1] })
+  })
+
   it('斷線：取消準備、位子留一段時間；連回來就恢復；太久就移出（房主換人）', () => {
     const { room: r, ids } = room(['A', 'B'])
     applyIntent(r, ids[0], { t: 'mode', gameId: 'bigtwo' }, T0)

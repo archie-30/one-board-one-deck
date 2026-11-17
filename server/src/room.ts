@@ -111,6 +111,15 @@ export class Room extends DurableObject<Env> {
       ws.close(1000, 'left')
     }
     if (r.closed) return this.closeRoom(r.closed)
+    // 被請出房間的人：告訴他、關掉他的連線
+    if (r.kicked) {
+      for (const o of this.ctx.getWebSockets()) {
+        if ((o.deserializeAttachment() as Attachment | null)?.pid !== r.kicked) continue
+        o.serializeAttachment(null)
+        this.send(o, { t: 'closed', reason: 'kicked' })
+        o.close(1000, 'kicked')
+      }
+    }
     if (r.changed) {
       await this.save()
       this.broadcast()

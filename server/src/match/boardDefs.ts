@@ -162,6 +162,9 @@ const xiangqi: MatchDef<XiangqiState, XAct> = {
 type BanqiAct = Exclude<BanqiAction, { type: 'resign' }> & { player: number }
 const banqi: MatchDef<BanqiState, BanqiAct> = {
   ...board,
+  undo: true,
+  // 連吃是同一個人連著好幾步：悔棋要整串一起退
+  undoRun: true,
   deal: (seed, o) => dealBanqi(seed, { rookSlide: o.rookSlide === true, chain: o.chain === true }),
   apply: (s, a) => unwrap(applyBanqi(s, a)),
   turn: (s) => (s.status !== 'playing' ? -1 : s.turn),
