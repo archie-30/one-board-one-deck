@@ -204,5 +204,17 @@ export const othelloAt = (st: OthelloStyle, level: Level, who = -1): OthelloStyl
 export const sevensAt = (st: BigTwoStyle, d: CardLevel): { skill: number; blunder: number } =>
   d === 'high' ? { skill: 1, blunder: 0 } : d === 'mid' ? { skill: clamp(st.skill * 0.5), blunder: clamp(0.08 + st.blunder) } : { skill: clamp(st.skill * 0.1), blunder: clamp(0.35 + st.blunder) }
 
+/**
+ * 暗棋：低／中／高（跟牌類一樣三段）。
+ *   低：只看一步、不太管走完會不會被吃、常常亂翻亂走
+ *   中：看一步，會顧自己被吃；偶爾隨手走
+ *   高：再多想一步（對方最好的回應），翻棋也會想翻出來之後對方怎麼回；不失誤
+ */
+export function banqiAt(st: ChessStyle, d: CardLevel): { depth: 1 | 2; safety: number; attack: number; noise: number; blunder: number; chase: number } {
+  if (d === 'high') return { depth: 2, safety: clamp(0.7 + st.safety * 0.3), attack: st.attack, noise: 0.03, blunder: 0, chase: 1 }
+  if (d === 'mid') return { depth: 1, safety: st.safety, attack: st.attack, noise: 0.35, blunder: 0.06, chase: 0 }
+  return { depth: 1, safety: 0, attack: st.attack, noise: 1, blunder: 0.3, chase: 0 }
+}
+
 /** 電腦每一步多想多久（毫秒）：挑戰多想一會兒，看起來也比較像在認真算 */
 export const extraThink = (level: Level): number => (level === 'master' ? 900 : level === 'high' ? 300 : 0)
