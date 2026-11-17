@@ -351,6 +351,7 @@ export function nextWake(room: RoomState): number {
   const times = room.players.map((p) => p.away).filter((t) => t > 0)
   if (room.phase === 'countdown') times.push(room.startAt)
   if (room.match && !room.match.over && room.match.nextAt) times.push(room.match.nextAt)
+  if (room.match && !room.match.over && room.match.undoUntil) times.push(room.match.undoUntil)
   return times.length ? Math.min(...times) : 0
 }
 

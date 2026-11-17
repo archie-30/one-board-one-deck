@@ -6,7 +6,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch 
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { bringInto, joinLiveMatch, matchOpponents, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
+import { bringInto, isWatching, joinLiveMatch, matchOpponents, matchPlayers, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
 import { recordBest, recordResult, stats } from '@/core/settings'
 import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
@@ -54,6 +54,8 @@ interface Saved {
 const saved = (props.resume ?? null) as Saved | null
 /** 連線對局：伺服器發牌、當裁判（沒有就是一般的單人對電腦） */
 const net = saved ? null : joinLiveMatch(props.game.id)
+/** 觀戰：從下方那位玩家的角度看，但看不到他的手牌、不能操作、不記戰績 */
+const watching = !!net && isWatching(net)
 /** 規則設定：連線時照房主的（只有「影響公平」的那些；自動過牌、手牌分兩排這種還是用自己的） */
 const rules = net ? { ...props.options, ...net.opts } : props.options
 
@@ -76,8 +78,9 @@ const DEAL_GAP = crazy ? 13 : 24
 // 這一桌的三位對手：坐下時隨機挑，離開前都是同一批人
 // 困難模式不會出現新手打法的電腦
 const opponents = net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3, Date.now(), difficulty === 'high')
-const names = [S.common.you, ...opponents.map((o) => o.name)]
-const looks = [myLook(), ...opponents.map((o) => o.look)]
+const seated = watching ? matchPlayers(net!) : null
+const names = seated ? seated.map((o) => o.name) : [S.common.you, ...opponents.map((o) => o.name)]
+const looks = seated ? seated.map((o) => o.look) : [myLook(), ...opponents.map((o) => o.look)]
 const tableTotals = ref(saved ? saved.tableTotals.slice() : [0, 0, 0, 0])
 
 let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
@@ -147,8 +150,10 @@ interface Flight {
 function sync(flight?: Flight, instant = false) {
   const poses = cardPoses(layout.value, model())
   for (const c of ALL) {
-    const pose = poses.get(c)
+    let pose = poses.get(c)
     if (!pose) continue
+    // 觀戰：下方那位的手牌也是背面（結束攤牌後才翻開）
+    if (watching && phase.value !== 'over' && state.value.hands[ME].includes(c)) pose = { ...pose, f: 0 }
     const fi = flight ? flight.cards.indexOf(c) : -1
     if (fi >= 0 && flight) {
       const k = flight.order ? flight.order(c) : fi
@@ -282,18 +287,21 @@ function finish() {
   const s = state.value
   scores.value = scoreBigTwo(s)
   tableTotals.value = scores.value.map((sc, p) => tableTotals.value[p] + sc.points)
-  record.rounds++
-  if (s.winner === ME) record.wins++
-  record.totals[ME] = (record.totals[ME] ?? 0) + scores.value[ME].points
-  recordBest(crazy ? 'crazybigtwo' : 'bigtwo', difficulty, scores.value[ME].points)
-  // 表現：贏的話看別人平均剩幾張，輸的話看自己出掉幾成
-  const startN = crazy ? 26 : 13
-  const left = s.hands.map((h) => h.length)
-  const perf = s.winner === ME ? (left.reduce((a, b) => a + b, 0) / 3) / startN : 1 - left[ME] / startN
-  recordResult(props.game.id, difficulty, s.winner === ME ? 'w' : 'l', perf)
+  // 觀戰不記戰績
+  if (!watching) {
+    record.rounds++
+    if (s.winner === ME) record.wins++
+    record.totals[ME] = (record.totals[ME] ?? 0) + scores.value[ME].points
+    recordBest(crazy ? 'crazybigtwo' : 'bigtwo', difficulty, scores.value[ME].points)
+    // 表現：贏的話看別人平均剩幾張，輸的話看自己出掉幾成
+    const startN = crazy ? 26 : 13
+    const left = s.hands.map((h) => h.length)
+    const perf = s.winner === ME ? (left.reduce((a, b) => a + b, 0) / 3) / startN : 1 - left[ME] / startN
+    recordResult(props.game.id, difficulty, s.winner === ME ? 'w' : 'l', perf)
+  }
   for (let p = 0; p < 4; p++) moods[p] = p === s.winner ? 'happy' : 'sad'
   // 輸家的牌翻開給你看
-  playSound(s.winner === ME ? 'win' : 'lose')
+  playSound(s.winner === ME && !watching ? 'win' : 'lose')
   later(() => (resultOpen.value = true), 900)
 }
 
@@ -382,7 +390,7 @@ function netStart(): BigTwoState {
   const counts = rotate(m, st.counts)
   const unknown = ALL.filter((c) => !st.hand.includes(c))
   let k = 0
-  const hands = counts.map((n, p) => (p === ME ? st.hand.slice() : unknown.slice(k, (k += n))))
+  const hands = counts.map((n, p) => (p === ME && !watching ? st.hand.slice() : unknown.slice(k, (k += n))))
   return { options: st.options, hands, turn: toLocal(m, st.turn), table: null, lastMoves: [null, null, null, null], passCount: 0, firstTurn: st.firstTurn, winner: st.winner >= 0 ? toLocal(m, st.winner) : -1, played: [] }
 }
 /** 自己的動作：連線時送給伺服器，單人時直接套用 */
@@ -405,7 +413,7 @@ function pump() {
     moods.forEach((_, i) => {
       if (moods[i] === 'think') moods[i] = 'idle'
     })
-    if (s.turn === ME) autoPass()
+    if (s.turn === ME && !watching) autoPass()
     else moods[s.turn] = 'think'
     return
   }
@@ -414,7 +422,7 @@ function pump() {
   const a = { ...raw, player: toLocal(m, raw.player) } as BigTwoAction
   if (a.player === ME) ((sending.value = false), cancelAutoPass(), (selected.value = []))
   // 別人打出的牌：先把那幾張換到他手上的背面位置，看起來就是從他手上打出來
-  if (a.type === 'play' && a.player !== ME) {
+  if (a.type === 'play' && (a.player !== ME || watching)) {
     const hands = state.value.hands.map((h) => h.slice())
     for (const c of a.cards) {
       const pair = bringInto(hands, a.player, c, a.cards)
@@ -433,7 +441,7 @@ function pump() {
 function reveal(fin: BigTwoState & { startHands?: Card[][] }) {
   const real = fromServer(fin)
   const pairs: [number, number][] = []
-  for (let p = 1; p < 4; p++) state.value.hands[p].forEach((c, i) => real.hands[p][i] !== undefined && real.hands[p][i] !== c && pairs.push([c, real.hands[p][i]]))
+  for (let p = watching ? 0 : 1; p < 4; p++) state.value.hands[p].forEach((c, i) => real.hands[p][i] !== undefined && real.hands[p][i] !== c && pairs.push([c, real.hands[p][i]]))
   if (pairs.length) stage.adopt(pairs)
   state.value = real
   if (fin.startHands) startHands.value = rotate(net!, fin.startHands)
@@ -441,7 +449,7 @@ function reveal(fin: BigTwoState & { startHands?: Card[][] }) {
 }
 
 // ── 你的操作 ──
-const myTurn = computed(() => phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
+const myTurn = computed(() => !watching && phase.value === 'play' && state.value.turn === ME && state.value.winner < 0)
 const canPass = computed(() => myTurn.value && state.value.table !== null)
 /** 取消選取：選起的牌全部放回手牌 */
 function clearSelection() {
@@ -454,13 +462,14 @@ const status = computed(() => {
   const s = state.value
   if (phase.value === 'deal') return ''
   if (s.winner >= 0) return s.winner === ME ? T.result.win : T.result.lose(names[s.winner])
-  if (!myTurn.value) return T.waiting(names[s.turn])
+  if (!myTurn.value) return (watching ? `${S.online.watchingNow}・` : '') + T.waiting(names[s.turn])
   if (selectedCombo.value) return T.combos[selectedCombo.value.type]
   if (s.firstTurn) return T.firstLead
   return s.table ? T.yourTurn : T.yourLead
 })
 
 function tapCard(c: Card) {
+  if (watching) return
   if (phase.value !== 'play' || !state.value.hands[ME].includes(c)) return
   playSound('cardPick')
   message.value = ''
@@ -567,9 +576,9 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       >
         <Avatar :look="looks[p]" :mood="moods[p]" :flip="p === 1" :talk="p !== ME" />
       </div>
-      <div v-if="p !== ME" class="tag" :class="[`al-${seat.label.align}`, { active: phase === 'play' && state.turn === p }]" :style="{ left: `${seat.label.x}px`, top: `${seat.label.y}px` }">
+      <div v-if="p !== ME || watching" class="tag" :class="[`al-${seat.label.align}`, { active: phase === 'play' && state.turn === p }]" :style="{ left: `${seat.label.x}px`, top: `${seat.label.y}px` }">
         <span class="nm t-black"><span class="hl" />{{ names[p] }}</span>
-        <span class="t-label tg">{{ opponents[p - 1].tag }}</span>
+        <span class="t-label tg">{{ p === ME ? seated![0].tag : opponents[p - 1].tag }}</span>
       </div>
       <span v-if="passed[p] && p !== ME" :key="`pass${p}`" class="stamp pop" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.passed }}</span>
     </template>
@@ -581,7 +590,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         :key="c"
         :ref="(el) => stage.attach(c, el as HTMLElement | null)"
         class="sprite"
-        :class="{ mine: state.hands[ME].includes(c), sel: selected.includes(c), old: olderPile.has(c) }"
+        :class="{ mine: !watching && state.hands[ME].includes(c), sel: selected.includes(c), old: olderPile.has(c) }"
         :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
         @click="tapCard(c)"
       >
@@ -602,7 +611,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions">
-      <template v-if="phase !== 'over'">
+      <template v-if="phase !== 'over' && !watching">
         <!-- 有選起牌時才出現：一次把選起的牌全部放回去 -->
         <Transition name="clear-sel">
           <Btn v-if="selected.length" class="clear-sel" size="sm" icon="close" block @click="clearSelection">{{ T.clearSelection }}</Btn>
@@ -614,7 +623,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
           <span v-if="autoPassing" :key="autoTick" class="auto-bar" :style="{ '--ms': `${AUTO_PASS_MS}ms` }" />
         </div>
       </template>
-      <template v-else>
+      <template v-else-if="phase === 'over'">
         <Btn v-if="!reviewOpen" class="rise" size="sm" icon="book" block @click="openReview">{{ T.review.open }}</Btn>
         <Btn class="rise" tone="ink" size="lg" arrow block @click="(reviewOpen = false), (resultOpen = true)">{{ T.result.howTitle }}</Btn>
       </template>
@@ -655,7 +664,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newRound" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog flip :open="resultOpen" :title="state.winner === ME ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" tone="red" wide @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="state.winner === ME && !watching ? T.result.win : T.result.lose(names[Math.max(0, state.winner)])" :label="T.result.label" tone="red" wide @close="resultOpen = false">
       <table class="score">
         <thead>
           <tr>
@@ -686,7 +695,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         <b class="t-black">{{ T.result.howTitle }}</b>
         {{ T.result.base }}{{ doubleNotes }}
       </p>
-      <p class="lifetime t-black">{{ T.result.lifetime(signed(record.totals[ME] ?? 0)) }}</p>
+      <p v-if="!watching" class="lifetime t-black">{{ T.result.lifetime(signed(record.totals[ME] ?? 0)) }}</p>
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>

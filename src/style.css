@@ -16,6 +16,8 @@
   --color-red: #ff4a1c;
   --color-blue: #2340d9;
   --color-yellow: #ffc21a;
+  /* 只用在「同意」這種確定的按鈕（悔棋同意） */
+  --color-green: #1f9d55;
 
   --font-sans: 'Noto Sans TC', 'Noto Sans TC Full', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
   --font-slab: 'Alfa Slab One', 'Noto Sans TC', 'Noto Sans TC Full', serif;

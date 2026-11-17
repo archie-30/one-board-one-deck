@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { addMember, applyIntent, connect, COUNTDOWN_MS, createRoomState, disconnect, nextWake, parseMessage, tick, type RoomState } from '../roomCore'
 import { parseRules } from '../games'
-import { entryFor, matchIntro, playerAct, START_DELAY, type MatchState } from './run'
+import { entryFor, matchIntro, playerAct, START_DELAY, UNDO_ANSWER_MS, type MatchState } from './run'
 import type { BigTwoState } from '../../../src/engine/bigtwo/game'
 import type { SevensState } from '../../../src/engine/sevens/rules'
 import type { RedPointState } from '../../../src/engine/redpoint/rules'
@@ -217,6 +217,23 @@ describe('連線對局（伺服器當裁判）', () => {
     // 每局一次
     playerAct(room, ids[0], { type: 'place', index: 112 }, now)
     expect(playerAct(room, ids[0], { type: 'undo' }, now)).toEqual([])
+  })
+
+  it('悔棋：對方 10 秒內沒回答就當作不同意', () => {
+    const { room, ids, m } = started('gomoku')
+    let now = T0 + COUNTDOWN_MS + 1000
+    playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, now)
+    playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, now)
+    now += 3000
+    playerAct(room, ids[0], { type: 'place', index: 112 }, now)
+    playerAct(room, ids[0], { type: 'undo' }, now)
+    expect(m.undoAsk).toBe(0)
+    expect(nextWake(room)).toBeLessThanOrEqual(now + UNDO_ANSWER_MS)
+    tick(room, now + UNDO_ANSWER_MS, 1)
+    expect(m.undoAsk).toBeNull()
+    expect(m.log[m.log.length - 1].pub).toEqual({ type: 'undoNo', by: 0 })
+    // 沒有被悔掉
+    expect((m.s as { moves: number[] }).moves).toEqual([112])
   })
 
   it('悔棋：對手是電腦就直接同意', () => {

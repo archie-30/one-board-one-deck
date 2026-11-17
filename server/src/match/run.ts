@@ -54,6 +54,8 @@ export interface MatchState {
   acts: { side: number; a: unknown }[]
   /** 悔棋：等誰同意（申請的那一方 side）；null = 沒有 */
   undoAsk: number | null
+  /** 悔棋申請的回答期限（過了就當作不同意）；0 = 沒有申請 */
+  undoUntil: number
   /** 每個座位用過悔棋沒（每局一次） */
   undoUsed: boolean[]
 }
@@ -73,6 +75,8 @@ export const EARLY_MS = 50
 export const RPS_FIRST = 2500 + TURN_SECONDS.rps * 1000 + SLACK_MS
 /** 猜拳平手：結果停一下再出下一輪 */
 export const RPS_AGAIN = 1100 + TURN_SECONDS.rps * 1000 + SLACK_MS
+/** 對方要在幾秒內回答悔棋（畫面上倒數 10 秒，伺服器多給一點網路延遲） */
+export const UNDO_ANSWER_MS = 10_000 + 1500
 /** 猜拳分出勝負後，結果停一下（約 1.3 秒）才開始 */
 export const RPS_SHOW = 1800
 
@@ -121,6 +125,7 @@ export function startMatch(room: RoomState, seed: number, now: number): MatchSta
     rps: null,
     acts: [],
     undoAsk: null,
+    undoUntil: 0,
     undoUsed: seats.map(() => false),
   }
   room.match = m
@@ -179,6 +184,7 @@ function end(m: MatchState) {
   m.over = true
   m.nextAt = 0
   m.undoAsk = null
+  m.undoUntil = 0
   let rng: RngState
   ;[, rng] = nextRandom(m.rng)
   m.log.push({ seq: m.log.length + 1, pub: MATCH_DEFS[m.gameId].reveal(m.s, m.s0, rng), seat: -1, end: true })
@@ -215,6 +221,7 @@ function commit(room: RoomState, seat: number, a: unknown, now: number): LogEntr
   if (m.undoAsk !== null) {
     push(m, { type: 'undoNo', by: m.undoAsk })
     m.undoAsk = null
+    m.undoUntil = 0
   }
   m.log.push({ seq: m.log.length + 1, pub: r.pub, ...(r.own !== undefined ? { own: r.own } : {}), seat })
   if (def.turn(after) < 0) end(m)
@@ -258,6 +265,7 @@ export function playerAct(room: RoomState, pid: string, raw: unknown, now: numbe
     if (raw.ok === true) return doUndo(room, seatOf(m, m.undoAsk), now)
     push(m, { type: 'undoNo', by: m.undoAsk })
     m.undoAsk = null
+    m.undoUntil = 0
     return m.log.slice(start)
   }
   if (def.turn(m.s) !== side) return []
@@ -281,6 +289,7 @@ function askUndo(room: RoomState, seat: number, now: number): LogEntry[] {
   if (!present(room, m.seats[other].pid)) return doUndo(room, seat, now)
   const start = m.log.length
   m.undoAsk = side
+  m.undoUntil = now + UNDO_ANSWER_MS
   push(m, { type: 'undoAsk', by: side }, seat)
   return m.log.slice(start)
 }
@@ -292,6 +301,7 @@ function doUndo(room: RoomState, seat: number, now: number): LogEntry[] {
   const side = sideOf(m, seat)
   const k = lastMoveOf(m, side)
   m.undoAsk = null
+  m.undoUntil = 0
   if (k < 0) return []
   const start = m.log.length
   m.acts = m.acts.slice(0, k)
@@ -307,9 +317,16 @@ function doUndo(room: RoomState, seat: number, now: number): LogEntry[] {
 /** 時間到：猜拳時間到、電腦出牌，或真人逾時跳過 */
 export function matchTick(room: RoomState, now: number): LogEntry[] {
   const m = room.match
-  // 早幾毫秒醒來也算到了
-  if (!m || m.over || !m.nextAt || now < m.nextAt - EARLY_MS) return []
+  if (!m || m.over) return []
   const start = m.log.length
+  // 悔棋申請過了 10 秒沒人回答：當作不同意
+  if (m.undoAsk !== null && m.undoUntil && now >= m.undoUntil - EARLY_MS) {
+    push(m, { type: 'undoNo', by: m.undoAsk })
+    m.undoAsk = null
+    m.undoUntil = 0
+  }
+  // 早幾毫秒醒來也算到了
+  if (!m.nextAt || now < m.nextAt - EARLY_MS) return m.log.slice(start)
   if (m.rps) {
     settleRps(room, now, true)
     return m.log.slice(start)

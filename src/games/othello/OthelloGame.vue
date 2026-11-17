@@ -7,7 +7,6 @@ import { useGrace } from '@/core/grace'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { useBoardNet } from '@/core/boardNet'
-import UndoAskDialog from '@/ui/UndoAskDialog.vue'
 import { recordResult, stats } from '@/core/settings'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
@@ -49,9 +48,15 @@ interface Saved {
 const bn = props.resume
   ? null
   : useBoardNet('othello', {
+      watchStart: (leftFirst) => startAfterRps(leftFirst),
       apply: (ev) => void netApply(ev),
       undo: (by) => void netUndo(by),
     })
+/** 觀戰：只能看，畫面左邊是 0 號座位那位玩家 */
+const watching = !!bn?.watching
+const meName = bn?.watching ? bn.left.name : S.common.you
+const meLook = () => (bn?.watching ? bn.left.look : myLook())
+
 /** 規則設定：連線時照房主的 */
 const rules = bn ? { ...props.options, ...bn.net.opts } : props.options
 const timed = rules.timer !== false
@@ -92,18 +97,22 @@ onBeforeUnmount(() => {
 })
 
 const ai = computed<Player>(() => (human.value === 1 ? 2 : 1))
-const myTurn = computed(() => phase.value === 'playing' && !flying.value && state.value.turn === human.value)
+const myTurn = computed(() => !watching && phase.value === 'playing' && !flying.value && state.value.turn === human.value)
 const hints = computed(() => (myTurn.value ? legalMoves(state.value.board, human.value) : []))
 const count = computed(() => countDiscs(state.value.board))
 const mine = computed(() => (human.value === 1 ? count.value.black : count.value.white))
 const theirs = computed(() => (human.value === 1 ? count.value.white : count.value.black))
-const resultTitle = computed(() => (state.value.winner === 3 ? T.draw : state.value.winner === human.value ? T.win : T.lose(opponent.value.name)))
+const resultTitle = computed(() => (state.value.winner === 3 ? T.draw : state.value.winner === human.value ? (watching ? S.online.watchWin(meName) : T.win) : watching ? S.online.watchWin(opponent.value.name) : T.lose(opponent.value.name)))
 const status = computed(() => {
+  const t = statusText()
+  return watching ? S.online.watchingNow + (t ? '・' + t : '') : t
+})
+function statusText() {
   if (message.value) return message.value
   if (phase.value === 'over') return resultTitle.value
   if (phase.value === 'rps') return ''
-  return state.value.turn === human.value ? T.yourTurn : T.cpuTurn(opponent.value.name)
-})
+  return state.value.turn === human.value ? (watching ? T.cpuTurn(meName) : T.yourTurn) : T.cpuTurn(opponent.value.name)
+}
 
 // ── 棋子飛行 ──
 const sectionEl = ref<HTMLElement>()
@@ -188,7 +197,7 @@ function after(prev: OthelloState) {
     if (s.lastFlipped.length >= 5) flash(who, 'happy')
   }
   if (s.over) return finish()
-  if (s.skipped) message.value = T.skipped(s.skipped === human.value ? S.common.you : opponent.value.name)
+  if (s.skipped) message.value = T.skipped(s.skipped === human.value ? meName : opponent.value.name)
   if (s.turn === ai.value && !bn) scheduleCpu()
   else moods.value = ['idle', 'idle']
 }
@@ -229,13 +238,14 @@ function flash(who: 0 | 1, mood: KidMood) {
 function finish() {
   phase.value = 'over'
   const w = state.value.winner
-  if (w === 3) stats.othello.draws++
+  if (watching) void 0 // 觀戰不記戰績
+  else if (w === 3) stats.othello.draws++
   else if (w === human.value) stats.othello.wins++
   else stats.othello.losses++
   // 表現：子數差（贏越多越高；輸的話差越少越高）
   const mine = human.value === 1 ? count.value.black : count.value.white
   const diff = mine - (count.value.black + count.value.white - mine)
-  recordResult('othello', level, w === 3 ? 'd' : w === human.value ? 'w' : 'l', w === 3 ? 0.5 : diff > 0 ? diff / 40 : 1 + diff / 40)
+  if (!watching) recordResult('othello', level, w === 3 ? 'd' : w === human.value ? 'w' : 'l', w === 3 ? 0.5 : diff > 0 ? diff / 40 : 1 + diff / 40)
   moods.value = w === 3 ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === 3 ? 'draw' : 'lose')
@@ -410,10 +420,10 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
 
     <aside class="side left">
       <div class="who rise" :class="{ active: phase === 'playing' && state.turn === human }">
-        <span class="av"><Avatar :look="myLook()" :mood="moods[0]" /></span>
+        <span class="av"><Avatar :look="meLook()" :mood="moods[0]" /></span>
         <span :ref="(el) => (bowlEls[0] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 1" /></span>
       </div>
-      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>
+      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ meName }}</p>
       <p v-if="phase !== 'rps'" class="t-label tg">{{ human === 1 ? T.black : T.white }}</p>
       <p v-if="phase !== 'rps'" class="t-slab count">{{ String(mine).padStart(2, '0') }}</p>
     </aside>
@@ -453,20 +463,19 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
           </div>
         </template>
         <template v-else>
-          <Btn tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0 || !!bn?.sending.value" @click="confirmMove">{{ T.place }}</Btn>
-          <UndoBtn class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" :waiting="!!bn?.undoWaiting.value" @undo="void undo()" />
+          <Btn v-if="!watching" tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0 || !!bn?.sending.value" @click="confirmMove">{{ T.place }}</Btn>
+          <UndoBtn v-if="!watching" class="mt-[0.5rem]" block :disabled="!canUndo" :used="undoUsed" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="void undo()" />
         </template>
       </div>
     </aside>
 
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
-    <RpsDuel :open="phase === 'rps' && (!menuOpen || !!bn)" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
-    <UndoAskDialog v-if="bn" :open="bn.undoAsked.value" :name="opponent.name" @answer="(ok) => bn!.answerUndo(ok)" />
+    <RpsDuel :open="phase === 'rps' && !watching && (!menuOpen || !!bn)" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" @save-exit="saveAndExit" />
     <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ T.resultLead(count.black, count.white) }}</p>
-      <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.othello.wins, stats.othello.losses, stats.othello.draws) }}</p>
+      <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.othello.wins, stats.othello.losses, stats.othello.draws) }}</p>
       <template #actions>
         <Btn size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>

@@ -83,11 +83,15 @@ export function rejectAct() {
   liveMatch.value?.onReject?.()
 }
 
-/** 遊戲畫面開局時拿：這個玩法現在有連線對局、而且自己有座位，才會拿到 */
+/** 遊戲畫面開局時拿：這個玩法現在有連線對局才會拿到（觀戰的人也拿得到，seat 是 -1） */
 export function joinLiveMatch(gameId: string): LiveMatch | null {
   const m = liveMatch.value
-  return online.room && m && m.gameId === gameId && m.seat >= 0 ? m : null
+  return online.room && m && m.gameId === gameId ? m : null
 }
+/** 在觀戰（沒有座位，只能看） */
+export const isWatching = (m: MatchIntro) => m.seat < 0
+/** 畫面的視角：自己的座位；觀戰就從 0 號座位那位玩家的角度看 */
+const viewSeat = (m: MatchIntro) => Math.max(0, m.seat)
 
 /** 送出自己的動作（伺服器確認後，會跟別人的動作一樣送回來，那時才真的套用） */
 export function sendAct(a: unknown) {
@@ -95,23 +99,23 @@ export function sendAct(a: unknown) {
 }
 
 /** 座位換算：伺服器座位 → 自己的視角（自己是 0） */
-export const toLocal = (m: MatchIntro, abs: number) => (abs - m.seat + m.seats.length) % m.seats.length
+export const toLocal = (m: MatchIntro, abs: number) => (abs - viewSeat(m) + m.seats.length) % m.seats.length
 /** 自己的視角 → 伺服器座位 */
-export const toAbs = (m: MatchIntro, local: number) => (local + m.seat) % m.seats.length
+export const toAbs = (m: MatchIntro, local: number) => (local + viewSeat(m)) % m.seats.length
 /** 把一個依座位排的陣列轉成自己的視角 */
 export const rotate = <T>(m: MatchIntro, arr: readonly T[]): T[] => arr.map((_, i) => arr[toAbs(m, i)])
 
 /** 畫面上的對手（依自己的視角，不含自己）：真人用他的名字、頭像；電腦用房主取的名字 */
-export function matchOpponents(m: MatchIntro): Opponent[] {
-  return rotate(m, m.seats)
-    .slice(1)
-    .map((seat) => {
-      const bot = opponentById(seat.bot)
-      if (!seat.pid) return bot
-      const p = online.room?.players.find((x) => x.id === seat.pid)
-      const look: Look = p?.look ?? OPPONENTS[seat.bot].look
-      return { ...bot, name: p?.name ?? S.online.someone, look, tag: S.online.humanTag, persona: PERSONAS[seat.bot] }
-    })
+export const matchOpponents = (m: MatchIntro): Opponent[] => matchPlayers(m).slice(1)
+/** 每個座位上的人（依自己的視角，0 號是自己；觀戰時 0 號是畫面下方那位） */
+export function matchPlayers(m: MatchIntro): Opponent[] {
+  return rotate(m, m.seats).map((seat) => {
+    const bot = opponentById(seat.bot)
+    if (!seat.pid) return bot
+    const p = online.room?.players.find((x) => x.id === seat.pid)
+    const look: Look = p?.look ?? OPPONENTS[seat.bot].look
+    return { ...bot, name: p?.name ?? S.online.someone, look, tag: S.online.humanTag, persona: PERSONAS[seat.bot] }
+  })
 }
 
 /** 在別人的「背面手牌」裡放進一張真的牌：如果那張牌不在他手上，就跟他手上某張背面換位（keep 裡的牌不換） */

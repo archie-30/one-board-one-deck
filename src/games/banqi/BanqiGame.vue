@@ -35,10 +35,16 @@ const record = stats.banqi
 const bn = props.resume
   ? null
   : useBoardNet('banqi', {
+      watchStart: (leftFirst) => startAfterRps(leftFirst),
       apply: (ev) => netApply(ev),
       undo: () => bn!.next(),
       resign: (player) => netResign(player),
     })
+/** 觀戰：只能看，畫面左邊是 0 號座位那位玩家 */
+const watching = !!bn?.watching
+const meName = bn?.watching ? bn.left.name : S.common.you
+const meLook = () => (bn?.watching ? bn.left.look : myLook())
+
 /** 規則設定：連線時照房主的 */
 const opts = bn ? { ...props.options, ...bn.net.opts } : props.options
 const timed = opts.timer !== false
@@ -86,7 +92,7 @@ onBeforeUnmount(() => {
   bn?.stop()
 })
 
-const myTurn = computed(() => phase.value === 'playing' && !thinking.value && state.value.turn === human.value)
+const myTurn = computed(() => !watching && phase.value === 'playing' && !thinking.value && state.value.turn === human.value)
 const myColor = computed<Color | null>(() => state.value.colors[human.value])
 /** 連吃中：只能用那顆棋繼續吃 */
 const chaining = computed(() => myTurn.value && state.value.chainAt >= 0)
@@ -98,14 +104,18 @@ const targets = computed(() => {
 })
 const colorName = (c: Color | null) => (c === 'r' ? T.red : c === 'b' ? T.black : T.unknown)
 const winner = computed(() => state.value.winner)
-const resultTitle = computed(() => (winner.value === null ? T.draw : winner.value === human.value ? T.win : T.lose(opponent.value.name)))
+const resultTitle = computed(() => (winner.value === null ? T.draw : winner.value === human.value ? (watching ? S.online.watchWin(meName) : T.win) : watching ? S.online.watchWin(opponent.value.name) : T.lose(opponent.value.name)))
 const status = computed(() => {
+  const t = statusText()
+  return watching ? S.online.watchingNow + (t ? '・' + t : '') : t
+})
+function statusText() {
   if (message.value) return message.value
   if (phase.value === 'over') return resultTitle.value
   if (phase.value === 'rps') return ''
   if (state.value.turn !== human.value) return T.cpuTurn(opponent.value.name)
-  return myColor.value ? T.yourTurn : T.yourFirst
-})
+  return myColor.value ? (watching ? T.cpuTurn(meName) : T.yourTurn) : T.yourFirst
+}
 const hint = computed(() => (!myTurn.value || message.value ? '' : chaining.value ? T.chainHint : T.pickHint))
 /** 被吃掉的棋：左邊放你吃到的（對方顏色），右邊放對方吃到的 */
 const takenBy = (seat: Seat) => {
@@ -219,13 +229,14 @@ function onTimeout() {
 function finish(wait = 900) {
   phase.value = 'over'
   const w = winner.value
-  if (w === null) record.draws++
+  if (watching) void 0 // 觀戰不記戰績
+  else if (w === null) record.draws++
   else if (w === human.value) record.wins++
   else record.losses++
   // 表現：吃掉對方幾成的棋（輸的話：差多少）
   const mine = takenBy(human.value).length
   const theirs = takenBy(human.value === 0 ? 1 : 0).length
-  recordResult('banqi', level, w === null ? 'd' : w === human.value ? 'w' : 'l', w === human.value ? 0.4 + (mine - theirs) / 26 : mine / 16)
+  if (!watching) recordResult('banqi', level, w === null ? 'd' : w === human.value ? 'w' : 'l', w === human.value ? 0.4 + (mine - theirs) / 26 : mine / 16)
   moods.value = w === null ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === null ? 'draw' : 'lose')
@@ -363,9 +374,9 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         </svg>
       </div>
       <div class="who rise" :class="{ active: phase === 'playing' && state.turn === human }">
-        <span class="av"><Avatar :look="myLook()" :mood="moods[0]" /></span>
+        <span class="av"><Avatar :look="meLook()" :mood="moods[0]" /></span>
       </div>
-      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>
+      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ meName }}</p>
       <p v-if="phase !== 'rps'" class="t-label tg" :class="myColor ? `c-${myColor}` : ''">{{ colorName(myColor) }}</p>
     </aside>
 
@@ -402,12 +413,12 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         </template>
         <template v-else>
           <Btn v-if="chaining" tone="red" block @click="endChain">{{ T.endChain }}</Btn>
-          <Btn :class="{ 'mt-[0.5rem]': chaining }" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
+          <Btn v-if="!watching" :class="{ 'mt-[0.5rem]': chaining }" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
         </template>
       </div>
     </aside>
 
-    <RpsDuel :open="phase === 'rps' && (!menuOpen || !!bn)" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
+    <RpsDuel :open="phase === 'rps' && !watching && (!menuOpen || !!bn)" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" @save-exit="saveAndExit" />
 
     <Dialog :open="resignOpen" :title="T.resignAsk" :label="game.name" @close="resignOpen = false">
@@ -421,7 +432,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 
     <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ T.endReason[state.status] }}</p>
-      <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
+      <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
       <template #actions>
         <Btn size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>

@@ -7,7 +7,6 @@ import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { useBoardNet } from '@/core/boardNet'
-import UndoAskDialog from '@/ui/UndoAskDialog.vue'
 import { recordResult, stats } from '@/core/settings'
 import { asLevel, extraThink, goAt } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
@@ -53,11 +52,17 @@ const T = S.go
 const bn = props.resume
   ? null
   : useBoardNet('go', {
+      watchStart: (leftFirst) => startAfterRps(leftFirst),
       apply: (ev) => void netApply(ev),
       undo: (by) => void netUndo(by),
       resign: (player) => netResign(player),
       end: (fin) => netEnd(fin as { dead: number[] }),
     })
+/** 觀戰：只能看，畫面左邊是 0 號座位那位玩家 */
+const watching = !!bn?.watching
+const meName = bn?.watching ? bn.left.name : S.common.you
+const meLook = () => (bn?.watching ? bn.left.look : myLook())
+
 /** 規則設定：連線時照房主的 */
 const rules = bn ? { ...props.options, ...bn.net.opts } : props.options
 const timed = rules.timer !== false
@@ -103,17 +108,21 @@ onBeforeUnmount(() => {
 })
 
 const ai = computed<Color>(() => other(human.value))
-const myTurn = computed(() => phase.value === 'playing' && !flying.value && state.value.turn === human.value)
+const myTurn = computed(() => !watching && phase.value === 'playing' && !flying.value && state.value.turn === human.value)
 const score = computed(() => scoreGo(state.value, dead.value))
-const resultTitle = computed(() => (score.value.winner === human.value ? T.win : T.lose(opponent.value.name)))
+const resultTitle = computed(() => (score.value.winner === human.value ? (watching ? S.online.watchWin(meName) : T.win) : watching ? S.online.watchWin(opponent.value.name) : T.lose(opponent.value.name)))
 const colorName = (c: Color) => (c === 1 ? T.black : T.white)
 const status = computed(() => {
+  const t = statusText()
+  return watching ? S.online.watchingNow + (t ? '・' + t : '') : t
+})
+function statusText() {
   if (message.value) return message.value
   if (phase.value === 'counting') return T.bothPassed
   if (phase.value === 'scoring' || phase.value === 'over') return resultTitle.value
   if (phase.value === 'rps') return ''
-  return state.value.turn === human.value ? T.yourTurn : T.cpuTurn(opponent.value.name)
-})
+  return state.value.turn === human.value ? (watching ? T.cpuTurn(meName) : T.yourTurn) : T.cpuTurn(opponent.value.name)
+}
 
 // ── 棋子飛行 ──
 const sectionEl = ref<HTMLElement>()
@@ -224,7 +233,7 @@ async function act(action: GoAction, who: 0 | 1) {
     }
   } else if (action.type === 'pass') {
     playSound('stonePick')
-    message.value = T.passed(who === 0 ? S.common.you : opponent.value.name)
+    message.value = T.passed(who === 0 ? meName : opponent.value.name)
   }
   if (r.state.phase === 'over') return endGame()
   if (r.state.turn === ai.value && !bn) scheduleCpu()
@@ -306,11 +315,12 @@ function finish() {
   message.value = ''
   phase.value = 'over'
   const win = score.value.winner === human.value
-  if (win) stats.go.wins++
+  if (watching) void 0 // 觀戰不記戰績
+  else if (win) stats.go.wins++
   else stats.go.losses++
   // 表現：贏或輸幾目（輸 40 目以上＝0）
   const m = score.value.margin
-  recordResult('go', level, win ? 'w' : 'l', win ? m / 40 : 1 - m / 40)
+  if (!watching) recordResult('go', level, win ? 'w' : 'l', win ? m / 40 : 1 - m / 40)
   moods.value = win ? ['happy', 'sad'] : ['sad', 'happy']
   playSound(win ? 'win' : 'lose')
   later(() => (resultOpen.value = true), 500)
@@ -532,15 +542,15 @@ const resultLine = computed(() => {
 
     <aside class="side left">
       <div class="who rise" :class="{ active: phase === 'playing' && state.turn === human }">
-        <span class="av"><Avatar :look="myLook()" :mood="moods[0]" /></span>
+        <span class="av"><Avatar :look="meLook()" :mood="moods[0]" /></span>
         <span :ref="(el) => (bowlEls[0] = el as HTMLElement | null)" class="bowl"><Bowl :black="human === 1" /></span>
       </div>
-      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ S.common.you }}</p>
+      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ meName }}</p>
       <p v-if="phase !== 'rps'" class="t-label tg">{{ colorName(human) }} · {{ T.captured(state.captures[human]) }}</p>
       <div class="small-acts">
-        <Btn size="sm" :tone="passArmed ? 'yellow' : 'plain'" :disabled="!myTurn || !!bn?.sending.value" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
-        <Btn size="sm" :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
-        <UndoBtn :disabled="!canUndo" :used="undoUsed" :waiting="!!bn?.undoWaiting.value" @undo="void undo()" />
+        <Btn v-if="!watching" size="sm" :tone="passArmed ? 'yellow' : 'plain'" :disabled="!myTurn || !!bn?.sending.value" @click="pass">{{ passArmed ? T.passConfirm : T.pass }}</Btn>
+        <Btn v-if="!watching" size="sm" :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
+        <UndoBtn v-if="!watching" :disabled="!canUndo" :used="undoUsed" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="void undo()" />
       </div>
     </aside>
 
@@ -579,14 +589,13 @@ const resultLine = computed(() => {
           <Btn class="mt-[0.5rem]" size="sm" block @click="disputed ? acceptOpponent() : resumePlay()">{{ disputed ? T.byOpponent : T.resume }}</Btn>
         </template>
         <Btn v-else-if="phase === 'over' && !bn" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
-        <Btn v-else-if="phase !== 'over'" tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0 || !!bn?.sending.value" @click="confirmMove">{{ T.place }}</Btn>
+        <Btn v-else-if="phase !== 'over' && !watching" tone="red" size="lg" arrow block :disabled="!myTurn || preview < 0 || !!bn?.sending.value" @click="confirmMove">{{ T.place }}</Btn>
       </div>
     </aside>
 
     <div ref="flier" class="flier"><svg viewBox="-12 -12 26 26"><Stone :cx="0" :cy="0" :r="10" :black="flierBlack" /></svg></div>
 
-    <RpsDuel :open="phase === 'rps' && (!menuOpen || !!bn)" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
-    <UndoAskDialog v-if="bn" :open="bn.undoAsked.value" :name="opponent.name" @answer="(ok) => bn!.answerUndo(ok)" />
+    <RpsDuel :open="phase === 'rps' && !watching && (!menuOpen || !!bn)" :opponent="opponent" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
     <Dialog :open="resignOpen" :title="T.resignAsk" :label="game.name" @close="resignOpen = false">
       <template #actions>
@@ -598,7 +607,7 @@ const resultLine = computed(() => {
     </Dialog>
     <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ resultLine }}</p>
-      <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.go.wins, stats.go.losses) }}</p>
+      <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.go.wins, stats.go.losses) }}</p>
       <template #actions>
         <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
         <Btn icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>

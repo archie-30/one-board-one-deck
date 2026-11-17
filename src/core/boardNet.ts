@@ -7,7 +7,7 @@
 import { reactive, ref } from 'vue'
 import type { RpsHand } from '@/engine/common/rps'
 import type { RemoteRps } from '@/ui/RpsDuel.vue'
-import { joinLiveMatch, matchOpponents, sendAct, type LiveMatch } from './onlineMatch'
+import { isWatching, joinLiveMatch, matchOpponents, matchPlayers, sendAct, type LiveMatch } from './onlineMatch'
 
 export interface BoardNetHooks {
   /** 一步棋（落子、走子、虛手、逾時…）：畫面套用、播完動畫後呼叫 next() */
@@ -18,6 +18,8 @@ export interface BoardNetHooks {
   resign?(player: number): void
   /** 結束攤牌（圍棋要用伺服器算的死活）；沒給就不管 */
   end?(final: unknown): void
+  /** 觀戰：猜拳分出勝負了（觀戰的人不用猜拳），firstIsLeft＝畫面左邊（0 號座位）那位先走 */
+  watchStart?(firstIsLeft: boolean): void
 }
 
 export function useBoardNet(gameId: string, hooks: BoardNetHooks) {
@@ -25,6 +27,11 @@ export function useBoardNet(gameId: string, hooks: BoardNetHooks) {
   if (!net) return null
   const m: LiveMatch = net
   const opponent = matchOpponents(m)[0]
+  /** 觀戰：沒有座位，從 0 號座位那位玩家的角度看（畫面左邊是他），不能操作 */
+  const watching = isWatching(m)
+  /** 畫面左邊那位（自己；觀戰時是 0 號座位的玩家） */
+  const left = matchPlayers(m)[0]
+  const viewSeat = Math.max(0, m.seat)
   /** 自己這一邊（0 先走、1 後走；猜拳前 -1） */
   const mySide = ref(-1)
   const rps = reactive<RemoteRps>({ round: 0, theirPicked: false, result: null })
@@ -66,31 +73,36 @@ export function useBoardNet(gameId: string, hooks: BoardNetHooks) {
         return next()
       case 'rps': {
         const hands = ev.hands ?? [null, null]
-        const mine = hands[m.seat] ?? null
-        const theirs = hands[1 - m.seat] ?? null
+        const mine = hands[viewSeat] ?? null
+        const theirs = hands[1 - viewSeat] ?? null
         const w = ev.winner ?? -1
-        rps.result = { mine, theirs, outcome: w < 0 ? 0 : w === m.seat ? 1 : -1 }
+        rps.result = { mine, theirs, outcome: w < 0 ? 0 : w === viewSeat ? 1 : -1 }
         rps.round++
         rps.theirPicked = false
         if (w < 0) return next()
         // 贏的人先走：自己是不是引擎的 0 號。畫面看完猜拳結果（startAfterRps）再呼叫 next()
-        mySide.value = w === m.seat ? 0 : 1
+        mySide.value = w === viewSeat ? 0 : 1
+        // 觀戰的人沒有猜拳視窗：直接開始看
+        if (watching) hooks.watchStart?.(mySide.value === 0)
         return
       }
       case 'undoAsk':
-        if (ev.by === mySide.value) undoWaiting.value = true
-        else undoAsked.value = true
+        // 觀戰的人不用回答
+        if (!watching) {
+          if (ev.by === mySide.value) undoWaiting.value = true
+          else undoAsked.value = true
+        }
         return next()
       case 'undoNo':
         undoAsked.value = false
-        if (ev.by === mySide.value) {
+        if (ev.by === mySide.value && !watching) {
           undoWaiting.value = false
           undoRefused.value++
         }
         return next()
       case 'undo':
         undoAsked.value = false
-        if (ev.by === mySide.value) ((undoWaiting.value = false), (undoUsed.value = true))
+        if (ev.by === mySide.value && !watching) ((undoWaiting.value = false), (undoUsed.value = true))
         return hooks.undo(ev.by!)
       case 'resign':
         sending.value = false
@@ -110,10 +122,12 @@ export function useBoardNet(gameId: string, hooks: BoardNetHooks) {
     return true
   }
   // 一開局就開始聽（猜拳的結果也是伺服器送來的）
-  next()
+  queueMicrotask(next)
   return {
     net: m,
     opponent,
+    watching,
+    left,
     mySide,
     rps,
     undoAsked,

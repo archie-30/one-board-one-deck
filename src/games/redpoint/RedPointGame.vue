@@ -8,7 +8,7 @@ import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { opponentById, pickOpponents } from '@/core/opponents'
-import { bringInto, joinLiveMatch, matchOpponents, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
+import { bringInto, isWatching, joinLiveMatch, matchOpponents, matchPlayers, rotate, sendAct, toAbs, toLocal } from '@/core/onlineMatch'
 import { recordResult, stats } from '@/core/settings'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
@@ -46,6 +46,10 @@ interface Saved {
 const saved = (props.resume ?? null) as Saved | null
 /** 連線對局：伺服器發牌、當裁判（沒有就是一般的單人對電腦） */
 const net = saved ? null : joinLiveMatch('redpoint')
+/** 觀戰：從下方那位玩家的角度看，但看不到他的手牌、不能操作、不記戰績 */
+const watching = !!net && isWatching(net)
+/** 看不到的手牌從第幾位開始（觀戰時下方那位的也看不到） */
+const H0 = watching ? 0 : 1
 /** 規則設定：連線時照房主的 */
 const rules = net ? { ...props.options, ...net.opts } : props.options
 
@@ -55,8 +59,9 @@ const timed = rules.timer !== false
 const ME = 0
 const ALL: Card[] = Array.from({ length: 52 }, (_, i) => i)
 const opponents = net ? matchOpponents(net) : saved ? saved.opponents.map(opponentById) : pickOpponents(3)
-const names = [S.common.you, ...opponents.map((o) => o.name)]
-const looks = [myLook(), ...opponents.map((o) => o.look)]
+const seated = watching ? matchPlayers(net!) : null
+const names = seated ? seated.map((o) => o.name) : [S.common.you, ...opponents.map((o) => o.name)]
+const looks = seated ? seated.map((o) => o.look) : [myLook(), ...opponents.map((o) => o.look)]
 
 let seed = saved ? saved.seed : (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
 let rng = saved ? saved.rng : seedRng(seed)
@@ -111,6 +116,8 @@ const ch = computed(() => (layout.value.cw * 108) / 78)
 function poses() {
   const s = state.value
   const map = rpPoses(layout.value, { hands: s.hands, table: s.table, pile: s.pile, captured: s.captured, selected: selected.value, gathered: gathered.value, salt: seed % 997 })
+  // 觀戰：下方那位的手牌也是背面
+  if (watching && phase.value !== 'over') for (const c of s.hands[ME]) map.set(c, { ...map.get(c)!, f: 0 })
   for (const [c, p] of staged) map.set(c, p)
   return map
 }
@@ -189,7 +196,7 @@ async function nextTurn(): Promise<void> {
   if (net) {
     // 連線：手上沒牌的人只翻牌；輪到自己出牌就讓你點；其他時候等伺服器送來下一個動作
     if (s.phase === 'flip') return flipTop(s.turn)
-    busy.value = s.turn !== ME
+    busy.value = s.turn !== ME || watching
     if (s.turn !== ME) moods[s.turn] = 'think'
     return pump()
   }
@@ -256,7 +263,7 @@ async function flipTop(player: number): Promise<void> {
   const targets = targetsFor(state.value, top)
   if (net) {
     // 自己翻的：能吃兩張以上就讓你選，不然直接送出；別人翻的：等伺服器送來他怎麼吃
-    if (player === ME) {
+    if (player === ME && !watching) {
       if (targets.length >= 2) {
         awaitFlip.value = true
         message.value = T.flipPick
@@ -316,19 +323,22 @@ function finish() {
   busy.value = true
   const w = winners(state.value)
   for (let p = 0; p < 4; p++) moods[p] = w.includes(p) ? 'happy' : 'sad'
-  stats.redpoint.rounds++
-  if (w.includes(ME)) stats.redpoint.wins++
-  // 並列第一：跟別人平手算和；只有你最高算贏
-  // 表現：贏的話看贏第二名多少分，輸的話看自己拿到第一名的幾成
-  const pts = scores.value.map((x) => x.points)
-  const top = Math.max(...pts)
-  const second = Math.max(...pts.filter((_, p) => p !== ME))
-  const perf = w.includes(ME) ? (pts[ME] - second) / 60 : top > 0 ? pts[ME] / top : 0.5
-  recordResult('redpoint', 'all', !w.includes(ME) ? 'l' : w.length > 1 ? 'd' : 'w', perf)
-  stats.redpoint.best = Math.max(stats.redpoint.best, scores.value[ME].points)
+  // 觀戰不記戰績
+  if (!watching) {
+    stats.redpoint.rounds++
+    if (w.includes(ME)) stats.redpoint.wins++
+    // 並列第一：跟別人平手算和；只有你最高算贏
+    // 表現：贏的話看贏第二名多少分，輸的話看自己拿到第一名的幾成
+    const pts = scores.value.map((x) => x.points)
+    const top = Math.max(...pts)
+    const second = Math.max(...pts.filter((_, p) => p !== ME))
+    const perf = w.includes(ME) ? (pts[ME] - second) / 60 : top > 0 ? pts[ME] / top : 0.5
+    recordResult('redpoint', 'all', !w.includes(ME) ? 'l' : w.length > 1 ? 'd' : 'w', perf)
+    stats.redpoint.best = Math.max(stats.redpoint.best, scores.value[ME].points)
+  }
   void countUp().then((ok) => {
     if (!ok) return
-    playSound(w.includes(ME) ? 'win' : 'lose')
+    playSound(w.includes(ME) && !watching ? 'win' : 'lose')
     resultOpen.value = true
   })
 }
@@ -428,7 +438,7 @@ function netStart(): RedPointState {
   const counts = rotate(m, st.counts)
   const unknown = ALL.filter((c) => !st.hand.includes(c) && !st.table.includes(c))
   let k = 0
-  const hands = counts.map((n, p) => (p === ME ? st.hand.slice() : unknown.slice(k, (k += n))))
+  const hands = counts.map((n, p) => (p === ME && !watching ? st.hand.slice() : unknown.slice(k, (k += n))))
   if (st.top !== undefined) knownTop = st.top
   return { hands, table: st.table.slice(), pile: unknown.slice(k, k + st.pile), captured: [[], [], [], []], turn: toLocal(m, st.turn), phase: st.phase }
 }
@@ -436,18 +446,19 @@ function fromServer(s: RedPointState): RedPointState {
   const m = net!
   return { ...s, hands: rotate(m, s.hands), captured: rotate(m, s.captured), turn: toLocal(m, s.turn) }
 }
-/** 看不到的牌：別人的手牌（第 p - 1 疊）＋牌堆（最後一疊） */
-const zonesOf = (s: RedPointState) => [...s.hands.slice(1).map((h) => h.slice()), s.pile.slice()]
-const withZones = (s: RedPointState, z: number[][]): RedPointState => ({ ...s, hands: [s.hands[0], ...z.slice(0, 3)], pile: z[3] })
+/** 看不到的牌：別人的手牌（第 p - H0 疊；觀戰時連下方那位的也算）＋牌堆（最後一疊） */
+const zonesOf = (s: RedPointState) => [...s.hands.slice(H0).map((h) => h.slice()), s.pile.slice()]
+const PILE = 4 - H0
+const withZones = (s: RedPointState, z: number[][]): RedPointState => ({ ...s, hands: [...s.hands.slice(0, H0), ...z.slice(0, PILE)], pile: z[PILE] })
 /** 把伺服器公開的那張換到牌堆最上面 */
 function placeTop(top: Card) {
   const z = zonesOf(state.value)
-  if (z[3][0] === top) return
+  if (z[PILE][0] === top) return
   const zi = z.findIndex((zone) => zone.includes(top))
   if (zi < 0) return
-  const old = z[3][0]
+  const old = z[PILE][0]
   z[zi][z[zi].indexOf(top)] = old
-  z[3][0] = top
+  z[PILE][0] = top
   stage.adopt([[old, top], [top, old]])
   state.value = withZones(state.value, z)
 }
@@ -478,9 +489,9 @@ function pump() {
   if (ev.top !== undefined) knownTop = ev.top
   if (ev.type === 'play') {
     const card = ev.card!
-    if (p !== ME) {
+    if (p !== ME || watching) {
       const z = zonesOf(state.value)
-      const pair = bringInto(z, p - 1, card)
+      const pair = bringInto(z, p - H0, card)
       if (pair) stage.adopt([[pair[1], pair[0]], [pair[0], pair[1]]])
       state.value = withZones(state.value, z)
     }
@@ -515,7 +526,7 @@ async function timeoutStep(p: number) {
 }
 
 // ── 你的操作 ──
-const myTurn = computed(() => phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
+const myTurn = computed(() => !watching && phase.value === 'play' && !busy.value && state.value.turn === ME && state.value.phase === 'play')
 // 滑鼠移到自己的手牌上：桌上能跟它配的牌先淡淡亮起來（預覽），點下去才選起
 const hoverCard = ref<Card | null>(null)
 /** 規則設定的「提示可以吃的牌」（預設關）；翻牌後要選吃哪張時一定會亮 */
@@ -531,6 +542,7 @@ const hits = computed<Card[]>(() => {
 })
 
 function tapCard(c: Card) {
+  if (watching) return
   const s = state.value
   if (awaitFlip.value) {
     if (!hits.value.includes(c)) return
@@ -603,14 +615,15 @@ const status = computed(() => {
   const s = state.value
   if (phase.value === 'deal') return ''
   if (phase.value === 'over' && countingRow.value >= 0) return T.counting
-  if (phase.value === 'over') return winners(s).includes(ME) ? T.win : T.lose(names[winners(s)[0]])
-  if (s.turn !== ME) return s.phase === 'flip' ? T.flipping(names[s.turn]) : T.waiting(names[s.turn])
+  if (phase.value === 'over') return resultTitle.value
+  if (s.turn !== ME || watching) return (watching ? `${S.online.watchingNow}・` : '') + (s.phase === 'flip' ? T.flipping(names[s.turn]) : T.waiting(names[s.turn]))
   // 沒開提示：不說這張會不會吃到
   if (selected.value === null || !showHints) return T.yourTurn
   return hits.value.length ? (hits.value.length >= 2 ? T.pickTarget : T.willTake) : T.willDiscard
 })
 const resultTitle = computed(() => {
   const w = winners(state.value)
+  if (watching) return S.online.watchWin(w.map((p) => names[p]).join('、'))
   if (w.includes(ME)) return w.length > 1 ? T.tie : T.win
   return T.lose(names[w[0]])
 })
@@ -639,7 +652,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <div class="who" :class="{ active: phase === 'play' && state.turn === p }" :style="{ left: `${seat.kid.x - seat.kid.w / 2}px`, top: `${seat.kid.y - seat.kid.w}px`, width: `${seat.kid.w}px`, height: `${seat.kid.w}px` }">
         <Avatar :look="looks[p]" :mood="moods[p]" :flip="p === 1" :talk="p !== 0" />
       </div>
-      <div v-if="p !== ME" class="tag" :class="[`al-${seat.label.align}`, { active: phase === 'play' && state.turn === p }]" :style="{ left: `${seat.label.x}px`, top: `${seat.label.y}px` }">
+      <div v-if="p !== ME || watching" class="tag" :class="[`al-${seat.label.align}`, { active: phase === 'play' && state.turn === p }]" :style="{ left: `${seat.label.x}px`, top: `${seat.label.y}px` }">
         <span class="nm t-black"><span class="hl" />{{ names[p] }}</span>
         <span class="t-slab pts">{{ scores[p].points }}</span>
       </div>
@@ -655,7 +668,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
         :key="c"
         :ref="(el) => stage.attach(c, el as HTMLElement | null)"
         class="sprite"
-        :class="{ mine: state.hands[ME].includes(c), sel: selected === c, hit: (showHints || awaitFlip) && hits.includes(c), peekhit: showHints && peekHits.includes(c), red: isRed(c) }"
+        :class="{ mine: !watching && state.hands[ME].includes(c), sel: selected === c, hit: (showHints || awaitFlip) && hits.includes(c), peekhit: showHints && peekHits.includes(c), red: isRed(c) }"
         :style="{ width: `${layout.cw}px`, height: `${ch}px`, marginLeft: `${-layout.cw / 2}px`, marginTop: `${-ch / 2}px` }"
         @click="tapCard(c)"
         @pointerenter="$event.pointerType === 'mouse' && (hoverCard = c)"
@@ -670,8 +683,8 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions">
-      <Btn v-if="phase !== 'over'" class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || selected === null" @click="playSelected">{{ T.play }}</Btn>
-      <Btn v-else class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.howTitle }}</Btn>
+      <Btn v-if="phase !== 'over' && !watching" class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || selected === null" @click="playSelected">{{ T.play }}</Btn>
+      <Btn v-else-if="phase === 'over'" class="rise" tone="ink" size="lg" arrow block @click="resultOpen = true">{{ T.howTitle }}</Btn>
     </div>
 
     <CursorGlow />

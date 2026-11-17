@@ -62,8 +62,7 @@ export const S = {
     undoConfirm: '再按一次悔棋',
     undoUsed: '已悔過棋',
     /** 連線：悔棋要對方同意 */
-    undoAsk: (name: string) => `${name}想悔棋`,
-    undoAskLead: '同意的話，棋局會退回他上一步之前。',
+    undoAsk: '對方要求悔棋，是否同意',
     undoAgree: '同意',
     undoRefuse: '不同意',
     undoWaiting: '等對方同意…',
@@ -266,6 +265,9 @@ export const S = {
     nameNeed: '連線要先有玩家名稱：請到個人資料取一個名字',
     someone: '玩家',
     humanTag: '真人玩家',
+    watchingNow: '觀戰中',
+    /** 觀戰時的結算標題：誰贏了（並列就一起列出） */
+    watchWin: (names: string) => `${names}贏了`,
     toProfile: '去取名字',
     soon: '目前只連線到房間：開局後各自在自己的裝置上跟電腦對打（對局同步之後再接上）',
     room: '房間',

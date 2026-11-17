@@ -7,7 +7,6 @@ import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { opponentById, pickOpponents } from '@/core/opponents'
 import { useBoardNet } from '@/core/boardNet'
-import UndoAskDialog from '@/ui/UndoAskDialog.vue'
 import { recordResult, stats } from '@/core/settings'
 import { asLevel, chessAt, extraThink } from '@/engine/common/difficulty'
 import { myLook } from '@/core/profile'
@@ -39,10 +38,16 @@ const record = A.kind === 'chess' ? stats.chess : stats.xiangqi
 const bn = props.resume
   ? null
   : useBoardNet(A.kind, {
+      watchStart: (leftFirst) => startAfterRps(leftFirst),
       apply: (ev) => netApply(ev),
       undo: (by) => netUndo(by),
       resign: (player) => netResign(player),
     })
+/** 觀戰：只能看，畫面左邊是 0 號座位那位玩家 */
+const watching = !!bn?.watching
+const meName = bn?.watching ? bn.left.name : S.common.you
+const meLook = () => (bn?.watching ? bn.left.look : myLook())
+
 /** 規則設定：連線時照房主的（棋子樣式這種還是用自己的） */
 const rules = bn ? { ...props.options, ...bn.net.opts } : props.options
 /** 規則設定的「倒數計時」 */
@@ -99,20 +104,24 @@ onBeforeUnmount(() => {
 })
 
 const board = computed(() => A.board(state.value))
-const myTurn = computed(() => phase.value === 'playing' && !thinking.value && A.turn(state.value) === human.value)
+const myTurn = computed(() => !watching && phase.value === 'playing' && !thinking.value && A.turn(state.value) === human.value)
 const targets = computed(() => (selected.value >= 0 && myTurn.value ? A.targets(state.value, selected.value) : []))
 const seatName = (seat: Seat) => (A.kind === 'chess' ? (seat === 0 ? S.chess.white : S.chess.black) : seat === 0 ? S.xiangqi.red : S.xiangqi.black)
 const winnerSeat = computed(() => A.winner(state.value))
-const resultTitle = computed(() => (winnerSeat.value === null ? T.draw : winnerSeat.value === human.value ? T.win : T.lose(opponent.value.name)))
+const resultTitle = computed(() => (winnerSeat.value === null ? T.draw : winnerSeat.value === human.value ? (watching ? S.online.watchWin(meName) : T.win) : watching ? S.online.watchWin(opponent.value.name) : T.lose(opponent.value.name)))
 const reason = computed(() => (T.endReason as Record<string, string>)[A.status(state.value)] ?? '')
 const checkSq = computed(() => (phase.value === 'rps' ? -1 : A.checkSq(state.value)))
 const status = computed(() => {
+  const t = statusText()
+  return watching ? S.online.watchingNow + (t ? '・' + t : '') : t
+})
+function statusText() {
   if (message.value) return message.value
   if (phase.value === 'over') return resultTitle.value
   if (phase.value === 'rps') return ''
-  if (A.turn(state.value) === human.value) return checkSq.value >= 0 ? T.check : T.yourTurn
+  if (A.turn(state.value) === human.value) return checkSq.value >= 0 ? T.check : (watching ? T.cpuTurn(meName) : T.yourTurn)
   return T.cpuTurn(opponent.value.name)
-})
+}
 /** 被吃掉的子：左邊放你吃到的（對方的子），右邊放對方吃到的 */
 const takenBy = (seat: Seat) => A.captured(state.value).filter((p) => A.seatOf(p) !== seat)
 
@@ -226,12 +235,13 @@ function scheduleCpu() {
 function finish(wait = 900) {
   phase.value = 'over'
   const w = winnerSeat.value
-  if (w === null) record.draws++
+  if (watching) void 0 // 觀戰不記戰績
+  else if (w === null) record.draws++
   else if (w === human.value) record.wins++
   else record.losses++
   // 表現：贏得越快越高；輸的話撐越久越高
   const plies = (state.value as { history?: unknown[] }).history?.length ?? 60
-  recordResult(A.kind, level, w === null ? 'd' : w === human.value ? 'w' : 'l', w === human.value ? 1 - plies / 200 : plies / 120)
+  if (!watching) recordResult(A.kind, level, w === null ? 'd' : w === human.value ? 'w' : 'l', w === human.value ? 1 - plies / 200 : plies / 120)
   moods.value = w === null ? ['shock', 'shock'] : w === human.value ? ['happy', 'sad'] : ['sad', 'happy']
   later(() => {
     playSound(w === human.value ? 'win' : w === null ? 'draw' : 'lose')
@@ -414,9 +424,9 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
         </svg>
       </div>
       <div class="who rise" :class="{ active: phase === 'playing' && A.turn(state) === human }">
-        <span class="av"><Avatar :look="myLook()" :mood="moods[0]" /></span>
+        <span class="av"><Avatar :look="meLook()" :mood="moods[0]" /></span>
       </div>
-      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && A.turn(state) === human }" />{{ S.common.you }}</p>
+      <p class="nm t-black"><span class="hl" :class="{ on: phase === 'playing' && A.turn(state) === human }" />{{ meName }}</p>
       <p v-if="phase !== 'rps'" class="t-label tg">{{ seatName(human) }}</p>
     </aside>
 
@@ -472,14 +482,13 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
           </div>
         </template>
         <template v-else>
-          <UndoBtn block :disabled="!canUndo" :used="undoUsed" :waiting="!!bn?.undoWaiting.value" @undo="undo" />
-          <Btn class="mt-[0.5rem]" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
+          <UndoBtn v-if="!watching" block :disabled="!canUndo" :used="undoUsed" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" />
+          <Btn v-if="!watching" class="mt-[0.5rem]" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
         </template>
       </div>
     </aside>
 
-    <RpsDuel :open="phase === 'rps' && (!menuOpen || !!bn)" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
-    <UndoAskDialog v-if="bn" :open="bn.undoAsked.value" :name="opponent.name" @answer="(ok) => bn!.answerUndo(ok)" />
+    <RpsDuel :open="phase === 'rps' && !watching && (!menuOpen || !!bn)" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" @save-exit="saveAndExit" />
 
     <!-- 兵升變 -->
@@ -504,7 +513,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
 
     <Dialog flip :open="resultOpen" :title="resultTitle" :label="T.resultLabel" tone="blue" @close="resultOpen = false">
       <p class="text-[0.95rem]">{{ reason }}</p>
-      <p class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
+      <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
       <template #actions>
         <Btn size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
