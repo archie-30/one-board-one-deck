@@ -257,7 +257,9 @@ export function playerAct(room: RoomState, pid: string, raw: unknown, now: numbe
     if (!after) return []
     m.s = after
     push(m, { type: 'resign', player: side }, seat)
-    end(m)
+    // 兩人的棋認輸就結束；三人的（星形跳棋）剩下的人繼續下
+    if (def.turn(after) < 0) end(m)
+    else schedule(room, now)
     return m.log.slice(start)
   }
   if (raw.type === 'undo') return askUndo(room, seat, now)

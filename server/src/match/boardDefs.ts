@@ -3,9 +3,11 @@
 // 除了暗棋（蓋著的棋），其他都是完全公開的，大家看到的都一樣。
 import { chooseBanqiAction } from '../../../src/engine/banqi/ai'
 import { applyBanqi, dealBanqi, type BanqiAction, type BanqiState } from '../../../src/engine/banqi/rules'
+import { chooseCheckersMove } from '../../../src/engine/checkers/ai'
+import { applyCheckers, createCheckers, type CheckersAction, type CheckersState } from '../../../src/engine/checkers/rules'
 import { chooseChessMove } from '../../../src/engine/chess/ai'
 import { applyChess, createChess, type ChessAction, type ChessState, type Promo } from '../../../src/engine/chess/rules'
-import { asCardLevel, asLevel, banqiAt, chessAt, extraThink, gomokuAt, goAt, othelloAt } from '../../../src/engine/common/difficulty'
+import { asCardLevel, asLevel, banqiAt, checkersAt, chessAt, extraThink, gomokuAt, goAt, othelloAt, starAt } from '../../../src/engine/common/difficulty'
 import { PERSONAS } from '../../../src/engine/common/personas'
 import { chooseGoMove } from '../../../src/engine/go/ai'
 import { estimateDead } from '../../../src/engine/go/playout'
@@ -14,6 +16,8 @@ import { chooseGomokuMove } from '../../../src/engine/gomoku/ai'
 import { createGomoku, placeStone, skipTurn, type GomokuState } from '../../../src/engine/gomoku/rules'
 import { chooseOthelloMove } from '../../../src/engine/othello/ai'
 import { applyOthello, createOthello, type OthelloAction, type OthelloState } from '../../../src/engine/othello/rules'
+import { chooseStarMove } from '../../../src/engine/starcheckers/ai'
+import { applyStar, createStar, type StarAction, type StarState } from '../../../src/engine/starcheckers/rules'
 import { chooseXiangqiMove } from '../../../src/engine/xiangqi/ai'
 import { applyXiangqi, createXiangqi, type XAction, type XiangqiState } from '../../../src/engine/xiangqi/rules'
 import { TURN_SECONDS } from '../../../src/data/timer'
@@ -192,4 +196,54 @@ const banqi: MatchDef<BanqiState, BanqiAct> = {
   resign: (s, side) => unwrap(applyBanqi(s, { type: 'resign', seat: side as 0 | 1 })),
 }
 
-export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi }
+// ── 西洋跳棋 ──
+/** 一條路線：2～13 個格子編號（連吃最多跳 12 次） */
+const isPath = (v: unknown, max: number): v is number[] => Array.isArray(v) && v.length >= 2 && v.length <= 13 && v.every((x) => isIdx(x, max))
+type CheckersAct = (Extract<CheckersAction, { type: 'move' }> | { type: 'timeout' }) & { player: number }
+const checkers: MatchDef<CheckersState, CheckersAct> = {
+  ...board,
+  undo: true,
+  deal: (_seed, o) => createCheckers({ forceCapture: o.forceCapture !== false }),
+  apply: (s, a) => unwrap(applyCheckers(s, a.type === 'move' ? { type: 'move', path: a.path } : { type: 'timeout' })),
+  turn: (s) => (s.status !== 'playing' ? -1 : s.turn),
+  parse(raw, side) {
+    if (!isObj(raw) || raw.type !== 'move' || !isPath(raw.path, 64)) return null
+    return { type: 'move', path: raw.path, player: side }
+  },
+  bot(s, id, o, rng) {
+    const [m, next] = chooseCheckersMove(s, checkersAt(PERSONAS[id].chess, level(o)), rng)
+    return [m ? { type: 'move', path: m.path, player: s.turn } : { type: 'timeout', player: s.turn }, next]
+  },
+  think: (_s, id, o, r) => 500 + Math.min(checkersAt(PERSONAS[id].chess, level(o)).depth, 6) * 140 + extraThink(level(o)) + r * 400,
+  timeout: (side) => ({ type: 'timeout', player: side }),
+  render: (_b, _a, a) => ({ pub: a }),
+  start: (s) => s,
+  reveal: (s) => s,
+  resign: (s, side) => unwrap(applyCheckers(s, { type: 'resign', side: side as 0 | 1 })),
+}
+
+// ── 星形跳棋（3 人；不猜拳，0 號先走；沒有悔棋）──
+type StarAct = (Extract<StarAction, { type: 'move' }> | { type: 'timeout' }) & { player: number }
+const starcheckers: MatchDef<StarState, StarAct> = {
+  seats: 3,
+  seconds: TURN_SECONDS.board,
+  deal: (_seed, o) => createStar({ longJump: o.longJump !== false }),
+  apply: (s, a) => unwrap(applyStar(s, a.type === 'move' ? { type: 'move', path: a.path } : { type: 'timeout' })),
+  turn: (s) => (s.over ? -1 : s.turn),
+  parse(raw, side) {
+    if (!isObj(raw) || raw.type !== 'move' || !isPath(raw.path, 121)) return null
+    return { type: 'move', path: raw.path, player: side }
+  },
+  bot(s, id, o, rng) {
+    const [m, next] = chooseStarMove(s, starAt(PERSONAS[id].chess, level(o)), rng)
+    return [m ? { type: 'move', path: m.path, player: s.turn } : { type: 'timeout', player: s.turn }, next]
+  },
+  think: (_s, _id, o, r) => 700 + extraThink(level(o)) * 0.6 + r * 500,
+  timeout: (side) => ({ type: 'timeout', player: side }),
+  render: (_b, _a, a) => ({ pub: a }),
+  start: (s) => s,
+  reveal: (s) => s,
+  resign: (s, side) => unwrap(applyStar(s, { type: 'resign', seat: side })),
+}
+
+export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers }

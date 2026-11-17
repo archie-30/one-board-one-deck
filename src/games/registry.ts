@@ -18,6 +18,8 @@ import SevensCover from './covers/SevensCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
 import BanqiCover from './covers/BanqiCover.vue'
+import CheckersCover from './covers/CheckersCover.vue'
+import StarCheckersCover from './covers/StarCheckersCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
 type Extra = { group?: SettingGroup; live?: boolean }
@@ -236,6 +238,33 @@ export const GAMES: GameDef[] = [
       toggle('chain', S.banqi.settings.chain, false),
       timer(),
     ],
+  },
+  {
+    id: 'checkers',
+    category: 'board',
+    name: S.checkers.name,
+    summary: S.checkers.summary,
+    players: S.checkers.players,
+    cover: CheckersCover,
+    tags: S.checkers.tags,
+    rulesIntro: withTimer(S.checkers.rules, [...TR.board]),
+    tutorial: defineAsyncComponent(() => import('./checkers/CheckersTutorial.vue')),
+    component: defineAsyncComponent(() => import('./checkers/CheckersGame.vue')),
+    settings: [level(), toggle('forceCapture', S.checkers.settings.forceCapture, true), timer()],
+  },
+  {
+    id: 'starcheckers',
+    category: 'board',
+    seats: 3,
+    name: S.starcheckers.name,
+    summary: S.starcheckers.summary,
+    players: S.starcheckers.players,
+    cover: StarCheckersCover,
+    tags: S.starcheckers.tags,
+    rulesIntro: withTimer(S.starcheckers.rules, TR.star),
+    tutorial: defineAsyncComponent(() => import('./starcheckers/StarTutorial.vue')),
+    component: defineAsyncComponent(() => import('./starcheckers/StarGame.vue')),
+    settings: [level(), toggle('longJump', S.starcheckers.settings.longJump, true), timer()],
   },
 ]
 

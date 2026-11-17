@@ -95,10 +95,11 @@ export interface StarState {
 export type StarAction = { type: 'move'; path: number[] } | { type: 'timeout' } | { type: 'resign'; seat: number }
 export type StarError = 'over' | 'illegal'
 
-export function createStar(options: Partial<StarOptions> = {}): StarState {
+/** 開局；first：誰先走（單人時隨機，連線時 0 號） */
+export function createStar(options: Partial<StarOptions> = {}, first = 0): StarState {
   const board = Array<number>(CELLS.length).fill(0)
   HOMES.forEach((c, seat) => CORNER_CELLS[c].forEach((i) => (board[i] = seat + 1)))
-  return { board, turn: 0, out: [], gaveUp: [], over: false, plies: 0, last: null, options: { ...DEFAULT_STAR_OPTIONS, ...options } }
+  return { board, turn: first, out: [], gaveUp: [], over: false, plies: 0, last: null, options: { ...DEFAULT_STAR_OPTIONS, ...options } }
 }
 
 const step = (i: number, d: number, k = 1) => cellAt(CELLS[i].q + DIRS[d][0] * k, CELLS[i].r + DIRS[d][1] * k)
