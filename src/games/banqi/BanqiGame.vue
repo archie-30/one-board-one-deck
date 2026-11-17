@@ -6,12 +6,13 @@ import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
 import { opponentById, pickOpponents } from '@/core/opponents'
+import { useBoardNet } from '@/core/boardNet'
 import { myLook } from '@/core/profile'
 import { recordResult, stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { TURN_SECONDS } from '@/data/timer'
 import { chooseBanqiAction } from '@/engine/banqi/ai'
-import { applyBanqi, colorOf, dealBanqi, kindOf, targetsFrom, type BanqiAction, type BanqiState, type Color, type Piece, type Seat } from '@/engine/banqi/rules'
+import { ALL_PIECES, applyBanqi, colorOf, dealBanqi, kindOf, targetsFrom, type BanqiAction, type BanqiState, type Color, type Piece, type Seat } from '@/engine/banqi/rules'
 import { asCardLevel, banqiAt } from '@/engine/common/difficulty'
 import { nextInt, seedRng, type RngState } from '@/engine/common/rng'
 import type { GameDef } from '@/games/types'
@@ -30,9 +31,19 @@ const props = defineProps<{ game: GameDef; options: Record<string, string | bool
 const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
 const T = S.banqi
 const record = stats.banqi
-const timed = props.options.timer !== false
-const level = asCardLevel(props.options.difficulty)
-const rules = { rookSlide: props.options.rookSlide === true, chain: props.options.chain === true }
+/** 連線對局：伺服器當裁判（猜拳、翻棋、走子、認輸都經過伺服器）；沒有就是一般的單人對電腦 */
+const bn = props.resume
+  ? null
+  : useBoardNet('banqi', {
+      apply: (ev) => netApply(ev),
+      undo: () => bn!.next(),
+      resign: (player) => netResign(player),
+    })
+/** 規則設定：連線時照房主的 */
+const opts = bn ? { ...props.options, ...bn.net.opts } : props.options
+const timed = opts.timer !== false
+const level = asCardLevel(opts.difficulty)
+const rules = { rookSlide: opts.rookSlide === true, chain: opts.chain === true }
 
 interface Saved {
   state: BanqiState
@@ -51,7 +62,7 @@ function freshDeal(): BanqiState {
 const state = shallowRef<BanqiState>(saved ? saved.state : freshDeal())
 const human = ref<Seat>(saved ? saved.human : 0)
 const grace = useGrace(props.options, state, () => state.value.turn === human.value)
-const opponent = ref(saved ? opponentById(saved.opponent) : pickOpponents(1)[0])
+const opponent = ref(bn ? bn.opponent : saved ? opponentById(saved.opponent) : pickOpponents(1)[0])
 const phase = ref<'rps' | 'playing' | 'over'>(saved ? 'playing' : 'rps')
 const selected = ref(-1)
 const message = ref('')
@@ -65,12 +76,15 @@ const later = (fn: () => void, ms: number) => {
   const id = window.setTimeout(() => {
     timers.delete(id)
     // 暫停中（選單打開）：電腦也停下來，等繼續再走
-    if (menuOpen.value) later(fn, 250)
+    if (menuOpen.value && !bn) later(fn, 250)
     else fn()
   }, ms)
   timers.add(id)
 }
-onBeforeUnmount(() => timers.forEach((t) => window.clearTimeout(t)))
+onBeforeUnmount(() => {
+  timers.forEach((t) => window.clearTimeout(t))
+  bn?.stop()
+})
 
 const myTurn = computed(() => phase.value === 'playing' && !thinking.value && state.value.turn === human.value)
 const myColor = computed<Color | null>(() => state.value.colors[human.value])
@@ -103,11 +117,14 @@ const nameOf = (p: Piece) => S.xiangqi.names[colorOf(p)][kindOf(p) as 'K']
 // ── 流程 ──
 function startAfterRps(playerWins: boolean) {
   human.value = playerWins ? 0 : 1
-  state.value = freshDeal()
+  state.value = bn ? netStart() : freshDeal()
   phase.value = 'playing'
+  if (bn) return bn.next()
   if (!playerWins) scheduleCpu()
 }
 function restart() {
+  // 連線對局：再來一局要回房間大家重新準備
+  if (bn) return
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   menuOpen.value = false
@@ -159,7 +176,7 @@ function commit(a: BanqiAction, who: 0 | 1) {
     if ('KA'.includes(kindOf(lost))) flash(who === 0 ? 1 : 0, 'shock')
   }
   if (state.value.status !== 'playing') finish()
-  else if (state.value.turn !== human.value) scheduleCpu()
+  else if (state.value.turn !== human.value && !bn) scheduleCpu()
   return true
 }
 
@@ -185,6 +202,8 @@ function scheduleCpu() {
 
 /** 時間到：這一步跳過，換對方 */
 function onTimeout() {
+  // 連線：時間到由伺服器判
+  if (bn) return
   if (!myTurn.value) return
   acted.value = true
   selected.value = -1
@@ -221,12 +240,12 @@ function pick(i: number) {
   const p = s.board[i]
   // 連吃中：只能點能吃的格子
   if (chaining.value) {
-    if (targets.value.includes(i)) commit({ type: 'move', from: s.chainAt, to: i }, 0)
+    if (targets.value.includes(i)) mine({ type: 'move', from: s.chainAt, to: i })
     return
   }
   // 蓋著的棋：翻開
   if (p && !s.up[i]) {
-    commit({ type: 'flip', at: i }, 0)
+    mine({ type: 'flip', at: i })
     return
   }
   // 自己翻開的棋：選起來（再點一次取消）
@@ -237,17 +256,18 @@ function pick(i: number) {
     return
   }
   if (selected.value >= 0 && targets.value.includes(i)) {
-    commit({ type: 'move', from: selected.value, to: i }, 0)
+    mine({ type: 'move', from: selected.value, to: i })
     return
   }
   selected.value = -1
 }
 function endChain() {
-  if (chaining.value) commit({ type: 'end' }, 0)
+  if (chaining.value) mine({ type: 'end' })
 }
 function resign() {
   resignOpen.value = false
   if (phase.value !== 'playing') return
+  if (bn) return bn.resign()
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   thinking.value = false
@@ -256,9 +276,66 @@ function resign() {
   finish(260)
 }
 
+/** 自己的一步：連線時送給伺服器（等它送回來才真的走），單人時直接走 */
+function mine(a: BanqiAction) {
+  if (!bn) return void commit(a, 0)
+  // 先在自己這邊檢查（蓋著的棋是什麼不影響能不能這樣走）
+  if (!applyBanqi(state.value, a).ok) return
+  acted.value = true
+  selected.value = -1
+  bn.send(a as unknown as Record<string, unknown>)
+}
+
+// ── 連線對局 ──
+// 蓋著的棋在這裡只是「還沒出現的棋」隨便放（數量跟真的一樣）；翻開時伺服器告訴大家是哪顆，換到那一格再翻。
+function netStart(): BanqiState {
+  const s0 = bn!.net.start as BanqiState
+  // 還沒出現的棋：整副減掉已經翻開的
+  const pool = ALL_PIECES.slice()
+  s0.board.forEach((p, i) => {
+    if (p && s0.up[i]) pool.splice(pool.indexOf(p), 1)
+  })
+  const board = s0.board.map((p) => (p === '?' ? pool.pop()! : p))
+  return { ...s0, board }
+}
+function netApply(ev: { type: string; player: number; at?: unknown; piece?: unknown; from?: unknown; to?: unknown }) {
+  const who = ev.player === human.value ? 0 : 1
+  if (ev.type === 'flip') {
+    // 翻出來的那顆換到這一格（跟別的蓋著的棋交換，數量不變）
+    const at = ev.at as number
+    const piece = ev.piece as string
+    const board = state.value.board.slice()
+    if (board[at] !== piece) {
+      const j = board.findIndex((p, i) => p === piece && !state.value.up[i] && i !== at)
+      if (j >= 0) board[j] = board[at]
+      board[at] = piece
+      state.value = { ...state.value, board }
+    }
+    commit({ type: 'flip', at }, who)
+  } else if (ev.type === 'move') commit({ type: 'move', from: ev.from as number, to: ev.to as number }, who)
+  else if (ev.type === 'end') commit({ type: 'end' }, who)
+  else {
+    const r = applyBanqi(state.value, { type: 'timeout' })
+    if (r.ok) {
+      state.value = r.state
+      if (who === 0) ((message.value = S.common.timedOut), playSound('error'))
+      if (state.value.status !== 'playing') finish()
+    }
+  }
+  bn!.next()
+}
+function netResign(player: number) {
+  if (phase.value === 'playing') {
+    const r = applyBanqi(state.value, { type: 'resign', seat: player as Seat })
+    if (r.ok) state.value = r.state
+    finish(260)
+  }
+  bn!.next()
+}
+
 // ── 保存進度並退出 ──
 const acted = ref(!!saved)
-const canSave = computed(() => phase.value === 'playing' && acted.value)
+const canSave = computed(() => !bn && phase.value === 'playing' && acted.value)
 function snapshot(): Saved | null {
   if (!canSave.value) return null
   return { state: state.value, human: human.value, opponent: opponent.value.id, rng }
@@ -275,7 +352,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   <section class="gm">
     <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
-    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !(grace && state.turn === human)" :paused="menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !(grace && state.turn === human)" :paused="!bn && menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">
@@ -317,7 +394,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
       </div>
       <div class="act">
         <template v-if="phase === 'over'">
-          <Btn tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
+          <Btn v-if="!bn" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
           <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
             <Btn size="sm" block @click="emit('exit')">{{ S.common.quit }}</Btn>
@@ -330,7 +407,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
       </div>
     </aside>
 
-    <RpsDuel :open="phase === 'rps' && !menuOpen" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" @done="startAfterRps" @back="emit('exit')" />
+    <RpsDuel :open="phase === 'rps' && (!menuOpen || !!bn)" :opponent="opponent" :lead="T.rpsLead" :seconds="timed ? TURN_SECONDS.rps : 0" :remote="bn?.rps" @pick="(h) => bn?.pickRps(h)" @done="startAfterRps" @back="emit('exit')" />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" :can-save="canSave" @close="menuOpen = false" @restart="restart" @exit="emit('exit')" @save-exit="saveAndExit" />
 
     <Dialog :open="resignOpen" :title="T.resignAsk" :label="game.name" @close="resignOpen = false">
@@ -348,7 +425,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
       <template #actions>
         <Btn size="sm" icon="exit" @click="emit('exit')">{{ S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
-        <Btn tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
+        <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
       </template>
     </Dialog>
   </section>
