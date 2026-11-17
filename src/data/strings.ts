@@ -165,13 +165,13 @@ export const S = {
       lv250: { name: '二百五', how: '升到 Lv 250（真的有人會到嗎）' },
       bigtwoA: { name: '梅花三弄', how: '大老二贏 5 場' },
       bigtwoB: { name: '二話不說', how: '大老二贏 30 場' },
-      bigtwoTop: { name: '老大不是老二', how: '大老二「困難」贏 3 場' },
+      bigtwoTop: { name: '老大不是老二', how: '大老二「高」贏 3 場' },
       crazybigtwoA: { name: '雙喜臨門', how: '瘋狂大老二贏 5 場' },
       crazybigtwoB: { name: '瘋生水起', how: '瘋狂大老二贏 30 場' },
-      crazybigtwoTop: { name: '一路瘋行', how: '瘋狂大老二「困難」贏 3 場' },
+      crazybigtwoTop: { name: '一路瘋行', how: '瘋狂大老二「高」贏 3 場' },
       sevensA: { name: '七上八下', how: '排七贏 5 場' },
       sevensB: { name: '七手八腳', how: '排七贏 30 場' },
-      sevensTop: { name: '七步成詩', how: '排七「困難」贏 3 場' },
+      sevensTop: { name: '七步成詩', how: '排七「高」贏 3 場' },
       redpointA: { name: '紅紅火火', how: '撿紅點贏 5 場' },
       redpointB: { name: '一點就紅', how: '撿紅點贏 30 場' },
       redpointTop: { name: '紅到發紫', how: '撿紅點贏 80 場' },
@@ -609,8 +609,8 @@ export const S = {
     settings: {
       difficulty: {
         label: '難度',
-        help: '簡單：電腦會算但常常判斷失誤。困難：電腦精打細算、一定會擋快出完的人。',
-        choices: { easy: '簡單', hard: '困難' },
+        help: '低：電腦常常亂出。中：電腦會算但常常判斷失誤。高：電腦精打細算、一定會擋快出完的人。',
+        choices: { low: '低', mid: '中', high: '高' },
       },
       suitOrder: {
         label: '花色大小',
@@ -853,8 +853,8 @@ export const S = {
     settings: {
       difficulty: {
         label: '難度',
-        help: '簡單：電腦常常亂接。困難：電腦會留著 7 和關鍵牌卡你的路，蓋牌也挑最划算的。',
-        choices: { easy: '簡單', hard: '困難' },
+        help: '低：電腦幾乎是亂接。中：電腦會算一點、偶爾亂接。高：電腦會留著 7 和關鍵牌卡你的路，蓋牌也挑最划算的。',
+        choices: { low: '低', mid: '中', high: '高' },
       },
       tapPlay: {
         label: '點第二下出牌',

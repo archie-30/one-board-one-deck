@@ -41,10 +41,10 @@ describe('個人資料：經驗值與稱號', () => {
     gainXp('sevens', 'easy', 'w')
     expect(hasTitle('sevensA')).toBe(true)
     expect(unlockQueue.at(-1)!.items).toContainEqual({ kind: 'title', id: 'sevensA' })
-    gainXp('sevens', 'hard', 'w')
-    gainXp('sevens', 'hard', 'w')
+    gainXp('sevens', 'high', 'w')
+    gainXp('sevens', 'high', 'w')
     expect(hasTitle('sevensTop')).toBe(false)
-    gainXp('sevens', 'hard', 'w')
+    gainXp('sevens', 'high', 'w')
     expect(hasTitle('sevensTop')).toBe(true)
   })
 

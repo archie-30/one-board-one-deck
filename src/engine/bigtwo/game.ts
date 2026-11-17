@@ -28,6 +28,8 @@ export interface BigTwoState {
   winner: number
   /** 拿到一條龍、開局直接獲勝的人（沒有就是 -1；舊存檔沒有這個欄位） */
   dragon?: number
+  /** 已經出過的牌（公開資訊，電腦用來算哪些大牌還在外面；舊存檔沒有這個欄位） */
+  played?: Card[]
 }
 
 /** timeout：時間到被跳過。桌上有牌時等於過牌；輪到自己首出時改由下一位首出（首手的梅花 3 限制也取消）。 */
@@ -174,13 +176,14 @@ export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<Bi
   const hands = state.hands.map((h, p) => (p === action.player ? h.filter((c) => !combo.cards.includes(c)) : h))
   const lastMoves = state.lastMoves.slice()
   lastMoves[action.player] = combo.cards
+  const played = [...(state.played ?? []), ...combo.cards]
   const won = hands[action.player].length === 0
   // 下一個還沒過牌的人；其他人都已經過牌了，就是自己（這一輪結束，下面再清空桌面）
   const after = nextActive(lastMoves, action.player)
   if (!won && (after === action.player || after < 0)) {
     return {
       ok: true,
-      state: { ...state, hands, table: null, lastMoves: lastMoves.map(() => null), passCount: 0, firstTurn: false, winner: -1, turn: action.player },
+      state: { ...state, hands, played, table: null, lastMoves: lastMoves.map(() => null), passCount: 0, firstTurn: false, winner: -1, turn: action.player },
     }
   }
   return {
@@ -188,6 +191,7 @@ export function applyBigTwo(state: BigTwoState, action: BigTwoAction): Result<Bi
     state: {
       ...state,
       hands,
+      played,
       table: { player: action.player, combo },
       lastMoves,
       passCount: 0,

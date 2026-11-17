@@ -20,9 +20,9 @@ export const XP_LEVEL_BONUS: Record<string, number> = { low: 0, easy: 0, mid: 4,
 
 /** 每個玩法最難的那個難度（稱號「在最難的難度贏一場」用） */
 export const TOP_LEVEL: Record<string, string> = {
-  bigtwo: 'hard',
-  crazybigtwo: 'hard',
-  sevens: 'hard',
+  bigtwo: 'high',
+  crazybigtwo: 'high',
+  sevens: 'high',
   solitaire: 'hard',
   gomoku: 'master',
   go: 'master',
