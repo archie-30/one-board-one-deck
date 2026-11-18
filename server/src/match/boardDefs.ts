@@ -185,9 +185,9 @@ const banqi: MatchDef<BanqiState, BanqiAct> = {
     const [a, next] = chooseBanqiAction(s, banqiAt(PERSONAS[id].chess, asCardLevel(o.difficulty)), rng)
     return [a && a.type !== 'resign' ? { ...a, player: s.turn } : { type: 'timeout', player: s.turn }, next]
   },
-  think(_s, _id, o, r) {
+  think(s, _id, o, r) {
     const lv = asCardLevel(o.difficulty)
-    return 700 + (lv === 'high' ? 600 : lv === 'mid' ? 300 : 0) + r * 500
+    return (s.chainAt >= 0 ? 900 : 1300) + (lv === 'high' ? 600 : lv === 'mid' ? 300 : 0) + r * 700
   },
   timeout: (side) => ({ type: 'timeout', player: side }),
   // 翻棋、暗吃（走到蓋著的棋上）：翻出來的是哪顆，大家都看得到
