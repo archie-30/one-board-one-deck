@@ -120,7 +120,6 @@ function statusText() {
   if (state.value.turn === human.value) return watching ? T.cpuTurn(meName) : T.yourTurn
   return T.cpuTurn(opponent.value.name)
 }
-const hint = computed(() => (!myTurn.value || message.value ? '' : wallMode.value ? T.wallHint : state.value.wallsLeft[human.value] ? T.moveHint : T.noWallsHint))
 const toGo = (side: Side) => distance(state.value, side)
 const lastShown = computed(() => {
   const l = state.value.last
@@ -249,13 +248,61 @@ function finish(wait = 900) {
 }
 
 // ── 你的操作 ──
+/** 規則設定「按兩下才走」（預設關，可以當場改）：第一下選要走到哪（出現淡淡的棋子），再點同一格或按「走這裡」才走 */
+const doubleTap = computed(() => props.options.doubleTap === true)
+const moveTo = ref(-1)
+watch(state, () => {
+  moveTo.value = -1
+  resignArmed.value = false
+})
 function pick(i: number) {
   if (!myTurn.value || wallMode.value) return
-  if (targets.value.includes(i)) mine({ type: 'move', to: i })
+  if (!targets.value.includes(i)) {
+    moveTo.value = -1
+    return
+  }
+  // 預設點一下就走；規則設定開了「按兩下才走」才要再點一次
+  if (!doubleTap.value || moveTo.value === i) {
+    moveTo.value = i
+    return confirmMove()
+  }
+  moveTo.value = i
+  message.value = ''
+  playSound('piecePick')
+}
+function confirmMove() {
+  if (!myTurn.value || moveTo.value < 0) return
+  const to = moveTo.value
+  moveTo.value = -1
+  mine({ type: 'move', to })
+}
+
+// 認輸並結算：要按兩次（第一次變成「再按一次認輸」，2.5 秒內再按才算）
+const resignArmed = ref(false)
+let resignTimer = 0
+function resign() {
+  if (phase.value !== 'playing' || watching) return
+  if (!resignArmed.value) {
+    resignArmed.value = true
+    window.clearTimeout(resignTimer)
+    resignTimer = window.setTimeout(() => (resignArmed.value = false), 2500)
+    return
+  }
+  resignArmed.value = false
+  window.clearTimeout(resignTimer)
+  if (bn) return bn.resign()
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  thinking.value = false
+  acted.value = true
+  const r = applyQuoridor(state.value, { type: 'resign', side: human.value })
+  if (r.ok) state.value = r.state
+  finish(260)
 }
 function setMode(wall: boolean) {
   if (wall && !canWall.value) return
   wallMode.value = wall
+  moveTo.value = -1
   preview.value = null
   message.value = ''
   playSound('piecePick')
@@ -380,7 +427,8 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         <span class="av"><Avatar :look="meLook()" :mood="moods[0]" /></span>
       </div>
       <p class="nm t-black"><span class="dotc" :class="`c${human}`" /><span class="hl" :class="{ on: phase === 'playing' && state.turn === human }" />{{ meName }}</p>
-      <p v-if="phase !== 'rps'" class="t-label tg">{{ seatName(human) }} · {{ T.toGo(toGo(human)) }}</p>
+      <p v-if="phase !== 'rps'" class="t-label tg">{{ seatName(human) }}</p>
+      <p v-if="phase !== 'rps'" class="togo"><span class="t-label">{{ T.toGoLabel }}</span><b class="t-slab">{{ toGo(human) }}</b><span class="t-label">{{ T.steps }}</span></p>
     </aside>
 
     <div class="board-wrap">
@@ -392,6 +440,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         :targets="targets"
         :wall-mode="wallMode"
         :preview="shownPreview"
+        :ghost="moveTo >= 0 ? { cell: moveTo, side: human } : null"
         :interactive="myTurn"
         :last="lastShown"
         @pick="pick"
@@ -405,14 +454,13 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         <span class="av"><Avatar :look="opponent.look" :mood="moods[1]" flip talk /></span>
       </div>
       <p class="nm t-black"><span class="dotc" :class="`c${opSide}`" /><span class="hl" :class="{ on: phase === 'playing' && state.turn !== human }" />{{ opponent.name }}</p>
-      <p class="t-label tg">{{ opponent.tag }}<template v-if="phase !== 'rps'"> · {{ seatName(opSide) }} · {{ T.toGo(toGo(opSide)) }}</template></p>
+      <p class="t-label tg">{{ opponent.tag }}<template v-if="phase !== 'rps'"> · {{ seatName(opSide) }}</template></p>
+      <p v-if="phase !== 'rps'" class="togo"><span class="t-label">{{ T.toGoLabel }}</span><b class="t-slab">{{ toGo(opSide) }}</b><span class="t-label">{{ T.steps }}</span></p>
       <div class="stock sm">
         <span v-for="k in WALLS_EACH" :key="k" class="bar" :class="{ used: k > state.wallsLeft[opSide] }" />
       </div>
       <div class="status-box">
-        <p class="t-slab moves">{{ phase !== 'rps' ? String(Math.ceil(state.plies / 2)).padStart(3, '0') : '' }}</p>
         <p class="status" :class="{ mine: myTurn && !message, warn: !!message }">{{ status }}</p>
-        <p class="hint">{{ hint }}</p>
       </div>
       <div class="act">
         <template v-if="phase === 'over'">
@@ -424,12 +472,18 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
           </div>
         </template>
         <template v-else-if="!watching">
-          <div class="modes">
-            <button type="button" class="mode" :class="{ on: !wallMode }" :disabled="!myTurn" @click="setMode(false)">{{ T.modeMove }}</button>
-            <button type="button" class="mode" :class="{ on: wallMode }" :disabled="!canWall" @click="setMode(true)">{{ T.modeWall(state.wallsLeft[human]) }}</button>
+          <!-- 走棋／放牆：點哪一邊都會切換 -->
+          <button type="button" class="modes" :disabled="!myTurn || (!wallMode && !canWall)" @click="setMode(!wallMode)">
+            <span class="mode" :class="{ on: !wallMode }">{{ T.modeMove }}</span>
+            <span class="mode" :class="{ on: wallMode }">{{ T.modeWall(state.wallsLeft[human]) }}</span>
+          </button>
+          <Btn v-if="wallMode" class="mt-[0.5rem]" tone="red" icon="check" block :disabled="!preview || !shownPreview?.ok" @click="placeWall">{{ T.placeWall }}</Btn>
+          <Btn v-else-if="doubleTap" class="mt-[0.5rem]" tone="red" icon="check" block :disabled="!myTurn || moveTo < 0" @click="confirmMove">{{ T.moveHere }}</Btn>
+          <!-- 悔棋、認輸並排（對方要求悔棋時，悔棋那顆變成「同意／不同意」，整排都給它） -->
+          <div class="pair mt-[0.4rem]" :class="{ asked: !!bn?.undoAsked.value }">
+            <UndoBtn block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" />
+            <Btn v-if="!bn?.undoAsked.value" size="sm" block :tone="resignArmed ? 'yellow' : 'plain'" :disabled="phase !== 'playing'" @click="resign">{{ resignArmed ? T.resignAgain : T.resign }}</Btn>
           </div>
-          <Btn v-if="wallMode" class="mt-[0.5rem] pop" tone="red" icon="check" block :disabled="!preview || !shownPreview?.ok" @click="placeWall">{{ T.placeWall }}</Btn>
-          <UndoBtn v-else class="mt-[0.5rem]" block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" />
         </template>
       </div>
     </aside>
@@ -461,7 +515,9 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   padding: 0.7rem 1.2rem;
 }
 .board-wrap {
-  height: 100%;
+  /* 棋盤不能大到把兩邊擠扁：至少留 23rem 給左右兩欄 */
+  height: min(100%, calc(100vw - 23rem));
+  align-self: center;
   aspect-ratio: 1;
   flex-shrink: 0;
   animation: rise 520ms var(--ease-out) both;
@@ -484,6 +540,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   position: relative;
   width: 4.4rem;
   height: 4.4rem;
+  flex-shrink: 0;
   transition: transform 300ms var(--ease-back);
 }
 .who.active {
@@ -566,14 +623,25 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   font-size: 0.55rem;
   color: var(--color-ink-2);
 }
+/* 還差幾步：名字下面（跟撿紅點的分數一樣） */
+.togo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.2rem;
+  margin-top: 0.15rem;
+}
+.togo .t-label {
+  font-size: 0.55rem;
+  color: var(--color-ink-2);
+}
+.togo b {
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--color-red);
+}
 .status-box {
   margin-top: auto;
   text-align: center;
-}
-.moves {
-  font-size: 1.5rem;
-  line-height: 1;
-  color: var(--color-red);
 }
 .status {
   margin-top: 0.2rem;
@@ -588,22 +656,25 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 .status.warn {
   color: var(--color-red);
 }
-.hint {
-  min-height: 2.4em;
-  font-size: 0.72rem;
-  line-height: 1.3;
-  color: var(--color-ink-2);
-}
 .act {
-  width: 9.6rem;
+  width: min(9.6rem, 100%);
   margin-top: 0.4rem;
 }
-/* 走棋／放牆：兩格切換 */
+/* 走棋／放牆：兩格切換（點哪一邊都會換） */
 .modes {
   display: grid;
+  width: 100%;
   grid-template-columns: 1fr 1.6fr;
+  padding: 0;
   border: 0.14rem solid var(--color-ink);
   background: var(--color-card);
+  cursor: pointer;
+}
+.modes:disabled {
+  cursor: default;
+}
+.modes:disabled .mode {
+  opacity: 0.45;
 }
 .mode {
   padding: 0.45rem 0.15rem;
@@ -622,8 +693,23 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   background: var(--color-ink);
   color: var(--color-card);
 }
-.mode:disabled {
-  opacity: 0.45;
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+.pair.asked {
+  grid-template-columns: 1fr;
+}
+.pair :deep(.face) {
+  justify-content: center;
+  padding: 0 0.2rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+.pair :deep(.lb) {
+  flex: none;
 }
 .end2 :deep(.face) {
   justify-content: center;

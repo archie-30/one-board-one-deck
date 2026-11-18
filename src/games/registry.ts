@@ -278,7 +278,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.quoridor.rules, [...TR.board]),
     tutorial: defineAsyncComponent(() => import('./quoridor/QuoridorTutorial.vue')),
     component: defineAsyncComponent(() => import('./quoridor/QuoridorGame.vue')),
-    settings: [level(), timer()],
+    settings: [level(), toggle('doubleTap', S.quoridor.settings.doubleTap, false, { group: 'other', live: true }), timer()],
   },
 
 ]

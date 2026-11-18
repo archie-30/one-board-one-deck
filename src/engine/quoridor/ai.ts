@@ -34,6 +34,8 @@ export interface QuoridorStyle {
   width?: number
   /** 手上一道牆值幾分（一步路是 10 分）；沒填照「愛放牆的程度」算 */
   wallValue?: number
+  /** 0～1：這一步會不會考慮放牆（低難度常常想不到要放牆；沒填＝每一步都考慮） */
+  wallRate?: number
   /** 0～1：會不會看「路有多好擋」（最短路上只剩一條縫的地方，對方一道牆就能讓你繞很遠） */
   narrow?: number
 }
@@ -163,9 +165,9 @@ function search(s: QuoridorState, depth: number, me: Side, st: QuoridorStyle, al
 }
 
 /** 每一個要試的步算一次分數（往後 depth 步） */
-function scoreAll(s: QuoridorState, depth: number, st: QuoridorStyle, budget: { n: number }) {
+function scoreAll(s: QuoridorState, depth: number, st: QuoridorStyle, budget: { n: number }, walls = 16) {
   const me = s.turn
-  return candidates(s, 16).map((a) => {
+  return candidates(s, walls).map((a) => {
     const r = applyQuoridor(s, a)
     return { a, v: r.ok ? search(r.state, depth - 1, me, st, -Infinity, Infinity, budget) : -Infinity }
   })
@@ -191,6 +193,9 @@ export function chooseQuoridorAction(s: QuoridorState, st: QuoridorStyle, rng: R
   const finish = pawnMoves(s).find((m) => dMe[m] === 0)
   if (finish !== undefined) return [{ type: 'move', to: finish }, rng]
 
+  // 這一步想不想得到要放牆（低、中難度常常只顧著走）
+  ;[r, rng] = nextRandom(rng)
+  const rootWalls = r < (st.wallRate ?? 1) ? 16 : 0
   let scored: { a: QuoridorAction; v: number }[] = []
   if (st.depth >= 4) {
     // 挑戰：一層一層往深算，局面數用完就用上一層算完的結果
@@ -198,18 +203,18 @@ export function chooseQuoridorAction(s: QuoridorState, st: QuoridorStyle, rng: R
     const budget = { n: st.nodes }
     for (let d = 2; d <= st.depth; d++) {
       try {
-        scored = scoreAll(s, d, st, budget)
+        scored = scoreAll(s, d, st, budget, rootWalls)
       } catch {
         break
       }
     }
   } else {
     try {
-      scored = scoreAll(s, st.depth, st, { n: st.nodes || Infinity })
+      scored = scoreAll(s, st.depth, st, { n: st.nodes || Infinity }, rootWalls)
     } catch {
       // 局面數用完：退一層再算
       try {
-        scored = scoreAll(s, Math.max(1, st.depth - 1), st, { n: Infinity })
+        scored = scoreAll(s, Math.max(1, st.depth - 1), st, { n: Infinity }, rootWalls)
       } catch {
         scored = []
       }

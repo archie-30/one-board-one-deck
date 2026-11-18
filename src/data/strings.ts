@@ -7,6 +7,8 @@ export const S = {
     rotate: '請把裝置轉成橫向',
   },
   common: {
+    /** 暫停選單上方：玩法＋難度 */
+    gameLevel: (game: string, level: string) => `${game}・難度：${level}`,
     home: '回到主畫面',
     /** 規則設定裡的「倒數計時」開關（牌類、棋類共用） */
     timer: {
@@ -1629,15 +1631,19 @@ export const S = {
     rpsLead: '贏的人拿紅子先走。',
     yourTurn: '輪到你',
     cpuTurn: (name: string) => `${name}思考中…`,
-    moveHint: '點圓點走一格（對方擋在前面可以跳過去）',
-    wallHint: '點格子之間的溝放牆；再點一次同一個地方，或按「放這裡」',
+    moveHint: '點圓點走一格',
+    moveHere: '走這裡',
+    toGoLabel: '還差',
+    steps: '步',
+    resignAgain: '再按一次認輸',
+    wallHint: '點格子間的溝，再點一次或按「放這裡」',
     noWallsHint: '牆用完了，只能走棋子',
     modeMove: '走棋',
     modeWall: (n: number) => `放牆（剩 ${n}）`,
     placeWall: '放這裡',
     wallsLeft: (n: number) => `牆 ${n}`,
     toGo: (n: number) => `還差 ${n} 步`,
-    resign: '認輸',
+    resign: '認輸並結算',
     resignAsk: '確定要認輸嗎？',
     resultLabel: 'GAME OVER',
     win: '你贏了',
@@ -1657,6 +1663,12 @@ export const S = {
       overlap: '這裡跟別的牆重疊或交叉了',
       blocks: '不能把路完全堵死，要留一條路給大家',
     } as Record<string, string>,
+    settings: {
+      doubleTap: {
+        label: '按兩下才走',
+        help: '打開後，走棋要按兩下（跟五子棋一樣）：第一下選好要走到哪（出現淡淡的棋子），再點同一格或按「走這裡」才走，比較不會點錯。關著時點一下就走。',
+      },
+    },
     rules: [
       {
         title: '目標',
@@ -1685,9 +1697,9 @@ export const S = {
         title: '先後與操作',
         body: [
           '開局前先和對手猜拳，贏的人拿紅子先走。',
-          '輪到你時，能走的格子會出現圓點，點一下就走過去。',
+          '輪到你時，能走的格子會出現圓點，點一下就走過去（規則設定開「按兩下才走」：第一下選好、再點一次或按「走這裡」才走）。',
           '要放牆就按「放牆」，點格子之間的溝會出現牆的預覽（紅色＝不能放）；再點一次同一個地方，或按「放這裡」才放下去。',
-          '想放棄可以在暫停選單「離開並認輸」。',
+          '想放棄可以按右下的「認輸並結算」（要按兩次），或在暫停選單「離開並認輸」。',
         ],
       },
     ],

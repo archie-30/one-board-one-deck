@@ -19,6 +19,8 @@ const props = defineProps<{
   /** 牆的預覽（ok = 放得下去） */
   preview?: { at: number; o: Orient; ok: boolean } | null
   interactive?: boolean
+  /** 選好要走到哪、還沒確定：那一格畫一顆淡淡的棋子 */
+  ghost?: { cell: number; side: 0 | 1 } | null
   /** 教學：要亮起來的格子、要亮起來的牆 */
   hints?: readonly number[]
   hintWall?: { at: number; o: Orient } | null
@@ -128,6 +130,10 @@ function pickCell(i: number) {
       class="wall-pv"
       :class="{ bad: !preview.ok }"
     />
+    <!-- 選好要走到的那一格：淡淡的棋子（再點一次才走） -->
+    <g v-if="ghost" class="ghost" :style="{ transform: `translate(${cx(ghost.cell)}px, ${cy(ghost.cell)}px)` }">
+      <circle r="3.2" :class="ghost.side === 0 ? 'p0' : 'p1'" stroke="var(--color-ink)" stroke-width="0.8" />
+    </g>
     <!-- 能走的格子 -->
     <circle v-for="t in targets ?? []" :key="`t${t}`" :cx="cx(t)" :cy="cy(t)" r="1.6" class="dot" @click.stop="pickCell(t)" />
     <!-- 棋子 -->
@@ -222,6 +228,11 @@ function pickCell(i: number) {
   stroke: var(--color-ink);
   stroke-width: 0.4;
   cursor: pointer;
+}
+.ghost {
+  opacity: 0.45;
+  pointer-events: none;
+  animation: breathe 1.6s ease-in-out infinite;
 }
 .pawn {
   pointer-events: none;

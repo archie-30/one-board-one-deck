@@ -77,11 +77,20 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 /** 選單、規則說明、規則設定之間切換：舊的往下沉淡出、新的往上浮 */
+/** 選單上方那一條：玩法名稱＋難度（連線時照房主的難度；沒有難度的玩法只寫名稱） */
+const label = computed(() => {
+  const def = props.game.settings.find((d) => d.key === 'difficulty')
+  if (!def || def.type !== 'choice') return props.game.name
+  const room = online.room?.rules
+  const value = room && room.gameId === props.game.id && room.options.difficulty !== undefined ? room.options.difficulty : props.options.difficulty
+  const choice = def.choices?.find((c) => c.value === value)
+  return choice ? S.common.gameLevel(props.game.name, choice.label) : props.game.name
+})
 const view = computed(() => (showRules.value ? 'rules' : showOptions.value ? 'options' : 'menu'))
 </script>
 
 <template>
-  <Dialog :open="open" :title="showRules ? S.rules.title : showOptions ? S.gameSettings.title : S.common.paused" :label="game.name" wide cover @close="emit('close')">
+  <Dialog :open="open" :title="showRules ? S.rules.title : showOptions ? S.gameSettings.title : S.common.paused" :label="label" wide cover @close="emit('close')">
     <Transition name="view" mode="out-in">
     <RulesBody v-if="view === 'rules'" key="rules" :game="game" :options="options" />
     <div v-else-if="view === 'options'" key="options">
