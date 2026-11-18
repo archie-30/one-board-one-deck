@@ -93,5 +93,43 @@ describe('步步為營電腦', () => {
     }
     expect(duel('mid', 'low', 12)).toBeGreaterThanOrEqual(8)
     expect(duel('high', 'mid', 12)).toBeGreaterThanOrEqual(7)
-  }, 300000)
+    expect(duel('master', 'high', 8)).toBeGreaterThanOrEqual(5)
+  }, 600000)
+
+  it('牆用完了就照最短的路走，不會來回晃（對方故意原地踏步也一樣）', () => {
+    for (const lv of ['low', 'mid', 'high', 'master'] as const) {
+      // 電腦（1 號）沒有牆了；玩家（0 號）站在終點前一格，一直左右晃
+      let s: QuoridorState = { ...createQuoridor(), pawns: [cellAt(1, 0), cellAt(0, 8)], wallsLeft: [3, 0], turn: 1 }
+      let rng = seedRng(9)
+      for (let k = 0; k < 6; k++) {
+        const before = distance(s, 1)
+        const [a, r] = chooseQuoridorAction(s, quoridorAt(PERSONAS[k].chess, lv), rng)
+        rng = r
+        expect(a?.type).toBe('move')
+        s = must(s, a!)
+        expect(distance(s, 1)).toBe(before - 1)
+        // 玩家原地踏步（左右晃）
+        s = must(s, { type: 'move', to: s.pawns[0] === cellAt(1, 0) ? cellAt(1, 1) : cellAt(1, 0) })
+      }
+    }
+  })
+
+  it('不會一開局就把牆用光：對手直直往前走，電腦前 6 步最多放 3 道牆（高、挑戰）', () => {
+    for (const lv of ['high', 'master'] as const) {
+      for (let g = 0; g < 3; g++) {
+        let s = createQuoridor()
+        let rng = seedRng(70 + g)
+        for (let k = 0; k < 6 && s.status === 'playing'; k++) {
+          // 對手（0 號）照最短的路走
+          const d = distance(s, 0)
+          const step = pawnMoves(s).find((m) => distance({ ...s, pawns: [m, s.pawns[1]] }, 0) < d) ?? pawnMoves(s)[0]
+          s = must(s, { type: 'move', to: step })
+          const [a, r] = chooseQuoridorAction(s, quoridorAt(PERSONAS[g].chess, lv), rng)
+          rng = r
+          s = must(s, a!)
+        }
+        expect(10 - s.wallsLeft[1]).toBeLessThanOrEqual(3)
+      }
+    }
+  })
 })

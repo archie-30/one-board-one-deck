@@ -36,6 +36,10 @@ export interface QuoridorStyle {
   wallValue?: number
   /** 0～1：這一步會不會考慮放牆（低難度常常想不到要放牆；沒填＝每一步都考慮） */
   wallRate?: number
+  /** 牆的價值跟著局勢變：對方還遠的時候牆比較值錢（先留著），對方快到了牆就該用了 */
+  wallTempo?: number
+  /** 沉得住氣：對方還沒追上（比自己遠超過 1 步）、離終點也還遠（超過 4 步）時先不放牆，留著關鍵時刻用 */
+  patient?: boolean
   /** 0～1：會不會看「路有多好擋」（最短路上只剩一條縫的地方，對方一道牆就能讓你繞很遠） */
   narrow?: number
 }
@@ -64,7 +68,9 @@ function evaluate(s: QuoridorState, me: Side, st: QuoridorStyle): number {
   const dMe = distTo(s, me, s.pawns[me])
   const dOp = distTo(s, op, s.pawns[op])
   // 牆越多越好，但快到終點時牆就沒那麼值錢了；愛放牆的人比較捨得用
-  const wallW = st.wallValue ?? (0.6 - st.walls * 0.3) * 10
+  let wallW = st.wallValue ?? (0.6 - st.walls * 0.3) * 10
+  // 對方離終點越遠，手上的牆越值錢（不要一開局就把牆用光）
+  if (st.wallTempo) wallW += Math.max(0, dOp - 3) * st.wallTempo
   let v = (dOp - dMe) * 10 + (s.wallsLeft[me] - s.wallsLeft[op]) * wallW
   // 自己越接近終點越好（不然兩邊都等對方先走，會一直來回晃）
   v -= dMe * 2
@@ -177,6 +183,8 @@ function scoreAll(s: QuoridorState, depth: number, st: QuoridorStyle, budget: { 
 export function chooseQuoridorAction(s: QuoridorState, st: QuoridorStyle, rng: RngState): [QuoridorAction | null, RngState] {
   if (s.status !== 'playing') return [null, rng]
   const me = s.turn
+  // 牆用完了：只能走，就照最短的路走（不會來回晃，低難度也一樣）
+  if (s.wallsLeft[me] === 0) return [{ type: 'move', to: shortestStep(s, distMap(s, me)) }, rng]
   let r: number
   ;[r, rng] = nextRandom(rng)
   if (r < st.blunder) {
@@ -193,9 +201,12 @@ export function chooseQuoridorAction(s: QuoridorState, st: QuoridorStyle, rng: R
   const finish = pawnMoves(s).find((m) => dMe[m] === 0)
   if (finish !== undefined) return [{ type: 'move', to: finish }, rng]
 
-  // 這一步想不想得到要放牆（低、中難度常常只顧著走）
+  // 這一步想不想得到要放牆（低、中難度常常只顧著走）；沉得住氣的人，對方還沒追上就先不放
   ;[r, rng] = nextRandom(rng)
-  const rootWalls = r < (st.wallRate ?? 1) ? 16 : 0
+  const op = other(me)
+  const dOp = distTo(s, op, s.pawns[op])
+  const holdWalls = st.patient && dOp > dMe[s.pawns[me]] + 1 && dOp > 4
+  const rootWalls = r < (st.wallRate ?? 1) && !holdWalls ? 16 : 0
   let scored: { a: QuoridorAction; v: number }[] = []
   if (st.depth >= 4) {
     // 挑戰：一層一層往深算，局面數用完就用上一層算完的結果
@@ -227,9 +238,21 @@ export function chooseQuoridorAction(s: QuoridorState, st: QuoridorStyle, rng: R
     return [{ type: 'move', to }, rng]
   }
   scored.sort((x, y) => y.v - x.v)
-  const floor = scored[0].v - st.noise * 12
-  const pool = scored.filter((x) => x.v >= floor)
+  // 一樣好的步（例如怎麼走都輸、怎麼走都贏）：走棋優先、離終點越近越好，不會原地亂晃、亂丟牆
+  const after = (a: QuoridorAction) => (a.type === 'move' ? dMe[a.to] : 99)
+  const floor = scored[0].v - Math.max(0.5, st.noise * 12)
+  let pool = scored.filter((x) => x.v >= floor)
+  if (st.noise === 0) {
+    const best = Math.min(...pool.map((x) => after(x.a)))
+    pool = [pool.find((x) => after(x.a) === best) ?? pool[0]]
+  }
   ;[r, rng] = nextRandom(rng)
   return [pool[Math.floor(r * pool.length)].a, rng]
+}
+
+/** 照最短的路走一步（同樣近的格子挑第一個） */
+function shortestStep(s: QuoridorState, d: number[]): number {
+  const moves = pawnMoves(s)
+  return moves.reduce((b, m) => (d[m] < d[b] ? m : b), moves[0])
 }
 
