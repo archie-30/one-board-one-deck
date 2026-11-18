@@ -47,7 +47,7 @@ watch(
     }
     const dx = (colOf(r.to) - colOf(r.from)) * 100
     const dy = (rowOf(r.to) - rowOf(r.from)) * 100
-    at(r.from)?.animate([{ transform: `translate(${dx}%, ${dy}%) scale(1.08)` }, { transform: 'translate(0, 0) scale(1.08)', offset: 0.8 }, { transform: 'none' }], { duration: 300, easing: 'cubic-bezier(.22,1,.36,1)' })
+    at(r.from)?.animate([{ transform: `translate(${dx}%, ${dy}%) scale(1.08)` }, { transform: 'translate(0, 0) scale(1.08)', offset: 0.8 }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.33,0,.25,1)' })
     // 被吃的棋冒回來
     at(r.to)?.animate([{ transform: 'scale(0.2)', opacity: 0 }, { transform: 'scale(1.12)', opacity: 1, offset: 0.7 }, { transform: 'none', opacity: 1 }], { duration: 320, delay: 120, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'backwards' })
   },
@@ -66,7 +66,9 @@ watch(
     if (!el) return
     const dx = (colOf(m.from) - colOf(m.to)) * 100
     const dy = (rowOf(m.from) - rowOf(m.to)) * 100
-    el.animate([{ transform: `translate(${dx}%, ${dy}%) scale(1.08)` }, { transform: 'translate(0, 0) scale(1.08)', offset: 0.8 }, { transform: 'none' }], { duration: 300, easing: 'cubic-bezier(.22,1,.36,1)' })
+    // 走得越遠（車衝）滑越久；整體放慢一點，看得清楚怎麼走
+    const dist = Math.abs(colOf(m.from) - colOf(m.to)) + Math.abs(rowOf(m.from) - rowOf(m.to))
+    el.animate([{ transform: `translate(${dx}%, ${dy}%) scale(1.08)` }, { transform: 'translate(0, 0) scale(1.08)', offset: 0.8 }, { transform: 'none' }], { duration: 420 + dist * 110, easing: 'cubic-bezier(.33,0,.25,1)' })
   },
 )
 const isFlip = (i: number) => !rewound.value && props.lastMove?.flip && props.lastMove.to === i
@@ -212,7 +214,7 @@ const isFlip = (i: number) => !rewound.value && props.lastMove?.flip && props.la
 }
 /* 翻開：像翻牌一樣轉過來 */
 .pc.flipin {
-  animation: flip-in 420ms var(--ease-out) both;
+  animation: flip-in 560ms var(--ease-out) both;
 }
 @keyframes flip-in {
   0% {

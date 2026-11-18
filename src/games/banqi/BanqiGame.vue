@@ -219,17 +219,18 @@ function scheduleCpu() {
   const st = banqiAt(opponent.value.persona.chess, level)
   later(
     () => {
-      let a: BanqiAction | null
-      ;[a, rng] = chooseBanqiAction(state.value, st, rng)
       thinking.value = false
       moods.value = [moods.value[0], 'idle']
+      // 保險：已經不是電腦的回合（例如悔棋、結束）就什麼都不做，絕不幫玩家走
+      if (phase.value !== 'playing' || state.value.turn === human.value) return
+      let a: BanqiAction | null
+      ;[a, rng] = chooseBanqiAction(state.value, st, rng)
       if (!a) return
+      // 電腦連吃：commit 裡看到還是電腦的回合，會自己再排下一口（這裡不能再排一次，不然會多走一步、輪到你時幫你走）
       commit(a, 1)
-      // 電腦連吃：接著再想下一口
-      if (phase.value === 'playing' && state.value.turn !== human.value && state.value.chainAt >= 0) scheduleCpu()
     },
-    // 電腦每一步想一下：低快一點、高慢一點
-    700 + (level === 'high' ? 600 : level === 'mid' ? 300 : 0) + Math.random() * 500,
+    // 電腦每一步想一下：低快一點、高慢一點；連吃的下一口快一點
+    (state.value.chainAt >= 0 ? 900 : 1300) + (level === 'high' ? 600 : level === 'mid' ? 300 : 0) + Math.random() * 700,
   )
 }
 
@@ -510,7 +511,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
           <RematchBtn v-else tone="ink" block />
           <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
-            <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
+            <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.backRoom : S.common.quit }}</Btn>
           </div>
         </template>
         <template v-else>
@@ -537,7 +538,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
       <p class="text-[0.95rem]">{{ T.endReason[state.status] }}</p>
       <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
       <template #actions>
-        <Btn size="sm" icon="exit" @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn size="sm" icon="exit" @click="emit('exit')">{{ bn ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
         <RematchBtn v-else tone="red" />

@@ -231,6 +231,19 @@ export function checkersAt(st: ChessStyle, level: Level): { depth: number; noise
 }
 
 /**
+ * 步步為營（低／中／高／挑戰）：
+ *   低：只看一步、常亂挑、偶爾隨手走；中：看兩步（會想對方怎麼回）、會亂挑、偶爾隨手走
+ *   高：看四步（牆只試擋得最多的幾道）、偶爾小失誤；挑戰：看四步、牆試得更廣、更珍惜手上的牆、不失誤
+ */
+export function quoridorAt(st: ChessStyle, level: Level): { depth: number; noise: number; blunder: number; nodes: number; walls: number; width?: number; wallValue?: number } {
+  const walls = clamp(st.attack)
+  if (level === 'master') return { depth: 4, noise: 0, blunder: 0, nodes: 30000, walls, width: 10, wallValue: 8 }
+  if (level === 'high') return { depth: 4, noise: 0.15, blunder: 0, nodes: 8000, walls, width: 4 }
+  if (level === 'mid') return { depth: 2, noise: clamp(0.3 + st.noise * 0.3), blunder: 0.1, nodes: 0, walls }
+  return { depth: 1, noise: clamp(0.8 + st.noise * 0.4), blunder: 0.25, nodes: 0, walls }
+}
+
+/**
  * 星形跳棋（低／中／高／挑戰）：
  *   低：只看這一步、常常亂挑、偶爾隨手走；中：只看這一步、挑最好的（偶爾小失誤）
  *   高：再想自己下一步（前 8 名）；挑戰：再想自己下一步（前 24 名）、完全不失誤

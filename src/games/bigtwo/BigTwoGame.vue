@@ -744,7 +744,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       </p>
       <p v-if="!watching" class="lifetime t-black">{{ T.result.lifetime(signed(record.totals[ME] ?? 0)) }}</p>
       <template #actions>
-        <Btn icon="exit" size="sm" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn icon="exit" size="sm" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>
         <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
         <RematchBtn v-else tone="red" />

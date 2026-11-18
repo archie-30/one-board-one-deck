@@ -728,7 +728,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
       <template #actions>
         <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>
         <RematchBtn v-else tone="red" />
-        <Btn icon="exit" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn icon="exit" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
       </template>
     </Dialog>
   </section>

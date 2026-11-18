@@ -32,7 +32,7 @@ describe('牌類難度搬家：簡單 → 中、困難 → 高', () => {
     expect(m.stats.recent).toEqual({ 'bigtwo:mid': 'wl', 'sevens:high': 'w', 'gomoku:mid': 'd' })
     expect(m.settings.games.sevens.options.difficulty).toBe('high')
     expect(m.settings.games.bigtwo.options.difficulty).toBe('mid')
-    expect(m.stats.cardLevels).toBe(3)
+    expect(m.stats.cardLevels).toBe(4)
     // 已經搬過：新的「中、高」不會再被當成舊資料搬走
     m.recordBest('bigtwo', 'low', 5)
     await new Promise((r) => setTimeout(r, 0))

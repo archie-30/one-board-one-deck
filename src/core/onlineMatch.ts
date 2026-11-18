@@ -62,10 +62,17 @@ export const liveOver = ref(false)
 /** 對局還沒打完就要離開：App 層跳確認視窗（有值＝視窗打開，按「離開房間」就呼叫它） */
 export const leaveMid = shallowRef<(() => void) | null>(null)
 
+/** 對局中離開又用房號加回來：等伺服器送來這一局，就直接進對局（catchUp：補播到第幾步為止要快轉） */
+export const rejoinMatch = shallowRef<{ n: number; gameId: string; catchUp: number } | null>(null)
+let rejoining = false
+/** 正在用房號加回原本的對局（onlineWs 加入時設定） */
+export const expectRejoin = (on: boolean) => (rejoining = on)
+
 /** 伺服器送來開局資訊（開局時；斷線連回來也會重送，附上到目前為止的每一步） */
 export function receiveMatch(intro: MatchIntro & { log?: MatchEvent[] }) {
   const cur = liveMatch.value
-  if (cur && cur.n === intro.n) {
+  // 加回來的：不管之前留著什麼，都當成新拿到這一局（從頭補播）
+  if (cur && cur.n === intro.n && !rejoining) {
     // 連回來：補上沒收到的
     for (const e of intro.log ?? []) receiveAct(intro.n, e)
     return
@@ -74,6 +81,11 @@ export function receiveMatch(intro: MatchIntro & { log?: MatchEvent[] }) {
   liveOver.value = false
   liveMatch.value = { ...rest, queue: [], lastSeq: 0, onEvent: null, onReject: null }
   for (const e of log ?? []) receiveAct(intro.n, e)
+  // 加回來的：直接進這一局，離開期間的每一步快轉補播
+  if (rejoining && intro.seat >= 0) {
+    rejoining = false
+    rejoinMatch.value = { n: intro.n, gameId: intro.gameId, catchUp: log?.length ? log[log.length - 1].seq : 0 }
+  }
 }
 
 /** 伺服器送來一個動作（照編號；收過的不再收） */

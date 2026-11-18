@@ -7,7 +7,8 @@ import { revealLaunch, startExit } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { back, resetTo } from '@/core/nav'
 import { leaveRoom, online } from '@/core/online'
-import { leaveMid, liveMatch, liveOver } from '@/core/onlineMatch'
+import { leaveMid, liveMatch, liveOver, rejoinMatch } from '@/core/onlineMatch'
+import { runTurbo } from '@/core/turbo'
 import { GRACE_AFTER_MS } from '@/core/grace'
 import { clearResume, flushResume, getResume, setResume } from '@/core/resume'
 import { S } from '@/data/strings'
@@ -83,6 +84,14 @@ onBeforeUnmount(() => {
 
 // 對局畫面（或「要不要接著玩」的對話框）出現後，揭開進入遊戲的過場
 onMounted(() => requestAnimationFrame(() => requestAnimationFrame(revealLaunch)))
+// 中途加回連線對局：揭開過場之後，把離開期間的每一步快轉補播，補完恢復正常速度接著玩
+onMounted(() => {
+  const r = rejoinMatch.value
+  const m = liveMatch.value
+  rejoinMatch.value = null
+  if (!onlineMatch || !r || !m || r.n !== m.n || !r.catchUp) return
+  window.setTimeout(() => runTurbo(() => liveMatch.value !== m || m.queue.every((e) => e.seq > r.catchUp)), 900)
+})
 
 /** 存檔時不留「第一步不限時」的記號（下次接著玩再依存檔時間決定） */
 function keep() {
@@ -101,15 +110,16 @@ function onSave(data: unknown) {
 //   確認視窗放在 App 層（RoomCountdown.vue），這裡只交出「確定離開」要做的事。
 function onExit() {
   if (!onlineMatch) return void leave()
+  // 對局中離開：確認後離開房間（位子由電腦接手）；打完了：回到房間（走一般的離開過場）
   if (liveMatch.value && !liveOver.value) leaveMid.value = () => void leaveRoomHome()
-  else void leaveRoomHome()
+  else void leave()
 }
 onBeforeUnmount(() => (leaveMid.value = null))
 async function leaveRoomHome() {
   leaveMid.value = null
   if (leaving) return
   leaving = true
-  await leaveRoom()
+  await leaveRoom(true)
   resetTo([{ name: 'title' }])
 }
 provide('onlineExits', { toRoom: () => void leave() })

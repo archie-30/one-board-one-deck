@@ -127,7 +127,12 @@ function start(ac: AudioContext, sound: SfxName, buf: AudioBuffer) {
   src.start(ac.currentTime + 0.002)
 }
 
+/** 暫時全部靜音（補播連線對局時快轉用） */
+let muted = false
+export const setMuted = (v: boolean) => (muted = v)
+
 export function playSound(sound: Sound) {
+  if (muted) return
   const ac = audio()
   if (!ac) return
   const now = performance.now()

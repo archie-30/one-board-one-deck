@@ -13,6 +13,7 @@
 // - 再玩一次：一局打完，大家都還在對局畫面、每個對戰的人都按了「再玩一次」（again）就直接再開一局（不回房間、不倒數）；
 //   有人回到房間（back）就不能再玩一次。
 // - 對局中離開房間：他的位子由電腦代打；房主對局中離開不解散，換下一位當房主。
+//   這一局還沒打完前，他用房號加回來（帶著離開前的編號與憑證）就回到原本的座位接著打（leftMid）。
 // - 閒置：房間 10 分鐘（IDLE_MS）都沒開始遊戲，就問每個人「還在嗎」（check）；10 秒內沒按「我還在」（here）的人移出房間，
 //   全部的人都移出就關房（不要有沒人用的房間一直佔著伺服器）。
 import { GAME_SEATS, parseRules } from './games'
@@ -86,6 +87,14 @@ export interface RoomState {
   again?: string[]
   /** 大家都按了「再玩一次」：幾點開下一局（0＝沒有） */
   againAt?: number
+  /** 對局中離開的人（這一局打完前用房號加回來，可以回到原本的座位）：編號與憑證 */
+  leftMid?: { id: string; token: string }[]
+}
+
+/** 對局中離開、想加回原本座位的人帶的東西：離開前的玩家編號與憑證 */
+export interface Rejoin {
+  pid: string
+  token: string
 }
 
 export type Intent =
@@ -191,6 +200,13 @@ export function parseMessage(raw: unknown): Intent | Hello | Act | null {
   }
 }
 
+/** 加回對局帶的編號與憑證（格式不對就當作沒帶） */
+export function parseRejoin(raw: unknown): Rejoin | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  return typeof o.pid === 'string' && typeof o.token === 'string' && /^[0-9a-f]{4,32}$/.test(o.pid) && /^[0-9a-f]{16,64}$/.test(o.token) ? { pid: o.pid, token: o.token } : null
+}
+
 /** 比對憑證（逐字比完，不提早結束） */
 export function sameToken(a: string, b: string): boolean {
   if (a.length !== b.length) return false
@@ -214,14 +230,30 @@ export function createRoomState(code: string, host: Profile, now: number, rand: 
 }
 
 export type JoinFail = 'full' | 'started'
-export function addMember(room: RoomState, p: Profile, now: number, rand: Rand): Member | JoinFail {
-  if (room.phase === 'playing') return 'started'
+export function addMember(room: RoomState, p: Profile, now: number, rand: Rand, rejoin?: Rejoin | null): Member | JoinFail {
+  if (room.phase === 'playing') return rejoinMatch(room, p, now, rejoin) ?? 'started'
   if (room.players.length >= ROOM_MAX) return 'full'
   let m = newMember(p, false, now, rand)
   while (room.players.some((x) => x.id === m.id)) m = newMember(p, false, now, rand)
   room.players.push(m)
   syncCountdown(room, now)
   return m
+}
+
+/** 對局中離開的人加回來：這一局還沒打完、編號與憑證對得上，就回到原本的座位（電腦不再代打） */
+function rejoinMatch(room: RoomState, p: Profile, now: number, rejoin?: Rejoin | null): Member | null {
+  const m = room.match
+  if (!rejoin || !m || m.over || room.players.length >= ROOM_MAX) return null
+  const was = room.leftMid?.find((x) => x.id === rejoin.pid && sameToken(x.token, rejoin.token))
+  const seat = m.seats.findIndex((s) => s.pid === rejoin.pid)
+  if (!was || seat < 0) return null
+  room.leftMid = room.leftMid!.filter((x) => x !== was)
+  const member: Member = { ...p, id: was.id, token: was.token, host: false, ready: false, spectator: false, away: now + CONNECT_MS, inGame: true, joined: now }
+  room.players.push(member)
+  // 換回自己出（連上 WebSocket 之後；之前照樣由電腦代打）
+  m.idle[seat] = 0
+  m.seats[seat].name = member.name
+  return member
 }
 
 /** 開始的條件：選好模式、對戰人數 1～模式人數、每個人（含觀戰）都準備好、沒有人斷線 */
@@ -291,6 +323,9 @@ export function applyIntent(room: RoomState, pid: string, it: Intent, now: numbe
     case 'leave':
       // 房主離開＝解散（對局中離開不解散：別人還在打，換下一位當房主，他的位子由電腦代打）
       if (me.host && (room.phase !== 'playing' || room.players.length === 1)) return { changed: true, left: true, closed: 'disbanded' }
+      // 對局還沒打完就離開：記住他，這一局打完前可以用房號加回原本的座位
+      if (room.phase === 'playing' && room.match && !room.match.over && room.match.seats.some((s) => s.pid === pid))
+        room.leftMid = [...(room.leftMid ?? []), { id: me.id, token: me.token }]
       removeMember(room, pid, now)
       syncCountdown(room, now)
       return { changed: true, left: true, closed: room.players.length ? undefined : 'empty' }
@@ -367,6 +402,7 @@ function removeMember(room: RoomState, pid: string, now: number) {
 function toLobby(room: RoomState, now: number) {
   room.phase = 'lobby'
   room.match = undefined
+  room.leftMid = undefined
   // 打完回到房間：重新計時「還在嗎」
   room.idleAt = now + IDLE_MS
 }

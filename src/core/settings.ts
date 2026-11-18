@@ -45,9 +45,10 @@ interface Stats {
   checkers: { wins: number; losses: number; draws: number }
   /** 星形跳棋：玩了幾局、拿第一幾次 */
   starcheckers: { games: number; firsts: number }
+  quoridor: { wins: number; losses: number; draws: number }
   /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
   recent: Record<string, string>
-  /** 牌類難度改成低／中／高的搬家記號（0＝還沒搬，舊存檔或新玩家都會跑一次） */
+  /** 一次性搬家記號（0＝還沒搬）：3＝牌類難度改成低／中／高；4＝大老二「玩到分出名次」改成預設開 */
   cardLevels: number
 }
 
@@ -67,6 +68,7 @@ const STATS_DEFAULT: Stats = {
   banqi: { wins: 0, losses: 0, draws: 0 },
   checkers: { wins: 0, losses: 0, draws: 0 },
   starcheckers: { games: 0, firsts: 0 },
+  quoridor: { wins: 0, losses: 0, draws: 0 },
   recent: {},
   cardLevels: 0,
 }
@@ -102,6 +104,14 @@ if (stats.cardLevels < 3) {
     else if (o?.difficulty === 'hard') o.difficulty = 'high'
   }
   stats.cardLevels = 3
+}
+// 大老二、瘋狂大老二的「玩到分出名次」改成預設開：以前存著的「關」清掉一次，照新的預設（之後自己再關就照自己的）
+if (stats.cardLevels < 4) {
+  for (const id of ['bigtwo', 'crazybigtwo']) {
+    const o = settings.games[id]?.options
+    if (o && o.playToRank === false) delete o.playToRank
+  }
+  stats.cardLevels = 4
 }
 if (stats.solitaire.best > 0 && !Object.keys(stats.solitaire.bestBy).length) stats.solitaire.bestBy.easy = stats.solitaire.best
 

@@ -389,3 +389,41 @@ describe('連線對局（伺服器當裁判）', () => {
   })
 })
 
+
+describe('大老二預設玩到分出名次', async () => {
+  const { MATCH_DEFS } = await import('./defs')
+  it('房主沒送「玩到分出名次」：開著；送了關就關', () => {
+    expect((MATCH_DEFS.bigtwo.deal(1, {}) as BigTwoState).options.playToRank).toBe(true)
+    expect((MATCH_DEFS.crazybigtwo.deal(1, {}) as BigTwoState).options.playToRank).toBe(true)
+    expect((MATCH_DEFS.bigtwo.deal(1, { playToRank: false }) as BigTwoState).options.playToRank).toBe(false)
+  })
+})
+
+describe('對局中離開又加回來', () => {
+  it('同一局還沒打完：帶著原本的編號與憑證加回來，回到原本的座位；憑證不對、打完了就不行', () => {
+    const { room, ids, m } = started('sevens', 2)
+    const t = runSome(room, T0 + COUNTDOWN_MS, 3)
+    const p1 = room.players.find((p) => p.id === ids[1])!
+    const token = p1.token
+    const seat = m.seats.findIndex((s) => s.pid === ids[1])
+    applyIntent(room, ids[1], { t: 'leave' }, t)
+    expect(room.players.some((p) => p.id === ids[1])).toBe(false)
+    // 沒帶、帶錯憑證：照舊「已經開始了」
+    expect(addMember(room, { name: 'X' }, t, rand)).toBe('started')
+    expect(addMember(room, { name: 'X' }, t, rand, { pid: ids[1], token: 'f'.repeat(48) })).toBe('started')
+    // 帶對的：回到原本的座位、還在對局裡
+    const back = addMember(room, { name: 'P1' }, t, rand, { pid: ids[1], token })
+    if (typeof back === 'string') throw new Error(back)
+    expect(back.id).toBe(ids[1])
+    expect(back.inGame).toBe(true)
+    expect(m.seats[seat].pid).toBe(ids[1])
+    // 再離開一次：一樣記下來，還能再加回來
+    applyIntent(room, ids[1], { t: 'leave' }, t)
+    const again = addMember(room, { name: 'P1' }, t, rand, { pid: ids[1], token })
+    expect(typeof again).not.toBe('string')
+    // 打完了：不能再加回來
+    applyIntent(room, ids[1], { t: 'leave' }, t)
+    runToEnd(room, t)
+    expect(addMember(room, { name: 'P1' }, t, rand, { pid: ids[1], token })).toBe('started')
+  })
+})

@@ -616,7 +616,7 @@ const resultLine = computed(() => {
       <template #actions>
         <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
         <RematchBtn v-else tone="red" />
-        <Btn icon="exit" @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn icon="exit" @click="emit('exit')">{{ bn ? S.online.backRoom : S.common.quit }}</Btn>
       </template>
     </Dialog>
   </section>

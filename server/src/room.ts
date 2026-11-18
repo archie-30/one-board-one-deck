@@ -6,7 +6,7 @@ import { json } from './directory'
 import type { Env } from './env'
 import { Bucket } from './limits'
 import { entryFor, matchIntro, playerAct, type LogEntry } from './match/run'
-import { addMember, applyIntent, connect, createRoomState, disconnect, nextWake, parseMessage, parseProfile, sameToken, tick, viewFor, type CloseReason, type RoomState } from './roomCore'
+import { addMember, applyIntent, connect, createRoomState, disconnect, nextWake, parseMessage, parseProfile, parseRejoin, sameToken, tick, viewFor, type CloseReason, type RoomState } from './roomCore'
 
 const hex = (bytes: number) => [...crypto.getRandomValues(new Uint8Array(bytes))].map((b) => b.toString(16).padStart(2, '0')).join('')
 
@@ -42,7 +42,7 @@ export class Room extends DurableObject<Env> {
       this.ctx.acceptWebSocket(pair[1])
       return new Response(null, { status: 101, webSocket: pair[0] })
     }
-    const body = (await req.json().catch(() => null)) as { code?: string; profile?: unknown } | null
+    const body = (await req.json().catch(() => null)) as { code?: string; profile?: unknown; rejoin?: unknown } | null
     const profile = parseProfile(body?.profile)
     if (!profile) return json({ error: 'format' }, 400)
     if (url.pathname === '/init') {
@@ -54,7 +54,7 @@ export class Room extends DurableObject<Env> {
     }
     if (url.pathname === '/join') {
       if (!this.room) return json({ error: 'notFound' }, 404)
-      const m = addMember(this.room, profile, now, hex)
+      const m = addMember(this.room, profile, now, hex, parseRejoin(body?.rejoin))
       if (typeof m === 'string') return json({ error: m }, 409)
       await this.save()
       this.broadcast()

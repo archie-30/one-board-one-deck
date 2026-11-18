@@ -20,7 +20,7 @@ export class Directory extends DurableObject<Env> {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url)
-    const body = (await req.json().catch(() => null)) as { ip?: string; code?: string; profile?: unknown } | null
+    const body = (await req.json().catch(() => null)) as { ip?: string; code?: string; profile?: unknown; rejoin?: unknown } | null
     if (!body) return json({ error: 'format' }, 400)
     const now = Date.now()
     const ip = body.ip ?? 'unknown'
@@ -56,7 +56,7 @@ export class Directory extends DurableObject<Env> {
         this.fails.hit(ip, now)
         return json({ error: 'notFound' }, 404)
       }
-      const res = await this.room(code).fetch('https://room/join', { method: 'POST', body: JSON.stringify({ profile: body.profile }) })
+      const res = await this.room(code).fetch('https://room/join', { method: 'POST', body: JSON.stringify({ profile: body.profile, rejoin: body.rejoin }) })
       if (res.status === 404) {
         // 房號簿有、房間其實已經關了：順手清掉
         await this.ctx.storage.delete(key(code))
