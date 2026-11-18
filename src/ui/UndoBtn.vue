@@ -12,8 +12,10 @@ import Btn from './Btn.vue'
 const ANSWER_MS = 10_000
 
 const props = defineProps<{ disabled: boolean; used: boolean; waiting?: boolean; asked?: boolean; block?: boolean }>()
-const emit = defineEmits<{ undo: []; answer: [ok: boolean] }>()
+const emit = defineEmits<{ undo: []; answer: [ok: boolean]; armed: [on: boolean] }>()
 const armed = ref(false)
+// 「再按一次悔棋」的時候告訴外面（例如步步為營：悔棋暫時變寬、旁邊的認輸先藏起來）
+watch(armed, (on) => emit('armed', on))
 let timer = 0
 function press() {
   if (!armed.value) {

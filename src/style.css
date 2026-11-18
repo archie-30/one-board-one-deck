@@ -57,6 +57,13 @@ html.avoid-cutout {
   --cut-b: env(safe-area-inset-bottom, 0px);
   --cut-l: env(safe-area-inset-left, 0px);
 }
+/* 手機橫拿時鏡頭在左右兩邊；有些手機、瀏覽器不告訴網頁鏡頭在哪（回報 0），左右至少再留 26px，接龍左邊的牌堆才不會被擋到 */
+@media (pointer: coarse) {
+  html.avoid-cutout {
+    --cut-r: max(env(safe-area-inset-right, 0px), 26px);
+    --cut-l: max(env(safe-area-inset-left, 0px), 26px);
+  }
+}
 
 html,
 body,
