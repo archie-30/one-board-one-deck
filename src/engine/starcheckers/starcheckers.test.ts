@@ -119,3 +119,23 @@ describe('星形跳棋電腦', () => {
     expect(midFirst).toBeGreaterThanOrEqual(4)
   }, 120000)
 })
+
+describe('星形跳棋：一步一步跳', () => {
+  it('還沒動：旁邊空格＋跳一次；跳過了只能再跳；走了一格就不能再動', async () => {
+    const { nextHops, validPath } = await import('./rules')
+    const s = empty({ longJump: false })
+    put(s, 0, 2, 1)
+    put(s, 0, 1, 2)
+    put(s, 0, -1, 3)
+    const a = cellAt(0, 2)
+    const first = nextHops(s, [a])
+    expect(first).toContain(cellAt(0, 0)) // 跳
+    expect(first).toContain(cellAt(1, 2)) // 走一格
+    expect(nextHops(s, [a, cellAt(0, 0)])).toEqual([cellAt(0, -2)])
+    expect(nextHops(s, [a, cellAt(1, 2)])).toEqual([])
+    // 繞遠路也合法（不一定是最短的那條）
+    expect(validPath(s, [a, cellAt(0, 0), cellAt(0, -2)])).toBe(true)
+    expect(validPath(s, [a, cellAt(0, 0), cellAt(0, 2)])).toBe(false) // 回到走過的格子
+    expect(validPath(s, [a, cellAt(1, 2), cellAt(1, 1)])).toBe(false) // 走一格之後不能再動
+  })
+})

@@ -105,7 +105,7 @@ export function createStar(options: Partial<StarOptions> = {}, first = 0): StarS
 const step = (i: number, d: number, k = 1) => cellAt(CELLS[i].q + DIRS[d][0] * k, CELLS[i].r + DIRS[d][1] * k)
 
 /** 從 i 跳一次能落在哪些格（from 這一格當作空的） */
-function jumpsFrom(board: readonly number[], i: number, from: number, long: boolean): number[] {
+export function jumpsFrom(board: readonly number[], i: number, from: number, long: boolean): number[] {
   const out: number[] = []
   const empty = (c: number) => c >= 0 && (c === from || board[c] === 0)
   for (let d = 0; d < 6; d++) {
@@ -132,6 +132,37 @@ function jumpsFrom(board: readonly number[], i: number, from: number, long: bool
     if (ok && land >= 0 && empty(land)) out.push(land)
   }
   return out
+}
+
+/**
+ * 一步一步跳的時候：彈珠從 from 出發、已經走了 path（path[0] = from），下一格能去哪。
+ * 還沒動：旁邊的空格＋跳一次的落點；跳過了：只能再跳（不能回到走過的格子）；走了一格：不能再動。
+ */
+export function nextHops(s: StarState, path: readonly number[]): number[] {
+  const from = path[0]
+  const at = path[path.length - 1]
+  const jumps = jumpsFrom(s.board, at, from, s.options.longJump).filter((c) => !path.includes(c))
+  if (path.length === 1) {
+    const steps: number[] = []
+    for (let d = 0; d < 6; d++) {
+      const n = step(from, d)
+      if (n >= 0 && s.board[n] === 0) steps.push(n)
+    }
+    return [...steps, ...jumps.filter((c) => !steps.includes(c))]
+  }
+  // 走了一格（不是跳）：這一步只能停在那裡
+  if (path.length === 2 && isStep(path[0], path[1])) return []
+  return jumps
+}
+const isStep = (a: number, b: number) => hexDistance(CELLS[a], CELLS[b]) === 1
+
+/** 這條路線合不合法：走一格，或一路跳（每一跳都合規則、不回到走過的格子） */
+export function validPath(s: StarState, path: readonly number[]): boolean {
+  if (path.length < 2 || s.board[path[0]] !== s.turn + 1) return false
+  if (new Set(path).size !== path.length) return false
+  if (path.length === 2 && isStep(path[0], path[1])) return s.board[path[1]] === 0
+  for (let k = 1; k < path.length; k++) if (!jumpsFrom(s.board, path[k - 1], path[0], s.options.longJump).includes(path[k])) return false
+  return true
 }
 
 /** 一顆棋子能走的所有步（走一格、連跳停在任一個落點） */
@@ -207,8 +238,6 @@ function settle(s: StarState, advance = true): StarState {
   return next
 }
 
-const samePath = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, i) => v === b[i])
-
 export function applyStar(s: StarState, a: StarAction): Result<StarState, StarError> {
   if (s.over) return { ok: false, reason: 'over' }
   if (a.type === 'resign') {
@@ -217,8 +246,9 @@ export function applyStar(s: StarState, a: StarAction): Result<StarState, StarEr
   }
   if (a.type === 'timeout') return { ok: true, state: settle({ ...s, plies: s.plies + 1, last: null }) }
   if (a.path.length < 2 || s.board[a.path[0]] !== s.turn + 1) return { ok: false, reason: 'illegal' }
-  const move = movesFrom(s, a.path[0]).find((m) => samePath(m.path, a.path))
-  if (!move) return { ok: false, reason: 'illegal' }
+  // 任何一條合規則的路線都行（一步一步跳的人不一定走最短的那條）
+  if (!validPath(s, a.path)) return { ok: false, reason: 'illegal' }
+  const move: StarMove = { path: a.path.slice() }
   const board = s.board.slice()
   board[move.path[move.path.length - 1]] = board[move.path[0]]
   board[move.path[0]] = 0

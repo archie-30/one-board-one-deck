@@ -1,8 +1,10 @@
 <script setup lang="ts">
-// 星形跳棋棋盤：六角星 121 個洞，三個出發的角塗上各自的顏色、目的地的角塗淡一點。彈珠：藍、紅、黃。
+// 星形跳棋棋盤：六角星 121 個洞，六個角都塗上顏色（出發的角是那個人的顏色、目的地的角是要去那裡的人的顏色）。彈珠：藍、紅、黃。
 // view：從哪個座位看（整張棋盤轉到那個人在下面）。
-// 動畫：走一步時彈珠沿著路線一格一格跳過去（連跳就連著跳）；悔棋時倒著跳回去。
-// 純畫面：點哪一格就往外丟 pick(格子)，規則與輪到誰由外面決定。
+// 動畫：走一步時彈珠沿著路線一格一格跳過去（連跳就連著跳）；悔棋、取消移動時倒著跳回去。
+//   anim：外面指定要播的路線（一步一步跳時每跳一格播一次）；slow：電腦走的，跳慢一點讓人看清楚。
+// 操作：點彈珠、點能去的地方就往外丟 pick(格子)；也可以按住自己的彈珠拖到能去的地方放開（drop），放在別處就回原位。
+// 規則與輪到誰由外面決定。
 import { computed, nextTick, ref, watch } from 'vue'
 import { reducedMotion } from '@/core/motion'
 import { CELLS, CORNER_CELLS, HOMES, targetOf } from '@/engine/starcheckers/rules'
@@ -22,8 +24,12 @@ const props = defineProps<{
   interactive?: boolean
   /** 教學：要亮起來的洞 */
   hints?: readonly number[]
+  /** 要播的一段跳的動畫（key 換了就播；slow：電腦走的，慢一點） */
+  anim?: { key: number; path: number[]; slow?: boolean } | null
+  /** 這一格的彈珠能不能拖 */
+  canDrag?: ((i: number) => boolean) | null
 }>()
-const emit = defineEmits<{ pick: [i: number] }>()
+const emit = defineEmits<{ pick: [i: number]; drop: [from: number, to: number] }>()
 
 const R = 10
 const px = (i: number) => {
@@ -57,6 +63,57 @@ function hopFrames(path: number[]) {
   return frames
 }
 const marbleEl = (i: number) => root.value?.querySelector<SVGGElement>(`[data-m="${i}"]`)
+/** 一格跳多久（毫秒）；電腦走的慢一點 */
+const hopMs = (slow?: boolean) => (slow ? 360 : 170)
+watch(
+  () => props.anim?.key,
+  async () => {
+    const a = props.anim
+    if (!a || a.path.length < 2 || reducedMotion()) return
+    skipKey = props.moveKey ?? NaN
+    await nextTick()
+    marbleEl(a.path[a.path.length - 1])?.animate(hopFrames(a.path), { duration: 120 + (a.path.length - 1) * hopMs(a.slow), easing: 'cubic-bezier(.33,0,.25,1)' })
+  },
+)
+
+// ── 拖曳 ──
+const layer = ref<SVGGElement>()
+/** 拖著的彈珠：從哪一格、現在在哪（棋盤座標）、顏色 */
+const drag = ref<{ from: number; x: number; y: number; v: number; moved: boolean } | null>(null)
+function toBoard(e: PointerEvent) {
+  const g = layer.value
+  const m = g?.getScreenCTM()
+  if (!g || !m) return { x: 0, y: 0 }
+  const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse())
+  return { x: p.x, y: p.y }
+}
+function down(i: number, e: PointerEvent) {
+  emit('pick', i)
+  if (!props.interactive || !props.canDrag?.(i)) return
+  const p = toBoard(e)
+  drag.value = { from: i, x: p.x, y: p.y, v: props.board[i], moved: false }
+  ;(e.currentTarget as Element).setPointerCapture?.(e.pointerId)
+}
+function move(e: PointerEvent) {
+  const d = drag.value
+  if (!d) return
+  const p = toBoard(e)
+  if (!d.moved && Math.hypot(p.x - pos[d.from].x, p.y - pos[d.from].y) < 5) return
+  drag.value = { ...d, x: p.x, y: p.y, moved: true }
+}
+function up() {
+  const d = drag.value
+  drag.value = null
+  if (!d?.moved) return
+  // 放在哪一格（最近的洞，要夠近）
+  let best = -1
+  let bd = 9
+  pos.forEach((q, i) => {
+    const dist = Math.hypot(q.x - d.x, q.y - d.y)
+    if (dist < bd) ((bd = dist), (best = i))
+  })
+  if (best >= 0 && best !== d.from) emit('drop', d.from, best)
+}
 let skipKey = NaN
 watch(
   () => props.rewind?.key,
@@ -86,14 +143,14 @@ watch(
 
 <template>
   <svg ref="root" viewBox="-118 -132 236 264" class="star" :class="{ live: interactive }" @pointerleave="hover = -1">
-    <g :transform="`rotate(${rot})`">
+    <g ref="layer" :transform="`rotate(${rot})`">
       <!-- 星星底色 -->
       <g class="base">
         <circle v-for="(p, i) in pos" :key="`b${i}`" :cx="p.x" :cy="p.y" r="9.2" />
       </g>
       <!-- 角：出發的角塗座位的顏色，目的地的角塗淡一點 -->
       <g>
-        <circle v-for="(p, i) in pos" :key="`c${i}`" :cx="p.x" :cy="p.y" r="8.6" class="tint" :style="{ fill: cornerOf.has(i) ? COLORS[cornerOf.get(i)!] : targetOfCell.has(i) ? COLORS[targetOfCell.get(i)!] : 'transparent', opacity: cornerOf.has(i) ? 0.22 : 0.12 }" />
+        <circle v-for="(p, i) in pos" :key="`c${i}`" :cx="p.x" :cy="p.y" r="8.6" class="tint" :style="{ fill: cornerOf.has(i) ? COLORS[cornerOf.get(i)!] : targetOfCell.has(i) ? COLORS[targetOfCell.get(i)!] : 'transparent', opacity: cornerOf.has(i) ? 0.34 : 0.3 }" />
       </g>
       <!-- 洞 -->
       <g>
@@ -105,7 +162,18 @@ watch(
       </g>
       <!-- 彈珠 -->
       <g>
-        <g v-for="(v, i) in board" :key="`m${i}-${v}`" :data-m="v ? i : -1" class="marble" :class="{ sel: selected === i }" :style="{ display: v ? undefined : 'none' }" @click="emit('pick', i)">
+        <g
+          v-for="(v, i) in board"
+          :key="`m${i}-${v}`"
+          :data-m="v ? i : -1"
+          class="marble"
+          :class="{ sel: selected === i, lifted: drag?.moved && drag.from === i }"
+          :style="{ display: v ? undefined : 'none' }"
+          @pointerdown="(e) => down(i, e)"
+          @pointermove="move"
+          @pointerup="up"
+          @pointercancel="drag = null"
+        >
           <template v-if="v">
             <circle :cx="pos[i].x + 0.9" :cy="pos[i].y + 1.1" r="7.2" fill="var(--color-ink)" />
             <circle :cx="pos[i].x" :cy="pos[i].y" r="7.2" :style="{ fill: COLORS[v - 1] }" stroke="var(--color-ink)" stroke-width="1.3" />
@@ -118,6 +186,12 @@ watch(
       <g v-for="i in targets ?? []" :key="`t${i}`" @click="emit('pick', i)">
         <circle :cx="pos[i].x" :cy="pos[i].y" r="8.5" class="hit" />
         <circle :cx="pos[i].x" :cy="pos[i].y" :r="hover === i ? 6.5 : 3.6" class="dot" :class="{ on: hover === i }" />
+      </g>
+      <!-- 拖著的彈珠：跟著手指、稍微放大 -->
+      <g v-if="drag?.moved" class="dragging">
+        <circle :cx="drag.x + 1.2" :cy="drag.y + 1.6" r="8.2" fill="var(--color-ink)" opacity="0.5" />
+        <circle :cx="drag.x" :cy="drag.y" r="8.2" :style="{ fill: COLORS[drag.v - 1] }" stroke="var(--color-ink)" stroke-width="1.4" />
+        <circle :cx="drag.x - 2.4" :cy="drag.y - 2.6" r="2.2" fill="var(--color-card)" opacity="0.75" />
       </g>
     </g>
   </svg>
@@ -165,6 +239,14 @@ watch(
 .marble {
   transform-box: fill-box;
   transform-origin: center;
+  touch-action: none;
+}
+/* 拖起來的那顆：原位只留淡淡的影子 */
+.marble.lifted {
+  opacity: 0.25;
+}
+.dragging {
+  pointer-events: none;
 }
 .ring {
   fill: none;

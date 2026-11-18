@@ -6,6 +6,7 @@ import type { BigTwoState } from '../../../src/engine/bigtwo/game'
 import type { SevensState } from '../../../src/engine/sevens/rules'
 import type { RedPointState } from '../../../src/engine/redpoint/rules'
 import { legalMoves, type OthelloState } from '../../../src/engine/othello/rules'
+import { legalMoves as starMoves, type StarState } from '../../../src/engine/starcheckers/rules'
 
 let n = 0
 const rand = (bytes: number) => (n++).toString(16).padStart(bytes * 2, '0')
@@ -360,6 +361,31 @@ describe('連線對局（伺服器當裁判）', () => {
     expect(m.over).toBe(false)
     // 不合法的路線不收
     expect(playerAct(room, ids[0], { type: 'move', path: [0, 999] }, t)).toEqual([])
+  })
+
+  it('星形跳棋悔棋：另外兩個真人都同意才悔；一個不同意就算了', () => {
+    const { room, ids, m } = started('starcheckers', 3)
+    const t = T0 + COUNTDOWN_MS + 6000
+    // 0 號走一步（找一個能走的）
+    playerAct(room, ids[0], { type: 'move', path: starMoves(m.s as StarState).find((x) => x.path.length === 2)!.path }, t)
+    expect(m.acts).toHaveLength(1)
+    expect(playerAct(room, ids[0], { type: 'undo' }, t)[0].pub).toEqual({ type: 'undoAsk', by: 0 })
+    // 1 號同意：還要等 2 號
+    expect(playerAct(room, ids[1], { type: 'undoReply', ok: true }, t)[0].pub).toEqual({ type: 'undoOk', seat: 1 })
+    expect(m.acts).toHaveLength(1)
+    // 2 號也同意：悔了
+    expect(playerAct(room, ids[2], { type: 'undoReply', ok: true }, t)[0].pub).toMatchObject({ type: 'undo', by: 0 })
+    expect(m.acts).toHaveLength(0)
+  })
+
+  it('星形跳棋悔棋：有一個人不同意就不悔', () => {
+    const { room, ids, m } = started('starcheckers', 3)
+    const t = T0 + COUNTDOWN_MS + 6000
+    playerAct(room, ids[0], { type: 'move', path: starMoves(m.s as StarState).find((x) => x.path.length === 2)!.path }, t)
+    playerAct(room, ids[0], { type: 'undo' }, t)
+    playerAct(room, ids[1], { type: 'undoReply', ok: true }, t)
+    expect(playerAct(room, ids[2], { type: 'undoReply', ok: false }, t)[0].pub).toEqual({ type: 'undoNo', by: 0 })
+    expect(m.acts).toHaveLength(1)
   })
 })
 

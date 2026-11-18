@@ -210,7 +210,7 @@ function scheduleCpu() {
       moods.value = [moods.value[0], 'idle']
       if (m) commit(m.path, 1)
     },
-    500 + Math.min(st.depth, 6) * 140 + extraThink(level) + Math.random() * 400,
+    1100 + Math.min(st.depth, 6) * 140 + extraThink(level) + Math.random() * 500,
   )
 }
 
@@ -433,7 +433,6 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         </template>
         <template v-else>
           <UndoBtn v-if="!watching" block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" />
-          <Btn v-if="!watching" class="mt-[0.5rem]" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
         </template>
       </div>
     </aside>

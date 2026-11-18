@@ -1,8 +1,11 @@
 <script setup lang="ts">
 // 星形跳棋對局（3 人）：你在下面，左上、右上各一位對手（照順時針輪流）。中間一張六角星棋盤。
-// 操作：點自己的彈珠 → 能去的地方出現圓點（連跳可以一口氣跳很遠）→ 點那裡走過去。
+// 操作（預設一步一步跳）：點自己的彈珠 → 旁邊的空格和「跳一次」能到的地方出現圓點 → 點那裡跳過去 →
+//   跳完再顯示下一跳能到哪 → 右下角按「結束」才算走完；結束前可以按「取消移動」，彈珠沿原路跳回去，可以換一顆走（照樣在計時）。
+//   規則設定「一次顯示所有落點」打開時：點彈珠就看到連跳能到的所有地方，點哪裡就一口氣跳過去。
+//   也可以按住自己的彈珠拖到能去的地方放開。
 // 玩到分出名次：有人到齊就標名次，剩下的人繼續下，直到第二個人也到齊。
-// 悔棋（單人）每局一次：彈珠沿原路跳回去，電腦接著走的也一起退。連線對局沒有悔棋（要另外兩個人都同意，先不做）。
+// 悔棋每局一次：彈珠沿原路跳回去，別人接著走的也一起退；連線時要另外兩個人都同意（電腦直接同意）。
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
@@ -15,7 +18,7 @@ import { TURN_SECONDS } from '@/data/timer'
 import { asLevel, extraThink, starAt } from '@/engine/common/difficulty'
 import { nextInt, seedRng, type RngState } from '@/engine/common/rng'
 import { chooseStarMove } from '@/engine/starcheckers/ai'
-import { applyStar, createStar, movesFrom, remaining, type StarState } from '@/engine/starcheckers/rules'
+import { applyStar, createStar, movesFrom, nextHops, remaining, type StarState } from '@/engine/starcheckers/rules'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
 import type { Mood } from '@/ui/art/look'
@@ -82,6 +85,28 @@ const rewinding = ref(false)
 const moods = ref<Mood[]>(['idle', 'idle', 'idle'])
 const undoUsed = ref(saved?.undoUsed ?? false)
 const last = shallowRef<number[] | null>(null)
+/** 規則設定「一次顯示所有落點」（只影響自己的畫面，可以當場改） */
+const allAtOnce = computed(() => props.options.allAtOnce === true)
+/** 一步一步跳：正在走的那顆的路線（還沒按「結束」） */
+const moving = ref<number[] | null>(null)
+/** 要播的跳的動畫（電腦、別人走的慢一點） */
+const anim = ref<{ key: number; path: number[]; slow?: boolean } | null>(null)
+const hopMs = (slow: boolean) => (slow ? 360 : 170)
+function play(path: number[], slow: boolean) {
+  anim.value = { key: (anim.value?.key ?? 0) + 1, path, slow }
+}
+/** 畫面上的棋盤：一步一步跳時，走到一半的那顆畫在現在的位置 */
+const shown = computed(() => {
+  const p = moving.value
+  if (!p || p.length < 2) return state.value.board
+  const b = state.value.board.slice()
+  b[p[p.length - 1]] = b[p[0]]
+  b[p[0]] = 0
+  return b
+})
+/** 連線悔棋：在等別人同意、別人在問你、用過了 */
+const undoWaiting = ref(false)
+const undoAsked = ref(false)
 const rewind = ref<{ key: number; paths: number[][] } | null>(null)
 /** 每一步之前的局面、誰走的、走了哪裡（悔棋倒帶用） */
 const hist: { state: StarState; seat: number; path: number[] | null }[] = []
@@ -100,7 +125,14 @@ onBeforeUnmount(() => {
 })
 
 const myTurn = computed(() => !watching && phase.value === 'playing' && !thinking.value && !rewinding.value && !sending.value && state.value.turn === me && !state.value.over)
-const targets = computed(() => (myTurn.value && selected.value >= 0 ? movesFrom(state.value, selected.value).map((m) => m.path[m.path.length - 1]) : []))
+const targets = computed(() => {
+  if (!myTurn.value) return []
+  if (moving.value) return nextHops(state.value, moving.value)
+  if (selected.value < 0) return []
+  return allAtOnce.value ? movesFrom(state.value, selected.value).map((m) => m.path[m.path.length - 1]) : nextHops(state.value, [selected.value])
+})
+/** 能拖的彈珠：還沒動時是自己的每一顆；走到一半時只有那一顆 */
+const canDrag = (i: number) => myTurn.value && (moving.value ? i === moving.value[moving.value.length - 1] : state.value.board[i] === me + 1)
 const placeOf = (seat: number) => (state.value.out.includes(seat) ? state.value.out.indexOf(seat) + 1 : 0)
 const side = (seat: number) => (['bottom', 'left', 'right'] as const)[local(seat)]
 const status = computed(() => {
@@ -129,7 +161,7 @@ function flash(seat: number, mood: Mood, ms = 1200) {
 
 // ── 流程 ──
 /** 走一步（seat：伺服器座位） */
-function commit(path: number[], seat: number): boolean {
+function commit(path: number[], seat: number, animate = true): boolean {
   const before = state.value
   const r = applyStar(before, { type: 'move', path })
   if (!r.ok) {
@@ -143,6 +175,8 @@ function commit(path: number[], seat: number): boolean {
   state.value = r.state
   selected.value = -1
   message.value = ''
+  // 自己一步一步跳過來的已經播過了；別人走的跳慢一點，看得清楚怎麼跳
+  if (animate) play(path, seat !== me)
   playSound(path.length > 2 ? 'stonePick' : 'stone')
   afterMove(before)
   return true
@@ -156,7 +190,7 @@ function afterMove(before: StarState) {
     message.value = seat === me && !watching ? T.youArrived(s.out.indexOf(seat) + 1) : T.arrived(nameOf(seat), s.out.indexOf(seat) + 1)
   }
   if (s.over) return finish()
-  if (!net) later(nextTurn, 420 + (last.value?.length ?? 2) * 150)
+  if (!net) later(nextTurn, 500 + ((last.value?.length ?? 2) - 1) * hopMs(s.turn === me))
 }
 function nextTurn() {
   const s = state.value
@@ -179,7 +213,7 @@ function nextTurn() {
       if (m) commit(m.path, seat)
       else timeoutTurn()
     },
-    (700 + extraThink(level) * 0.6 + Math.random() * 500) * fast,
+    (1300 + extraThink(level) * 0.6 + Math.random() * 600) * fast,
   )
 }
 /** 這一步跳過（時間到；電腦沒步可走） */
@@ -193,6 +227,8 @@ function timeoutTurn() {
 }
 function onTimeout() {
   if (net || !myTurn.value) return
+  // 走到一半時間到：那顆放回原位
+  moving.value = null
   acted.value = true
   selected.value = -1
   playSound('error')
@@ -228,6 +264,7 @@ function restart() {
   state.value = createStar(opts, firstSeat())
   hist.length = 0
   last.value = null
+  moving.value = null
   selected.value = -1
   thinking.value = false
   moods.value = ['idle', 'idle', 'idle']
@@ -241,10 +278,15 @@ function restart() {
 // ── 你的操作 ──
 function pick(i: number) {
   if (!myTurn.value) return
+  // 走到一半：只能接著跳（或按結束、取消移動）
+  if (moving.value) {
+    if (targets.value.includes(i)) hop(i)
+    return
+  }
   if (state.value.board[i] === me + 1) {
-    selected.value = selected.value === i ? -1 : i
+    if (selected.value !== i) playSound('piecePick')
+    selected.value = i
     message.value = ''
-    playSound('piecePick')
     return
   }
   if (selected.value < 0) return
@@ -252,33 +294,84 @@ function pick(i: number) {
     selected.value = -1
     return
   }
-  // 好幾條路到同一格：選最短的（動畫比較乾脆）
-  const m = movesFrom(state.value, selected.value)
-    .filter((x) => x.path[x.path.length - 1] === i)
-    .sort((a, b) => a.path.length - b.path.length)[0]
-  mine(m.path)
+  if (allAtOnce.value) {
+    // 好幾條路到同一格：選最短的（動畫比較乾脆）
+    const m = movesFrom(state.value, selected.value)
+      .filter((x) => x.path[x.path.length - 1] === i)
+      .sort((a, b) => a.path.length - b.path.length)[0]
+    return mine(m.path)
+  }
+  moving.value = [selected.value]
+  hop(i)
 }
+/** 一步一步跳：跳到下一格 */
+function hop(i: number) {
+  const p = moving.value!
+  const prev = p[p.length - 1]
+  moving.value = [...p, i]
+  selected.value = i
+  play([prev, i], false)
+  playSound(p.length > 1 || nextHops(state.value, [p[0]]).includes(i) ? 'stonePick' : 'stone')
+}
+/** 拖到哪一格放開：能去就走過去 */
+function drop(from: number, to: number) {
+  if (!myTurn.value) return
+  if (moving.value ? from !== moving.value[moving.value.length - 1] : state.value.board[from] !== me + 1) return
+  if (!moving.value) selected.value = from
+  if (targets.value.includes(to)) pick(to)
+}
+/** 按「結束」：這一步走完 */
+function endMove() {
+  const p = moving.value
+  if (!p || p.length < 2 || !myTurn.value) return
+  if (!net) {
+    moving.value = null
+    commit(p, me, false)
+    return
+  }
+  mine(p)
+}
+/** 按「取消移動」：彈珠沿原路跳回去，可以換一顆走 */
+function cancelMove() {
+  const p = moving.value
+  if (!p) return
+  moving.value = null
+  selected.value = -1
+  if (p.length > 1) play(p.slice().reverse(), false)
+  playSound('piecePick')
+}
+/** 自己送出去、還沒等到伺服器送回來的路線（一步一步跳的已經播過動畫，送回來時不再播） */
+let sentPath: number[] | null = null
 function mine(path: number[]) {
   if (!net) return void commit(path, me)
   if (sending.value || !applyStar(state.value, { type: 'move', path }).ok) return
   acted.value = true
   selected.value = -1
   sending.value = true
+  sentPath = moving.value ? path : null
   sendAct({ type: 'move', path, player: me })
 }
 
-// ── 悔棋（單人） ──
+// ── 悔棋 ──
 const canUndo = computed(() => {
   void state.value
-  return !net && phase.value === 'playing' && !rewinding.value && !undoUsed.value && hist.some((h) => h.seat === me && h.path)
+  return !watching && phase.value === 'playing' && !rewinding.value && !moving.value && !undoUsed.value && !undoWaiting.value && hist.some((h) => h.seat === me && h.path)
 })
 function undo() {
   if (!canUndo.value) return
+  // 連線：送出申請，等另外兩個人同意
+  if (net) return void sendAct({ type: 'undo' })
   timers.forEach((t) => window.clearTimeout(t))
   timers.clear()
   thinking.value = false
   undoUsed.value = true
-  const k = hist.map((h) => h.seat).lastIndexOf(me)
+  revertSeat(me)
+}
+/** 退回到 seat 上一手之前（中間別人走的一起退；彈珠沿原路跳回去） */
+function revertSeat(seat: number) {
+  const k = hist.map((h) => h.seat).lastIndexOf(seat)
+  if (k < 0) return
+  moving.value = null
   const target = hist[k].state
   const paths = hist
     .splice(k)
@@ -294,6 +387,10 @@ function undo() {
   playSound('piecePick')
   rewinding.value = true
   window.setTimeout(() => (rewinding.value = false), 260 + Math.max(0, ...paths.map((p) => p.length)) * 150)
+}
+function answerUndo(ok: boolean) {
+  undoAsked.value = false
+  sendAct({ type: 'undoReply', ok })
 }
 
 function resign() {
@@ -325,6 +422,7 @@ if (net) {
   }
   net.onReject = () => {
     sending.value = false
+    sentPath = null
     playSound('error')
   }
 }
@@ -341,11 +439,33 @@ function pump() {
     finish()
     return pump()
   }
-  const ev = e.ev as { type: string; player: number; path?: number[] }
+  const ev = e.ev as { type: string; player: number; path?: number[]; by?: number }
   if (ev.player === me) sending.value = false
   if (ev.type === 'move' && ev.path) {
-    commit(ev.path, ev.player)
-    return void later(pump, 380 + ev.path.length * 150)
+    // 自己一步一步跳過來的：已經播過了，不再播
+    const mineLocal = ev.player === me && !!sentPath && sentPath.join() === ev.path.join()
+    sentPath = null
+    if (ev.player === me) moving.value = null
+    commit(ev.path, ev.player, !mineLocal)
+    return void later(pump, mineLocal ? 200 : 300 + (ev.path.length - 1) * hopMs(ev.player !== me))
+  }
+  // 悔棋：申請、有人同意、有人不同意、悔了
+  if (ev.type === 'undoAsk') {
+    if (ev.by === me) undoWaiting.value = true
+    else if (!watching) undoAsked.value = true
+    return pump()
+  }
+  if (ev.type === 'undoOk') return pump()
+  if (ev.type === 'undoNo') {
+    undoAsked.value = false
+    if (ev.by === me) ((undoWaiting.value = false), (message.value = T.undoNo))
+    return pump()
+  }
+  if (ev.type === 'undo') {
+    undoAsked.value = false
+    if (ev.by === me) ((undoWaiting.value = false), (undoUsed.value = true))
+    revertSeat(ev.by!)
+    return void later(pump, 600)
   }
   if (ev.type === 'resign') {
     const r = applyStar(state.value, { type: 'resign', seat: ev.player })
@@ -357,8 +477,8 @@ function pump() {
     }
     return pump()
   }
-  // 時間到
-  if (ev.player === me) ((message.value = S.common.timedOut), playSound('error'))
+  // 時間到（走到一半的那顆放回原位）
+  if (ev.player === me) ((moving.value = null), (message.value = S.common.timedOut), playSound('error'))
   timeoutTurn()
   pump()
 }
@@ -405,7 +525,7 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
     </aside>
 
     <div class="board-wrap">
-      <StarBoard :board="state.board" :view="me" :selected="selected" :targets="targets" :last="last" :move-key="state.plies" :rewind="rewind" :interactive="myTurn" @pick="pick" />
+      <StarBoard :board="shown" :view="me" :selected="selected" :targets="targets" :last="moving ?? last" :anim="anim" :rewind="rewind" :interactive="myTurn" :can-drag="canDrag" @pick="pick" @drop="drop" />
     </div>
 
     <aside class="side right">
@@ -418,7 +538,7 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
       <div class="status-box">
         <p class="t-slab moves">{{ String(state.plies).padStart(3, '0') }}</p>
         <p class="status" :class="{ mine: myTurn && !message, warn: !!message }">{{ status }}</p>
-        <p class="hint">{{ myTurn && !message ? T.pickHint : '' }}</p>
+        <p class="hint">{{ myTurn && !message ? (moving ? (targets.length ? T.stepHint : T.endHint) : T.pickHint) : '' }}</p>
       </div>
       <div class="act">
         <template v-if="phase === 'over'">
@@ -429,9 +549,13 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
             <Btn size="sm" block @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
           </div>
         </template>
+        <!-- 一步一步跳：走到一半時右下角是「結束」＋「取消移動」 -->
+        <template v-else-if="moving && !watching">
+          <Btn class="pop" tone="red" size="lg" icon="check" block :disabled="moving.length < 2 || sending" @click="endMove">{{ T.endMove }}</Btn>
+          <Btn class="mt-[0.5rem] pop" size="sm" icon="back" block :disabled="sending" @click="cancelMove">{{ T.cancelMove }}</Btn>
+        </template>
         <template v-else-if="!watching">
-          <UndoBtn v-if="!net" block :disabled="!canUndo" :used="undoUsed" @undo="undo" />
-          <Btn :class="{ 'mt-[0.5rem]': !net }" size="sm" icon="exit" block :disabled="phase !== 'playing' || state.gaveUp.includes(me) || state.out.includes(me)" @click="resignOpen = true">{{ T.resign }}</Btn>
+          <UndoBtn block :disabled="!canUndo" :used="undoUsed" :waiting="undoWaiting" :asked="undoAsked" @answer="answerUndo" @undo="undo" />
         </template>
       </div>
     </aside>
