@@ -5,6 +5,7 @@
 //   anim：外面指定要播的路線（一步一步跳時每跳一格播一次）；slow：電腦走的，跳慢一點讓人看清楚。
 // 操作：點彈珠、點能去的地方就往外丟 pick(格子)；也可以按住自己的彈珠拖到能去的地方放開（drop），放在別處就回原位。
 // 規則與輪到誰由外面決定。
+import { pathMs, segLens } from './hop'
 import { computed, nextTick, ref, watch } from 'vue'
 import { reducedMotion } from '@/core/motion'
 import { CELLS, CORNER_CELLS, HOMES, targetOf } from '@/engine/starcheckers/rules'
@@ -47,24 +48,26 @@ const rot = computed(() => -120 * (props.view ?? 0))
 const hover = ref(-1)
 const root = ref<SVGSVGElement>()
 
-/** 沿著路線跳：位移是「從終點看」 */
+/** 沿著路線跳：位移是「從終點看」；每一段的時間照距離分，整條路線同一個速度 */
 function hopFrames(path: number[]) {
   const end = pos[path[path.length - 1]]
   const n = path.length - 1
+  const lens = segLens(path)
+  const total = lens.reduce((a, b) => a + b, 0) || 1
   const frames: Keyframe[] = []
+  let at = 0
   path.forEach((p, k) => {
     const d = pos[p]
-    frames.push({ transform: `translate(${d.x - end.x}px, ${d.y - end.y}px) scale(${k === 0 || k === n ? 1 : 1.15})`, offset: n ? k / n : 1 })
+    frames.push({ transform: `translate(${d.x - end.x}px, ${d.y - end.y}px) scale(${k === 0 || k === n ? 1 : 1.15})`, offset: n ? at / total : 1 })
     if (k < n) {
       const e = pos[path[k + 1]]
-      frames.push({ transform: `translate(${(d.x + e.x) / 2 - end.x}px, ${(d.y + e.y) / 2 - end.y}px) scale(1.3)`, offset: (k + 0.5) / n })
+      frames.push({ transform: `translate(${(d.x + e.x) / 2 - end.x}px, ${(d.y + e.y) / 2 - end.y}px) scale(1.3)`, offset: (at + lens[k] / 2) / total })
+      at += lens[k]
     }
   })
   return frames
 }
 const marbleEl = (i: number) => root.value?.querySelector<SVGGElement>(`[data-m="${i}"]`)
-/** 一格跳多久（毫秒）；電腦走的慢一點 */
-const hopMs = (slow?: boolean) => (slow ? 360 : 170)
 watch(
   () => props.anim?.key,
   async () => {
@@ -72,7 +75,7 @@ watch(
     if (!a || a.path.length < 2 || reducedMotion()) return
     skipKey = props.moveKey ?? NaN
     await nextTick()
-    marbleEl(a.path[a.path.length - 1])?.animate(hopFrames(a.path), { duration: 120 + (a.path.length - 1) * hopMs(a.slow), easing: 'cubic-bezier(.33,0,.25,1)' })
+    marbleEl(a.path[a.path.length - 1])?.animate(hopFrames(a.path), { duration: pathMs(a.path, a.slow), easing: 'linear' })
   },
 )
 
@@ -136,7 +139,7 @@ watch(
     const path = props.last
     if (!path || reducedMotion()) return
     await nextTick()
-    marbleEl(path[path.length - 1])?.animate(hopFrames(path), { duration: 200 + path.length * 150, easing: 'cubic-bezier(.22,1,.36,1)' })
+    marbleEl(path[path.length - 1])?.animate(hopFrames(path), { duration: pathMs(path, true), easing: 'linear' })
   },
 )
 </script>

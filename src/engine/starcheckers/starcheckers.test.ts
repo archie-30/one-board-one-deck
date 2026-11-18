@@ -118,6 +118,28 @@ describe('星形跳棋電腦', () => {
     expect(highFirst).toBeGreaterThanOrEqual(4)
     expect(midFirst).toBeGreaterThanOrEqual(4)
   }, 120000)
+
+  it('兩個電腦不會聯手：誰是另外兩個人對電腦的決定沒有影響（把另外兩人的彈珠對調，選的步完全一樣）', () => {
+    let s = createStar()
+    let rng = seedRng(7)
+    let checked = 0
+    for (let ply = 0; ply < 120 && !s.over; ply++) {
+      const level = (['low', 'mid', 'high', 'master'] as const)[ply % 4]
+      const st = starAt(PERSONAS[ply % 30].chess, level)
+      const me = s.turn
+      const [x, y] = [0, 1, 2].filter((k) => k !== me)
+      const swapped: StarState = { ...s, board: s.board.map((v) => (v === x + 1 ? y + 1 : v === y + 1 ? x + 1 : v)) }
+      const [m, r] = chooseStarMove(s, st, rng)
+      const [m2] = chooseStarMove(swapped, st, rng)
+      expect(m2?.path).toEqual(m?.path)
+      checked++
+      rng = r
+      const res = applyStar(s, m ? { type: 'move', path: m.path } : { type: 'timeout' })
+      if (!res.ok) throw new Error(res.reason)
+      s = res.state
+    }
+    expect(checked).toBeGreaterThan(60)
+  }, 60000)
 })
 
 describe('星形跳棋：一步一步跳', () => {

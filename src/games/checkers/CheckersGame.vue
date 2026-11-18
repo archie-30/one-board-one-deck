@@ -273,6 +273,19 @@ function pick(i: number) {
   const m = moves.value.filter((x) => x.path[0] === selected.value && x.path[x.path.length - 1] === i).sort((a, b) => b.captured.length - a.captured.length)[0]
   mine(m.path)
 }
+/** 拖曳：能走的子才拖得起來；拿起來時順便選起來（顯示能去的格子） */
+const canDrag = (i: number) => myTurn.value && moves.value.some((m) => m.path[0] === i)
+function grab(i: number) {
+  if (!canDrag(i) || selected.value === i) return
+  selected.value = i
+  message.value = ''
+  playSound('piecePick')
+}
+function drop(from: number, to: number) {
+  if (!canDrag(from)) return
+  selected.value = from
+  if (targets.value.includes(to)) pick(to)
+}
 /** 自己走一步：連線時送給伺服器（等它送回來才真的走），單人時直接走 */
 function mine(path: number[]) {
   if (!bn) return void commit(path, 0)
@@ -403,7 +416,10 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         :rewind="rewind"
         :hints="selected < 0 ? mustFrom : []"
         :interactive="myTurn"
+        :can-drag="watching ? null : canDrag"
         @pick="pick"
+        @grab="grab"
+        @drop="drop"
       />
     </div>
 

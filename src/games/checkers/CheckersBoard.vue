@@ -22,8 +22,49 @@ const props = defineProps<{
   interactive?: boolean
   /** 教學：要亮起來的格子 */
   hints?: readonly number[]
+  /** 哪些子可以按住拖（沒給就不能拖） */
+  canDrag?: ((i: number) => boolean) | null
 }>()
-const emit = defineEmits<{ pick: [i: number] }>()
+const emit = defineEmits<{ pick: [i: number]; grab: [i: number]; drop: [from: number, to: number] }>()
+
+// ── 拖曳：按住自己的子拖到目標格放開（手指移動 6px 以上才算拖，不然照樣是點） ──
+const drag = ref<{ from: number; id: number; x0: number; y0: number; dx: number; dy: number; moved: boolean } | null>(null)
+/** 剛拖完放開：吃掉接著來的那一下 click，免得又被當成點一下 */
+let swallow = false
+function down(i: number | false, e: PointerEvent) {
+  if (i === false || !props.interactive || !props.canDrag?.(i) || (e.pointerType === 'mouse' && e.button !== 0)) return
+  drag.value = { from: i, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, moved: false }
+}
+function move(e: PointerEvent) {
+  const d = drag.value
+  if (!d || e.pointerId !== d.id) return
+  const dx = e.clientX - d.x0
+  const dy = e.clientY - d.y0
+  if (!d.moved && Math.hypot(dx, dy) < 6) return
+  if (!d.moved) {
+    root.value?.setPointerCapture(e.pointerId)
+    emit('grab', d.from)
+  }
+  drag.value = { ...d, dx, dy, moved: true }
+}
+function up(e: PointerEvent) {
+  const d = drag.value
+  if (!d || e.pointerId !== d.id) return
+  drag.value = null
+  if (!d.moved) return
+  swallow = true
+  window.setTimeout(() => (swallow = false), 0)
+  const el = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('[data-i]')
+  const to = el ? Number(el.dataset.i) : -1
+  if (to >= 0 && to !== d.from) emit('drop', d.from, to)
+}
+function click(i: number | false) {
+  if (i !== false && !swallow) emit('pick', i)
+}
+const dragStyle = (i: number) => {
+  const d = drag.value
+  return d?.moved && d.from === i ? { transform: `translate(${d.dx}px, ${d.dy}px) scale(1.12)` } : undefined
+}
 
 const root = ref<HTMLElement>()
 /** 畫面上的第幾列、第幾行（翻轉時倒過來） */
@@ -95,7 +136,7 @@ const colorClass = (c: Cell) => (ownerOf(c) === 0 ? 'dark' : 'red')
 </script>
 
 <template>
-  <div ref="root" class="ck" @pointerleave="hover = -1">
+  <div ref="root" class="ck" :class="{ live: interactive && !!canDrag }" @pointerleave="hover = -1" @pointermove="move" @pointerup="up" @pointercancel="drag = null">
     <button
       v-for="(i, k) in cells"
       :key="k"
@@ -109,11 +150,12 @@ const colorClass = (c: Cell) => (ownerOf(c) === 0 ? 'dark' : 'red')
         hint: i !== false && hints?.includes(i),
         live: interactive,
       }"
-      @click="i !== false && emit('pick', i)"
+      @click="click(i)"
+      @pointerdown="(e) => down(i, e)"
       @pointerenter="(e) => e.pointerType === 'mouse' && i !== false && (hover = i)"
     >
       <template v-if="i !== false">
-        <span v-if="board[i]" :key="`${i}-${board[i]}`" class="pc" :class="[colorClass(board[i]), { pop: popping.includes(i) }]">
+        <span v-if="board[i]" :key="`${i}-${board[i]}`" class="pc" :class="[colorClass(board[i]), { pop: popping.includes(i), dragging: drag?.moved && drag.from === i }]" :style="dragStyle(i)">
           <svg viewBox="0 0 40 40" aria-hidden="true">
             <circle cx="21.2" cy="21.6" r="16" fill="var(--color-ink)" />
             <circle cx="20" cy="20" r="16" class="disc" stroke="var(--color-ink)" stroke-width="2.2" />
@@ -161,6 +203,15 @@ const colorClass = (c: Cell) => (ownerOf(c) === 0 ? 'dark' : 'red')
 }
 .cell.live.dk {
   cursor: pointer;
+}
+/* 能拖的時候：手指在棋盤上的動作都交給遊戲（不然一拖就被瀏覽器當成滑畫面） */
+.ck.live {
+  touch-action: none;
+}
+/* 拖著的子：跟著手指、稍微放大、浮在最上面，也不擋住底下的格子（放開時才找得到落在哪一格） */
+.pc.dragging {
+  z-index: 20;
+  pointer-events: none;
 }
 .pc {
   position: absolute;
