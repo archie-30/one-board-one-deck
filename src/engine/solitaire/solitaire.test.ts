@@ -305,3 +305,30 @@ describe('接龍：提示、自動收牌、卡關', () => {
     expect(isStuck(t)).toBe(false)
   })
 })
+
+describe('接龍：只發解得開的牌', async () => {
+  const { dealWinnable, solvable } = await import('./solver')
+  const { createSolitaire } = await import('./rules')
+  const { seedRng } = await import('../common/rng')
+
+  it('發出來的牌電腦自己玩得完（翻 1 張、翻 3 張都是）；同一個種子發出一樣的牌', () => {
+    for (const draw of [1, 3] as const) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const [s] = dealWinnable(seedRng(seed), draw)
+        expect(solvable(s, 200000)).toBe(true)
+        expect(dealWinnable(seedRng(seed), draw)[0]).toEqual(s)
+      }
+    }
+  }, 120000)
+
+  it('解不開的牌會被認出來：桌面最上面都是 K、黑 Q、黑桃 J，誰都接不上，也沒有空位、牌堆是空的', async () => {
+    const { makeCard } = await import('@/engine/bigtwo/cards')
+    // 點數 rank：3 = 0 … K = 10；花色 0 梅花、1 方塊、2 紅心、3 黑桃
+    const tops = [makeCard(10, 0), makeCard(10, 1), makeCard(10, 2), makeCard(10, 3), makeCard(9, 0), makeCard(9, 3), makeCard(8, 3)]
+    const rest = Array.from({ length: 52 }, (_, i) => i).filter((c) => !tops.includes(c))
+    const tableau = tops.map((up, i) => ({ down: rest.slice(i * 6, i * 6 + (i < 6 ? 6 : rest.length - 36)), up: [up] }))
+    const s = { ...createSolitaire(Array.from({ length: 52 }, (_, i) => i), 1), stock: [], waste: [], tableau }
+    expect(tableau.reduce((n, c) => n + c.down.length + 1, 0)).toBe(52)
+    expect(solvable(s)).toBe(false)
+  })
+})

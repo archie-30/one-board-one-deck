@@ -10,7 +10,6 @@ import {
   applySolitaire,
   finishPlan,
   isStuck,
-  dealSolitaire,
   finalScore,
   timeBonus,
   scoreOf,
@@ -20,6 +19,7 @@ import {
   type SolitaireState,
 } from '@/engine/solitaire/rules'
 import type { GameDef } from '@/games/types'
+import { dealWinnable } from '@/engine/solitaire/solver'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
@@ -44,7 +44,8 @@ const T = S.solitaire
 const draw = computed(() => (props.options.difficulty === 'hard' ? 3 : 1))
 function fresh(): SolitaireState {
   const seed = (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
-  return dealSolitaire(seedRng(seed), draw.value)[0]
+  // 只發確定解得開的牌（電腦先自己玩過一遍）
+  return dealWinnable(seedRng(seed), draw.value)[0]
 }
 
 const finishing = ref(false)

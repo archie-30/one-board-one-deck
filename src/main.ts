@@ -1,3 +1,4 @@
+import { keepScreenOn } from './core/wakeLock'
 import { createApp, watchEffect } from 'vue'
 import '@fontsource/noto-sans-tc/latin-500.css'
 import '@fontsource/noto-sans-tc/latin-900.css'
@@ -62,6 +63,8 @@ watchEffect(() => document.documentElement.classList.toggle('avoid-cutout', sett
 
 // 預設全螢幕：第一次點畫面時進入（設定可關）
 autoFullscreen()
+// 保持螢幕恆亮（設定可關）
+keepScreenOn()
 
 // 開機加載畫面：準備好後接到主畫面（見 core/boot.ts）
 // 音效在背景執行緒先算好（不佔主畫面）

@@ -54,7 +54,7 @@ const meLook = () => (bn?.watching ? bn.left.look : myLook())
 const opts = bn ? { ...props.options, ...bn.net.opts } : props.options
 const timed = opts.timer !== false
 const level = asCardLevel(opts.difficulty)
-const rules = { rookSlide: opts.rookSlide === true, chain: opts.chain === true }
+const rules = { rookSlide: opts.rookSlide === true, chain: opts.chain === true, darkEat: opts.darkEat === true }
 
 interface Saved {
   state: BanqiState
@@ -192,11 +192,15 @@ function commit(a: BanqiAction, who: 0 | 1) {
     return false
   }
   hist.push({ state: state.value, side: state.value.turn, a })
+  const prev = state.value
   state.value = r.state
   selected.value = -1
   message.value = ''
+  // 暗吃沒吃到：只翻開了那顆
+  const missed = a.type === 'move' && r.state.lastMove?.flip
+  if (missed) message.value = T.darkMiss(nameOf(prev.board[a.to]!))
   const took = state.value.captured.length > before
-  if (a.type === 'flip') playSound('xqPiece')
+  if (a.type === 'flip' || missed) playSound('xqPiece')
   else if (a.type === 'move') playSound(took ? 'xqCapture' : 'xqPiece')
   if (took) {
     flash(who, 'happy')
@@ -274,6 +278,11 @@ function pick(i: number) {
     if (targets.value.includes(i)) mine({ type: 'move', from: s.chainAt, to: i })
     return
   }
+  // 暗吃：選了自己的棋、點能吃的蓋著的棋＝走上去吃（不是翻開）
+  if (p && !s.up[i] && selected.value >= 0 && targets.value.includes(i)) {
+    mine({ type: 'move', from: selected.value, to: i })
+    return
+  }
   // 蓋著的棋：翻開
   if (p && !s.up[i]) {
     mine({ type: 'flip', at: i })
@@ -343,7 +352,18 @@ function netApply(ev: { type: string; player: number; at?: unknown; piece?: unkn
       state.value = { ...state.value, board }
     }
     commit({ type: 'flip', at }, who)
-  } else if (ev.type === 'move') commit({ type: 'move', from: ev.from as number, to: ev.to as number }, who)
+  } else if (ev.type === 'move') {
+    // 暗吃：走到蓋著的棋上，伺服器順便說那顆是什麼，先換到那一格
+    const to = ev.to as number
+    if (typeof ev.piece === 'string' && !state.value.up[to] && state.value.board[to] !== ev.piece) {
+      const board = state.value.board.slice()
+      const j = board.findIndex((p, i) => p === ev.piece && !state.value.up[i] && i !== to)
+      if (j >= 0) board[j] = board[to]
+      board[to] = ev.piece
+      state.value = { ...state.value, board }
+    }
+    commit({ type: 'move', from: ev.from as number, to }, who)
+  }
   else if (ev.type === 'end') commit({ type: 'end' }, who)
   else {
     const r = applyBanqi(state.value, { type: 'timeout' })
@@ -392,7 +412,15 @@ async function revertTo(k: number) {
     state.value = h.state
     const a = h.a
     if (a.type === 'flip' || a.type === 'move') {
-      rewind.value = a.type === 'flip' ? { key: (rewind.value?.key ?? 0) + 1, from: a.at, to: a.at, flip: true } : { key: (rewind.value?.key ?? 0) + 1, from: a.from, to: a.to, flip: false }
+      // 暗吃沒吃到：只是翻開了那顆，倒回去就是翻回背面
+      const missed = a.type === 'move' && (() => {
+        const r = applyBanqi(h.state, a)
+        return r.ok && !!r.state.lastMove?.flip
+      })()
+      rewind.value =
+        a.type === 'flip' || missed
+          ? { key: (rewind.value?.key ?? 0) + 1, from: a.type === 'flip' ? a.at : a.to, to: a.type === 'flip' ? a.at : a.to, flip: true }
+          : { key: (rewind.value?.key ?? 0) + 1, from: a.from, to: a.to, flip: false }
       playSound(a.type === 'flip' ? 'piecePick' : 'xqPiece')
       await wait(340)
     }

@@ -57,6 +57,13 @@ function close() {
       </div>
       <div class="row">
         <div>
+          <p class="t-black lb">{{ T.keepAwake }}</p>
+          <p class="help">{{ T.keepAwakeHelp }}</p>
+        </div>
+        <Switch :on="settings.keepAwake" :label="T.keepAwake" @change="(v) => (settings.keepAwake = v)" />
+      </div>
+      <div class="row">
+        <div>
           <p class="t-black lb">{{ T.avoidCutout }}</p>
           <p class="help">{{ T.avoidCutoutHelp }}</p>
         </div>

@@ -69,6 +69,42 @@ describe('暗棋規則', () => {
     expect(t).toContain(sq(0, 4))
     expect(t).toContain(sq(0, 5))
   })
+  it('車衝：隔著空格衝過去吃不用比大小（帥也吃得掉）；緊貼的照樣比大小', () => {
+    const far = setup({ [sq(0, 0)]: 'R', [sq(0, 3)]: 'k', [sq(1, 0)]: 'a' }, { rookSlide: true })
+    const t = targetsFrom(far, sq(0, 0))
+    expect(t).toContain(sq(0, 3)) // 衝過去吃將
+    expect(t).not.toContain(sq(1, 0)) // 緊貼的士比車大，吃不了
+    expect(must(far, { type: 'move', from: sq(0, 0), to: sq(0, 3) }).captured).toEqual(['k'])
+    // 沒開「車直走多格」就不能衝
+    expect(targetsFrom(setup({ [sq(0, 0)]: 'R', [sq(0, 1)]: 'k' }), sq(0, 0))).not.toContain(sq(0, 1))
+  })
+  it('暗吃：可以走到蓋著的棋上；翻開是對方的、吃得掉就吃，吃不掉或是自己的就只翻開、棋不動', () => {
+    const hid = [sq(1, 2)]
+    // 沒開：蓋著的棋不能當目標
+    expect(targetsFrom(setup({ [sq(1, 1)]: 'R', [sq(1, 2)]: 'n' }, {}, hid), sq(1, 1))).not.toContain(sq(1, 2))
+    // 吃得掉：車吃馬
+    const a = must(setup({ [sq(1, 1)]: 'R', [sq(1, 2)]: 'n', [sq(3, 7)]: 'p' }, { darkEat: true }, hid), { type: 'move', from: sq(1, 1), to: sq(1, 2) })
+    expect(a.board[sq(1, 2)]).toBe('R')
+    expect(a.captured).toEqual(['n'])
+    expect(a.turn).toBe(1)
+    // 吃不掉：車碰到士，士翻開、車不動、換對方
+    const b = must(setup({ [sq(1, 1)]: 'R', [sq(1, 2)]: 'a', [sq(3, 7)]: 'p' }, { darkEat: true }, hid), { type: 'move', from: sq(1, 1), to: sq(1, 2) })
+    expect(b.board[sq(1, 1)]).toBe('R')
+    expect(b.board[sq(1, 2)]).toBe('a')
+    expect(b.up[sq(1, 2)]).toBe(true)
+    expect(b.captured).toEqual([])
+    expect(b.turn).toBe(1)
+    // 翻出來是自己的：只翻開
+    const c = must(setup({ [sq(1, 1)]: 'R', [sq(1, 2)]: 'N', [sq(3, 7)]: 'p' }, { darkEat: true }, hid), { type: 'move', from: sq(1, 1), to: sq(1, 2) })
+    expect(c.board[sq(1, 1)]).toBe('R')
+    expect(c.up[sq(1, 2)]).toBe(true)
+    // 炮隔子暗吃：任何大小都吃
+    const d = must(setup({ [sq(0, 0)]: 'C', [sq(0, 1)]: 'p', [sq(0, 2)]: 'k' }, { darkEat: true }, [sq(0, 2)]), { type: 'move', from: sq(0, 0), to: sq(0, 2) })
+    expect(d.captured).toEqual(['k'])
+    // 車衝暗吃：衝過去不用比大小
+    const e = must(setup({ [sq(0, 0)]: 'R', [sq(0, 3)]: 'k', [sq(3, 7)]: 'p' }, { darkEat: true, rookSlide: true }, [sq(0, 3)]), { type: 'move', from: sq(0, 0), to: sq(0, 3) })
+    expect(e.captured).toEqual(['k'])
+  })
   it('預設一步只能吃一顆；開「連吃」後同一顆棋可以繼續吃，也可以結束', () => {
     const base = { [sq(1, 1)]: 'R', [sq(1, 2)]: 'n', [sq(1, 3)]: 'p', [sq(3, 7)]: 'k' }
     const a = must(setup(base), { type: 'move', from: sq(1, 1), to: sq(1, 2) })
@@ -109,8 +145,8 @@ describe('暗棋規則', () => {
 
 describe('暗棋電腦', () => {
   const style = (level: CardLevel, k = 0) => banqiAt(PERSONAS[k % 30].chess, level)
-  function play(seed: number, levels: [CardLevel, CardLevel]) {
-    let s = dealBanqi(seed)
+  function play(seed: number, levels: [CardLevel, CardLevel], opts: Parameters<typeof dealBanqi>[1] = {}) {
+    let s = dealBanqi(seed, opts)
     let rng = seedRng(seed)
     for (let k = 0; k < 600 && s.status === 'playing'; k++) {
       let a: BanqiAction | null
@@ -122,12 +158,15 @@ describe('暗棋電腦', () => {
   }
   it('三個難度都能把整局下完、不出錯', () => {
     for (const lv of ['low', 'mid', 'high'] as const) for (let g = 0; g < 4; g++) expect(play(100 + g, [lv, lv]).status).not.toBe('playing')
+    // 開了車衝、暗吃、連吃也下得完
+    for (let g = 0; g < 4; g++) expect(play(150 + g, ['mid', 'high'], { rookSlide: true, darkEat: true, chain: true }).status).not.toBe('playing')
   }, 60000)
   it('電腦不偷看：把蓋著的棋彼此換位置，選的動作完全一樣', () => {
     for (let g = 0; g < 12; g++) {
-      let s = play(200 + g, ['mid', 'mid'])
+      // 一半的局開「暗吃＋車衝」：走到蓋著的棋上也不能偷看
+      const opts = g % 2 ? { darkEat: true, rookSlide: true } : {}
       // 拿一個下到一半的局面
-      s = dealBanqi(300 + g)
+      let s = dealBanqi(300 + g, opts)
       let rng = seedRng(g)
       for (let k = 0; k < 14 + g && s.status === 'playing'; k++) {
         let a: BanqiAction | null

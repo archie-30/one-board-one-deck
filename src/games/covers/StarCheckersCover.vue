@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 星形跳棋封面：小小的六角星棋盤，三個角各擺著自己顏色的彈珠。停在這張卡片上時循環播放：藍彈珠連跳三次往上衝 → 停一下 → 回到原位
+// 星形跳棋封面：小小的六角星棋盤，三個角各擺著自己顏色的彈珠。停在這張卡片上時循環播放：藍彈珠連跳三次往上衝（每一跳同樣速度）→ 停一下 → 淡掉、在原位淡入
 import { CELLS, CORNER_CELLS, cellAt } from '@/engine/starcheckers/rules'
 
 defineProps<{ active?: boolean }>()
@@ -20,6 +20,12 @@ const stepping = [
   { at: pt(-2, 3), color: 'var(--color-red)' },
   { at: pt(-2, 1), color: 'var(--color-yellow)' },
 ]
+/** 不會動的彈珠（三個角＋路上被跳過的） */
+const still = [
+  ...homes.flatMap((h) => h.cells.map((i) => ({ ...holes[i], color: h.color }))),
+  { ...pt(-2, 5), color: 'var(--color-blue)' },
+  ...stepping.map((m) => ({ ...m.at, color: m.color })),
+]
 const from = pt(-2, 6)
 /** 一次跳兩格的位移 */
 const dx = -Math.sqrt(3) * R
@@ -33,16 +39,15 @@ const dy = -3 * R
       <circle v-for="(p, i) in holes" :key="`h${i}`" :cx="p.x" :cy="p.y" r="4" fill="var(--color-card)" />
       <circle v-for="(p, i) in holes" :key="`p${i}`" :cx="p.x" :cy="p.y" r="1.2" fill="rgb(20 20 20 / 0.3)" />
     </g>
-    <g v-for="(h, k) in homes" :key="`m${k}`">
-      <circle v-for="i in h.cells" :key="i" :cx="holes[i].x" :cy="holes[i].y" r="3.5" :fill="h.color" stroke="var(--color-ink)" stroke-width="0.9" />
+    <!-- 彈珠：比洞小一圈、加一點反光，藍彈珠放在藍底卡片上也看得出是彈珠 -->
+    <g v-for="(m, k) in still" :key="`m${k}`">
+      <circle :cx="m.x" :cy="m.y" r="3.2" :fill="m.color" stroke="var(--color-ink)" stroke-width="0.9" />
+      <circle :cx="m.x - 1" :cy="m.y - 1.1" r="0.9" fill="var(--color-card)" opacity="0.85" />
     </g>
-    <circle :cx="pt(-2, 5).x" :cy="pt(-2, 5).y" r="3.5" fill="var(--color-blue)" stroke="var(--color-ink)" stroke-width="0.9" />
-    <circle v-for="(m, k) in stepping" :key="`s${k}`" :cx="m.at.x" :cy="m.at.y" r="3.5" :fill="m.color" stroke="var(--color-ink)" stroke-width="0.9" />
     <!-- 連跳的那顆 -->
     <g class="mover">
-      <circle :cx="from.x + 0.6" :cy="from.y + 0.8" r="3.9" fill="var(--color-ink)" />
-      <circle :cx="from.x" :cy="from.y" r="3.9" fill="var(--color-blue)" stroke="var(--color-ink)" stroke-width="1" />
-      <circle :cx="from.x - 1.2" :cy="from.y - 1.3" r="1.1" fill="var(--color-card)" opacity="0.8" />
+      <circle :cx="from.x" :cy="from.y" r="3.3" fill="var(--color-blue)" stroke="var(--color-ink)" stroke-width="0.9" />
+      <circle :cx="from.x - 1" :cy="from.y - 1.1" r="0.9" fill="var(--color-card)" opacity="0.85" />
     </g>
   </svg>
 </template>
@@ -53,8 +58,13 @@ const dy = -3 * R
   height: 100%;
   overflow: hidden;
 }
+.mover {
+  /* 放大要以彈珠自己為中心，不然會往畫面左上角飛 */
+  transform-box: fill-box;
+  transform-origin: center;
+}
 .active .mover {
-  animation: hop 4.2s var(--ease-in-out) infinite;
+  animation: hop 4.2s linear infinite;
 }
 /* 連跳三次：每次往上兩格，中間抬高一點 */
 @keyframes hop {
@@ -80,10 +90,21 @@ const dy = -3 * R
   52%,
   84% {
     transform: translate(calc(var(--dx) * 3), calc(var(--dy) * 3));
+    opacity: 1;
   }
-  94%,
+  /* 回到原位：在終點淡掉、起點淡入（不從別的彈珠上面滑回去） */
+  89% {
+    transform: translate(calc(var(--dx) * 3), calc(var(--dy) * 3));
+    opacity: 0;
+  }
+  90% {
+    transform: none;
+    opacity: 0;
+  }
+  97%,
   100% {
     transform: none;
+    opacity: 1;
   }
 }
 @media (prefers-reduced-motion: reduce) {
