@@ -377,6 +377,8 @@ export const S = {
     fullscreenNo: '這個瀏覽器不支援全螢幕。',
     cardStarts: '點卡片開始遊戲',
     cardStartsHelp: '在模式選單點中間那張卡片就開始遊戲。關掉的話只能按「開始遊戲」按鈕，比較不會誤觸。',
+    keepAwake: '保持螢幕恆亮',
+    keepAwakeHelp: '開著遊戲時螢幕不會自動變暗、鎖住，想很久也不怕；切到別的 App 就照手機原本的設定。',
     avoidCutout: '鏡頭防遮擋',
     avoidCutoutHelp: '手機有瀏海或挖孔鏡頭時，畫面稍微往內縮，按鈕、牌和棋子不會被鏡頭擋住或裁掉。',
     autoPause: '離開時自動暫停並保存',

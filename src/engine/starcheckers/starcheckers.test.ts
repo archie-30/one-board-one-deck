@@ -103,10 +103,15 @@ describe('星形跳棋電腦', () => {
       for (let ply = 0; ply < 150 && !s.over; ply++) {
         const me = s.turn
         const before = remaining(s.board, me)
-        const canGo = legalMoves(s).some((m) => remaining(applyStar(s, { type: 'move', path: m.path }).state!.board, me) < before)
+        const play = (a: Parameters<typeof applyStar>[1]) => {
+          const r = applyStar(s, a)
+          if (!r.ok) throw new Error(r.reason)
+          return r.state
+        }
+        const canGo = legalMoves(s).some((m) => remaining(play({ type: 'move', path: m.path }).board, me) < before)
         const [m, r] = chooseStarMove(s, starAt(PERSONAS[ply % 30].chess, lv), rng)
         rng = r
-        const next = applyStar(s, m ? { type: 'move', path: m.path } : { type: 'timeout' }).state!
+        const next = play(m ? { type: 'move', path: m.path } : { type: 'timeout' })
         if (canGo) expect(remaining(next.board, me)).toBeLessThan(before)
         s = next
       }
