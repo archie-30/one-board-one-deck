@@ -5,6 +5,8 @@ import { playSound } from '@/core/audio'
 import { online } from '@/core/online'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
+import { resolveOptions } from '@/games/options'
+import { getGame } from '@/games/registry'
 import { applyQuoridor, cellAt, createQuoridor, distance, pawnMoves, W, wallProblem, type Orient, type QuoridorState } from '@/engine/quoridor/rules'
 import Avatar from '@/ui/art/Avatar.vue'
 import Btn from '@/ui/Btn.vue'
@@ -57,12 +59,13 @@ const targets = computed(() => (solved.value || finished.value || wallLesson.val
 const glow = computed(() => (solved.value || finished.value ? [] : (lesson.value.to ?? [])))
 const shownPreview = computed(() => (preview.value ? { ...preview.value, ok: !wallProblem(state.value, preview.value.at, preview.value.o) } : null))
 
-/** 走棋跟對局一樣按兩下：第一下選好（淡淡的棋子），再點同一格才走 */
+/** 走棋跟對局一樣：規則設定開了「按兩下才走」才要按兩下（第一下選好、淡淡的棋子），不然點一下就走 */
+const doubleTap = resolveOptions(getGame('quoridor')).doubleTap === true
 const moveTo = ref(-1)
 function pick(i: number) {
   if (solved.value || finished.value || wallLesson.value) return
   if (!targets.value.includes(i)) return void (moveTo.value = -1)
-  if (moveTo.value !== i) {
+  if (doubleTap && moveTo.value !== i) {
     moveTo.value = i
     playSound('piecePick')
     return
