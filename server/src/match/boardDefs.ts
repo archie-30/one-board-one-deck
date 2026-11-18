@@ -1,4 +1,4 @@
-// 棋盤類在伺服器上怎麼跑（五子棋、圍棋、黑白棋、西洋棋、象棋、暗棋）。
+// 棋盤類在伺服器上怎麼跑（五子棋、圍棋、黑白棋、西洋棋、象棋、暗棋、西洋跳棋、步步為營；星形跳棋是 3 人、不猜拳）。
 // 都是兩個人：開局先猜拳（rps），贏的人先走。引擎的座位：0 = 先走的那一方（黑棋／白棋／紅方），1 = 後走。
 // 除了暗棋（蓋著的棋），其他都是完全公開的，大家看到的都一樣。
 import { chooseBanqiAction } from '../../../src/engine/banqi/ai'
@@ -7,7 +7,7 @@ import { chooseCheckersMove } from '../../../src/engine/checkers/ai'
 import { applyCheckers, createCheckers, type CheckersAction, type CheckersState } from '../../../src/engine/checkers/rules'
 import { chooseChessMove } from '../../../src/engine/chess/ai'
 import { applyChess, createChess, type ChessAction, type ChessState, type Promo } from '../../../src/engine/chess/rules'
-import { asCardLevel, asLevel, banqiAt, checkersAt, chessAt, extraThink, gomokuAt, goAt, othelloAt, starAt } from '../../../src/engine/common/difficulty'
+import { asCardLevel, asLevel, banqiAt, checkersAt, chessAt, extraThink, gomokuAt, goAt, othelloAt, quoridorAt, starAt } from '../../../src/engine/common/difficulty'
 import { PERSONAS } from '../../../src/engine/common/personas'
 import { chooseGoMove } from '../../../src/engine/go/ai'
 import { estimateDead } from '../../../src/engine/go/playout'
@@ -16,6 +16,8 @@ import { chooseGomokuMove } from '../../../src/engine/gomoku/ai'
 import { createGomoku, placeStone, skipTurn, type GomokuState } from '../../../src/engine/gomoku/rules'
 import { chooseOthelloMove } from '../../../src/engine/othello/ai'
 import { applyOthello, createOthello, type OthelloAction, type OthelloState } from '../../../src/engine/othello/rules'
+import { chooseQuoridorAction } from '../../../src/engine/quoridor/ai'
+import { applyQuoridor, createQuoridor, W as QW, type QuoridorAction, type QuoridorState } from '../../../src/engine/quoridor/rules'
 import { chooseStarMove } from '../../../src/engine/starcheckers/ai'
 import { applyStar, createStar, type StarAction, type StarState } from '../../../src/engine/starcheckers/rules'
 import { chooseXiangqiMove } from '../../../src/engine/xiangqi/ai'
@@ -251,4 +253,30 @@ const starcheckers: MatchDef<StarState, StarAct> = {
   resign: (s, side) => unwrap(applyStar(s, { type: 'resign', seat: side })),
 }
 
-export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers }
+// ── 步步為營 ──
+type QuoridorAct = Exclude<QuoridorAction, { type: 'resign' }> & { player: number }
+const quoridor: MatchDef<QuoridorState, QuoridorAct> = {
+  ...board,
+  undo: true,
+  deal: () => createQuoridor(),
+  apply: (s, a) => unwrap(applyQuoridor(s, a)),
+  turn: (s) => (s.status !== 'playing' ? -1 : s.turn),
+  parse(raw, side) {
+    if (!isObj(raw)) return null
+    if (raw.type === 'move' && isIdx(raw.to, 81)) return { type: 'move', to: raw.to as number, player: side }
+    if (raw.type === 'wall' && isIdx(raw.at, QW * QW) && (raw.o === 'h' || raw.o === 'v')) return { type: 'wall', at: raw.at as number, o: raw.o, player: side }
+    return null
+  },
+  bot(s, id, o, rng) {
+    const [a, next] = chooseQuoridorAction(s, quoridorAt(PERSONAS[id].chess, level(o)), rng)
+    return [a && a.type !== 'resign' ? { ...a, player: s.turn } : { type: 'timeout', player: s.turn }, next]
+  },
+  think: (_s, id, o, r) => 700 + quoridorAt(PERSONAS[id].chess, level(o)).depth * 150 + extraThink(level(o)) + r * 500,
+  timeout: (side) => ({ type: 'timeout', player: side }),
+  render: (_b, _a, a) => ({ pub: a }),
+  start: (s) => s,
+  reveal: (s) => s,
+  resign: (s, side) => unwrap(applyQuoridor(s, { type: 'resign', side: side as 0 | 1 })),
+}
+
+export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor }

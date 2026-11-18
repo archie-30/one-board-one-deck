@@ -20,6 +20,7 @@ import XiangqiCover from './covers/XiangqiCover.vue'
 import BanqiCover from './covers/BanqiCover.vue'
 import CheckersCover from './covers/CheckersCover.vue'
 import StarCheckersCover from './covers/StarCheckersCover.vue'
+import QuoridorCover from './covers/QuoridorCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
 type Extra = { group?: SettingGroup; live?: boolean }
@@ -266,7 +267,20 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./starcheckers/StarTutorial.vue')),
     component: defineAsyncComponent(() => import('./starcheckers/StarGame.vue')),
     settings: [level(), toggle('longJump', S.starcheckers.settings.longJump, true), toggle('allAtOnce', S.starcheckers.settings.allAtOnce, false, { group: 'other', live: true }), timer()],
+  },  {
+    id: 'quoridor',
+    category: 'board',
+    name: S.quoridor.name,
+    summary: S.quoridor.summary,
+    players: S.quoridor.players,
+    cover: QuoridorCover,
+    tags: S.quoridor.tags,
+    rulesIntro: withTimer(S.quoridor.rules, [...TR.board]),
+    tutorial: defineAsyncComponent(() => import('./quoridor/QuoridorTutorial.vue')),
+    component: defineAsyncComponent(() => import('./quoridor/QuoridorGame.vue')),
+    settings: [level(), timer()],
   },
+
 ]
 
 export const getGame = (id: string): GameDef => GAMES.find((g) => g.id === id) ?? GAMES[0]

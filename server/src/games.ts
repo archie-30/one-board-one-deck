@@ -13,6 +13,7 @@ export const GAME_SEATS: Record<string, number> = {
   banqi: 2,
   checkers: 2,
   starcheckers: 3,
+  quoridor: 2,
 }
 
 /** 電腦對手一共幾位（跟 src/data/names.ts 的 OPPONENTS 一樣多） */
@@ -56,6 +57,7 @@ export const MATCH_RULES: Record<string, Record<string, readonly (string | boole
   banqi: { difficulty: LEVEL, rookSlide: B, chain: B, darkEat: B, timer: B },
   checkers: { difficulty: LEVEL4, forceCapture: B, timer: B },
   starcheckers: { difficulty: LEVEL4, longJump: B, timer: B },
+  quoridor: { difficulty: LEVEL4, timer: B },
 }
 
 /** 檢查房主送來的規則設定：不認得的鍵、不合法的值整份不收 */
