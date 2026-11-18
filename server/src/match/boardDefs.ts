@@ -202,6 +202,7 @@ const isPath = (v: unknown, max: number): v is number[] => Array.isArray(v) && v
 type CheckersAct = (Extract<CheckersAction, { type: 'move' }> | { type: 'timeout' }) & { player: number }
 const checkers: MatchDef<CheckersState, CheckersAct> = {
   ...board,
+  seconds: TURN_SECONDS.checkers,
   undo: true,
   deal: (_seed, o) => createCheckers({ forceCapture: o.forceCapture !== false }),
   apply: (s, a) => unwrap(applyCheckers(s, a.type === 'move' ? { type: 'move', path: a.path } : { type: 'timeout' })),
@@ -214,7 +215,7 @@ const checkers: MatchDef<CheckersState, CheckersAct> = {
     const [m, next] = chooseCheckersMove(s, checkersAt(PERSONAS[id].chess, level(o)), rng)
     return [m ? { type: 'move', path: m.path, player: s.turn } : { type: 'timeout', player: s.turn }, next]
   },
-  think: (_s, id, o, r) => 1100 + Math.min(checkersAt(PERSONAS[id].chess, level(o)).depth, 6) * 140 + extraThink(level(o)) + r * 500,
+  think: (_s, id, o, r) => 500 + Math.min(checkersAt(PERSONAS[id].chess, level(o)).depth, 6) * 140 + extraThink(level(o)) + r * 400,
   timeout: (side) => ({ type: 'timeout', player: side }),
   render: (_b, _a, a) => ({ pub: a }),
   start: (s) => s,
@@ -228,7 +229,7 @@ const starcheckers: MatchDef<StarState, StarAct> = {
   seats: 3,
   // 悔棋：另外兩個在場的真人都同意才悔（電腦直接同意）
   undo: true,
-  seconds: TURN_SECONDS.board,
+  seconds: TURN_SECONDS.checkers,
   deal: (_seed, o) => createStar({ longJump: o.longJump !== false }),
   apply: (s, a) => unwrap(applyStar(s, a.type === 'move' ? { type: 'move', path: a.path } : { type: 'timeout' })),
   turn: (s) => (s.over ? -1 : s.turn),
@@ -240,7 +241,7 @@ const starcheckers: MatchDef<StarState, StarAct> = {
     const [m, next] = chooseStarMove(s, starAt(PERSONAS[id].chess, level(o)), rng)
     return [m ? { type: 'move', path: m.path, player: s.turn } : { type: 'timeout', player: s.turn }, next]
   },
-  think: (_s, _id, o, r) => 1300 + extraThink(level(o)) * 0.6 + r * 600,
+  think: (_s, _id, o, r) => 700 + extraThink(level(o)) * 0.6 + r * 500,
   timeout: (side) => ({ type: 'timeout', player: side }),
   render: (_b, _a, a) => ({ pub: a }),
   start: (s) => s,

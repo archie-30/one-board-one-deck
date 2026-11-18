@@ -210,7 +210,7 @@ function scheduleCpu() {
       moods.value = [moods.value[0], 'idle']
       if (m) commit(m.path, 1)
     },
-    1100 + Math.min(st.depth, 6) * 140 + extraThink(level) + Math.random() * 500,
+    500 + Math.min(st.depth, 6) * 140 + extraThink(level) + Math.random() * 400,
   )
 }
 
@@ -378,7 +378,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   <section class="gm">
     <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
-    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !(grace && state.turn === human)" :paused="!bn && menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
+    <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !(grace && state.turn === human)" :paused="!bn && menuOpen" :seconds="TURN_SECONDS.checkers" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
     <aside class="side left">

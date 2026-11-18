@@ -247,7 +247,7 @@ export const GAMES: GameDef[] = [
     players: S.checkers.players,
     cover: CheckersCover,
     tags: S.checkers.tags,
-    rulesIntro: withTimer(S.checkers.rules, [...TR.board]),
+    rulesIntro: withTimer(S.checkers.rules, [...TR.checkers]),
     tutorial: defineAsyncComponent(() => import('./checkers/CheckersTutorial.vue')),
     component: defineAsyncComponent(() => import('./checkers/CheckersGame.vue')),
     settings: [level(), toggle('forceCapture', S.checkers.settings.forceCapture, true), timer()],
