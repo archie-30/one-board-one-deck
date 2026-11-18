@@ -468,7 +468,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         <template v-if="phase === 'over'">
           <Btn v-if="!bn" tone="ink" icon="again" block @click="restart">{{ S.common.again }}</Btn>
           <RematchBtn v-else tone="ink" block />
-          <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
+          <div class="end2 mt-[0.8rem] grid grid-cols-2 gap-x-[0.4rem] gap-y-[0.7rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
             <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.backRoom : S.common.quit }}</Btn>
           </div>
@@ -479,11 +479,11 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
             <span class="mode" :class="{ on: !wallMode }">{{ T.modeMove }}</span>
             <span class="mode" :class="{ on: wallMode }">{{ T.modeWall(state.wallsLeft[human]) }}</span>
           </button>
-          <Btn v-if="wallMode" class="mt-[0.5rem]" tone="red" icon="check" block :disabled="!preview || !shownPreview?.ok" @click="placeWall">{{ T.placeWall }}</Btn>
-          <Btn v-else-if="doubleTap" class="mt-[0.5rem]" tone="red" icon="check" block :disabled="!myTurn || moveTo < 0" @click="confirmMove">{{ T.moveHere }}</Btn>
+          <Btn v-if="wallMode" class="mt-[0.9rem]" tone="red" icon="check" block :disabled="!preview || !shownPreview?.ok" @click="placeWall">{{ T.placeWall }}</Btn>
+          <Btn v-else-if="doubleTap" class="mt-[0.9rem]" tone="red" icon="check" block :disabled="!myTurn || moveTo < 0" @click="confirmMove">{{ T.moveHere }}</Btn>
           <!-- 悔棋、認輸並排。其中一顆按了第一下（「再按一次＿」）時，它變寬佔滿整排、另一顆縮起來藏好；
                恢復時再展開回來。對方要求悔棋時（「同意／不同意」）也是悔棋那顆佔整排 -->
-          <div class="pair mt-[0.4rem]" :class="{ undoWide: undoArmed || !!bn?.undoAsked.value, resignWide: resignArmed }">
+          <div class="pair" :class="{ undoWide: undoArmed || !!bn?.undoAsked.value, resignWide: resignArmed }">
             <div class="slot u">
               <UndoBtn block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" @armed="(on) => (undoArmed = on)" />
             </div>
@@ -704,7 +704,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 .pair {
   display: flex;
   /* 底下、右邊給按鈕的偏移陰影留位置（格子要裁掉縮起來的那顆，陰影不能一起被裁掉） */
-  margin: 0 -0.3rem -0.35rem 0;
+  margin: 0.9rem -0.3rem -0.35rem 0;
 }
 /* 兩顆各佔一半；某一顆按了第一下時，它展開佔滿整排、另一顆縮到沒有寬度並淡掉（反過來也一樣） */
 .pair .slot {
