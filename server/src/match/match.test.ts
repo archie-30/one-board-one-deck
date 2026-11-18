@@ -389,3 +389,12 @@ describe('連線對局（伺服器當裁判）', () => {
   })
 })
 
+
+describe('大老二預設玩到分出名次', async () => {
+  const { MATCH_DEFS } = await import('./defs')
+  it('房主沒送「玩到分出名次」：開著；送了關就關', () => {
+    expect((MATCH_DEFS.bigtwo.deal(1, {}) as BigTwoState).options.playToRank).toBe(true)
+    expect((MATCH_DEFS.crazybigtwo.deal(1, {}) as BigTwoState).options.playToRank).toBe(true)
+    expect((MATCH_DEFS.bigtwo.deal(1, { playToRank: false }) as BigTwoState).options.playToRank).toBe(false)
+  })
+})

@@ -64,7 +64,8 @@ const counts = (hands: readonly unknown[][]) => hands.map((h) => h.length)
 
 /** 規則設定 → 引擎的選項 */
 function bigtwoOptions(opts: Options, decks: 1 | 2): BigTwoOptions {
-  const o: BigTwoOptions = { ...DEFAULT_BIGTWO_OPTIONS, decks }
+  // 「玩到分出名次」預設開（跟註冊表的預設一樣；房主沒送就當開著）
+  const o: BigTwoOptions = { ...DEFAULT_BIGTWO_OPTIONS, playToRank: true, decks }
   for (const k of Object.keys(DEFAULT_BIGTWO_OPTIONS) as (keyof BigTwoOptions)[]) {
     if (k in opts && typeof opts[k] === typeof DEFAULT_BIGTWO_OPTIONS[k]) (o as unknown as Options)[k] = opts[k]
   }
