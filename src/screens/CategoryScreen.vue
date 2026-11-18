@@ -352,6 +352,23 @@ function onKey(e: KeyboardEvent) {
   else if (e.key === 'ArrowLeft') turn(-1)
 }
 onMounted(() => window.addEventListener('keydown', onKey))
+// 保險：右邊的遊戲名稱（大字）是從遮罩下面滑上來的；萬一動畫被卡住（有時從對局回來會發生），停在遮罩下面看不到，
+// 過一下還沒到定位就直接放到定位
+const panelRoot = ref<HTMLElement>()
+let titleGuard = 0
+function guardTitle() {
+  window.clearTimeout(titleGuard)
+  titleGuard = window.setTimeout(() => {
+    for (const el of panelRoot.value?.querySelectorAll<HTMLElement>('.name .mask > span') ?? []) {
+      if (getComputedStyle(el).transform === 'none') continue
+      el.getAnimations().forEach((a) => a.finish?.())
+      if (getComputedStyle(el).transform !== 'none') el.style.animation = 'none'
+    }
+  }, 1600)
+}
+onMounted(guardTitle)
+watch(game, guardTitle)
+onBeforeUnmount(() => window.clearTimeout(titleGuard))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
@@ -429,7 +446,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </div>
       </div>
 
-      <aside class="panel">
+      <aside ref="panelRoot" class="panel">
         <div :key="game.id" class="detail">
           <p class="t-label rise">{{ game.players }}</p>
           <h2 class="t-black name"><span class="mask"><span>{{ game.name }}</span></span></h2>

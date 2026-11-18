@@ -249,13 +249,56 @@ function finish(wait = 900) {
 }
 
 // ── 你的操作 ──
+/** 走棋要按兩下（跟五子棋一樣）：第一下選要走到哪（出現淡淡的棋子），再點同一格或按「走這裡」才走 */
+const moveTo = ref(-1)
+watch(state, () => {
+  moveTo.value = -1
+  resignArmed.value = false
+})
 function pick(i: number) {
   if (!myTurn.value || wallMode.value) return
-  if (targets.value.includes(i)) mine({ type: 'move', to: i })
+  if (!targets.value.includes(i)) {
+    moveTo.value = -1
+    return
+  }
+  if (moveTo.value === i) return confirmMove()
+  moveTo.value = i
+  message.value = ''
+  playSound('piecePick')
+}
+function confirmMove() {
+  if (!myTurn.value || moveTo.value < 0) return
+  const to = moveTo.value
+  moveTo.value = -1
+  mine({ type: 'move', to })
+}
+
+// 認輸並結算：要按兩次（第一次變成「再按一次認輸」，2.5 秒內再按才算）
+const resignArmed = ref(false)
+let resignTimer = 0
+function resign() {
+  if (phase.value !== 'playing' || watching) return
+  if (!resignArmed.value) {
+    resignArmed.value = true
+    window.clearTimeout(resignTimer)
+    resignTimer = window.setTimeout(() => (resignArmed.value = false), 2500)
+    return
+  }
+  resignArmed.value = false
+  window.clearTimeout(resignTimer)
+  if (bn) return bn.resign()
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  thinking.value = false
+  acted.value = true
+  const r = applyQuoridor(state.value, { type: 'resign', side: human.value })
+  if (r.ok) state.value = r.state
+  finish(260)
 }
 function setMode(wall: boolean) {
   if (wall && !canWall.value) return
   wallMode.value = wall
+  moveTo.value = -1
   preview.value = null
   message.value = ''
   playSound('piecePick')
@@ -392,6 +435,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         :targets="targets"
         :wall-mode="wallMode"
         :preview="shownPreview"
+        :ghost="moveTo >= 0 ? { cell: moveTo, side: human } : null"
         :interactive="myTurn"
         :last="lastShown"
         @pick="pick"
@@ -428,8 +472,13 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
             <button type="button" class="mode" :class="{ on: !wallMode }" :disabled="!myTurn" @click="setMode(false)">{{ T.modeMove }}</button>
             <button type="button" class="mode" :class="{ on: wallMode }" :disabled="!canWall" @click="setMode(true)">{{ T.modeWall(state.wallsLeft[human]) }}</button>
           </div>
-          <Btn v-if="wallMode" class="mt-[0.5rem] pop" tone="red" icon="check" block :disabled="!preview || !shownPreview?.ok" @click="placeWall">{{ T.placeWall }}</Btn>
-          <UndoBtn v-else class="mt-[0.5rem]" block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" />
+          <Btn v-if="wallMode" class="mt-[0.5rem]" tone="red" icon="check" block :disabled="!preview || !shownPreview?.ok" @click="placeWall">{{ T.placeWall }}</Btn>
+          <Btn v-else class="mt-[0.5rem]" tone="red" icon="check" block :disabled="!myTurn || moveTo < 0" @click="confirmMove">{{ T.moveHere }}</Btn>
+          <!-- 悔棋、認輸並排（對方要求悔棋時，悔棋那顆變成「同意／不同意」，整排都給它） -->
+          <div class="pair mt-[0.4rem]" :class="{ asked: !!bn?.undoAsked.value }">
+            <UndoBtn block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" />
+            <Btn v-if="!bn?.undoAsked.value" size="sm" block :tone="resignArmed ? 'yellow' : 'plain'" :disabled="phase !== 'playing'" @click="resign">{{ resignArmed ? T.resignAgain : T.resign }}</Btn>
+          </div>
         </template>
       </div>
     </aside>
@@ -484,6 +533,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   position: relative;
   width: 4.4rem;
   height: 4.4rem;
+  flex-shrink: 0;
   transition: transform 300ms var(--ease-back);
 }
 .who.active {
@@ -624,6 +674,23 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 }
 .mode:disabled {
   opacity: 0.45;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+.pair.asked {
+  grid-template-columns: 1fr;
+}
+.pair :deep(.face) {
+  justify-content: center;
+  padding: 0 0.2rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+.pair :deep(.lb) {
+  flex: none;
 }
 .end2 :deep(.face) {
   justify-content: center;

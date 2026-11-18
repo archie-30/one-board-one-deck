@@ -57,9 +57,17 @@ const targets = computed(() => (solved.value || finished.value || wallLesson.val
 const glow = computed(() => (solved.value || finished.value ? [] : (lesson.value.to ?? [])))
 const shownPreview = computed(() => (preview.value ? { ...preview.value, ok: !wallProblem(state.value, preview.value.at, preview.value.o) } : null))
 
+/** 走棋跟對局一樣按兩下：第一下選好（淡淡的棋子），再點同一格才走 */
+const moveTo = ref(-1)
 function pick(i: number) {
   if (solved.value || finished.value || wallLesson.value) return
-  if (!targets.value.includes(i)) return
+  if (!targets.value.includes(i)) return void (moveTo.value = -1)
+  if (moveTo.value !== i) {
+    moveTo.value = i
+    playSound('piecePick')
+    return
+  }
+  moveTo.value = -1
   const r = applyQuoridor(state.value, { type: 'move', to: i })
   if (!r.ok) return
   state.value = r.state
@@ -107,6 +115,7 @@ function next() {
   solved.value = false
   misses.value = 0
   preview.value = null
+  moveTo.value = -1
   state.value = build()
 }
 </script>
@@ -127,6 +136,7 @@ function next() {
           :targets="targets"
           :wall-mode="wallLesson"
           :preview="shownPreview"
+          :ghost="moveTo >= 0 ? { cell: moveTo, side: 0 } : null"
           :hints="glow"
           :hint-wall="wallLesson && !solved ? lesson.wall : null"
           :interactive="!solved && !finished"
