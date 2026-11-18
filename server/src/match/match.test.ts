@@ -334,5 +334,32 @@ describe('連線對局（伺服器當裁判）', () => {
     runToEnd(room, T0 + COUNTDOWN_MS + 20)
     expect(room.match!.over).toBe(true)
   })
+
+  it('西洋跳棋、星形跳棋：伺服器發局、電腦補位、時間到的真人由電腦代打，都下得完', () => {
+    for (const [gameId, humans] of [['checkers', 2], ['starcheckers', 2], ['starcheckers', 3]] as const) {
+      const { room, ids, m } = started(gameId, humans)
+      let t = T0 + COUNTDOWN_MS + 1000
+      // 西洋跳棋要先猜拳
+      if (gameId === 'checkers') {
+        playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, t)
+        playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, t)
+      }
+      t = runToEnd(room, t)
+      expect(m.over).toBe(true)
+      const fin = m.log[m.log.length - 1]
+      expect(fin.end).toBe(true)
+      if (gameId === 'starcheckers') expect(new Set((fin.pub as { out: number[] }).out).size).toBe(3)
+    }
+  }, 60000)
+
+  it('星形跳棋：有人認輸，剩下的人繼續下（不結束）', () => {
+    const { room, ids, m } = started('starcheckers', 3)
+    const t = T0 + COUNTDOWN_MS + 6000
+    const r = playerAct(room, ids[1], { type: 'resign' }, t)
+    expect(r[0].pub).toEqual({ type: 'resign', player: 1 })
+    expect(m.over).toBe(false)
+    // 不合法的路線不收
+    expect(playerAct(room, ids[0], { type: 'move', path: [0, 999] }, t)).toEqual([])
+  })
 })
 
