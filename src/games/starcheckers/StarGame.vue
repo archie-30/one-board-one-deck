@@ -6,6 +6,7 @@
 //   也可以按住自己的彈珠拖到能去的地方放開。
 // 玩到分出名次：有人到齊就標名次，剩下的人繼續下，直到第二個人也到齊。
 // 悔棋每局一次：彈珠沿原路跳回去，別人接著走的也一起退；連線時要另外兩個人都同意（電腦直接同意）。
+import { pathMs } from './hop'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { useGrace } from '@/core/grace'
@@ -91,7 +92,6 @@ const allAtOnce = computed(() => props.options.allAtOnce === true)
 const moving = ref<number[] | null>(null)
 /** 要播的跳的動畫（電腦、別人走的慢一點） */
 const anim = ref<{ key: number; path: number[]; slow?: boolean } | null>(null)
-const hopMs = (slow: boolean) => (slow ? 360 : 170)
 function play(path: number[], slow: boolean) {
   anim.value = { key: (anim.value?.key ?? 0) + 1, path, slow }
 }
@@ -190,7 +190,7 @@ function afterMove(before: StarState) {
     message.value = seat === me && !watching ? T.youArrived(s.out.indexOf(seat) + 1) : T.arrived(nameOf(seat), s.out.indexOf(seat) + 1)
   }
   if (s.over) return finish()
-  if (!net) later(nextTurn, 500 + ((last.value?.length ?? 2) - 1) * hopMs(s.turn === me))
+  if (!net) later(nextTurn, 500 + pathMs(last.value ?? [], s.turn === me))
 }
 function nextTurn() {
   const s = state.value
@@ -447,7 +447,7 @@ function pump() {
     sentPath = null
     if (ev.player === me) moving.value = null
     commit(ev.path, ev.player, !mineLocal)
-    return void later(pump, mineLocal ? 200 : 300 + (ev.path.length - 1) * hopMs(ev.player !== me))
+    return void later(pump, mineLocal ? 200 : 300 + pathMs(ev.path, ev.player !== me))
   }
   // 悔棋：申請、有人同意、有人不同意、悔了
   if (ev.type === 'undoAsk') {

@@ -45,6 +45,15 @@ const targets = computed(() => (selected.value >= 0 ? moves.value.filter((m) => 
 // 還沒選子時亮起要動的那顆；選了之後亮起要去的那一格
 const glow = computed(() => (solved.value || finished.value ? [] : [selected.value < 0 ? lesson.value.from : lesson.value.to]))
 
+function grab(i: number) {
+  if (selected.value === i) return
+  selected.value = i
+  playSound('piecePick')
+}
+function drop(from: number, to: number) {
+  selected.value = from
+  pick(to)
+}
 function pick(i: number) {
   if (solved.value || finished.value) return
   const l = lesson.value
@@ -103,7 +112,7 @@ function next() {
     </aside>
     <div class="board-wrap">
       <div class="board-box">
-        <CheckersBoard :key="step" :board="state.board" :selected="selected" :targets="targets" :last="last" :move-key="moveKey" :hints="glow" :interactive="!solved && !finished" @pick="pick" />
+        <CheckersBoard :key="step" :board="state.board" :selected="selected" :targets="targets" :last="last" :move-key="moveKey" :hints="glow" :interactive="!solved && !finished" :can-drag="(i) => !solved && !finished && i === lesson.from" @pick="pick" @grab="grab" @drop="drop" />
       </div>
     </div>
     <aside class="guide">
