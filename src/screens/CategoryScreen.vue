@@ -234,6 +234,9 @@ function tapCard(k: number) {
 function onClick(k: number, e: MouseEvent) {
   if (e.detail === 0) tapCard(k)
 }
+/** iPhone、iPad（包括上面的 Chrome、LINE，底下都是 Safari 的引擎）：圖形記憶體比較少，一堆 3D 卡片又加模糊時，
+ *  再開連線視窗、換到房間頁，瀏覽器會整個被系統關掉。這些裝置不加模糊，只蓋一層紙色的霧 */
+const lowGpu = typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
 function cardStyle(k: number) {
   const r = rel(k)
   const a = Math.abs(r)
@@ -256,7 +259,9 @@ function cardStyle(k: number) {
     '--fade': Math.min(0.78, a * 0.5 + mist * (a <= 0.5 ? 0.32 : 0.18)),
     transform: `translateX(-50%) translateX(${x}px) translateZ(${z}px) rotateY(${rot}deg)`,
   }
-  if (mist > 0.02) style.filter = `blur(${(mist * 2.4).toFixed(2)}px)`
+  // 看不到的卡片（左右第三張以後）：整張藏起來、不加模糊，不佔圖形記憶體
+  if (op <= 0.01) return { ...style, opacity: 0, visibility: 'hidden' }
+  if (mist > 0.02 && !lowGpu) style.filter = `blur(${(mist * 2.4).toFixed(2)}px)`
   return style
 }
 
