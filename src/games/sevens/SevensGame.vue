@@ -544,7 +544,7 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
       <Btn v-if="phase !== 'over' && !watching" class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || selected === null || sending" @click="confirm">{{ canPlayAny || !myTurn ? T.play : T.cover }}</Btn>
       <!-- 結束後看桌面：看結果＋再來一局＋離開對局排成一排（手牌都出完了，下面是空的） -->
       <template v-else-if="phase === 'over'">
-        <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn v-if="!net" class="rise" size="sm" icon="again" style="--i: 1" @click="newRound">{{ S.common.again }}</Btn>
         <RematchBtn v-else class="rise" size="sm" style="--i: 1" />
         <Btn v-if="startHands && !reviewOpen" class="rise" size="sm" icon="book" style="--i: 1" @click="openReview">{{ T.review.open }}</Btn>
@@ -609,7 +609,7 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
       <p class="how">{{ T.how }}</p>
       <p v-if="!watching" class="lifetime t-black">{{ T.record(stats.sevens.rounds, stats.sevens.wins) }}</p>
       <template #actions>
-        <Btn icon="exit" size="sm" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn icon="exit" size="sm" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn v-if="startHands" icon="book" size="sm" @click="openReview">{{ T.review.open }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn v-if="!net" tone="red" icon="again" @click="newRound">{{ S.common.again }}</Btn>

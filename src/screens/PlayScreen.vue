@@ -101,8 +101,9 @@ function onSave(data: unknown) {
 //   確認視窗放在 App 層（RoomCountdown.vue），這裡只交出「確定離開」要做的事。
 function onExit() {
   if (!onlineMatch) return void leave()
+  // 對局中離開：確認後離開房間（位子由電腦接手）；打完了：回到房間（走一般的離開過場）
   if (liveMatch.value && !liveOver.value) leaveMid.value = () => void leaveRoomHome()
-  else void leaveRoomHome()
+  else void leave()
 }
 onBeforeUnmount(() => (leaveMid.value = null))
 async function leaveRoomHome() {

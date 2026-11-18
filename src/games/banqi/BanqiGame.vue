@@ -511,7 +511,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
           <RematchBtn v-else tone="ink" block />
           <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
-            <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
+            <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.backRoom : S.common.quit }}</Btn>
           </div>
         </template>
         <template v-else>
@@ -538,7 +538,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
       <p class="text-[0.95rem]">{{ T.endReason[state.status] }}</p>
       <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.wins, record.losses, record.draws) }}</p>
       <template #actions>
-        <Btn size="sm" icon="exit" @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn size="sm" icon="exit" @click="emit('exit')">{{ bn ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
         <RematchBtn v-else tone="red" />

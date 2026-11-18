@@ -546,7 +546,7 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
           <RematchBtn v-else tone="ink" block />
           <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
-            <Btn size="sm" block @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
+            <Btn size="sm" block @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
           </div>
         </template>
         <!-- 一步一步跳：走到一半時右下角是「結束」＋「取消移動」 -->
@@ -582,7 +582,7 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
       </ol>
       <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(record.firsts, record.games) }}</p>
       <template #actions>
-        <Btn size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn v-if="!net" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
         <RematchBtn v-else tone="red" />

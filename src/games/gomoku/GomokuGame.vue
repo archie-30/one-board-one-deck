@@ -411,7 +411,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
           <RematchBtn v-else tone="ink" block />
           <div class="end2 mt-[0.5rem] grid grid-cols-2 gap-[0.4rem]">
             <Btn size="sm" block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
-            <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
+            <Btn size="sm" block @click="emit('exit')">{{ bn ? S.online.backRoom : S.common.quit }}</Btn>
           </div>
         </template>
         <template v-else>
@@ -429,7 +429,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
       <p class="text-[0.95rem]">{{ state.winner === 3 ? T.drawLead : T.winLead(state.moves.length) }}</p>
       <p v-if="!watching" class="t-label pt-[0.4rem] text-ink-2">{{ T.record(stats.gomoku.wins, stats.gomoku.losses, stats.gomoku.draws) }}</p>
       <template #actions>
-        <Btn size="sm" icon="exit" @click="emit('exit')">{{ bn ? S.online.leaveRoom : S.common.quit }}</Btn>
+        <Btn size="sm" icon="exit" @click="emit('exit')">{{ bn ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn size="sm" icon="check" @click="resultOpen = false">{{ S.common.viewBoard }}</Btn>
         <Btn v-if="!bn" tone="red" icon="again" @click="restart">{{ S.common.again }}</Btn>
         <RematchBtn v-else tone="red" />
