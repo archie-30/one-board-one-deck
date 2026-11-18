@@ -91,10 +91,13 @@ function close() {
         <Btn size="sm" :tone="confirmReset ? 'yellow' : 'plain'" @click="doReset">{{ confirmReset ? T.resetConfirm : T.resetBtn }}</Btn>
       </div>
     </div>
-    <p class="foot">
-      <span>{{ T.version }} {{ VERSION.number }}</span>
-      <a class="underline underline-offset-[0.2em]" href="./privacy.html" target="_blank" rel="noopener">{{ T.privacy }}</a>
-    </p>
+    <!-- 版本號放在捲動區外面，固定在視窗最下面 -->
+    <template #actions>
+      <p class="foot">
+        <span>{{ T.version }} {{ VERSION.number }}</span>
+        <a class="underline underline-offset-[0.2em]" href="./privacy.html" target="_blank" rel="noopener">{{ T.privacy }}</a>
+      </p>
+    </template>
   </Dialog>
 
   <!-- 清除戰績的最後確認 -->
@@ -134,9 +137,9 @@ function close() {
 }
 .foot {
   display: flex;
+  width: 100%;
   justify-content: space-between;
-  margin-right: 0.35rem;
-  padding-top: 0.5rem;
+  margin: -0.4rem 0.35rem 0 0;
   font-size: 0.75rem;
   color: var(--color-ink-2);
 }
