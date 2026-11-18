@@ -210,7 +210,7 @@ function scheduleCpu() {
       moods.value = [moods.value[0], 'idle']
       if (m) commit(m.path, 1)
     },
-    500 + Math.min(st.depth, 6) * 140 + extraThink(level) + Math.random() * 400,
+    1100 + Math.min(st.depth, 6) * 140 + extraThink(level) + Math.random() * 500,
   )
 }
 

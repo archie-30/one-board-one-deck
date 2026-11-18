@@ -214,7 +214,7 @@ const checkers: MatchDef<CheckersState, CheckersAct> = {
     const [m, next] = chooseCheckersMove(s, checkersAt(PERSONAS[id].chess, level(o)), rng)
     return [m ? { type: 'move', path: m.path, player: s.turn } : { type: 'timeout', player: s.turn }, next]
   },
-  think: (_s, id, o, r) => 500 + Math.min(checkersAt(PERSONAS[id].chess, level(o)).depth, 6) * 140 + extraThink(level(o)) + r * 400,
+  think: (_s, id, o, r) => 1100 + Math.min(checkersAt(PERSONAS[id].chess, level(o)).depth, 6) * 140 + extraThink(level(o)) + r * 500,
   timeout: (side) => ({ type: 'timeout', player: side }),
   render: (_b, _a, a) => ({ pub: a }),
   start: (s) => s,
@@ -222,10 +222,12 @@ const checkers: MatchDef<CheckersState, CheckersAct> = {
   resign: (s, side) => unwrap(applyCheckers(s, { type: 'resign', side: side as 0 | 1 })),
 }
 
-// ── 星形跳棋（3 人；不猜拳，0 號先走；沒有悔棋）──
+// ── 星形跳棋（3 人；不猜拳，0 號先走）──
 type StarAct = (Extract<StarAction, { type: 'move' }> | { type: 'timeout' }) & { player: number }
 const starcheckers: MatchDef<StarState, StarAct> = {
   seats: 3,
+  // 悔棋：另外兩個在場的真人都同意才悔（電腦直接同意）
+  undo: true,
   seconds: TURN_SECONDS.board,
   deal: (_seed, o) => createStar({ longJump: o.longJump !== false }),
   apply: (s, a) => unwrap(applyStar(s, a.type === 'move' ? { type: 'move', path: a.path } : { type: 'timeout' })),
@@ -238,7 +240,7 @@ const starcheckers: MatchDef<StarState, StarAct> = {
     const [m, next] = chooseStarMove(s, starAt(PERSONAS[id].chess, level(o)), rng)
     return [m ? { type: 'move', path: m.path, player: s.turn } : { type: 'timeout', player: s.turn }, next]
   },
-  think: (_s, _id, o, r) => 700 + extraThink(level(o)) * 0.6 + r * 500,
+  think: (_s, _id, o, r) => 1300 + extraThink(level(o)) * 0.6 + r * 600,
   timeout: (side) => ({ type: 'timeout', player: side }),
   render: (_b, _a, a) => ({ pub: a }),
   start: (s) => s,

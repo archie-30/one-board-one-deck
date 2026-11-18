@@ -1,11 +1,12 @@
 <script setup lang="ts">
-// 星形跳棋互動教學：4 課（走一格、跳過一顆、連跳、遠跳），每一課在空棋盤上擺幾顆彈珠，照著發亮的提示走一步就過關
+// 星形跳棋互動教學：4 課（走一格、跳過一顆、連跳、遠跳），每一課在空棋盤上擺幾顆彈珠，照著發亮的提示走一步就過關。
+// 跟對局一樣一步一步跳：每跳一格再顯示下一跳（教學到了目標那格就算過關，不用按「結束」）。
 import { computed, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { online } from '@/core/online'
 import { myLook } from '@/core/profile'
 import { S } from '@/data/strings'
-import { applyStar, cellAt, CELLS, createStar, movesFrom, type StarState } from '@/engine/starcheckers/rules'
+import { cellAt, CELLS, createStar, nextHops, type StarState } from '@/engine/starcheckers/rules'
 import Avatar from '@/ui/art/Avatar.vue'
 import Btn from '@/ui/Btn.vue'
 import GuideNote from '@/ui/GuideNote.vue'
@@ -20,13 +21,14 @@ interface Lesson {
   marbles: [number, number, number][]
   long: boolean
   from: [number, number]
-  to: [number, number]
+  /** 依序要跳到的格子（最後一格是目標） */
+  route: [number, number][]
 }
 const LESSONS: Lesson[] = [
-  { marbles: [[0, 2, 1]], long: false, from: [0, 2], to: [0, 1] },
-  { marbles: [[0, 2, 1], [0, 1, 2]], long: false, from: [0, 2], to: [0, 0] },
-  { marbles: [[0, 4, 1], [0, 3, 2], [0, 1, 3]], long: false, from: [0, 4], to: [0, 0] },
-  { marbles: [[0, 4, 1], [0, 2, 2]], long: true, from: [0, 4], to: [0, 0] },
+  { marbles: [[0, 2, 1]], long: false, from: [0, 2], route: [[0, 1]] },
+  { marbles: [[0, 2, 1], [0, 1, 2]], long: false, from: [0, 2], route: [[0, 0]] },
+  { marbles: [[0, 4, 1], [0, 3, 2], [0, 1, 3]], long: false, from: [0, 4], route: [[0, 2], [0, 0]] },
+  { marbles: [[0, 4, 1], [0, 2, 2]], long: true, from: [0, 4], route: [[0, 0]] },
 ]
 
 const step = ref(0)
@@ -43,13 +45,29 @@ function build(): StarState {
 }
 const state = shallowRef<StarState>(build())
 const last = shallowRef<number[] | null>(null)
-const moveKey = ref(0)
+/** 走到一半的路線 */
+const moving = ref<number[] | null>(null)
+const anim = ref<{ key: number; path: number[] } | null>(null)
 const lesson = computed(() => LESSONS[step.value])
 const text = computed(() => T.tutorial[step.value])
 const from = computed(() => cellAt(...lesson.value.from))
-const to = computed(() => cellAt(...lesson.value.to))
-const targets = computed(() => (selected.value >= 0 && !solved.value ? movesFrom(state.value, selected.value).map((m) => m.path[m.path.length - 1]) : []))
-const glow = computed(() => (solved.value || finished.value ? [] : [selected.value < 0 ? from.value : to.value]))
+const route = computed(() => lesson.value.route.map(([q, r]) => cellAt(q, r)))
+/** 畫面上的棋盤：走到一半的那顆畫在現在的位置 */
+const shown = computed(() => {
+  const p = moving.value
+  if (!p) return state.value.board
+  const b = state.value.board.slice()
+  b[p[p.length - 1]] = b[p[0]]
+  b[p[0]] = 0
+  return b
+})
+const targets = computed(() => {
+  if (solved.value || finished.value) return []
+  if (moving.value) return nextHops(state.value, moving.value)
+  return selected.value >= 0 ? nextHops(state.value, [selected.value]) : []
+})
+// 還沒選子時亮起要動的那顆；之後依序亮起下一個要跳到的格子
+const glow = computed(() => (solved.value || finished.value ? [] : selected.value < 0 ? [from.value] : [route.value[(moving.value?.length ?? 1) - 1]]))
 
 function pick(i: number) {
   if (solved.value || finished.value) return
@@ -61,27 +79,34 @@ function pick(i: number) {
   if (selected.value < 0 || !targets.value.includes(i)) {
     misses.value++
     playSound('error')
-    selected.value = -1
+    if (!moving.value) selected.value = -1
     return
   }
-  const m = movesFrom(state.value, selected.value)
-    .filter((x) => x.path[x.path.length - 1] === i)
-    .sort((a, b) => a.path.length - b.path.length)[0]
-  const r = applyStar(state.value, { type: 'move', path: m.path })
-  selected.value = -1
-  if (!r.ok) return
-  last.value = m.path
-  state.value = { ...r.state, turn: 0 }
-  moveKey.value++
-  playSound(m.path.length > 2 ? 'stonePick' : 'stone')
-  if (i === to.value) return pass()
-  // 走了但不是這一課要的：先讓你看到，再退回來
+  const p = moving.value ?? [selected.value]
+  moving.value = [...p, i]
+  selected.value = i
+  anim.value = { key: (anim.value?.key ?? 0) + 1, path: [p[p.length - 1], i] }
+  playSound(step.value === 0 ? 'stone' : 'stonePick')
+  const want = route.value[moving.value.length - 2]
+  if (i === want && moving.value.length - 1 === route.value.length) {
+    last.value = moving.value
+    return pass()
+  }
+  if (i === want) return
+  // 跳錯了：先讓你看到，再退回來
   misses.value++
   window.setTimeout(() => {
     state.value = build()
+    moving.value = null
+    selected.value = -1
     last.value = null
-    moveKey.value++
   }, 900)
+}
+function drop(a: number, b: number) {
+  if (a === (moving.value ? moving.value[moving.value.length - 1] : from.value)) {
+    if (!moving.value) selected.value = a
+    pick(b)
+  }
 }
 function pass() {
   solved.value = true
@@ -97,6 +122,7 @@ function next() {
   misses.value = 0
   selected.value = -1
   last.value = null
+  moving.value = null
   state.value = build()
 }
 </script>
@@ -109,7 +135,7 @@ function next() {
     </aside>
     <div class="board-wrap">
       <div class="board-box">
-        <StarBoard :key="step" :board="state.board" :selected="selected" :targets="targets" :last="last" :move-key="moveKey" :hints="glow" :interactive="!solved && !finished" @pick="pick" />
+        <StarBoard :key="step" :board="shown" :selected="selected" :targets="targets" :last="moving ?? last" :anim="anim" :hints="glow" :interactive="!solved && !finished" :can-drag="(i) => !solved && (moving ? i === moving[moving.length - 1] : i === from)" @pick="pick" @drop="drop" />
       </div>
     </div>
     <aside class="guide">

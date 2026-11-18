@@ -60,6 +60,8 @@ export interface MatchState {
   undoUntil: number
   /** 每個座位用過悔棋沒（每局一次） */
   undoUsed: boolean[]
+  /** 已經同意悔棋的座位（三人局要另外兩個在場的真人都同意） */
+  undoOk?: number[]
 }
 
 /** 真人連續逾時幾次後，改由電腦代打（不然撿紅點這種逾時只跳過的玩法可能永遠打不完） */
@@ -264,9 +266,16 @@ export function playerAct(room: RoomState, pid: string, raw: unknown, now: numbe
   }
   if (raw.type === 'undo') return askUndo(room, seat, now)
   if (raw.type === 'undoReply') {
-    // 只有被問的那一方能回答
-    if (m.undoAsk === null || m.undoAsk === side) return []
-    if (raw.ok === true) return doUndo(room, seatOf(m, m.undoAsk), now)
+    // 只有被問的人能回答（申請的人自己不行、答過的不能再答）
+    if (m.undoAsk === null || m.undoAsk === side || m.undoOk?.includes(seat)) return []
+    if (raw.ok === true) {
+      m.undoOk = [...(m.undoOk ?? []), seat]
+      const asker = seatOf(m, m.undoAsk)
+      // 在場的真人都同意了才悔（電腦、不在的人不用問）
+      if (askees(room, asker).every((i) => m.undoOk!.includes(i))) return doUndo(room, asker, now)
+      push(m, { type: 'undoOk', seat }, seat)
+      return m.log.slice(start)
+    }
     push(m, { type: 'undoNo', by: m.undoAsk })
     m.undoAsk = null
     m.undoUntil = 0
@@ -288,14 +297,21 @@ function lastMoveOf(m: MatchState, side: number): number {
   return k
 }
 
+/** 悔棋要問誰：申請的人以外、在場的真人 */
+function askees(room: RoomState, seat: number): number[] {
+  const m = room.match!
+  return m.seats.map((s, i) => (i !== seat && s.pid && present(room, s.pid) ? i : -1)).filter((i) => i >= 0)
+}
+
 function askUndo(room: RoomState, seat: number, now: number): LogEntry[] {
   const m = room.match!
   const def = MATCH_DEFS[m.gameId]
   const side = sideOf(m, seat)
   if (!def.undo || m.undoUsed[seat] || m.undoAsk !== null || lastMoveOf(m, side) < 0) return []
-  const other = m.seats.findIndex((_, i) => i !== seat)
-  if (!present(room, m.seats[other].pid)) return doUndo(room, seat, now)
+  // 對手是電腦、或不在：直接同意
+  if (!askees(room, seat).length) return doUndo(room, seat, now)
   const start = m.log.length
+  m.undoOk = []
   m.undoAsk = side
   m.undoUntil = now + UNDO_ANSWER_MS
   push(m, { type: 'undoAsk', by: side }, seat)

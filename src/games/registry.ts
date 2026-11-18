@@ -264,7 +264,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.starcheckers.rules, TR.star),
     tutorial: defineAsyncComponent(() => import('./starcheckers/StarTutorial.vue')),
     component: defineAsyncComponent(() => import('./starcheckers/StarGame.vue')),
-    settings: [level(), toggle('longJump', S.starcheckers.settings.longJump, true), timer()],
+    settings: [level(), toggle('longJump', S.starcheckers.settings.longJump, true), toggle('allAtOnce', S.starcheckers.settings.allAtOnce, false, { group: 'other', live: true }), timer()],
   },
 ]
 
