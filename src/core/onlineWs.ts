@@ -3,7 +3,7 @@
 //   之後只送「意圖」（準備、觀戰、換模式、推薦、離開、回到房間）；房間長怎樣、什麼時候倒數開局，都由伺服器通知。
 //   斷線會自動重連（伺服器幫你留位子 45 秒）；憑證存在這個分頁（sessionStorage），重新整理也接得回去。
 import { ONLINE_PING, ONLINE_RETRY, ONLINE_TIMEOUT, ONLINE_URL } from '@/data/onlineServer'
-import { receiveAct, receiveMatch, rejectAct, type MatchEvent, type MatchIntro } from './onlineMatch'
+import { expectRejoin, receiveAct, receiveMatch, rejectAct, type MatchEvent, type MatchIntro } from './onlineMatch'
 import { receiveClosed, receiveRoom, receiveStart, type JoinError, type OnlineProfile, type OnlineService, type Room, type RoomIntent } from './online'
 
 interface Creds {
@@ -28,6 +28,23 @@ interface RoomView {
 }
 
 const STORE = 'obod.online.v1'
+/** 對局中離開的房間：房號、當時的編號與憑證（這一局打完前用房號加回來，可以回到原本的座位） */
+const REJOIN = 'obod.rejoin.v1'
+const loadRejoin = (): Creds | null => {
+  try {
+    return JSON.parse(localStorage.getItem(REJOIN) ?? 'null')
+  } catch {
+    return null
+  }
+}
+const saveRejoin = (c: Creds | null) => {
+  try {
+    if (c) localStorage.setItem(REJOIN, JSON.stringify(c))
+    else localStorage.removeItem(REJOIN)
+  } catch {
+    // 存不了：只是加回去時會變成一般的「已經開始了」
+  }
+}
 const loadCreds = (): Creds | null => {
   try {
     return JSON.parse(sessionStorage.getItem(STORE) ?? 'null')
@@ -214,8 +231,20 @@ export function createWsService(): OnlineService {
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && reconnectNow())
   return {
     create: (me: OnlineProfile) => enter('/rooms', { profile: me }),
-    join: (code: string, me: OnlineProfile) => enter('/rooms/join', { code, profile: me }),
-    async leave() {
+    async join(code: string, me: OnlineProfile) {
+      // 之前對局中離開這間房：帶著當時的憑證，回到原本的座位
+      const old = loadRejoin()
+      const rejoin = old && old.code === code ? { pid: old.pid, token: old.token } : undefined
+      if (rejoin) expectRejoin(true)
+      const r = await enter('/rooms/join', { code, profile: me, ...(rejoin ? { rejoin } : {}) })
+      if (rejoin) {
+        saveRejoin(null)
+        if (typeof r === 'string') expectRejoin(false)
+      }
+      return r
+    },
+    async leave(mid?: boolean) {
+      saveRejoin(mid && creds ? { ...creds } : null)
       if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ t: 'leave' }))
       forget()
     },

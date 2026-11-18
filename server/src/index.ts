@@ -46,7 +46,7 @@ export default {
     if (req.method !== 'POST' || (url.pathname !== '/rooms' && url.pathname !== '/rooms/join')) return withCors(json({ error: 'format' }, 404), origin!)
     const text = await req.text()
     if (text.length > MAX_BODY) return withCors(json({ error: 'format' }, 413), origin!)
-    let body: { code?: unknown; profile?: unknown }
+    let body: { code?: unknown; profile?: unknown; rejoin?: unknown }
     try {
       body = JSON.parse(text)
     } catch {
@@ -55,7 +55,7 @@ export default {
     const ip = req.headers.get('CF-Connecting-IP') ?? 'local'
     const dir = env.DIRECTORY.get(env.DIRECTORY.idFromName('main'))
     const path = url.pathname === '/rooms' ? '/create' : '/join'
-    const res = await dir.fetch(`https://dir${path}`, { method: 'POST', body: JSON.stringify({ ip, code: typeof body.code === 'string' ? body.code : '', profile: body.profile }) })
+    const res = await dir.fetch(`https://dir${path}`, { method: 'POST', body: JSON.stringify({ ip, code: typeof body.code === 'string' ? body.code : '', profile: body.profile, rejoin: body.rejoin }) })
     return withCors(res, origin!)
   },
 } satisfies ExportedHandler<Env>

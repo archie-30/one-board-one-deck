@@ -133,6 +133,8 @@ export function startMatch(room: RoomState, seed: number, now: number): MatchSta
     undoUsed: seats.map(() => false),
   }
   room.match = m
+  // 新的一局：上一局中途離開的人不能再加回來了
+  room.leftMid = undefined
   if (def.rps) startRps(room, now + RPS_FIRST)
   // 一開局就分出勝負（大老二的一條龍）：直接攤牌
   else if (def.turn(m.s) < 0) end(m)

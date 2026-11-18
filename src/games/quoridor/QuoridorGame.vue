@@ -595,19 +595,20 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   color: var(--color-ink-2);
 }
 .act {
-  width: 9rem;
+  width: 9.6rem;
   margin-top: 0.4rem;
 }
 /* 走棋／放牆：兩格切換 */
 .modes {
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
+  grid-template-columns: 1fr 1.6fr;
   border: 0.14rem solid var(--color-ink);
   background: var(--color-card);
 }
 .mode {
-  padding: 0.45rem 0.2rem;
-  font-size: 0.78rem;
+  padding: 0.45rem 0.15rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
   font-weight: 900;
   color: var(--color-ink-2);
   transition:

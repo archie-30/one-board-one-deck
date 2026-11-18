@@ -265,3 +265,13 @@ button {
     animation: none !important;
   }
 }
+
+/* 快轉（中途加回連線對局、補播之前的每一步時）：CSS 動畫、轉場一下就跑完 */
+html.turbo *,
+html.turbo *::before,
+html.turbo *::after {
+  animation-duration: 20ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 20ms !important;
+  transition-delay: 0ms !important;
+}

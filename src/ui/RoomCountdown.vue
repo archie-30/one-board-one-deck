@@ -11,7 +11,7 @@ import { startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { go, resetTo, route } from '@/core/nav'
 import { backToRoom, imHere, matchStart, online, roomCountdown } from '@/core/online'
-import { leaveMid } from '@/core/onlineMatch'
+import { leaveMid, rejoinMatch } from '@/core/onlineMatch'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
 import Btn from '@/ui/Btn.vue'
@@ -71,6 +71,23 @@ watch(
     void launch(matchStart.value.gameId)
   },
 )
+// 對局中離開又用房號加回來：伺服器送來這一局 → 等換到房間頁（加入視窗會先換頁），跟開局一樣用房間那張模式卡片翻面進場（接著打）
+let rejoinGame = ''
+watch(rejoinMatch, (r) => {
+  if (!r) return
+  rejoinGame = r.gameId
+  if (route.value.name === 'room') rejoinLaunch()
+})
+watch(
+  () => route.value.name,
+  (now) => now === 'room' && rejoinGame && rejoinLaunch(),
+)
+function rejoinLaunch() {
+  const id = rejoinGame
+  rejoinGame = ''
+  // 等房間頁的卡片出現再起飛
+  window.setTimeout(() => void launch(id), 350)
+}
 // 打完從對局回到房間
 watch(
   () => route.value.name,

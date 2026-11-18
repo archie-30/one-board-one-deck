@@ -108,8 +108,8 @@ export const isRoomCode = (s: string) => new RegExp(`^\\d{${ROOM_CODE_LENGTH}}$`
 export interface OnlineService {
   create(me: OnlineProfile): Promise<Room | JoinError>
   join(code: string, me: OnlineProfile): Promise<Room | JoinError>
-  /** 離開房間（房主＝解散） */
-  leave(): Promise<void>
+  /** 離開房間（房主＝解散）；mid：對局還沒打完就離開（記住憑證，這一局打完前用房號加回來可以回到原本的座位） */
+  leave(mid?: boolean): Promise<void>
   /** 送一個意圖給伺服器 */
   send(intent: RoomIntent): void
 }
@@ -211,12 +211,12 @@ export async function joinRoom(code: string, me: OnlineProfile | string): Promis
   return r
 }
 
-export async function leaveRoom() {
+export async function leaveRoom(mid = false) {
   const room = online.room
   online.room = null
   online.closed = ''
   roomCountdown.value = 0
-  if (room) await service.leave()
+  if (room) await service.leave(mid)
 }
 
 /** 換模式：大家的「準備」都取消；新模式坐得下所有人的話，觀戰的人自動回來對戰 */
