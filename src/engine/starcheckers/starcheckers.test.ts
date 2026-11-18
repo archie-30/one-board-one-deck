@@ -95,6 +95,24 @@ describe('星形跳棋電腦', () => {
     return s
   }
 
+  it('有往前的步可走時不會原地踏步或往回走（低難度也一樣）', async () => {
+    const { remaining, legalMoves } = await import('./rules')
+    for (const lv of ['low', 'mid', 'high', 'master'] as const) {
+      let s = createStar()
+      let rng = seedRng(3)
+      for (let ply = 0; ply < 150 && !s.over; ply++) {
+        const me = s.turn
+        const before = remaining(s.board, me)
+        const canGo = legalMoves(s).some((m) => remaining(applyStar(s, { type: 'move', path: m.path }).state!.board, me) < before)
+        const [m, r] = chooseStarMove(s, starAt(PERSONAS[ply % 30].chess, lv), rng)
+        rng = r
+        const next = applyStar(s, m ? { type: 'move', path: m.path } : { type: 'timeout' }).state!
+        if (canGo) expect(remaining(next.board, me)).toBeLessThan(before)
+        s = next
+      }
+    }
+  }, 60000)
+
   it('電腦三個人下得完：排出 1～3 名', () => {
     for (let g = 0; g < 3; g++) {
       const s = run(['mid', 'mid', 'mid'], g)
@@ -106,7 +124,7 @@ describe('星形跳棋電腦', () => {
   it('難度：高比中、中比低多半先到齊', () => {
     let highFirst = 0
     let midFirst = 0
-    for (let g = 0; g < 6; g++) {
+    for (let g = 0; g < 12; g++) {
       const levels: ('low' | 'mid' | 'high')[] = ['high', 'mid', 'low']
       // 輪流換位子
       const order = [levels[g % 3], levels[(g + 1) % 3], levels[(g + 2) % 3]]
@@ -115,8 +133,8 @@ describe('星形跳棋電腦', () => {
       if (rank('high') < rank('mid')) highFirst++
       if (rank('mid') < rank('low')) midFirst++
     }
-    expect(highFirst).toBeGreaterThanOrEqual(4)
-    expect(midFirst).toBeGreaterThanOrEqual(4)
+    expect(highFirst).toBeGreaterThanOrEqual(8)
+    expect(midFirst).toBeGreaterThanOrEqual(8)
   }, 120000)
 
   it('兩個電腦不會聯手：誰是另外兩個人對電腦的決定沒有影響（把另外兩人的彈珠對調，選的步完全一樣）', () => {
