@@ -6,6 +6,8 @@ export const TURN_SECONDS = {
   crazy: 35,
   /** 五子棋、圍棋、西洋棋、象棋：每一步 */
   board: 60,
+  /** 西洋跳棋、星形跳棋：連跳路線要多看一下，每一步多給一點時間 */
+  checkers: 90,
   /** 猜拳：沒在時間內出拳就算輸 */
   rps: 5,
 } as const
