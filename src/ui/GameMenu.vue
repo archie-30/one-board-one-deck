@@ -76,6 +76,21 @@ function onKey(e: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+
+// 要按兩次的按鈕：按了第一下（變黃「再按一次」）之後點了別的地方，就變回原樣，不停在黃色
+function disarm(e: PointerEvent) {
+  const t = e.target as Element | null
+  if (quitArmed.value && !t?.closest('[data-arm="quit"]')) {
+    quitArmed.value = false
+    window.clearTimeout(quitTimer)
+  }
+  if (restartArmed.value && !t?.closest('[data-arm="restart"]')) {
+    restartArmed.value = false
+    window.clearTimeout(restartTimer)
+  }
+}
+onMounted(() => document.addEventListener('pointerdown', disarm, true))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', disarm, true))
 /** 選單、規則說明、規則設定之間切換：舊的往下沉淡出、新的往上浮 */
 /** 選單上方那一條：玩法名稱＋難度（連線時照房主的難度；沒有難度的玩法只寫名稱） */
 const label = computed(() => {
@@ -103,8 +118,8 @@ const view = computed(() => (showRules.value ? 'rules' : showOptions.value ? 'op
       <Btn v-if="hasOptions" class="" icon="pencil" block arrow @click="showOptions = true">{{ S.lobby.settings }}</Btn>
       <Btn icon="gear" block arrow @click="settingsOpen = true">{{ S.appSettings.title }}</Btn>
       <!-- 連線對戰不能自己重新開始（要回房間大家重新準備） -->
-      <Btn v-if="!online.room" icon="again" block arrow :tone="restartArmed ? 'yellow' : 'plain'" @click="restart">{{ restartArmed ? S.common.quitConfirm : canSave ? S.common.restartGiveUp : S.common.restart }}</Btn>
-      <Btn icon="exit" block arrow :tone="quitArmed ? 'yellow' : 'plain'" @click="quit">{{ quitArmed ? S.common.quitConfirm : canSave ? S.common.quitNoSave : S.common.quit }}</Btn>
+      <Btn v-if="!online.room" data-arm="restart" icon="again" block arrow :tone="restartArmed ? 'yellow' : 'plain'" @click="restart">{{ restartArmed ? S.common.quitConfirm : canSave ? S.common.restartGiveUp : S.common.restart }}</Btn>
+      <Btn data-arm="quit" icon="exit" block arrow :tone="quitArmed ? 'yellow' : 'plain'" @click="quit">{{ quitArmed ? S.common.quitConfirm : canSave ? S.common.quitNoSave : S.common.quit }}</Btn>
       <!-- 連線對戰不能保存進度 -->
       <Btn v-if="canSave && !online.room" tone="yellow" icon="check" block arrow @click="emit('saveExit')">{{ S.common.saveExit }}</Btn>
     </div>

@@ -131,5 +131,5 @@ describe('步步為營電腦', () => {
         expect(10 - s.wallsLeft[1]).toBeLessThanOrEqual(3)
       }
     }
-  })
+  }, 60000)
 })

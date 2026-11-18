@@ -279,6 +279,8 @@ function confirmMove() {
 
 // 認輸並結算：要按兩次（第一次變成「再按一次認輸」，2.5 秒內再按才算）
 const resignArmed = ref(false)
+/** 悔棋按了第一下（「再按一次悔棋」）：悔棋變寬、認輸先藏起來 */
+const undoArmed = ref(false)
 let resignTimer = 0
 function resign() {
   if (phase.value !== 'playing' || watching) return
@@ -479,10 +481,15 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
           </button>
           <Btn v-if="wallMode" class="mt-[0.5rem]" tone="red" icon="check" block :disabled="!preview || !shownPreview?.ok" @click="placeWall">{{ T.placeWall }}</Btn>
           <Btn v-else-if="doubleTap" class="mt-[0.5rem]" tone="red" icon="check" block :disabled="!myTurn || moveTo < 0" @click="confirmMove">{{ T.moveHere }}</Btn>
-          <!-- 悔棋、認輸並排（對方要求悔棋時，悔棋那顆變成「同意／不同意」，整排都給它） -->
-          <div class="pair mt-[0.4rem]" :class="{ asked: !!bn?.undoAsked.value }">
-            <UndoBtn block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" />
-            <Btn v-if="!bn?.undoAsked.value" size="sm" block :tone="resignArmed ? 'yellow' : 'plain'" :disabled="phase !== 'playing'" @click="resign">{{ resignArmed ? T.resignAgain : T.resign }}</Btn>
+          <!-- 悔棋、認輸並排。其中一顆按了第一下（「再按一次＿」）時，它變寬佔滿整排、另一顆縮起來藏好；
+               恢復時再展開回來。對方要求悔棋時（「同意／不同意」）也是悔棋那顆佔整排 -->
+          <div class="pair mt-[0.4rem]" :class="{ undoWide: undoArmed || !!bn?.undoAsked.value, resignWide: resignArmed }">
+            <div class="slot u">
+              <UndoBtn block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" @armed="(on) => (undoArmed = on)" />
+            </div>
+            <div class="slot r">
+              <Btn size="sm" block :tone="resignArmed ? 'yellow' : 'plain'" :disabled="phase !== 'playing'" @click="resign">{{ resignArmed ? T.resignAgain : T.resign }}</Btn>
+            </div>
           </div>
         </template>
       </div>
@@ -516,7 +523,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 }
 .board-wrap {
   /* 棋盤不能大到把兩邊擠扁：至少留 23rem 給左右兩欄 */
-  height: min(100%, calc(100vw - 23rem));
+  height: min(100%, calc(100vw - 23rem - var(--cut-l) - var(--cut-r)));
   align-self: center;
   aspect-ratio: 1;
   flex-shrink: 0;
@@ -695,12 +702,35 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 }
 
 .pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.35rem;
+  display: flex;
+  /* 底下、右邊給按鈕的偏移陰影留位置（格子要裁掉縮起來的那顆，陰影不能一起被裁掉） */
+  margin: 0 -0.3rem -0.35rem 0;
 }
-.pair.asked {
-  grid-template-columns: 1fr;
+/* 兩顆各佔一半；某一顆按了第一下時，它展開佔滿整排、另一顆縮到沒有寬度並淡掉（反過來也一樣） */
+.pair .slot {
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+  padding: 0 0.3rem 0.35rem 0;
+  transition:
+    flex-grow 320ms var(--ease-out),
+    opacity 220ms,
+    margin 320ms var(--ease-out);
+}
+.pair .slot.r {
+  margin-left: 0.05rem;
+}
+.pair.undoWide .slot.r,
+.pair.resignWide .slot.u {
+  flex-grow: 0.0001;
+  opacity: 0;
+  pointer-events: none;
+}
+.pair.undoWide .slot.r {
+  margin-left: 0;
+}
+.pair.resignWide .slot.r {
+  margin-left: 0;
 }
 .pair :deep(.face) {
   justify-content: center;
