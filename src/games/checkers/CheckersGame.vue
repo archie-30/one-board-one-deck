@@ -433,7 +433,6 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         </template>
         <template v-else>
           <UndoBtn v-if="!watching" block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" />
-          <Btn v-if="!watching" class="mt-[0.5rem]" size="sm" icon="exit" block :disabled="phase !== 'playing'" @click="resignOpen = true">{{ T.resign }}</Btn>
         </template>
       </div>
     </aside>

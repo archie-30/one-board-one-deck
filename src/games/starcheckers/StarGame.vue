@@ -556,7 +556,6 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
         </template>
         <template v-else-if="!watching">
           <UndoBtn block :disabled="!canUndo" :used="undoUsed" :waiting="undoWaiting" :asked="undoAsked" @answer="answerUndo" @undo="undo" />
-          <Btn class="mt-[0.5rem]" size="sm" icon="exit" block :disabled="phase !== 'playing' || state.gaveUp.includes(me) || state.out.includes(me)" @click="resignOpen = true">{{ T.resign }}</Btn>
         </template>
       </div>
     </aside>
