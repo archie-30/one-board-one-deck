@@ -219,6 +219,10 @@ watch(
 .live .marble {
   cursor: pointer;
 }
+/* 手機上 SVG 裡面的元素不吃 touch-action，要放在整個棋盤上，拖曳才不會被瀏覽器的手勢搶走 */
+.star.live {
+  touch-action: none;
+}
 .pit {
   fill: rgb(20 20 20 / 0.28);
   pointer-events: none;
