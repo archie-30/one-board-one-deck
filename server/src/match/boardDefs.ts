@@ -169,7 +169,7 @@ const banqi: MatchDef<BanqiState, BanqiAct> = {
   undo: true,
   // 連吃是同一個人連著好幾步：悔棋要整串一起退
   undoRun: true,
-  deal: (seed, o) => dealBanqi(seed, { rookSlide: o.rookSlide === true, chain: o.chain === true }),
+  deal: (seed, o) => dealBanqi(seed, { rookSlide: o.rookSlide === true, chain: o.chain === true, darkEat: o.darkEat === true }),
   apply: (s, a) => unwrap(applyBanqi(s, a)),
   turn: (s) => (s.status !== 'playing' ? -1 : s.turn),
   parse(raw, side) {
@@ -188,8 +188,10 @@ const banqi: MatchDef<BanqiState, BanqiAct> = {
     return 700 + (lv === 'high' ? 600 : lv === 'mid' ? 300 : 0) + r * 500
   },
   timeout: (side) => ({ type: 'timeout', player: side }),
-  // 翻棋：翻出來的是哪顆，大家都看得到
-  render: (_b, after, a) => ({ pub: a.type === 'flip' ? { ...a, piece: after.board[a.at] } : a }),
+  // 翻棋、暗吃（走到蓋著的棋上）：翻出來的是哪顆，大家都看得到
+  render: (before, after, a) => ({
+    pub: a.type === 'flip' ? { ...a, piece: after.board[a.at] } : a.type === 'move' && before.board[a.to] && !before.up[a.to] ? { ...a, piece: before.board[a.to] } : a,
+  }),
   // 開局：蓋著的棋只給「有棋」（?），不給是哪顆
   start: (s) => ({ ...s, board: s.board.map((p, i) => (p && !s.up[i] ? '?' : p)) }),
   reveal: (s) => s,

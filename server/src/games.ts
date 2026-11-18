@@ -53,7 +53,7 @@ export const MATCH_RULES: Record<string, Record<string, readonly (string | boole
   othello: { difficulty: LEVEL4, timer: B },
   chess: { difficulty: LEVEL4, timer: B },
   xiangqi: { difficulty: LEVEL4, timer: B },
-  banqi: { difficulty: LEVEL, rookSlide: B, chain: B, timer: B },
+  banqi: { difficulty: LEVEL, rookSlide: B, chain: B, darkEat: B, timer: B },
   checkers: { difficulty: LEVEL4, forceCapture: B, timer: B },
   starcheckers: { difficulty: LEVEL4, longJump: B, timer: B },
 }

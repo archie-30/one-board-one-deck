@@ -3,6 +3,7 @@
 //   走棋：吃子賺多少、走完會不會被吃。
 //   難度（banqiAt）：低只看一步、不太管會不會被吃、常常亂走；中看一步但會顧自己被吃；
 //   高再多想一步（對方最好的回應），翻棋也會想對方怎麼回。
+//   暗吃（走到蓋著的棋上）：跟翻棋一樣，用「還沒出現的棋」算期望值。
 import { nextRandom, type RngState } from '../common/rng'
 import { ALL_PIECES, applyBanqi, COLS, colOf, colorOf, kindOf, legalActions, outranks, rowOf, ROWS, SIZE, targetsFrom, type BanqiAction, type BanqiState, type Color, type Piece } from './rules'
 
@@ -54,7 +55,8 @@ function bestGain(s: BanqiState, color: Color): number {
     const p = s.board[i]
     if (!p || !s.up[i] || colorOf(p) !== color) continue
     for (const to of targetsFrom(s, i)) {
-      const t = s.board[to]
+      // 蓋著的棋（暗吃）不知道是什麼：不算（不能偷看）
+      const t = s.up[to] ? s.board[to] : null
       if (t) best = Math.max(best, valueOf(t, s))
     }
   }
@@ -168,7 +170,8 @@ function search(s: BanqiState, depth: number, me: Color, st: BanqiStyle, alpha: 
   if (mine) alpha = Math.max(alpha, best)
   else beta = Math.min(beta, best)
   if (alpha >= beta) return best
-  const moves = legalActions(s).filter((a) => a.type !== 'flip')
+  // 暗吃（走到蓋著的棋上）跟翻棋一樣是猜的，往後算時不算它（不能偷看蓋著的是什麼）
+  const moves = legalActions(s).filter((a) => a.type !== 'flip' && !(a.type === 'move' && s.board[a.to] && !s.up[a.to]))
   // 吃子先算：剪枝比較快
   moves.sort((a, b) => (b.type === 'move' && s.board[b.to] ? 1 : 0) - (a.type === 'move' && s.board[a.to] ? 1 : 0))
   for (const a of moves) {
@@ -188,6 +191,24 @@ function search(s: BanqiState, depth: number, me: Color, st: BanqiStyle, alpha: 
   return best
 }
 
+/** 暗吃（走到蓋著的棋上）的期望分數：跟翻棋一樣，還沒出現的棋每一種都假設一次 */
+function darkEatValue(s: BanqiState, a: { from: number; to: number }, me: Color, st: BanqiStyle, reply: boolean): number {
+  const pool = hiddenPool(s)
+  if (!pool.length) return -Infinity
+  const kinds = new Map<Piece, number>()
+  for (const p of pool) kinds.set(p, (kinds.get(p) ?? 0) + 1)
+  let total = 0
+  for (const [p, n] of kinds) {
+    const board = s.board.slice()
+    board[a.to] = p
+    const r = applyBanqi({ ...s, board }, { type: 'move', from: a.from, to: a.to })
+    if (!r.ok) continue
+    const t = r.state
+    total += n * (t.chainAt >= 0 ? evaluate(t, me, st) : reply ? replyValue(t, me, st, st.flipDepth ?? 1) : evaluate(t, me, st))
+  }
+  return total / pool.length
+}
+
 /** 對方最好的回應之後的分數（往後算 depth - 1 步） */
 function replyValue(s: BanqiState, me: Color, st: BanqiStyle, depth = st.depth - 1): number {
   return search(s, depth, me, st, -Infinity, Infinity)
@@ -197,6 +218,7 @@ function replyValue(s: BanqiState, me: Color, st: BanqiStyle, depth = st.depth -
 function actionValue(s: BanqiState, a: BanqiAction, me: Color, st: BanqiStyle): number {
   const reply = st.depth >= 2
   if (a.type === 'flip') return flipValue(s, a.at, me, st, reply)
+  if (a.type === 'move' && s.board[a.to] && !s.up[a.to]) return darkEatValue(s, a, me, st, reply)
   const r = applyBanqi(s, a)
   if (!r.ok) return -Infinity
   // 還在連吃：當作接著能吃（之後再決定）

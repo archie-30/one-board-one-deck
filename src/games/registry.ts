@@ -236,6 +236,7 @@ export const GAMES: GameDef[] = [
       choice('difficulty', S.banqi.settings.difficulty, 'mid'),
       toggle('rookSlide', S.banqi.settings.rookSlide, false),
       toggle('chain', S.banqi.settings.chain, false),
+      toggle('darkEat', S.banqi.settings.darkEat, false),
       timer(),
     ],
   },

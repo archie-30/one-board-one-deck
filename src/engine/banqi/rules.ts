@@ -4,7 +4,9 @@
 //   - 第一個翻棋的人，翻出什麼顏色就是哪一方。
 //   - 大小：帥(將) > 仕(士) > 相(象) > 俥(車) > 傌(馬) > 炮(包) > 兵(卒)；大可以吃小、一樣大可以互吃。
 //     例外：兵可以吃帥，帥不能吃兵。
-//   - 每顆棋只能上下左右走一格（規則設定可讓車直走多格）。
+//   - 每顆棋只能上下左右走一格（規則設定可讓車直走多格；車隔著空格「衝」過去吃時不用比大小，緊貼的照樣比）。
+//   - 規則設定「暗吃」：可以直接吃蓋著的棋——走上去先翻開，是對方的、吃得掉（照一般大小、車衝、炮隔子）就吃掉，
+//     吃不掉或翻出來是自己的，就只是翻開、棋不動，這一步結束。
 //   - 炮：走一格；吃子要隔一顆棋（翻開或蓋著都算）直線跳過去吃，被吃的不管大小都行。
 //   - 一步只能吃一顆（規則設定可開「連吃」：同一顆棋吃完還能再吃就可以繼續）。
 //   - 對方的棋被吃光，或輪到他時沒棋可翻也沒棋可走，就輸了。連續 50 步都沒有人吃子就和棋。
@@ -27,8 +29,10 @@ export interface BanqiOptions {
   rookSlide: boolean
   /** 連吃：同一顆棋吃完如果還能再吃，同一步可以繼續吃 */
   chain: boolean
+  /** 暗吃：可以走到（吃到）蓋著的棋上，先翻開：是對方的、吃得掉就吃；吃不掉或是自己的，就只是翻開、這一步結束 */
+  darkEat: boolean
 }
-export const DEFAULT_BANQI_OPTIONS: BanqiOptions = { rookSlide: false, chain: false }
+export const DEFAULT_BANQI_OPTIONS: BanqiOptions = { rookSlide: false, chain: false, darkEat: false }
 
 /** 連續幾步沒有人吃子就和棋 */
 export const DRAW_QUIET = 50
@@ -140,6 +144,8 @@ export function targetsFrom(s: BanqiState, from: number): number[] {
     const t = s.board[to]
     return !!t && s.up[to] && colorOf(t) !== me
   }
+  /** 暗吃：蓋著的棋也能當目標（翻開才知道吃不吃得掉） */
+  const dark = (to: number) => s.options.darkEat && !!s.board[to] && !s.up[to]
   const kind = kindOf(p)
   for (const [dr, dc] of DIRS) {
     if (kind === 'C') {
@@ -155,7 +161,7 @@ export function targetsFrom(s: BanqiState, from: number): number[] {
           screen = true
           continue
         }
-        if (canEat(i)) out.push(i)
+        if (canEat(i) || dark(i)) out.push(i)
         break
       }
       continue
@@ -168,14 +174,24 @@ export function targetsFrom(s: BanqiState, from: number): number[] {
         out.push(i)
         continue
       }
-      if (canEat(i) && outranks(p, s.board[i]!)) out.push(i)
+      // 車衝：隔著空格衝過去吃，不用比大小
+      if (canEat(i) && (outranks(p, s.board[i]!) || k >= 2) || dark(i)) out.push(i)
       break
     }
   }
   return out
 }
 
-/** 這一格是吃子嗎（目標有對方翻開的棋） */
+/** 從 from 走到 to 吃得掉 target 嗎（炮隔子、車衝不用比大小；其他照大小） */
+export function beats(s: BanqiState, from: number, to: number, attacker: Piece, target: Piece): boolean {
+  if (colorOf(attacker) === colorOf(target)) return false
+  const dist = Math.abs(rowOf(from) - rowOf(to)) + Math.abs(colOf(from) - colOf(to))
+  if (kindOf(attacker) === 'C' && dist >= 2) return true
+  if (kindOf(attacker) === 'R' && s.options.rookSlide && dist >= 2) return true
+  return outranks(attacker, target)
+}
+
+/** 這一格是吃子嗎（目標有棋：翻開的對方棋，或暗吃時蓋著的棋） */
 export const isCapture = (s: BanqiState, to: number) => !!s.board[to]
 
 /** 連吃時：這顆棋還能吃的格子 */
@@ -230,6 +246,15 @@ export function applyBanqi(s: BanqiState, a: BanqiAction): Result<BanqiState, Ba
   if (!p || !s.up[a.from] || !color || colorOf(p) !== color) return { ok: false, reason: 'notYours' }
   const allowed = s.chainAt >= 0 ? chainTargets(s, a.from) : targetsFrom(s, a.from)
   if (!allowed.includes(a.to)) return { ok: false, reason: 'cantMove' }
+  // 暗吃：目標是蓋著的棋，先翻開；吃不掉（或是自己的）就只是翻開，棋不動，這一步結束
+  if (!s.up[a.to] && s.board[a.to] && !beats(s, a.from, a.to, p, s.board[a.to]!)) {
+    const up = s.up.slice()
+    up[a.to] = true
+    return {
+      ok: true,
+      state: settle({ ...s, up, turn: other(s.turn), chainAt: -1, quiet: s.quiet + 1, plies: s.chainAt >= 0 ? s.plies : s.plies + 1, lastMove: { from: a.to, to: a.to, flip: true }, before: s.lastMove }),
+    }
+  }
   const took = s.board[a.to]
   const board = s.board.slice()
   const up = s.up.slice()
