@@ -229,6 +229,8 @@ async function enter(path: string, body: unknown): Promise<Room | JoinError> {
 export function createWsService(): OnlineService {
   window.addEventListener('online', reconnectNow)
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && reconnectNow())
+  // Android App 從背景回來（core/native.ts 的 __obodResume）
+  window.addEventListener('obod:resume', reconnectNow)
   return {
     create: (me: OnlineProfile) => enter('/rooms', { profile: me }),
     async join(code: string, me: OnlineProfile) {

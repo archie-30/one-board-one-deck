@@ -4,6 +4,7 @@ import { nextTick, ref } from 'vue'
 import { fullscreenSupported, isFullscreen, setFullscreen } from '@/core/fullscreen'
 import { resetStats, settings } from '@/core/settings'
 import { clearAllResume } from '@/core/resume'
+import { isApp } from '@/core/native'
 import { S } from '@/data/strings'
 import { VERSION } from '@/data/version'
 import Btn from '@/ui/Btn.vue'
@@ -48,7 +49,8 @@ function close() {
         <div><p class="t-black lb">{{ T.sound }}</p></div>
         <Switch :on="settings.volume > 0" :label="T.sound" @change="setSound" />
       </div>
-      <div class="row">
+      <!-- App 本來就是全螢幕，不放這個開關 -->
+      <div v-if="!isApp" class="row">
         <div>
           <p class="t-black lb">{{ T.fullscreen }}</p>
           <p class="help">{{ fullscreenSupported ? T.fullscreenHelp : T.fullscreenNo }}</p>

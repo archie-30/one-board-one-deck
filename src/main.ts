@@ -1,4 +1,3 @@
-import { keepScreenOn } from './core/wakeLock'
 import { createApp, watchEffect } from 'vue'
 import '@fontsource/noto-sans-tc/latin-500.css'
 import '@fontsource/noto-sans-tc/latin-900.css'
@@ -9,6 +8,8 @@ import App from './App.vue'
 import { finishBoot, startFontLoads } from './core/boot'
 import { warmSounds } from './core/audio'
 import { autoFullscreen } from './core/fullscreen'
+import { isApp, setupNative } from './core/native'
+import { keepScreenOn } from './core/wakeLock'
 import { route, go } from './core/nav'
 import { useOnlineService } from './core/online'
 import { createWsService, resumeOnline } from './core/onlineWs'
@@ -61,10 +62,13 @@ document.addEventListener('contextmenu', (e) => {
 // 鏡頭防遮擋：設定開著時，整個畫面避開手機的瀏海、挖孔鏡頭（樣式在 style.css 的 --cut-*）
 watchEffect(() => document.documentElement.classList.toggle('avoid-cutout', settings.avoidCutout))
 
-// 預設全螢幕：第一次點畫面時進入（設定可關）
-autoFullscreen()
-// 保持螢幕恆亮（設定可關）
-keepScreenOn()
+// Android App：全螢幕、恆亮、返回鍵、鏡頭範圍由 App 外殼處理（core/native.ts）
+if (isApp) setupNative()
+else {
+  // 網頁版：預設全螢幕（第一次點畫面時進入，設定可關）、保持螢幕恆亮（設定可關）
+  autoFullscreen()
+  keepScreenOn()
+}
 
 // 開機加載畫面：準備好後接到主畫面（見 core/boot.ts）
 // 音效在背景執行緒先算好（不佔主畫面）

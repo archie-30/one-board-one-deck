@@ -154,7 +154,7 @@ function finish() {
       </div>
     </div>
     <template #actions>
-      <Btn class="back" icon="back" size="sm" :disabled="phase !== 'pick'" @click="emit('back')">{{ S.common.resumeBack }}</Btn>
+      <Btn class="back" data-back icon="back" size="sm" :disabled="phase !== 'pick'" @click="emit('back')">{{ S.common.resumeBack }}</Btn>
       <button v-for="hand in RPS_HANDS" :key="hand" class="hand" :disabled="phase !== 'pick'" @click="choose(hand)">
         <span class="ic"><Icon :name="hand" /></span>
         <span class="t-black">{{ S.rps[hand] }}</span>
