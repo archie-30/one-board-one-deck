@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue'
 import { back, replace, route, routeKey } from '@/core/nav'
 import { reducedMotion } from '@/core/motion'
+import { fsHint } from '@/core/fullscreen'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
 import CategoryScreen from '@/screens/CategoryScreen.vue'
@@ -61,10 +62,43 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     <LaunchOverlay />
     <RoomCountdown />
     <div class="rotate">{{ S.app.rotate }}</div>
+    <!-- 全螢幕提示：「再按一次以退出全螢幕」「點一下畫面回到全螢幕」 -->
+    <Transition name="fs-hint">
+      <p v-if="fsHint" :key="fsHint" class="fs-hint t-black">{{ fsHint }}</p>
+    </Transition>
   </main>
 </template>
 
 <style scoped>
+.fs-hint {
+  position: fixed;
+  left: 50%;
+  top: 0.8rem;
+  z-index: 1000;
+  translate: -50% 0;
+  padding: 0.35rem 1rem;
+  border: 0.14rem solid var(--color-ink);
+  background: var(--color-yellow);
+  box-shadow: 0.25rem 0.25rem 0 var(--color-ink);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.fs-hint-enter-active {
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 300ms var(--ease-back);
+}
+.fs-hint-leave-active {
+  transition:
+    opacity 200ms ease-in,
+    transform 200ms ease-in;
+}
+.fs-hint-enter-from,
+.fs-hint-leave-to {
+  opacity: 0;
+  transform: translateY(-0.6rem);
+}
 .rotate {
   display: none;
   position: fixed;

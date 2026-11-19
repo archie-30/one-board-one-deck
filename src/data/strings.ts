@@ -5,6 +5,10 @@ export const S = {
     name: 'One Board One Deck',
     tagline: '一個棋盤，一副牌。',
     rotate: '請把裝置轉成橫向',
+    /** 全螢幕被退出（切分頁、瀏覽器自己退出）時的提示 */
+    fsTapBack: '點一下畫面回到全螢幕',
+    /** 全螢幕時第一次按返回（側滑） */
+    fsBackAgain: '再按一次以退出全螢幕',
   },
   common: {
     /** 暫停選單上方：玩法＋難度 */
@@ -352,6 +356,9 @@ export const S = {
     st: { ready: '準備好了', notReady: '還沒準備', spectator: '觀戰' },
     ready: '準備',
     unready: '取消準備',
+    /** 對局還在打（例如重新整理後回到房間）：回到那一局 */
+    returnMatch: '回到對戰',
+    returnMatchHint: '對局還在進行中',
     watch: '改成觀戰',
     play: '回來對戰',
     status: {

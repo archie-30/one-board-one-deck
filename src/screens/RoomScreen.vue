@@ -21,7 +21,7 @@ import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import Page from '@/ui/Page.vue'
-import { sendRules } from '@/core/onlineMatch'
+import { canReturnToMatch, returnToMatch, sendRules } from '@/core/onlineMatch'
 
 const T = S.online
 /** 開局倒數中：房間裡的按鈕全部反灰，只有「取消準備」能按（取消後倒數停下來才恢復） */
@@ -200,9 +200,11 @@ async function leave() {
         <span class="t-label">{{ copied ? T.copied : T.copy }}</span>
       </button>
       <!-- 準備：右下角，跟左下的離開房間同一排 -->
-      <p class="t-label stline" :class="{ hot: st.canStart, warn: st.tooMany > 0 }">{{ status }}</p>
+      <p class="t-label stline" :class="{ hot: st.canStart || canReturnToMatch(), warn: st.tooMany > 0 }">{{ canReturnToMatch() ? T.returnMatchHint : status }}</p>
       <Btn v-if="showWatch" :disabled="locked" :icon="me?.spectator ? 'play' : 'pass'" @click="setSpectator(!me?.spectator)">{{ me?.spectator ? T.play : T.watch }}</Btn>
-      <Btn class="readybtn" :tone="me?.ready ? 'ink' : 'red'" :icon="me?.ready ? 'close' : 'check'" :disabled="!game" @click="toggleReady">{{ me?.ready ? T.unready : T.ready }}</Btn>
+      <!-- 對局還在打、自己卻在房間（例如重新整理）：回到對戰 -->
+      <Btn v-if="canReturnToMatch()" class="readybtn rise" tone="red" icon="play" arrow @click="returnToMatch">{{ T.returnMatch }}</Btn>
+      <Btn v-else class="readybtn" :tone="me?.ready ? 'ink' : 'red'" :icon="me?.ready ? 'close' : 'check'" :disabled="!game" @click="toggleReady">{{ me?.ready ? T.unready : T.ready }}</Btn>
     </template>
 
     <Dialog :open="leaveOpen" :title="isHost ? T.disbandAsk : T.leaveAsk" label="ROOM" tone="ink" @close="leaveOpen = false">
