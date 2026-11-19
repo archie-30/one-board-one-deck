@@ -1,8 +1,6 @@
 // 步步為營電腦：局面分數＝對方離終點的步數 − 自己離終點的步數（再加一點剩下的牆），用 alpha-beta 往後算。
 //   要試的步：棋子能走的每一格，加上「擋在對方最短路上」的牆（不會亂放離對方很遠的牆）。
-//   難度（quoridorAt）：低只看一步、常亂挑、偶爾隨手走；中看兩步；高、挑戰一層一層往深算（局面數用完為止，挑戰約可多想一秒）、不失誤。
-//   不會亂晃：隨手走只走最短路；差不多好的步裡，不往前的走棋拿掉（除非它就是最好的）。
-//   不亂丟牆：對方還很遠（6 步以上）時只考慮至少讓他多繞 3 步的牆，5 步時至少 2 步。
+//   難度（quoridorAt）：低只看一步、常亂挑、偶爾隨手走；中看兩步；高看三步；挑戰一層一層往深算（局面數用完為止）、不失誤。
 // 棋盤全部公開，沒有偷看的問題。純函式，不碰畫面。
 import { nextRandom, type RngState } from '../common/rng'
 import {
@@ -119,7 +117,7 @@ function blockingWalls(s: QuoridorState, side: Side): { at: number; o: Orient }[
 }
 
 /** 要試的步：棋子的每一步＋擋對方的牆（排好序：好的先試，剪枝比較快） */
-function candidates(s: QuoridorState, maxWalls: number, root = false): QuoridorAction[] {
+function candidates(s: QuoridorState, maxWalls: number): QuoridorAction[] {
   const me = s.turn
   const op = other(me)
   const myDist = distMap(s, me)
@@ -135,8 +133,6 @@ function candidates(s: QuoridorState, maxWalls: number, root = false): QuoridorA
       const gain = distTo(t, op, s.pawns[op]) - before
       const hurt = distTo(t, me, s.pawns[me]) - myNow
       if (!Number.isFinite(gain) || !Number.isFinite(hurt) || gain - hurt <= 0) continue
-      // 這一步真的要放的牆：對方還很遠時，只擋一兩步的牆不划算，留著（不然一開局就把牆用光）
-      if (root && gain - hurt < (before >= 6 ? 3 : before >= 5 ? 2 : 1)) continue
       walls.push({ a: { type: 'wall', at: w.at, o: w.o }, k: (gain - hurt) * 10 - 5 })
     }
     walls.sort((x, y) => y.k - x.k)
@@ -177,7 +173,7 @@ function search(s: QuoridorState, depth: number, me: Side, st: QuoridorStyle, al
 /** 每一個要試的步算一次分數（往後 depth 步） */
 function scoreAll(s: QuoridorState, depth: number, st: QuoridorStyle, budget: { n: number }, walls = 16) {
   const me = s.turn
-  return candidates(s, walls, true).map((a) => {
+  return candidates(s, walls).map((a) => {
     const r = applyQuoridor(s, a)
     return { a, v: r.ok ? search(r.state, depth - 1, me, st, -Infinity, Infinity, budget) : -Infinity }
   })
@@ -196,8 +192,7 @@ export function chooseQuoridorAction(s: QuoridorState, st: QuoridorStyle, rng: R
     const d = distMap(s, me)
     const moves = pawnMoves(s)
     const best = Math.min(...moves.map((m) => d[m]))
-    // 只在「往終點最近」的格子裡挑（不會左右亂晃）
-    const ok = moves.filter((m) => d[m] === best)
+    const ok = moves.filter((m) => d[m] <= best + 1)
     ;[r, rng] = nextRandom(rng)
     return [{ type: 'move', to: ok[Math.floor(r * ok.length)] }, rng]
   }
@@ -242,18 +237,11 @@ export function chooseQuoridorAction(s: QuoridorState, st: QuoridorStyle, rng: R
     const to = moves.reduce((b, m) => (dMe[m] < dMe[b] ? m : b), moves[0])
     return [{ type: 'move', to }, rng]
   }
-  // 沒有更接近終點的走棋（左右橫移、往回走）先扣分：只有明顯比較好（多出半步以上）才會選它，看起來才不會亂晃
-  const nowD = dMe[s.pawns[me]]
-  for (const x of scored) if (x.a.type === 'move' && dMe[x.a.to] >= nowD) x.v -= 6
   scored.sort((x, y) => y.v - x.v)
   // 一樣好的步（例如怎麼走都輸、怎麼走都贏）：走棋優先、離終點越近越好，不會原地亂晃、亂丟牆
   const after = (a: QuoridorAction) => (a.type === 'move' ? dMe[a.to] : 99)
   const floor = scored[0].v - Math.max(0.5, st.noise * 12)
   let pool = scored.filter((x) => x.v >= floor)
-  // 沒意義的左右移動：沒有比較接近終點的走棋，只有在它本身就是算出來最好的那一步才走
-  const here = dMe[s.pawns[me]]
-  const top = scored[0]
-  pool = pool.filter((x) => x === top || x.a.type !== 'move' || dMe[x.a.to] < here)
   if (st.noise === 0) {
     const best = Math.min(...pool.map((x) => after(x.a)))
     pool = [pool.find((x) => after(x.a) === best) ?? pool[0]]

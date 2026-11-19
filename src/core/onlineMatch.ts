@@ -68,6 +68,17 @@ let rejoining = false
 /** 正在用房號加回原本的對局（onlineWs 加入時設定） */
 export const expectRejoin = (on: boolean) => (rejoining = on)
 
+/**
+ * 伺服器開局後先等大家的發牌動畫播完才收動作（server/src/match/run.ts 的 START_DELAY 4.5 秒；棋類猜拳分出來後 RPS_SHOW 1.8 秒）。
+ * 自己這邊的動畫可能比較快播完：這時按出牌，伺服器會不收（牌選了卻出不出去）。
+ * 所以太早送的動作先留著，到伺服器準備好了才送出去（畫面上看起來只是「等一下下」）。
+ */
+const START_DELAY_MS = 4500
+const RPS_SHOW_MS = 1800
+/** 這個時間之前送的動作先留著 */
+let readyLocal = 0
+let pendingTimer = 0
+
 /** 伺服器送來開局資訊（開局時；斷線連回來也會重送，附上到目前為止的每一步） */
 export function receiveMatch(intro: MatchIntro & { log?: MatchEvent[] }) {
   const cur = liveMatch.value
@@ -78,6 +89,9 @@ export function receiveMatch(intro: MatchIntro & { log?: MatchEvent[] }) {
     return
   }
   const { log, ...rest } = intro
+  // 剛開局（還沒有任何一步）：伺服器還在等發牌動畫；連回來、加回來的局早就準備好了
+  readyLocal = log?.length ? 0 : Date.now() + START_DELAY_MS - 300
+  window.clearTimeout(pendingTimer)
   liveOver.value = false
   liveMatch.value = { ...rest, queue: [], lastSeq: 0, onEvent: null, onReject: null }
   for (const e of log ?? []) receiveAct(intro.n, e)
@@ -94,8 +108,26 @@ export function receiveAct(n: number, e: MatchEvent) {
   if (!m || m.n !== n || e.seq <= m.lastSeq) return
   m.lastSeq = e.seq
   if (e.end) liveOver.value = true
+  // 猜拳分出結果：伺服器再等一下（讓大家看結果）才收棋步
+  if ((e.ev as { type?: string } | null)?.type === 'rps') readyLocal = Date.now() + RPS_SHOW_MS - 300
   m.queue.push(e)
   m.onEvent?.()
+}
+
+/**
+ * 對局還在打、自己卻在房間頁（例如對局中重新整理網頁，連回來後停在房間）：可以「回到對戰」。
+ * 撲克牌的觀戰還不支援（跟開局時一樣留在房間）。
+ */
+export function canReturnToMatch(): boolean {
+  const m = liveMatch.value
+  if (!m || liveOver.value || !online.room || online.room.phase !== 'playing' || online.room.gameId !== m.gameId) return false
+  return m.seat >= 0 || getGame(m.gameId).category !== 'cards'
+}
+/** 回到正在打的這一局：跟中途加回來一樣，用房間那張模式卡片翻面進場，離開期間的每一步快轉補播 */
+export function returnToMatch() {
+  const m = liveMatch.value
+  if (!m || !canReturnToMatch()) return
+  rejoinMatch.value = { n: m.n, gameId: m.gameId, catchUp: m.lastSeq }
 }
 
 /** 伺服器說：剛剛送的動作不收 */
@@ -115,7 +147,11 @@ const viewSeat = (m: MatchIntro) => Math.max(0, m.seat)
 
 /** 送出自己的動作（伺服器確認後，會跟別人的動作一樣送回來，那時才真的套用） */
 export function sendAct(a: unknown) {
-  sendIntent({ t: 'act', a })
+  window.clearTimeout(pendingTimer)
+  const wait = readyLocal - Date.now()
+  // 出拳不用等；其他動作在伺服器準備好之前先留著，時間到再送
+  if (wait > 0 && (a as { type?: string } | null)?.type !== 'rps') pendingTimer = window.setTimeout(() => sendIntent({ t: 'act', a }), wait)
+  else sendIntent({ t: 'act', a })
 }
 
 /** 座位換算：伺服器座位 → 自己的視角（自己是 0） */
