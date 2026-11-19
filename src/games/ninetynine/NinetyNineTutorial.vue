@@ -15,6 +15,7 @@ import CardArt from '@/ui/art/Card.vue'
 import Btn from '@/ui/Btn.vue'
 import GuideNote from '@/ui/GuideNote.vue'
 import IconBtn from '@/ui/IconBtn.vue'
+import { cardPreview } from './preview'
 
 const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const T = S.ninetynine
@@ -79,6 +80,7 @@ function shake(c: Card) {
 
 const sel = computed(() => selected.value)
 const signValue = computed(() => (sel.value !== null && rankOf(sel.value) === 12 ? 20 : 10))
+const pv = computed(() => (sel.value !== null && !solved.value ? cardPreview(state.value.total, sel.value) : null))
 const isTarget = computed(() => sel.value !== null && kindOf(sel.value) === 'target')
 
 function tap(c: Card) {
@@ -161,6 +163,8 @@ const hint = computed(() => {
           </svg>
         </span>
       </div>
+      <!-- 選起來的牌會有什麼效果（高度固定，不會把牌擠動） -->
+      <p class="pv" :class="{ bad: pv?.bad }">{{ pv?.text ?? '' }}</p>
       <TransitionGroup :key="`h${step}`" tag="div" name="hc" class="hand">
         <button
           v-for="(c, i) in state.hands[0]"
@@ -454,6 +458,16 @@ const hint = computed(() => {
   width: 0.42rem;
   height: 0.42rem;
   background: var(--color-ink);
+}
+.pv {
+  min-height: 1.5em;
+  margin: -0.4rem 0 -0.4rem;
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 900;
+}
+.pv.bad {
+  color: var(--color-red);
 }
 .pick {
   font-size: 0.85rem;

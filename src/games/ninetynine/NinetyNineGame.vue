@@ -31,6 +31,7 @@ import IconBtn from '@/ui/IconBtn.vue'
 import TurnGlow from '@/ui/TurnGlow.vue'
 import TurnTimer from '@/ui/TurnTimer.vue'
 import { ninetyNineLayout, ninetyNinePoses, type NinetyNineLayout } from './layout'
+import { cardPreview } from './preview'
 
 const props = defineProps<{ game: GameDef; options: Record<string, string | boolean>; resume?: unknown }>()
 const emit = defineEmits<{ exit: []; save: [data: unknown] }>()
@@ -463,9 +464,12 @@ const status = computed(() => {
   if (meOut.value) return T.youOut
   if (!myTurn.value) return (watching ? `${S.online.watchingNow}・` : '') + T.waiting(names[s.turn])
   if (mustOut(s)) return T.mustOut
-  if (chooseTarget.value) return T.pickTarget
+  // 選起一張牌：說明這張打出去會怎樣
+  if (preview.value) return preview.value.text
   return T.yourTurn
 })
+/** 選起來的牌會有什麼效果（輪到你時才顯示在狀態列） */
+const preview = computed(() => (myTurn.value && selected.value !== null && state.value.hands[ME].includes(selected.value) ? cardPreview(state.value.total, selected.value) : null))
 
 function tapCard(c: Card) {
   if (watching || phase.value !== 'play' || !state.value.hands[ME].includes(c)) return
@@ -555,7 +559,7 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
       </div>
     </div>
 
-    <p class="status" :class="{ mine: myTurn && !message, warn: !!message || (myTurn && mustOut(state)) }" :style="{ top: `${L.box.y + L.box.h - 4}px` }">{{ status }}</p>
+    <p class="status" :class="{ mine: myTurn && !message, warn: !!message || (myTurn && mustOut(state)) || (!message && !!preview?.bad) }" :style="{ top: `${L.box.y + L.box.h - 4}px` }">{{ status }}</p>
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions" :class="{ over: phase === 'over' }">
