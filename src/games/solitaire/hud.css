@@ -94,6 +94,11 @@
 .stuck-leave-to {
   opacity: 0;
 }
+.after {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
 .tools {
   display: flex;
   gap: 0.4rem;

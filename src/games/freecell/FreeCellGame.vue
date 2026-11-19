@@ -42,6 +42,12 @@ const canUndo = ref(history.length > 0)
 const dealKey = ref(0)
 const menuOpen = ref(false)
 const resultOpen = ref(false)
+/** 結算視窗關掉後在看牌桌：右邊換成「看結果／再來一局／離開對局」 */
+const reviewing = ref(false)
+function closeResult() {
+  resultOpen.value = false
+  reviewing.value = true
+}
 const message = ref('')
 let counted = !!saved
 /** 這一局有沒有破紀錄 */
@@ -173,6 +179,7 @@ function newGame() {
   finishing.value = false
   menuOpen.value = false
   resultOpen.value = false
+  reviewing.value = false
   stuck.value = false
   ended.value = false
   record.value = false
@@ -213,8 +220,16 @@ const collected = computed(() => state.value.foundations.flat().length)
             <div><dt class="t-label">{{ S.solitaire.time }}</dt><dd class="t-slab">{{ clock }}</dd></div>
             <div><dt class="t-label">{{ T.collected }}</dt><dd class="t-slab">{{ collected }}</dd></div>
           </dl>
+          <template v-if="!reviewing">
           <Btn v-if="plan || finishing" class="pop" tone="yellow" size="sm" block :disabled="finishing || !ready" @click="autoFinish">{{ S.solitaire.autoFinish }}</Btn>
           <Btn v-else size="sm" block :disabled="!ready || !canUndo || state.won || ended" @click="undo">{{ S.solitaire.undo }}<small class="cost">{{ T.undoTag }}</small></Btn>
+          </template>
+          <!-- 結算視窗關掉（點背景或「查看棋盤」）之後：看結果、再來一局、離開對局 -->
+          <div v-if="reviewing" class="after">
+            <Btn class="rise" tone="ink" size="sm" arrow block @click="resultOpen = true">{{ S.common.showResult }}</Btn>
+            <Btn class="rise" style="--i: 1" tone="red" size="sm" icon="again" block @click="newGame">{{ S.common.again }}</Btn>
+            <Btn class="rise" style="--i: 2" size="sm" icon="exit" block @click="emit('exit')">{{ S.common.quit }}</Btn>
+          </div>
           <Transition name="stuck">
             <div v-if="stuck" class="stuck">
               <Btn tone="red" size="sm" block @click="settleStuck">{{ S.solitaire.stuckSettle }}</Btn>
@@ -230,7 +245,7 @@ const collected = computed(() => state.value.foundations.flat().length)
     <CursorGlow />
     <GameMenu :open="menuOpen" :game="game" :options="props.options" @close="menuOpen = false" @restart="newGame" @exit="emit('exit')" :can-save="canSave" @save-exit="saveAndExit" />
 
-    <Dialog flip :open="resultOpen" :title="ended ? S.solitaire.stuckResult : S.solitaire.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
+    <Dialog flip :open="resultOpen" :title="ended ? S.solitaire.stuckResult : S.solitaire.win" :label="T.resultLabel" tone="red" @close="closeResult">
       <table class="score">
         <tbody>
           <tr class="rise info" style="--i: 1"><td>{{ S.solitaire.time }}</td><td class="t-slab">{{ clock }}</td></tr>
@@ -241,6 +256,7 @@ const collected = computed(() => state.value.foundations.flat().length)
       <p class="t-label best rise" style="--i: 5">{{ record ? T.newRecord : T.fewest(stats.freecell.fewest) }}</p>
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ S.common.quit }}</Btn>
+        <Btn size="sm" icon="check" @click="closeResult">{{ S.common.viewBoard }}</Btn>
         <Btn tone="red" icon="again" @click="newGame">{{ S.common.again }}</Btn>
       </template>
     </Dialog>
