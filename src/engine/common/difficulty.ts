@@ -248,10 +248,10 @@ export function checkersAt(st: ChessStyle, level: Level): { depth: number; noise
  */
 export function quoridorAt(st: ChessStyle, level: Level): { depth: number; noise: number; blunder: number; nodes: number; walls: number; width?: number; wallValue?: number; wallRate?: number; wallTempo?: number } {
   const walls = clamp(st.attack)
-  if (level === 'master') return { depth: 4, noise: 0, blunder: 0, nodes: 30000, walls, width: 10, wallValue: 8, wallTempo: 1.2 }
-  if (level === 'high') return { depth: 4, noise: 0.15, blunder: 0, nodes: 8000, walls, width: 4, wallTempo: 0.6 }
-  if (level === 'mid') return { depth: 2, noise: clamp(0.4 + st.noise * 0.3), blunder: 0.15, nodes: 0, walls, wallRate: 0.65 }
-  return { depth: 1, noise: clamp(0.9 + st.noise * 0.4), blunder: 0.3, nodes: 0, walls, wallRate: 0.35 }
+  if (level === 'master') return { depth: 6, noise: 0, blunder: 0, nodes: 90000, walls, width: 10, wallValue: 8, wallTempo: 1.2 }
+  if (level === 'high') return { depth: 5, noise: 0.1, blunder: 0, nodes: 30000, walls, width: 6, wallTempo: 0.8 }
+  if (level === 'mid') return { depth: 2, noise: clamp(0.25 + st.noise * 0.3), blunder: 0.1, nodes: 0, walls, wallRate: 0.85, wallTempo: 0.4 }
+  return { depth: 1, noise: clamp(0.9 + st.noise * 0.4), blunder: 0.3, nodes: 0, walls, wallRate: 0.35, wallTempo: 0.3 }
 }
 
 /**
