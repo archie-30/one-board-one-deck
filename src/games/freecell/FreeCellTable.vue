@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 新接龍牌桌：畫出暫存格、收牌區、8 疊桌面，處理操作，把動作回報給上層。
 // 操作跟接龍一樣：按住拖到想放的地方；或先點一張牌（選起那一串），再點要放的地方；點兩下自動放到能放的地方。
-// 每張牌都是獨立的精靈（沿用大老二的 cardStage）。
+// 每張牌都是獨立的精靈（沿用大老二的 cardStage）。發牌：蓋著從下方發到 8 疊，發完一排排翻開。
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
@@ -67,14 +67,18 @@ function sync(instant = false) {
   prevWhere = where
 }
 
-/** 發牌：一副牌蓋著疊在畫面中間上方，一張張翻開發到 8 疊 */
+/**
+ * 發牌：一副牌蓋著疊在桌面下方的空地，一張張蓋著發到 8 疊（一輪一輪發）；
+ * 發完再一排一排翻開（從上面那排往下，像浪一樣），翻完才能操作。
+ */
 let dealTimer = 0
 let resyncAfterDeal = false
-const deckAt = () => ({ x: (L.value.cols[3].x + L.value.cols[4].x) / 2, y: L.value.cols[0].y })
+const deckAt = () => ({ x: (L.value.cols[3].x + L.value.cols[4].x) / 2, y: L.value.H - L.value.ch * 0.62 })
 function stackAtDeck() {
   const { poses } = freeCellPoses(L.value, props.state, salt)
   const d = deckAt()
-  for (const [c, pose] of poses) stage.move(c, { ...pose, x: d.x, y: d.y, r: 0, f: 0, z: 10 }, { instant: true })
+  let i = 0
+  for (const [c, pose] of poses) stage.move(c, { ...pose, x: d.x - i * 0.12, y: d.y - i * 0.18, r: 0, f: 0, z: 10 + i++ }, { instant: true })
 }
 function dealAnimation() {
   playSound('shuffle')
@@ -86,22 +90,40 @@ function dealAnimation() {
   const most = Math.max(0, ...cols.map((c) => c.length))
   for (let round = 0; round < most; round++) cols.forEach((col) => col[round] !== undefined && order.push(col[round]))
   for (const [c, pose] of poses) if (!order.includes(c)) stage.move(c, pose, { instant: true })
-  stackAtDeck()
-  const step = 30
-  const dealt = 120 + order.length * step + 360
+  // 要先發的牌疊在最上面
+  const d = deckAt()
+  order.forEach((c, i) => {
+    const k = order.length - 1 - i
+    stage.move(c, { ...poses.get(c)!, x: d.x - k * 0.12, y: d.y - k * 0.18, r: 0, f: 0, z: 10 + k }, { instant: true })
+  })
+  const step = 28
+  const dealt = 120 + order.length * step + 340
   dealingUntil = performance.now() + dealt
   order.forEach((c, k) => {
     const v = Math.random()
-    stage.move(c, poses.get(c)!, { delay: 120 + k * step + v * 16, dur: 320 * (0.9 + v * 0.2), arc: 14 + Math.random() * 12, flightZ: 600 + k, land: true })
+    stage.move(c, { ...poses.get(c)!, f: 0 }, { delay: 120 + k * step + v * 14, dur: 300 * (0.9 + v * 0.2), arc: 14 + Math.random() * 12, flightZ: 600 + k, land: true })
   })
   prevWhere = where
+  // 發完：一排一排翻開，同一排從左到右微微錯開
   dealTimer = window.setTimeout(() => {
-    dealing.value = false
-    if (resyncAfterDeal) {
-      resyncAfterDeal = false
-      sync(true)
-    }
-    emit('ready')
+    let last = 0
+    for (let round = 0; round < most; round++)
+      cols.forEach((col, ci) => {
+        const c = col[round]
+        if (c === undefined) return
+        const at = round * 70 + ci * 16
+        last = Math.max(last, at)
+        window.setTimeout(() => stage.move(c, poses.get(c)!, { dur: 240, arc: 6 }), at)
+      })
+    for (let round = 0; round < most; round += 2) window.setTimeout(() => playSound('flip'), round * 70)
+    dealTimer = window.setTimeout(() => {
+      dealing.value = false
+      if (resyncAfterDeal) {
+        resyncAfterDeal = false
+        sync(true)
+      }
+      emit('ready')
+    }, last + 300)
   }, dealt)
 }
 

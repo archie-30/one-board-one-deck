@@ -24,18 +24,18 @@ export interface SpiderLayout {
 export function spiderLayout(W: number, H: number, stockTop = 66, hudW = 136): SpiderLayout {
   const m = 14
   // 寬度：左欄 1 張＋10 疊＋資訊區
-  let cw = (W - 2 * m - hudW) / 12.9
+  let cw = (W - 2 * m - hudW) / 13.0
   // 高度：左欄要放得下牌堆＋8 串收走的牌
   const maxCw = (H - stockTop - m) / 2.75 / CARD_RATIO
   cw = Math.min(cw, maxCw)
   const gap = cw * 1.12
   const ch = cw * CARD_RATIO
-  const total = cw + gap * 0.35 + gap * 10 + gap * 0.3 + hudW
+  const total = cw + gap * 0.45 + gap * 10 + gap * 0.3 + hudW
   const x0 = m + Math.max(0, (W - 2 * m - total) / 2) + cw / 2
   const top = m + ch / 2
   const stock = { x: x0, y: stockTop + ch / 2 }
   const done = Array.from({ length: 8 }, (_, k) => ({ x: x0, y: stock.y + ch * 1.18 + k * ch * 0.08 }))
-  const c0 = x0 + gap * 1.35
+  const c0 = x0 + gap * 1.45
   const cols = Array.from({ length: 10 }, (_, i) => ({ x: c0 + i * gap, y: top }))
   const hx = cols[9].x + cw / 2 + gap * 0.3
   return { W, H, cw, ch, gap, stock, done, cols, hud: { x: hx, y: m, w: hudW } }
@@ -63,11 +63,11 @@ export function columnSteps(L: SpiderLayout, down: number, up: number): { dd: nu
 export function spiderPoses(L: SpiderLayout, s: SpiderState, salt: number): { poses: Map<Card, Pose>; where: Map<Card, string> } {
   const poses = new Map<Card, Pose>()
   const where = new Map<Card, string>()
-  // 牌堆：10 張一組，越後面發的組越往左下；下一次要發的那組在最上面
+  // 牌堆：10 張一組，最底下那組對齊牌堆的格子，越上面的組往右錯開一點（不會超出畫面左邊被切掉）；下一次要發的那組在最上面
   s.stock.forEach((c, i) => {
     const g = Math.floor(i / 10)
     const k = i % 10
-    poses.set(c, { x: L.stock.x - (4 - g) * L.cw * 0.06 - k * 0.15, y: L.stock.y + (4 - g) * L.ch * 0.03 - k * 0.2, r: jitter(c + salt, 1) * 2, s: 1, f: 0, z: 10 + i })
+    poses.set(c, { x: L.stock.x + g * L.cw * 0.07 + k * 0.12, y: L.stock.y - k * 0.2, r: jitter(c + salt, 1) * 2, s: 1, f: 0, z: 10 + i })
     where.set(c, 'stock')
   })
   // 收走的整串：K 在最上面，每串錯開一點
