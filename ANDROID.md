@@ -42,6 +42,7 @@ npm run sync
 - 保持螢幕恆亮、鏡頭防遮擋由 App 端做（`android/…/ObodPlugin.java`；遊戲那邊在 `src/core/native.ts`）。
 - 切到別的 App 會自動暫停並存進度；回來時連線房間馬上重連。
 - 手機開深色模式也不會把遊戲變暗。
+- 自動檢查更新：開 App 後問 Google Play 有沒有新版本，有就跳「有新版本了」。只有從 Play 安裝的 App 才查得到（用 Android Studio 直接裝的不會跳）；要測的話用 Play Console 的「內部應用程式分享」或封閉測試裝舊版，再上傳一個版本號更大的新版。
 - 圖示、開機畫面：`npm run icons` 重新產生（需要 Playwright 的 Chromium），平常不用跑。
 
 ## 上架前檢查

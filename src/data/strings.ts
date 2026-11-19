@@ -8,6 +8,10 @@ export const S = {
     /** 全螢幕被退出（切分頁、瀏覽器自己退出）時的提示 */
     fsTapBack: '點一下畫面回到全螢幕',
     /** 全螢幕時第一次按返回（側滑） */
+    updateTitle: '有新版本了',
+    updateLead: 'Google Play 上有新的版本，更新後可以玩到新的玩法和修正。更新時會暫時離開遊戲，裝好會自動重新開啟。',
+    updateNow: '立即更新',
+    updateLater: '之後再說',
     fsBackAgain: '再按一次以退出全螢幕',
   },
   common: {

@@ -9,6 +9,7 @@ import { finishBoot, startFontLoads } from './core/boot'
 import { warmSounds } from './core/audio'
 import { autoFullscreen } from './core/fullscreen'
 import { isApp, setupNative } from './core/native'
+import { checkForUpdate } from './core/appUpdate'
 import { keepScreenOn } from './core/wakeLock'
 import { route, go } from './core/nav'
 import { useOnlineService } from './core/online'
@@ -63,7 +64,11 @@ document.addEventListener('contextmenu', (e) => {
 watchEffect(() => document.documentElement.classList.toggle('avoid-cutout', settings.avoidCutout))
 
 // Android App：全螢幕、恆亮、返回鍵、鏡頭範圍由 App 外殼處理（core/native.ts）
-if (isApp) setupNative()
+if (isApp) {
+  setupNative()
+  // Google Play 上有新版本：跳視窗叫玩家更新（core/appUpdate.ts）
+  checkForUpdate()
+}
 else {
   // 網頁版：預設全螢幕（第一次點畫面時進入，設定可關）、保持螢幕恆亮（設定可關）
   autoFullscreen()
