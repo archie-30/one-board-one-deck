@@ -408,7 +408,8 @@ function pump() {
   const target = raw.target !== undefined && raw.target >= 0 ? toLocal(m, raw.target) : undefined
   const before = state.value
   if (!act({ type: 'play', player: p, card, minus: !!raw.minus, target })) {
-    console.warn('online: 套用不了伺服器送來的動作', raw)
+    const why = applyNinetyNine(before, { type: 'play', player: p, card, minus: !!raw.minus, target })
+    console.warn('online: 套用不了伺服器送來的動作', JSON.stringify(raw), !why.ok && why.reason, 'turn', before.turn, 'total', before.total, 'hand', JSON.stringify(before.hands[p]), 'seq', e.seq)
     later(nextTurn, 50)
     return
   }
@@ -421,8 +422,10 @@ function pump() {
       const zi = z.findIndex((zone) => zone.includes(raw.draw!))
       if (zi >= 0) {
         z[zi][z[zi].indexOf(raw.draw)] = got
-        const hand = s.hands[ME].map((c) => (c === got ? raw.draw! : c))
-        state.value = { ...withZones(s, z), hands: s.hands.map((h, i) => (i === ME ? hand : h)) }
+        // 先換好別人的手牌、牌堆（got 放到 draw 原本的位置），再把自己手上的 got 換成 draw
+        const zoned = withZones(s, z)
+        const hand = zoned.hands[ME].map((c) => (c === got ? raw.draw! : c))
+        state.value = { ...zoned, hands: zoned.hands.map((h, i) => (i === ME ? hand : h)) }
         stage.adopt([[got, raw.draw], [raw.draw, got]])
         sync()
       }
