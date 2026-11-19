@@ -354,7 +354,7 @@ defineExpose({ layout: L })
         :style="{ width: `${L.cw}px`, height: `${L.ch}px`, marginLeft: `${-L.cw / 2}px`, marginTop: `${-L.ch / 2}px` }"
         @pointerdown="onDown(c, $event)"
       >
-        <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="rankText(c)" :suit="suitOf(faceOf(c))" /></svg>
+        <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="rankText(c)" :suit="suitOf(faceOf(c))" side /></svg>
         <svg class="back" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt back /></svg>
       </div>
     </div>

@@ -4,7 +4,8 @@
 import { useId } from 'vue'
 import { SUIT_PATHS, isRedSuit } from './suits'
 
-withDefaults(defineProps<{ rank?: string; suit?: number; back?: boolean; shadow?: boolean }>(), { rank: 'A', suit: 3, shadow: true })
+// side：左上角的小花色放在點數右邊（不放在點數下面）。牌疊得很密、只露出最上面一條時（蜘蛛接龍）也看得到花色
+withDefaults(defineProps<{ rank?: string; suit?: number; back?: boolean; shadow?: boolean; side?: boolean }>(), { rank: 'A', suit: 3, shadow: true })
 const id = useId()
 </script>
 
@@ -35,7 +36,7 @@ const id = useId()
       >
         {{ rank }}
       </text>
-      <path :d="SUIT_PATHS[suit]" :fill="isRedSuit(suit) ? 'var(--color-red)' : 'var(--color-ink)'" transform="translate(7.5 32) scale(.55)" />
+      <path :d="SUIT_PATHS[suit]" :fill="isRedSuit(suit) ? 'var(--color-red)' : 'var(--color-ink)'" :transform="side ? `translate(${rank === '10' ? 33.5 : 27.5} 7) scale(.72)` : 'translate(7.5 32) scale(.55)'" />
       <path :d="SUIT_PATHS[suit]" :fill="isRedSuit(suit) ? 'var(--color-red)' : 'var(--color-ink)'" transform="translate(30 53) scale(1.45)" />
     </template>
   </g>
