@@ -11,7 +11,7 @@ describe('個人資料：經驗值與稱號', () => {
     expect(levelOf(profile.xp)).toBe(1)
   })
 
-  it('每 300 經驗升一級，100 級之後照樣升', () => {
+  it('每 200 經驗升一級，100 級之後照樣升', () => {
     expect(levelOf(XP_PER_LEVEL - 1)).toBe(1)
     expect(levelOf(XP_PER_LEVEL)).toBe(2)
     expect(levelOf(XP_PER_LEVEL * 99)).toBe(100)
