@@ -1,0 +1,161 @@
+/* 蜘蛛接龍、新接龍右邊資訊區與結算表的樣式（照接龍的樣子） */
+.game {
+  position: relative;
+  height: 100%;
+}
+.hud {
+  position: absolute;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.score-box {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 0.14rem solid var(--color-ink);
+}
+.score-box b {
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+.nums {
+  /* 時間、步數並排一行，留出空間給卡關時出現的按鈕 */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+.nums div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem;
+  border-bottom: 0.07rem solid var(--color-ink);
+}
+/* 窄螢幕：「時間」「步數」不換行 */
+.nums dt {
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+}
+.nums dd {
+  font-size: 1rem;
+  line-height: 1.35;
+}
+.red {
+  color: var(--color-red);
+}
+/* 卡關並結算：從返回下面滑出來，按鈕輕輕左右晃一下、停一會兒再晃（提醒但不吵） */
+.stuck {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.stuck :deep(.btn) {
+  animation: nudge-x 2.4s ease-in-out 0.5s infinite;
+}
+@keyframes nudge-x {
+  0%,
+  70%,
+  100% {
+    transform: none;
+  }
+  76% {
+    transform: translateX(-0.18rem) rotate(-1.5deg);
+  }
+  82% {
+    transform: translateX(0.18rem) rotate(1.5deg);
+  }
+  88% {
+    transform: translateX(-0.1rem);
+  }
+}
+.stuck-enter-active {
+  transition:
+    opacity 260ms ease,
+    transform 420ms var(--ease-back),
+    clip-path 360ms var(--ease-out);
+}
+.stuck-leave-active {
+  transition: opacity 160ms ease;
+}
+.stuck-enter-from {
+  opacity: 0;
+  transform: translateY(-0.9rem);
+  clip-path: inset(0 0 100% 0);
+}
+.stuck-leave-to {
+  opacity: 0;
+}
+.tools {
+  display: flex;
+  gap: 0.4rem;
+}
+.tools > * {
+  min-width: 0;
+  flex: 1;
+}
+.tools :deep(.btn .face) {
+  justify-content: center;
+  padding: 0 0.3rem;
+}
+/* 跳出來的提示文字：沒有外框、小小的 */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 0.7rem;
+  z-index: 800;
+  translate: -50% 0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: var(--color-red);
+  text-shadow: 0 0 0.4rem var(--color-paper), 0 0 0.2rem var(--color-paper);
+  pointer-events: none;
+}
+/* 按鈕上的扣分：小字 */
+.cost {
+  margin-left: 0.25rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+  opacity: 0.7;
+}
+.score {
+  width: 100%;
+  border-collapse: collapse;
+}
+.score td {
+  padding: 0.25rem 0.2rem;
+  border-bottom: 0.07rem solid var(--color-ink);
+}
+.score td:last-child {
+  text-align: right;
+  font-size: 1.1rem;
+}
+.score .info td {
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+  font-size: 0.85rem;
+  color: var(--color-ink-2);
+}
+.score .info td:last-child {
+  font-size: 0.95rem;
+}
+.score .total td {
+  border-top: 0.14rem solid var(--color-ink);
+  border-bottom: 0;
+  font-size: 1.2rem;
+}
+.score .total td:last-child {
+  font-size: 1.6rem;
+}
+.best {
+  margin-top: 0.35rem;
+  color: var(--color-ink-3);
+}
