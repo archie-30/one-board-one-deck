@@ -4,7 +4,7 @@
 // 連線一定要有玩家名稱：個人資料還沒取名字的話，加入、建立都不能按，最上面提示先到個人資料取名字（附一顆按鈕過去）。
 import { nextTick, ref, watch } from 'vue'
 import { go } from '@/core/nav'
-import { createRoom, isRoomCode, joinRoom, ROOM_CODE_LENGTH } from '@/core/online'
+import { createRoom, isRoomCode, joinRoom, ROOM_CODE_LENGTH, showOnlineAlert, type JoinError } from '@/core/online'
 import { opponentNames } from '@/core/names'
 import { levelOf, myLook, profile } from '@/core/profile'
 import { S } from '@/data/strings'
@@ -48,6 +48,18 @@ function onInput(e: Event) {
   el.value = code.value
   error.value = ''
 }
+/** 進房失敗：房號格式不對就在輸入框下面提示；其他（找不到、滿了、連不上…）跳說明視窗 */
+function fail(r: JoinError) {
+  if (r === 'format') {
+    error.value = T.errors.format
+    return
+  }
+  error.value = ''
+  showOnlineAlert(r)
+}
+/** 裝置沒連上網路：不用等逾時，直接跟玩家說 */
+const offline = () => typeof navigator !== 'undefined' && navigator.onLine === false
+
 /** 進房時給伺服器的個人資料（別人點你的頭像看得到） */
 const myCard = () => ({ name: profile.name, look: myLook(), level: levelOf(profile.xp), titles: profile.equipped.slice(0, 2), bots: opponentNames.names.slice() })
 
@@ -58,15 +70,13 @@ async function join() {
     void nextTick(() => input.value?.focus())
     return
   }
+  if (offline()) return showOnlineAlert('offline')
   busy.value = true
   pending.value = 'join'
   const [r] = await Promise.all([joinRoom(code.value, myCard()), atLeast()])
   busy.value = false
   pending.value = ''
-  if (typeof r === 'string') {
-    error.value = T.errors[r]
-    return
-  }
+  if (typeof r === 'string') return fail(r)
   emit('close')
   go({ name: 'room' })
 }
@@ -74,15 +84,13 @@ async function join() {
 /** 建立房間：一開始不幫玩家選模式（「未選擇模式」） */
 async function create() {
   if (busy.value || needName.value) return
+  if (offline()) return showOnlineAlert('offline')
   busy.value = true
   pending.value = 'create'
   const [r] = await Promise.all([createRoom(myCard()), atLeast()])
   busy.value = false
   pending.value = ''
-  if (typeof r === 'string') {
-    error.value = T.errors[r]
-    return
-  }
+  if (typeof r === 'string') return fail(r)
   emit('close')
   go({ name: 'room' })
 }

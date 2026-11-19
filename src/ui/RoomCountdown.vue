@@ -10,7 +10,7 @@ import { playSound } from '@/core/audio'
 import { startLaunch } from '@/core/launch'
 import { reducedMotion } from '@/core/motion'
 import { go, resetTo, route } from '@/core/nav'
-import { backToRoom, imHere, matchStart, online, roomCountdown } from '@/core/online'
+import { backToRoom, giveUpReconnect, imHere, matchStart, online, onlineAlert, roomCountdown } from '@/core/online'
 import { leaveMid, rejoinMatch } from '@/core/onlineMatch'
 import { S } from '@/data/strings'
 import { getGame } from '@/games/registry'
@@ -18,12 +18,49 @@ import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 
 const T = S.online.status
-/** 被房主請出房間、太久沒回應被移出：跳一個說明（在哪一頁都看得到） */
-const outReason = ref<'' | 'kicked' | 'idle'>('')
+/**
+ * 連線出問題的說明視窗（在哪一頁都看得到）：進房失敗、被請出、房間解散、斷線太久、回不到房間、動作太快。
+ * 每一種都有標題＋白話說明，按「知道了」關掉。
+ */
+const alertKind = ref('')
+// 開 App 時就發生的（重新整理後回不到原本的房間）：這個元件掛上來時已經有了
+if (onlineAlert.n) alertKind.value = onlineAlert.kind
 watch(
-  () => online.closed,
-  (r) => (r === 'kicked' || r === 'idle') && (outReason.value = r),
+  () => onlineAlert.n,
+  () => {
+    alertKind.value = onlineAlert.kind
+    playSound('error')
+  },
 )
+const alertText = computed(() => {
+  const k = alertKind.value
+  if (k === 'kicked') return { title: S.online.kickedTitle, lead: S.online.kickedLead }
+  if (k === 'idle') return { title: S.online.idleOutTitle, lead: S.online.idleOutLead }
+  const a = S.online.alerts as Record<string, { title: string; lead: string }>
+  return a[k] ?? a.closed
+})
+/**
+ * 斷線、正在重新連線：斷超過 1.2 秒才跳（回到 App、網路小抖動一下就連回來的不用跳），
+ * 連回來就自動收起來；可以按「離開房間」不等了。
+ */
+const retryShown = ref(false)
+let retryDelay = 0
+watch(
+  () => online.retry,
+  (n) => {
+    window.clearTimeout(retryDelay)
+    if (!n) {
+      retryShown.value = false
+      return
+    }
+    if (!retryShown.value) retryDelay = window.setTimeout(() => online.retry && (retryShown.value = true), 1200)
+  },
+)
+function leaveNow() {
+  retryShown.value = false
+  void giveUpReconnect()
+  if (route.value.name === 'room' || route.value.name === 'play') resetTo([{ name: 'title' }])
+}
 /** 房間太久沒開始遊戲：伺服器問「還在嗎」，每個人都跳視窗，10 秒內要按「我還在」 */
 const askHere = computed(() => !!online.room?.checkEnd && !online.room.checked)
 const hereMs = computed(() => Math.max(0, (online.room?.checkEnd ?? 0) - Date.now() - 1500))
@@ -122,10 +159,19 @@ async function launch(gameId: string) {
       <span :key="shown" class="t-slab num" :class="{ go: shown === T.startNow }">{{ shown }}</span>
     </div>
   </Transition>
-  <Dialog :open="!!outReason" :title="outReason === 'idle' ? S.online.idleOutTitle : S.online.kickedTitle" label="ROOM" tone="ink" @close="outReason = ''">
-    <p class="text-[0.9rem] text-ink-2">{{ outReason === 'idle' ? S.online.idleOutLead : S.online.kickedLead }}</p>
+  <!-- 斷線、正在重新連線（連回來自動收起） -->
+  <Dialog :open="retryShown && !!online.retry" :title="S.online.retryTitle" label="ONLINE" tone="ink">
+    <p class="text-[0.9rem] text-ink-2">{{ S.online.retryLead }}</p>
+    <p class="retry t-label"><span class="dots"><i /><i /><i /></span>{{ S.online.retryTry(online.retry) }}</p>
     <template #actions>
-      <Btn tone="ink" block @click="outReason = ''">{{ S.online.ok }}</Btn>
+      <Btn tone="red" icon="exit" block @click="leaveNow">{{ S.online.retryLeave }}</Btn>
+    </template>
+  </Dialog>
+  <!-- 連線出問題的說明（放在重新連線視窗後面，兩個都有時疊在上面） -->
+  <Dialog :open="!!alertKind" :title="alertText.title" label="ONLINE" tone="ink" @close="alertKind = ''">
+    <p class="text-[0.9rem] text-ink-2">{{ alertText.lead }}</p>
+    <template #actions>
+      <Btn tone="ink" block data-back @click="alertKind = ''">{{ S.online.ok }}</Btn>
     </template>
   </Dialog>
  <!-- 連線對局還沒打完就要離開：確認（離開房間、位子由電腦代打） -->
@@ -227,6 +273,43 @@ async function launch(gameId: string) {
 @media (prefers-reduced-motion: reduce) {
   .num {
     animation: none;
+  }
+}
+.retry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+  color: var(--color-ink-3);
+}
+/* 跳動的三個點：還在試 */
+.dots {
+  display: inline-flex;
+  gap: 0.18rem;
+}
+.dots i {
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 50%;
+  background: var(--color-red);
+  animation: dot 0.9s ease-in-out infinite;
+}
+.dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes dot {
+  0%,
+  60%,
+  100% {
+    transform: none;
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-0.25rem);
+    opacity: 1;
   }
 }
 </style>
