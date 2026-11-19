@@ -206,6 +206,17 @@ export const sevensAt = (st: BigTwoStyle, d: CardLevel): { skill: number; blunde
   d === 'high' ? { skill: 1, blunder: 0 } : d === 'mid' ? { skill: clamp(st.skill * 0.5), blunder: clamp(0.08 + st.blunder) } : { skill: clamp(st.skill * 0.1), blunder: clamp(0.35 + st.blunder) }
 
 /**
+ * 九九：低／中／高（跟大老二一樣用大老二的打法當底）。
+ *   低：不太會算、常常亂出；中：會一點、偶爾亂出；高：最會算、不失誤（個性只保留愛不愛壓人）
+ */
+export const ninetyNineAt = (st: BigTwoStyle, d: CardLevel): { skill: number; aggression: number; blunder: number } =>
+  d === 'high'
+    ? { skill: 1, aggression: clamp(0.4 + st.aggression * 0.6), blunder: 0 }
+    : d === 'mid'
+      ? { skill: clamp(0.35 + st.skill * 0.35), aggression: st.aggression, blunder: clamp(0.08 + st.blunder) }
+      : { skill: clamp(st.skill * 0.15), aggression: st.aggression, blunder: clamp(0.4 + st.blunder) }
+
+/**
  * 暗棋：低／中／高（跟牌類一樣三段）。
  *   低：只看一步、不太管走完會不會被吃、常常亂翻亂走
  *   中：看一步，會顧自己被吃；偶爾隨手走

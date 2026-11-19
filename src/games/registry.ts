@@ -21,6 +21,7 @@ import BanqiCover from './covers/BanqiCover.vue'
 import CheckersCover from './covers/CheckersCover.vue'
 import StarCheckersCover from './covers/StarCheckersCover.vue'
 import QuoridorCover from './covers/QuoridorCover.vue'
+import NinetyNineCover from './covers/NinetyNineCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
 type Extra = { group?: SettingGroup; live?: boolean }
@@ -141,6 +142,19 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./redpoint/RedPointTutorial.vue')),
     component: defineAsyncComponent(() => import('./redpoint/RedPointGame.vue')),
     settings: [toggle('hints', S.redpoint.settings.hints, false), timer()],
+  },
+  {
+    id: 'ninetynine',
+    category: 'cards',
+    name: S.ninetynine.name,
+    summary: S.ninetynine.summary,
+    players: S.ninetynine.players,
+    cover: NinetyNineCover,
+    tags: S.ninetynine.tags,
+    rulesIntro: withTimer(S.ninetynine.rules, [...TR.cards, TR.ninetynine]),
+    tutorial: defineAsyncComponent(() => import('./ninetynine/NinetyNineTutorial.vue')),
+    component: defineAsyncComponent(() => import('./ninetynine/NinetyNineGame.vue')),
+    settings: [choice('difficulty', S.ninetynine.settings.difficulty, 'mid'), timer()],
   },
   {
     id: 'solitaire',

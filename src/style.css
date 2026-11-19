@@ -64,6 +64,13 @@ html.avoid-cutout {
     --cut-l: max(env(safe-area-inset-left, 0px), 26px);
   }
 }
+/* Android App：手機直接告訴遊戲鏡頭在哪（--ncut-*，見 core/native.ts），照實際範圍讓開；沒有鏡頭的那一邊就鋪滿 */
+html.app.avoid-cutout {
+  --cut-t: max(env(safe-area-inset-top, 0px), var(--ncut-t, 0px));
+  --cut-r: max(env(safe-area-inset-right, 0px), var(--ncut-r, 0px));
+  --cut-b: max(env(safe-area-inset-bottom, 0px), var(--ncut-b, 0px));
+  --cut-l: max(env(safe-area-inset-left, 0px), var(--ncut-l, 0px));
+}
 
 html,
 body,
