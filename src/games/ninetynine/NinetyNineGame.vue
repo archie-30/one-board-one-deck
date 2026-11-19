@@ -534,7 +534,7 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
         <span class="nm t-black"><span class="hl" />{{ names[p] }}</span>
         <span class="t-label tg">{{ p === ME ? seated![0].tag : opponents[p - 1].tag }}</span>
       </div>
-      <span v-if="!state.alive[p] && !(bust && bust.player === p)" class="stamp t-black" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.outTag }}<small>{{ T.rankTag(rk[p]) }}</small></span>
+      <span v-if="!state.alive[p] && !(bust && bust.player === p)" class="stamp t-black" :style="p === ME ? { left: `${seat.kid.x + L.cw * 1.5}px`, top: `${seat.kid.y - seat.kid.w * 0.55}px` } : { left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ T.outTag }}<small>{{ T.rankTag(rk[p]) }}</small></span>
     </template>
 
     <div class="cards">
