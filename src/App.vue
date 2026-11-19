@@ -16,6 +16,7 @@ import TitleScreen from '@/screens/TitleScreen.vue'
 import LaunchOverlay from '@/ui/LaunchOverlay.vue'
 import RoomCountdown from '@/ui/RoomCountdown.vue'
 import UnlockDialog from '@/ui/UnlockDialog.vue'
+import UpdateDialog from '@/ui/UpdateDialog.vue'
 
 /** 離開一頁：往下沉一點、淡出（0.2 秒）；對局頁、減少動態時直接換 */
 function pageLeave(el: Element, done: () => void) {
@@ -59,6 +60,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
         <PlayScreen v-else :key="routeKey" :game-id="route.gameId" />
     </Transition>
     <UnlockDialog />
+    <UpdateDialog />
     <LaunchOverlay />
     <RoomCountdown />
     <div class="rotate">{{ S.app.rotate }}</div>
