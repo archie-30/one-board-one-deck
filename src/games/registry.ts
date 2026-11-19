@@ -16,6 +16,8 @@ import OthelloCover from './covers/OthelloCover.vue'
 import RedPointCover from './covers/RedPointCover.vue'
 import SevensCover from './covers/SevensCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
+import SpiderCover from './covers/SpiderCover.vue'
+import FreeCellCover from './covers/FreeCellCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
 import BanqiCover from './covers/BanqiCover.vue'
 import CheckersCover from './covers/CheckersCover.vue'
@@ -170,6 +172,37 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./solitaire/SolitaireTutorial.vue')),
     component: defineAsyncComponent(() => import('./solitaire/SolitaireGame.vue')),
     settings: [choice('difficulty', S.solitaire.settings.difficulty, 'easy')],
+  },
+  {
+    id: 'spider',
+    category: 'cards',
+    seats: 1,
+    name: S.spider.name,
+    summary: S.spider.summary,
+    players: S.spider.players,
+    cover: SpiderCover,
+    tags: S.spider.tags,
+    best: (o) => bestAt('spider', String(o.difficulty ?? 'easy')),
+    rulesIntro: S.spider.rules,
+    tutorial: defineAsyncComponent(() => import('./spider/SpiderTutorial.vue')),
+    component: defineAsyncComponent(() => import('./spider/SpiderGame.vue')),
+    settings: [choice('difficulty', S.spider.settings.difficulty, 'easy')],
+  },
+  {
+    id: 'freecell',
+    category: 'cards',
+    seats: 1,
+    name: S.freecell.name,
+    summary: S.freecell.summary,
+    players: S.freecell.players,
+    cover: FreeCellCover,
+    tags: S.freecell.tags,
+    best: () => stats.freecell.fewest,
+    bestLabel: S.freecell.bestLabel,
+    rulesIntro: S.freecell.rules,
+    tutorial: defineAsyncComponent(() => import('./freecell/FreeCellTutorial.vue')),
+    component: defineAsyncComponent(() => import('./freecell/FreeCellGame.vue')),
+    settings: [],
   },
   {
     id: 'gomoku',

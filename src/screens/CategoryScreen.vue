@@ -79,7 +79,7 @@ const recent = computed(() => {
   void stats.recent
   const r = recentAt(game.value.id, quick.value ? quickValue.value : 'all')
   if (!r.n) return S.lobby.recentNone
-  return game.value.id === 'solitaire' ? S.lobby.recentSolo(r.n, r.w, r.l) : S.lobby.recent(r.n, r.w, r.l, r.d)
+  return seatsOf(game.value) <= 1 ? S.lobby.recentSolo(r.n, r.w, r.l) : S.lobby.recent(r.n, r.w, r.l, r.d)
 })
 /** 最高分：跟著目前選的難度變 */
 const bestNow = computed(() => {
@@ -458,9 +458,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <p class="summary rise" style="--i: 2">{{ game.summary }}</p>
           <div v-if="game.best && !inRoom" class="stats rise" style="--i: 3">
             <p class="best">
-              <span class="t-label">{{ S.lobby.best }}</span>
-              <!-- 寬度先照最高分的位數留好，跳數時不會把旁邊的東西擠來擠去 -->
-              <b class="t-slab" :style="{ minWidth: `${String(bestNow).length * 0.78}em` }">{{ bestShown }}</b>
+              <span class="t-label">{{ game.bestLabel ?? S.lobby.best }}</span>
+              <!-- 寬度先照最高分的位數留好，跳數時不會把旁邊的東西擠來擠去；最少步數還沒有紀錄時顯示「－」 -->
+              <b class="t-slab" :style="{ minWidth: `${String(bestNow).length * 0.78}em` }">{{ game.bestLabel && !bestNow ? '－' : bestShown }}</b>
             </p>
           </div>
         </div>

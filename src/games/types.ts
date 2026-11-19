@@ -38,6 +38,8 @@ export interface GameDef {
   /** 模式選單上大大顯示的最高分（沒有分數的玩法不填） */
   /** 模式選單上顯示的最高分（依目前選的規則，例如難度） */
   best?: (options: Record<string, string | boolean>) => number
+  /** 最高分那一格的標題（沒寫就是「最高分」；新接龍是「最少步數」，0＝還沒有紀錄） */
+  bestLabel?: string
   /** 文字版規則說明 */
   rulesIntro: RuleSection[]
   /** 互動式教學的畫面 */
