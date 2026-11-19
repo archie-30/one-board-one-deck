@@ -3,7 +3,7 @@
 //   往下接：點數少 1 就能接（不看花色）；空的一疊什麼都能放。
 //   一起搬：同花色、點數連續往下的一串可以整串搬；不同花色接在一起的只能拆開搬。
 //   同花色從 K 排到 A 的一整串會自動收走；收滿 8 串就過關。
-//   發牌：還有空的一疊時不能發（要先放牌進去）。
+//   發牌：每疊發一張，空的一疊也照發（使用者要的；Windows 版是有空疊不能發）。
 //   花色數（難度）：1 種＝全部黑桃、2 種＝黑桃＋紅心、4 種＝四種花色。
 //   計分（Windows 的算法）：開局 500 分、每動一步（含發牌）-1、收走一串 +100；按「返回」另外扣 5 分（記在 penalty）。
 //
@@ -41,7 +41,7 @@ export interface SpiderState {
 }
 
 export type SpiderAction = { type: 'deal' } | { type: 'move'; from: { col: number; index: number }; to: { col: number } }
-export type SpiderError = 'won' | 'empty' | 'emptyCol' | 'badSource' | 'illegal'
+export type SpiderError = 'won' | 'empty' | 'badSource' | 'illegal'
 
 export const COLS = 10
 export const START_SCORE = 500
@@ -127,7 +127,6 @@ export function applySpider(state: SpiderState, action: SpiderAction): Result<Sp
   const s = clone(state)
   if (action.type === 'deal') {
     if (!s.stock.length) return { ok: false, reason: 'empty' }
-    if (s.tableau.some((c) => !c.up.length && !c.down.length)) return { ok: false, reason: 'emptyCol' }
     for (let i = 0; i < COLS && s.stock.length; i++) s.tableau[i].up.push(s.stock.pop()!)
     for (let i = 0; i < COLS; i++) collect(s, i)
   } else {

@@ -80,8 +80,7 @@ function say(text: string) {
 function act(action: SpiderAction) {
   const r = applySpider(state.value, action)
   if (!r.ok) {
-    if (r.reason === 'emptyCol') say(T.emptyCol)
-    else if (r.reason !== 'won' && r.reason !== 'empty') say(S.solitaire.cantPlace)
+    if (r.reason !== 'won' && r.reason !== 'empty') say(S.solitaire.cantPlace)
     playSound('error')
     return
   }

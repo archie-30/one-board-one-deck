@@ -84,14 +84,15 @@ describe('蜘蛛接龍：收走一串、發牌、過關', () => {
     const s = ok(table({ 0: { up: up.slice(0, 12) }, 1: { up: [up[12]] } }), mv(1, 0, 0))
     expect(s.done.length).toBe(0)
   })
-  it('發牌：每疊發一張；有空的一疊不能發；牌堆空了不能發', () => {
+  it('發牌：每疊發一張；有空的一疊也照發（空的那疊拿到一張翻開的牌）；牌堆空了不能發', () => {
     const full = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [i, { up: ['S5'] }]))
     const s = ok(table(full, Array(10).fill('H2')), { type: 'deal' })
     expect(s.tableau.every((c) => c.up.length === 2)).toBe(true)
     expect(s.stock.length).toBe(0)
     expect(s.score).toBe(499)
-    const r = applySpider(table({ 0: { up: ['S5'] } }, ['H2']), { type: 'deal' })
-    expect(r.ok ? '' : r.reason).toBe('emptyCol')
+    const e = ok(table({ 0: { up: ['S5'] } }, Array(10).fill('H2')), { type: 'deal' })
+    expect(e.tableau.every((c) => c.up.length >= 1)).toBe(true)
+    expect(e.tableau[3].up.length).toBe(1)
     const r2 = applySpider(s, { type: 'deal' })
     expect(r2.ok ? '' : r2.reason).toBe('empty')
   })
