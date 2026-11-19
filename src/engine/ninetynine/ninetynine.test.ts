@@ -88,6 +88,27 @@ describe('九九：發牌與出牌', () => {
     expect(s.reshuffles).toBe(1)
     expect([...s.deck, ...s.hands[1]].sort((a, b) => a - b)).toEqual([C(0, 2), C(3, 2), C(3, 3), C(3, 6)].sort((a, b) => a - b))
   })
+  it('只剩兩個人：從剩兩人起牌堆再洗兩次還分不出來，兩個人並列第一', () => {
+    // 1、3 號已經出局；牌堆只剩 1 張，出過的牌只有幾張，很快就要洗
+    let s = createNinetyNine([[C(0, 2), C(0, 3)], [], [C(1, 2), C(1, 3)], []], [C(2, 2)], 0)
+    s = { ...s, alive: [true, false, true, false], out: [1, 3], played: [C(3, 2), C(3, 3)] }
+    // 剩兩人之後第一次洗牌：還沒結束
+    s = must(s, play(0, C(0, 2))) // 抽走最後一張
+    s = must(s, play(2, C(1, 2))) // 牌堆空了 → 洗第 1 次
+    expect(s.reshuffles).toBe(1)
+    expect(s.over).toBe(false)
+    // 一直出到再洗一次
+    let guard = 0
+    while (!s.over && guard++ < 50) {
+      const c = legalCards(s)[0]
+      s = must(s, c === undefined ? { type: 'out', player: s.turn } : play(s.turn, c, { minus: true, target: s.alive.findIndex((v, i) => v && i !== s.turn) }))
+    }
+    expect(s.over).toBe(true)
+    expect(s.reshuffles).toBe(2)
+    expect(winners(s)).toEqual([0, 2])
+    expect(ranks(s)[0]).toBe(1)
+    expect(ranks(s)[2]).toBe(1)
+  })
   it('時間到：能出就出最不可惜的（數字牌最小），10／Q 照能出的方向；沒得出就爆', () => {
     const s = createNinetyNine([[C(0, 13), C(0, 10), C(0, 3), C(0, 2)], [C(1, 2)], [C(1, 6)], [C(1, 7)]], [], 0, 50)
     expect(timeoutPlay(s)).toMatchObject({ type: 'play', card: C(0, 2) })

@@ -157,9 +157,9 @@ const hint = computed(() => {
         <span class="total">
           <span class="t-label tl">{{ T.total }}</span>
           <span :key="bump" class="num t-slab" :class="{ hot: state.total >= 90 }">{{ state.total }}</span>
-          <svg class="dir" :class="{ ccw: state.dir === 1 }" viewBox="-12 -12 24 24" aria-hidden="true">
-            <path d="M -7 -4 A 8 8 0 1 1 -4 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-            <path d="M -9.5 -8 L -7 -3 L -2.5 -6.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+          <svg class="dir" :class="{ ccw: state.dir === 1 }" viewBox="-11 -11 22 22" aria-hidden="true">
+            <path d="M 2.74 -7.52 A 8 8 0 1 1 -6.93 -4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+            <path d="M -5.33 -6.77 L -9.6 -4.97 L -4.76 -2.17 Z" fill="currentColor" stroke="currentColor" stroke-width="0.8" stroke-linejoin="round" />
           </svg>
         </span>
       </div>
@@ -385,11 +385,12 @@ const hint = computed(() => {
   height: 1.5rem;
   margin-top: 0.2rem;
   color: var(--color-ink-2);
-  transform: scaleX(-1);
+  transform: none;
   transition: transform 520ms var(--ease-back);
 }
+/* 圖是順時針；0→1→2→3（下→右→上→左）是逆時針，翻過來 */
 .dir.ccw {
-  transform: none;
+  transform: scaleX(-1);
 }
 .grp {
   display: flex;
