@@ -216,6 +216,8 @@ function act(a: NinetyNineAction): boolean {
       bust.value = null
       sync(m.cards, { stagger: 40, dur: 380 })
       if (r.state.over && !net) later(finish, 700)
+      // 單人：自己爆了（拿到名次）就不用看電腦打完，直接快速結算
+      else if (p === ME && !net && !watching) later(quickFinish, 500)
       else later(nextTurn, 450)
     }, 1500)
     return true

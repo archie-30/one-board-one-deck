@@ -190,7 +190,23 @@ function afterMove(before: StarState) {
     message.value = seat === me && !watching ? T.youArrived(s.out.indexOf(seat) + 1) : T.arrived(nameOf(seat), s.out.indexOf(seat) + 1)
   }
   if (s.over) return finish()
+  // 單人：自己到齊、拿到名次了就不用看電腦下完，直接結算（另外兩個照還差多遠排名次）
+  if (!net && !watching && s.out.slice(before.out.length).includes(me)) {
+    later(settleNow, 1600 + pathMs(last.value ?? [], true))
+    return
+  }
   if (!net) later(nextTurn, 500 + pathMs(last.value ?? [], s.turn === me))
+}
+/** 直接結算：還沒到齊的照還差多遠排名次，認輸的排最後 */
+function settleNow() {
+  const s = state.value
+  if (s.over || phase.value !== 'playing') return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  thinking.value = false
+  const rest = [0, 1, 2].filter((p) => !s.out.includes(p) && !s.gaveUp.includes(p)).sort((a, b) => remaining(s.board, a) - remaining(s.board, b))
+  state.value = { ...s, over: true, out: [...s.out, ...rest, ...s.gaveUp.slice().reverse()] }
+  finish()
 }
 function nextTurn() {
   const s = state.value

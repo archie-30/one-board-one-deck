@@ -243,7 +243,11 @@ function act(action: BigTwoAction): boolean {
   if (moods[p] === 'think') moods[p] = 'idle'
 
   if (action.type === 'play') {
-    const combo = s.table!.combo
+    // 出完最後一手時，如果其他人這一輪早就都過牌了，引擎直接清空桌面（table 是 null）：牌型改從出的牌判斷。
+    // 以前這裡直接讀 s.table 會出錯、整局卡住（電腦出完拿第一名後大家都不動）
+    const check = s.table ? null : checkPlay(before, p, action.cards)
+    const combo = s.table?.combo ?? (check && check.ok ? check.state : null)
+    if (!combo) return true
     passed[p] = false
     const g: PileGroup = { id: ++groupId, cards: combo.cards, from: p }
     pile.value = [...pile.value, g]
@@ -259,6 +263,11 @@ function act(action: BigTwoAction): boolean {
     if (s.winner < 0 && nowOut > (before.out?.length ?? 0)) {
       flash(p, 'happy', 1600)
       message.value = T.result.outNow(p === ME && !watching ? S.common.you : names[p], nowOut)
+    }
+    // 單人玩到分出名次：自己出完、拿到名次了，不用看電腦打完，直接算完剩下的、結算
+    if (!net && !watching && s.winner < 0 && p === ME && s.out?.includes(ME)) {
+      later(quickFinish, landed + 700)
+      return true
     }
     if (s.winner >= 0) {
       // 連線：等伺服器攤牌（別人剩什麼牌）再結算
@@ -298,6 +307,35 @@ function act(action: BigTwoAction): boolean {
     if (p === ME) sync()
   }
   return true
+}
+
+/**
+ * 快速結算（單人、玩到分出名次、自己已經出完）：剩下的電腦照原本的打法一瞬間打完，排出名次後直接結算。
+ * 分數本來就照第一個人出完那一刻的手牌算，打不打完不影響分數，只決定其他人的名次。
+ */
+function quickFinish() {
+  if (net || phase.value !== 'play' || state.value.winner >= 0) return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  let s = state.value
+  for (let guard = 0; guard < 2000 && s.winner < 0; guard++) {
+    const opp = opponents[s.turn - 1]
+    if (!opp) break
+    let a: BigTwoAction
+    ;[a, rng] = chooseBigTwoAction(s, bigtwoAt(opp.persona.bigtwo, level, opp.id), rng)
+    const r = applyBigTwo(s, a)
+    if (!r.ok) break
+    s = r.state
+  }
+  state.value = s
+  // 打掉的牌全部收到棄牌堆
+  discard.value = (s.played ?? []).slice()
+  pile.value = []
+  caption.value = null
+  passed.fill(false)
+  playSound('shuffle')
+  sync({ cards: ALL, stagger: 6, dur: 380, arc: 12 })
+  later(finish, 600)
 }
 
 function flash(seat: number, mood: KidMood, ms: number) {
