@@ -166,8 +166,31 @@ export function useOnlineService(s: OnlineService) {
 /** 開局倒數（3、2、1；0＝沒在倒數）。由 App 層的 RoomCountdown 負責倒數與開局 */
 export const roomCountdown = ref(0)
 
-/** 目前所在的房間（沒有就是 null）；closed＝上一次被請出房間的原因（房主解散、斷線太久） */
-export const online = reactive<{ room: Room | null; closed: string }>({ room: null, closed: '' })
+/** 目前所在的房間（沒有就是 null）；closed＝上一次被請出房間的原因（房主解散、斷線太久）；
+ *  retry＝斷線後正在重新連線第幾次（0＝連著）*/
+export const online = reactive<{ room: Room | null; closed: string; retry: number }>({ room: null, closed: '', retry: 0 })
+/**
+ * 連線出問題時要跳的說明視窗（App 層的 RoomCountdown 負責顯示）：
+ *   進房失敗（notFound、full、started、limited、network、offline）、被移出房間（kicked、idle、disbanded、lost、gone、closed）、
+ *   伺服器說動作太快（rate）。n 每次加一，同一種錯誤連續發生也會再跳一次。
+ */
+export const onlineAlert = reactive({ kind: '', n: 0 })
+export function showOnlineAlert(kind: string) {
+  onlineAlert.kind = kind
+  onlineAlert.n++
+}
+/** 斷線、正在重新連線（retry 是第幾次嘗試；0＝連回來了） */
+export function setRetrying(retry: number) {
+  online.retry = retry
+}
+/** 重新連線中按「離開房間」：不等了，直接離開（房間資料已經不在畫面上也照樣通知伺服器） */
+export async function giveUpReconnect() {
+  online.retry = 0
+  online.room = null
+  online.closed = ''
+  roomCountdown.value = 0
+  await service.leave(false)
+}
 /** 伺服器通知開局：每次開局 n 加一（RoomCountdown 看到就播過場、進入對局） */
 export const matchStart = ref({ n: 0, gameId: '' })
 
@@ -183,7 +206,9 @@ export function receiveStart(gameId: string) {
 export function receiveClosed(reason: string) {
   online.room = null
   online.closed = reason
+  online.retry = 0
   roomCountdown.value = 0
+  showOnlineAlert(reason)
 }
 
 const me = () => online.room?.players.find((p) => p.me) ?? null
@@ -215,6 +240,7 @@ export async function leaveRoom(mid = false) {
   const room = online.room
   online.room = null
   online.closed = ''
+  online.retry = 0
   roomCountdown.value = 0
   if (room) await service.leave(mid)
 }

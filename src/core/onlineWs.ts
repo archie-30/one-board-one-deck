@@ -4,7 +4,7 @@
 //   斷線會自動重連（伺服器幫你留位子 45 秒）；憑證存在這個分頁（sessionStorage），重新整理也接得回去。
 import { ONLINE_PING, ONLINE_RETRY, ONLINE_TIMEOUT, ONLINE_URL } from '@/data/onlineServer'
 import { expectRejoin, receiveAct, receiveMatch, rejectAct, type MatchEvent, type MatchIntro } from './onlineMatch'
-import { receiveClosed, receiveRoom, receiveStart, type JoinError, type OnlineProfile, type OnlineService, type Room, type RoomIntent } from './online'
+import { receiveClosed, receiveRoom, receiveStart, type JoinError, type OnlineProfile, type OnlineService, type Room, type RoomIntent, setRetrying, showOnlineAlert } from './online'
 
 interface Creds {
   code: string
@@ -132,6 +132,7 @@ function connect(): Promise<Room | JoinError> {
       if (m.t === 'room' && m.room) {
         clearTimeout(giveUp)
         retryAt = 0
+        setRetrying(0)
         const room = toRoom(m.room)
         if (waiting) finishWait(room)
         else receiveRoom(room)
@@ -144,6 +145,8 @@ function connect(): Promise<Room | JoinError> {
         if (m.reason !== 'left') receiveClosed(m.reason ?? 'closed')
       } else if (m.t === 'error') {
         if (m.code === 'act') rejectAct()
+        // 送太快被伺服器擋下：跟玩家說一聲（其他的是程式送錯格式，玩家幫不上忙）
+        else if (m.code === 'rate') showOnlineAlert('rate')
         else console.warn('online:', m.code)
       }
     }
@@ -153,14 +156,19 @@ function connect(): Promise<Room | JoinError> {
       window.clearInterval(ping)
       ws = null
       // 憑證不對、房間不在了：不用再試
+      // 4404＝房間已經不在了；4401＝自己已經不在房間裡（斷線太久被移出）
       if (e.code === 4401 || e.code === 4404) {
         forget()
         if (waiting) finishWait('notFound')
-        else receiveClosed('lost')
+        else receiveClosed(e.code === 4404 ? 'gone' : 'lost')
         return
       }
       if (waiting) return finishWait('network')
-      if (creds) scheduleRetry()
+      if (creds) {
+        // 本來連著、突然斷了：畫面上跳「正在重新連線」
+        setRetrying(Math.max(1, retryAt + 1))
+        scheduleRetry()
+      }
     }
   })
 }
@@ -180,6 +188,7 @@ function scheduleRetry() {
   }
   retryTimer = window.setTimeout(async () => {
     retryAt++
+    setRetrying(retryAt)
     const r = await connect()
     if (typeof r === 'string') {
       if (creds) scheduleRetry()
@@ -261,6 +270,16 @@ export async function resumeOnline(): Promise<void> {
   creds = loadCreds()
   if (!creds) return
   const r = await connect()
-  if (typeof r === 'string') forget()
-  else receiveRoom(r)
+  if (typeof r !== 'string') return receiveRoom(r)
+  if (r === 'notFound') {
+    // 原本的房間已經關掉了（或自己早就被移出）：跟玩家說一聲
+    forget()
+    receiveClosed('gone')
+    return
+  }
+  // 連不上（網路還沒好、伺服器沒回應）：先別放棄，照斷線重連的方式慢慢試
+  if (creds) {
+    setRetrying(1)
+    scheduleRetry()
+  }
 }

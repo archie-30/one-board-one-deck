@@ -37,7 +37,14 @@ export class Room extends DurableObject<Env> {
     const now = Date.now()
     if (url.pathname === '/ws') {
       if (req.headers.get('Upgrade') !== 'websocket') return new Response('expected websocket', { status: 426 })
-      if (!this.room) return new Response('not found', { status: 404 })
+      // 房間已經不在了：還是先接起來，再用 4404 關掉。直接回 404 的話瀏覽器只看得到「連線失敗」，
+      // 分不出是房間關了還是網路斷了，客戶端就會一直重試；4404 才能跟玩家說「回不到原本的房間」
+      if (!this.room) {
+        const gone = new WebSocketPair()
+        gone[1].accept()
+        gone[1].close(4404, 'gone')
+        return new Response(null, { status: 101, webSocket: gone[0] })
+      }
       const pair = new WebSocketPair()
       this.ctx.acceptWebSocket(pair[1])
       return new Response(null, { status: 101, webSocket: pair[0] })
