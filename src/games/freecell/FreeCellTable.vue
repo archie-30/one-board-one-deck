@@ -6,7 +6,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
-import { applyFreeCell, autoTarget, cardsAt, type FreeCellAction, type FreeCellError, type FreeCellState, type Source, type Target } from '@/engine/freecell/rules'
+import { applyFreeCell, autoTarget, cardsAt, fitSource, type FreeCellAction, type FreeCellError, type FreeCellState, type Source, type Target } from '@/engine/freecell/rules'
 import CardArt from '@/ui/art/Card.vue'
 import { SUIT_PATHS, isRedSuit } from '@/ui/art/suits'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
@@ -262,7 +262,9 @@ function onUp(e: PointerEvent) {
   flyBack(d)
 }
 /** 試著搬過去：成功就送出動作；不行就回報原因（張數太多要另外說） */
-function attempt(from: Source, to: Target): boolean {
+function attempt(picked: Source, to: Target): boolean {
+  // 拿太多張、或空的一疊一次搬不了那麼多：自動改成搬接得上／搬得動的那一段
+  const from = fitSource(props.state, picked, to)
   const r = applyFreeCell(props.state, { type: 'move', from, to })
   if (r.ok) {
     emit('action', { type: 'move', from, to })

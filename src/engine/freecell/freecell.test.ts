@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseCard as P } from '@/engine/bigtwo/cards'
 import { seedRng } from '@/engine/common/rng'
-import { applyFreeCell, autoTarget, cardsAt, dealFreeCell, finishPlan, isStuck, maxMove, undoTo, type FreeCellAction, type FreeCellState, type Target } from './rules'
+import { applyFreeCell, autoTarget, cardsAt, dealFreeCell, finishPlan, fitSource, isStuck, maxMove, undoTo, type FreeCellAction, type FreeCellState, type Target } from './rules'
 
 function table(cols: Record<number, string[]>, cells: (string | null)[] = [null, null, null, null]): FreeCellState {
   return { cells: cells.map((c) => (c ? P(c) : null)), foundations: [[], [], [], []], tableau: Array.from({ length: 8 }, (_, i) => (cols[i] ?? []).map(P)), moves: 0, won: false }
@@ -63,6 +63,29 @@ describe('新接龍：移動', () => {
     const last = s.foundations[3].pop()!
     s.tableau[0] = [last]
     expect(ok(s, mv(0, 0, { pile: 'foundation', slot: 3 })).won).toBe(true)
+  })
+})
+
+describe('新接龍：拖一串時自動挑要搬的那一段', () => {
+  it('拿太多張：從接得上的那張開始搬', () => {
+    const s = table({ 0: ['SJ', 'H10', 'S9', 'H8'], 1: ['D10'], ...fill(6) })
+    const from = fitSource(s, { pile: 'tableau', col: 0, index: 0 }, T(1))
+    expect(from).toEqual({ pile: 'tableau', col: 0, index: 2 })
+    expect(ok(s, { type: 'move', from, to: T(1) }).tableau[1].length).toBe(3)
+  })
+  it('搬到空的一疊張數超過上限：只搬最上面搬得動的幾張', () => {
+    // 1 個空暫存格、2 疊空的（搬到其中一疊時另一疊算空的）：最多 (1+1)×2 = 4 張
+    const s = table({ 0: ['SK', 'HQ', 'SJ', 'H10', 'S9', 'H8'], ...fill(5) }, ['CA', 'C2', 'C3', null])
+    expect(maxMove(s, true)).toBe(4)
+    const from = fitSource(s, { pile: 'tableau', col: 0, index: 0 }, T(1))
+    expect(from).toEqual({ pile: 'tableau', col: 0, index: 2 })
+    const r = ok(s, { type: 'move', from, to: T(1) })
+    expect(r.tableau[1].length).toBe(4)
+    expect(r.tableau[0].length).toBe(2)
+  })
+  it('接不上就原樣回傳', () => {
+    const s = table({ 0: ['S9', 'H8'], 1: ['S5'] })
+    expect(fitSource(s, { pile: 'tableau', col: 0, index: 0 }, T(1))).toEqual({ pile: 'tableau', col: 0, index: 0 })
   })
 })
 

@@ -118,6 +118,24 @@ export function applyFreeCell(state: FreeCellState, action: FreeCellAction): Res
   return { ok: true, state: s }
 }
 
+/**
+ * 拖一串牌去某一疊時，實際要搬的是哪一段（跟 Windows 新接龍一樣）：
+ *   搬到有牌的一疊：從拿起來的這串裡找「接得上」的那一張開始，多拿的不用管；
+ *   搬到空的一疊：張數超過一次能搬的上限，就只搬最上面能搬的那幾張。
+ * 只調整從哪一張開始搬；調整不了就原樣回傳（交給 applyFreeCell 判斷）。
+ */
+export function fitSource(s: FreeCellState, from: Source, to: Target): Source {
+  if (from.pile !== 'tableau' || to.pile !== 'tableau' || from.col === to.col) return from
+  const cards = cardsAt(s, from)
+  if (!cards.length) return from
+  if (!s.tableau[to.col]?.length) {
+    const max = maxMove(s, true)
+    return cards.length > max ? { ...from, index: from.index + cards.length - max } : from
+  }
+  for (let k = 0; k < cards.length; k++) if (fits(s, cards.slice(k), to)) return { ...from, index: from.index + k }
+  return from
+}
+
 /** 返回：回到上一步的狀態；返回也算一步 */
 export function undoTo(prev: FreeCellState, current: FreeCellState): FreeCellState {
   return { ...prev, moves: current.moves + 1 }
