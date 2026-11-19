@@ -289,6 +289,8 @@ const bonus = computed(() => timeBonus(seconds.value))
     <Dialog flip :open="resultOpen" :title="ended ? T.stuckResult : T.win" :label="T.resultLabel" tone="red" @close="resultOpen = false">
       <table class="score">
         <tbody>
+          <!-- 步數：只是讓你看走了幾步，不算進分數 -->
+          <tr class="rise info" style="--i: 1"><td>{{ T.moves }}</td><td class="t-slab">{{ state.moves }}</td></tr>
           <tr class="rise" style="--i: 2"><td>{{ T.rowBase }}</td><td class="t-slab">{{ state.score }}</td></tr>
           <tr v-if="state.penalty" class="rise" style="--i: 2"><td>{{ T.rowPenalty }}</td><td class="t-slab">−{{ state.penalty }}</td></tr>
           <tr v-if="!ended" class="rise" style="--i: 4"><td>{{ T.rowBonus(clock) }}</td><td class="t-slab">+{{ bonus }}</td></tr>
@@ -444,6 +446,15 @@ const bonus = computed(() => timeBonus(seconds.value))
   text-align: right;
   font-size: 1.1rem;
 }
+.score .info td {
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+  font-size: 0.85rem;
+  color: var(--color-ink-2);
+}
+.score .info td:last-child {
+  font-size: 0.95rem;
+}
 .score .total td {
   border-top: 0.14rem solid var(--color-ink);
   border-bottom: 0;
@@ -453,7 +464,7 @@ const bonus = computed(() => timeBonus(seconds.value))
   font-size: 1.6rem;
 }
 .best {
-  margin-top: 0.5rem;
+  margin-top: 0.35rem;
   color: var(--color-ink-3);
 }
 </style>

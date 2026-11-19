@@ -2,9 +2,9 @@
 // 稱號名稱與「怎麼解鎖」的說明文字在 strings.ts 的 S.profile.titles。
 import type { Acc, Fill, Shape, Tone } from '@/ui/art/look'
 
-/** 每升一級要的經驗值（固定，每一級都一樣） */
-export const XP_PER_LEVEL = 300
-/** 等級先做到 100 級；超過 100 之後照樣每 300 經驗升一級，沒有上限 */
+/** 每升一級要的經驗值（固定，每一級都一樣；原本 300，使用者覺得升太慢改成 200） */
+export const XP_PER_LEVEL = 200
+/** 等級先做到 100 級；超過 100 之後照樣每 200 經驗升一級，沒有上限 */
 export const LEVEL_CAP_SHOWN = 100
 /** 一局最多拿多少經驗 */
 export const XP_GAME_CAP = 50
