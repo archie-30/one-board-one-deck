@@ -5,6 +5,7 @@
 //   減的時候最少減到 0。功能牌（4、5、10、J、Q、K、黑桃 A）任何時候都能出，所以只有手上全是「會超過 99 的數字牌」才會爆。
 // 淘汰到剩一個人：最後留下的人贏，名次照出局的先後。
 // 牌堆抽完：把出過的牌（最上面那張留著）洗一洗變成新的牌堆。
+// 只剩兩個人時，牌堆再洗兩次還分不出勝負，就結束、兩個人並列第一（使用者定的規則）。
 // 純函式，狀態可序列化成 JSON（洗牌用存在狀態裡的亂數）。
 import { nextInt, seedRng, shuffle, type RngState } from '../common/rng'
 import type { Result } from '../common/types'
@@ -14,6 +15,8 @@ export const HAND = 5
 export const LIMIT = 99
 /** 太久沒分出勝負（理論上很少發生）：還在場上的人一起算贏 */
 export const MAX_MOVES = 600
+/** 只剩兩個人之後，牌堆再洗幾次還分不出來就並列第一 */
+export const DUEL_RESHUFFLES = 2
 
 /** 牌：0～51。花色 = card / 13（0 梅花、1 方塊、2 紅心、3 黑桃），點數 = card % 13 + 1（1 = A … 13 = K） */
 export type Card = number
@@ -65,6 +68,8 @@ export interface NinetyNineState {
   moves: number
   /** 牌堆洗過幾次 */
   reshuffles: number
+  /** 剩兩個人的那一刻，牌堆已經洗過幾次（還沒剩兩人時沒有；舊存檔沒有就從現在算） */
+  twoAt?: number
   /** 洗牌用的亂數（伺服器不會把它送給玩家） */
   rng: RngState
   lastMove: LastMove | null
@@ -185,7 +190,9 @@ export function applyNinetyNine(state: NinetyNineState, action: NinetyNineAction
       moves: state.moves + 1,
       lastMove: { type: 'out', player: p, cards },
     }
-    if (alive.filter(Boolean).length <= 1) return { ok: true, state: { ...s, over: true } }
+    const left = alive.filter(Boolean).length
+    if (left <= 1) return { ok: true, state: { ...s, over: true } }
+    if (left === 2 && s.twoAt === undefined) s.twoAt = state.reshuffles
     return { ok: true, state: { ...s, turn: nextAlive(s, p) } }
   }
   const card = a.card
@@ -231,10 +238,16 @@ export function applyNinetyNine(state: NinetyNineState, action: NinetyNineAction
   }
   const turn = kind === 'target' ? target : nextAlive(s, p, dir)
   if (s.moves >= MAX_MOVES) return { ok: true, state: { ...s, turn, over: true } }
+  // 只剩兩個人：從剩兩人起牌堆又洗了兩次還沒人爆，兩個人並列第一
+  if (aliveCount(s) === 2) {
+    const twoAt = state.twoAt ?? state.reshuffles
+    if (reshuffles - twoAt >= DUEL_RESHUFFLES) return { ok: true, state: { ...s, twoAt, turn, over: true } }
+    if (s.twoAt === undefined) s.twoAt = twoAt
+  }
   return { ok: true, state: { ...s, turn } }
 }
 
-/** 贏家：最後留下的人（拖太久結束的話，還在場上的人都算贏） */
+/** 贏家：最後留下的人（剩兩人洗兩次牌還分不出來、或拖太久結束的話，還在場上的人都算贏） */
 export const winners = (s: NinetyNineState): number[] => s.alive.map((v, i) => (v ? i : -1)).filter((i) => i >= 0)
 /** 名次（1 是第一名）：還在場上的並列第一，之後照出局的順序倒過來排 */
 export function ranks(s: NinetyNineState): number[] {

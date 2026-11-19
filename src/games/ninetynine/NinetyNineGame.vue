@@ -276,6 +276,30 @@ function finish() {
   later(() => (resultOpen.value = true), 900)
 }
 
+/**
+ * 快速結算（只有單人對電腦、你已經爆了的時候）：剩下的電腦一瞬間照原本的打法打完，直接結算，不用等他們一手一手出。
+ */
+function quickFinish() {
+  if (net || !meOut.value || state.value.over || phase.value !== 'play') return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  bust.value = null
+  effect.value = null
+  let s = state.value
+  while (!s.over) {
+    const p = s.turn
+    let a: NinetyNineAction
+    ;[a, rng] = chooseNinetyNineAction(s, ninetyNineAt(opponents[p - 1].persona.bigtwo, difficulty), rng)
+    const r = applyNinetyNine(s, a)
+    if (!r.ok) break
+    s = r.state
+  }
+  state.value = s
+  playSound('shuffle')
+  sync(ALL, { stagger: 6, dur: 380, arc: 12 })
+  later(finish, 500)
+}
+
 function newRound() {
   if (net) return
   timers.forEach((t) => window.clearTimeout(t))
@@ -522,9 +546,9 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
     <div class="total" :style="{ left: `${L.totalAt.x}px`, top: `${L.totalAt.y}px` }">
       <span class="t-label tl">{{ T.total }}</span>
       <span :key="bump" class="num t-slab" :class="{ hot: state.total >= 90 }">{{ state.total }}</span>
-      <svg class="dir" :class="{ ccw: state.dir === 1 }" viewBox="-12 -12 24 24" aria-hidden="true">
-        <path d="M -7 -4 A 8 8 0 1 1 -4 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-        <path d="M -9.5 -8 L -7 -3 L -2.5 -6.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+      <svg class="dir" :class="{ ccw: state.dir === 1 }" viewBox="-11 -11 22 22" aria-hidden="true">
+        <path d="M 2.74 -7.52 A 8 8 0 1 1 -6.93 -4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+            <path d="M -5.33 -6.77 L -9.6 -4.97 L -4.76 -2.17 Z" fill="currentColor" stroke="currentColor" stroke-width="0.8" stroke-linejoin="round" />
       </svg>
       <Transition name="fx">
         <span v-if="effect" :key="effect.key" class="fx t-black">{{ effect.text }}</span>
@@ -578,6 +602,8 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
           <Btn tone="red" size="lg" arrow block style="--i: 0" :disabled="!myTurn || selected === null || sending || !myLegal.includes(selected)" @click="playSelected({ target: aliveOthers[0] })">{{ T.play }}</Btn>
         </div>
       </Transition>
+      <!-- 你爆了（單人）：可以直接快速結算，不用等電腦打完 -->
+      <Btn v-else-if="meOut && !net && phase === 'play'" class="rise" tone="ink" size="lg" arrow block @click="quickFinish">{{ T.quickFinish }}</Btn>
       <template v-else-if="phase === 'over'">
         <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn v-if="!net" class="rise" size="sm" icon="again" style="--i: 1" @click="newRound">{{ S.common.again }}</Btn>
@@ -611,7 +637,7 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
           </tr>
         </tbody>
       </table>
-      <p class="how">{{ T.how }}</p>
+      <p class="how">{{ won.length > 1 ? T.duelTie : T.how }}</p>
       <p v-if="!watching" class="lifetime t-black">{{ T.record(stats.ninetynine.rounds, stats.ninetynine.wins) }}</p>
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
@@ -673,20 +699,21 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
   }
 }
 .dir {
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.9rem;
+  height: 1.9rem;
   margin-top: 0.2rem;
   color: var(--color-ink-2);
-  transform: scaleX(-1);
+  transform: none;
   transition: transform 420ms var(--ease-back);
 }
-/* 0→1→2→3（下→右→上→左）是逆時針 */
+/* 圖是順時針；0→1→2→3（下→右→上→左）是逆時針，翻過來 */
 .dir.ccw {
-  transform: none;
+  transform: scaleX(-1);
 }
+/* 跳出來的字放在 TOTAL 上面，不蓋住 TOTAL */
 .fx {
   position: absolute;
-  top: -1.4rem;
+  bottom: calc(100% + 0.2rem);
   white-space: nowrap;
   padding: 0.05rem 0.5rem;
   background: var(--color-yellow);
