@@ -168,7 +168,7 @@ export function timeoutPlay(s: NinetyNineState, player = s.turn): NinetyNineActi
 export function applyNinetyNine(state: NinetyNineState, action: NinetyNineAction): Result<NinetyNineState, NinetyNineError> {
   if (state.over) return { ok: false, reason: 'over' }
   if (action.player !== state.turn) return { ok: false, reason: 'notYourTurn' }
-  const a = action.type === 'timeout' ? timeoutPlay(state, action.player) : action
+  const a = (action.type === 'timeout' ? timeoutPlay(state, action.player) : action) as Exclude<NinetyNineAction, { type: 'timeout' }>
   const p = a.player
   if (a.type === 'out') {
     // 只有真的沒牌可以出才能爆

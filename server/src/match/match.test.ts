@@ -5,6 +5,7 @@ import { entryFor, matchIntro, playerAct, START_DELAY, UNDO_ANSWER_MS, type Matc
 import type { BigTwoState } from '../../../src/engine/bigtwo/game'
 import type { SevensState } from '../../../src/engine/sevens/rules'
 import type { RedPointState } from '../../../src/engine/redpoint/rules'
+import type { NinetyNineState } from '../../../src/engine/ninetynine/rules'
 import { legalMoves, type OthelloState } from '../../../src/engine/othello/rules'
 import { legalMoves as starMoves, type StarState } from '../../../src/engine/starcheckers/rules'
 
@@ -51,7 +52,7 @@ function runToEnd(room: RoomState, from: number) {
 }
 
 describe('連線對局（伺服器當裁判）', () => {
-  for (const gameId of ['bigtwo', 'crazybigtwo', 'sevens', 'redpoint']) {
+  for (const gameId of ['bigtwo', 'crazybigtwo', 'sevens', 'redpoint', 'ninetynine']) {
     it(`${gameId}：兩個真人＋兩個電腦，一路跑到結束（真人沒動就逾時跳過），最後攤牌`, () => {
       const { room, m } = started(gameId)
       expect(m.seats.filter((s) => s.pid)).toHaveLength(2)
@@ -115,6 +116,26 @@ describe('連線對局（伺服器當裁判）', () => {
     // 結束攤牌：大家都看得到蓋了什麼
     const end = m.log[m.log.length - 1].pub as SevensState
     expect(end.covered.flat().length).toBeGreaterThan(0)
+  })
+
+  it('九九：補到哪張只有自己看得到；開局不給牌堆順序和亂數；有人爆了攤開他的牌', () => {
+    const { room, ids, m } = started('ninetynine', 1)
+    const intro = matchIntro(m, ids[0])
+    const st = intro.start as Record<string, unknown>
+    expect(st.deck).toBe(32)
+    expect(Object.keys(st).sort()).toEqual(['counts', 'deck', 'dir', 'hand', 'total', 'turn'])
+    runToEnd(room, T0 + COUNTDOWN_MS)
+    const plays = m.log.filter((e) => (e.pub as { type: string }).type === 'play')
+    expect(plays.length).toBeGreaterThan(10)
+    const drew = plays.find((e) => e.own)!
+    expect(typeof (entryFor(drew, drew.seat) as { draw: number }).draw).toBe('number')
+    expect((entryFor(drew, (drew.seat + 1) % 4) as { draw?: number }).draw).toBeUndefined()
+    const outs = m.log.filter((e) => (e.pub as { type: string }).type === 'out')
+    expect(outs.length).toBeGreaterThanOrEqual(1)
+    expect(Array.isArray((outs[0].pub as { cards: number[] }).cards)).toBe(true)
+    const end = m.log[m.log.length - 1].pub as NinetyNineState
+    expect(end.over).toBe(true)
+    expect(end.rng).toBe(0)
   })
 
   it('撿紅點：輪到翻牌時，牌堆最上面那張翻開給大家看（其他時候牌堆不給）', () => {

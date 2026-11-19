@@ -9,9 +9,11 @@ import { chooseBigTwoAction } from '../../../src/engine/bigtwo/ai'
 import type { Card } from '../../../src/engine/bigtwo/cards'
 import { applyBigTwo, dealBigTwo, PLAYER_COUNT, type BigTwoAction, type BigTwoState } from '../../../src/engine/bigtwo/game'
 import { DEFAULT_BIGTWO_OPTIONS, type BigTwoOptions } from '../../../src/engine/bigtwo/options'
-import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink, sevensAt } from '../../../src/engine/common/difficulty'
+import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink, ninetyNineAt, sevensAt } from '../../../src/engine/common/difficulty'
 import { PERSONAS } from '../../../src/engine/common/personas'
 import type { RngState } from '../../../src/engine/common/rng'
+import { chooseNinetyNineAction } from '../../../src/engine/ninetynine/ai'
+import { applyNinetyNine, dealNinetyNine, PLAYERS as NN_PLAYERS, type NinetyNineAction, type NinetyNineState } from '../../../src/engine/ninetynine/rules'
 import { chooseRedPointAction } from '../../../src/engine/redpoint/ai'
 import { applyRedPoint, dealRedPoint, type RedPointAction, type RedPointState } from '../../../src/engine/redpoint/rules'
 import { chooseSevensAction } from '../../../src/engine/sevens/ai'
@@ -138,6 +140,42 @@ const sevensDef: MatchDef<SevensState, SevensAction> = {
   reveal: (s, s0) => ({ ...s, startHands: s0.hands }),
 }
 
+// ── 九九 ──
+// 出的牌、加減、指定誰、誰爆了（攤開的牌）都公開；補到哪張牌只有自己看得到（own 的 draw）。
+// 洗牌用的亂數（state.rng）、牌堆的順序絕對不送出去。
+
+const ninetynineDef: MatchDef<NinetyNineState, NinetyNineAction> = {
+  seats: NN_PLAYERS,
+  seconds: TURN_SECONDS.cards,
+  deal: (seed) => dealNinetyNine(seed),
+  apply: (s, a) => {
+    const r = applyNinetyNine(s, a)
+    return r.ok ? r.state : null
+  },
+  turn: (s) => (s.over ? -1 : s.turn),
+  parse(raw, seat) {
+    if (!isObj(raw)) return null
+    if (raw.type === 'out') return { type: 'out', player: seat }
+    if (raw.type !== 'play' || !isCard(raw.card, 52)) return null
+    const target = typeof raw.target === 'number' && Number.isInteger(raw.target) && raw.target >= 0 && raw.target < NN_PLAYERS ? raw.target : undefined
+    return { type: 'play', player: seat, card: raw.card as number, minus: raw.minus === true, ...(target !== undefined ? { target } : {}) }
+  },
+  bot: (s, botId, opts, rng) => chooseNinetyNineAction(s, ninetyNineAt(PERSONAS[botId].bigtwo, asCardLevel(opts.difficulty)), rng),
+  think: (s, _id, _o, r) => (s.lastMove?.type === 'out' ? 2200 : 1500) + r * 1200,
+  timeout: (seat) => ({ type: 'timeout', player: seat }),
+  render(before, after, a) {
+    const m = after.lastMove!
+    if (m.type === 'out') return { pub: { type: 'out', player: m.player, cards: m.cards } }
+    const pub = { type: 'play', player: m.player, card: m.card, minus: m.minus, target: m.target }
+    if (!m.drew) return { pub }
+    const drawn = after.hands[a.player].find((c) => !before.hands[a.player].includes(c))
+    return { pub, own: { ...pub, draw: drawn } }
+  },
+  start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), deck: s.deck.length, turn: s.turn, total: s.total, dir: s.dir }),
+  // 攤牌：大家最後的手牌（牌堆順序、亂數不給）
+  reveal: (s) => ({ ...s, rng: 0 }),
+}
+
 // ── 撿紅點 ──
 
 const redpointDef: MatchDef<RedPointState, RedPointAction> = {
@@ -171,6 +209,7 @@ export const MATCH_DEFS: Record<string, MatchDef<any, any>> = {
   bigtwo: bigtwoDef(1),
   crazybigtwo: bigtwoDef(2),
   sevens: sevensDef,
+  ninetynine: ninetynineDef,
   redpoint: redpointDef,
   ...BOARD_DEFS,
 }
