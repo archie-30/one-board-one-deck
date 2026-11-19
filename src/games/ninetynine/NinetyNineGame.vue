@@ -149,12 +149,12 @@ function deal() {
   gathered.value = false
   const order = new Map<Card, number>()
   state.value.hands.forEach((h, seat) => h.forEach((c, k) => order.set(c, k * 4 + seat)))
-  const dealt = [...order.keys()]
-  sync([...dealt, ...state.value.deck], { stagger: 60, dur: 360, arc: 16, order: (c) => order.get(c) ?? 0 })
+  // 牌堆原本就疊在發牌的位置（gathered 時的樣子），只有發出去的牌會飛，一張一張從頂上拿
+  sync([...order.keys()], { stagger: 70, dur: 360, arc: 16, order: (c) => order.get(c) ?? 0 })
   later(() => {
     phase.value = 'play'
     nextTurn()
-  }, 20 * 60 + 480)
+  }, 20 * 70 + 480)
 }
 
 const meOut = computed(() => !watching && !state.value.alive[ME])
@@ -526,7 +526,7 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
         <span v-if="effect" :key="effect.key" class="fx t-black">{{ effect.text }}</span>
       </Transition>
     </div>
-    <span class="deck-n t-label" :style="{ left: `${L.deckAt.x}px`, top: `${L.deckAt.y + ch * L.tableScale * 0.5 + 6}px` }">{{ T.deckLeft(state.deck.length) }}</span>
+    <span v-if="phase !== 'deal'" class="deck-n t-label" :style="{ left: `${L.deckAt.x}px`, top: `${L.deckAt.y + ch * L.tableScale * 0.5 + 6}px` }">{{ T.deckLeft(state.deck.length) }}</span>
 
     <!-- 座位上的人 -->
     <template v-for="(seat, p) in L.seats" :key="p">
@@ -559,18 +559,21 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions" :class="{ over: phase === 'over' }">
-      <template v-if="phase !== 'over' && !watching && !meOut">
+      <!-- 按鈕換組（出牌 ↔ 加／減 ↔ 指定誰）：舊的往下沉、淡掉，新的一顆顆往上彈出來 -->
+      <Transition v-if="phase !== 'over' && !watching && !meOut" name="swap" mode="out-in" :duration="{ enter: 540, leave: 160 }">
         <!-- 10、Q：加或減 -->
-        <template v-if="chooseSign">
-          <Btn class="rise" tone="red" block :disabled="!myTurn || sending || !canPlay(state.total, sel!)" @click="playSelected({ minus: false })">{{ T.plus(signValue) }}</Btn>
-          <Btn class="rise" tone="ink" block style="--i: 1" :disabled="!myTurn || sending" @click="playSelected({ minus: true })">{{ T.minus(signValue) }}</Btn>
-        </template>
+        <div v-if="chooseSign" :key="`sign${signValue}`" class="grp">
+          <Btn tone="red" block style="--i: 0" :disabled="!myTurn || sending || !canPlay(state.total, sel!)" @click="playSelected({ minus: false })">{{ T.plus(signValue) }}</Btn>
+          <Btn tone="ink" block style="--i: 1" :disabled="!myTurn || sending" @click="playSelected({ minus: true })">{{ T.minus(signValue) }}</Btn>
+        </div>
         <!-- 5：指定誰接 -->
-        <template v-else-if="chooseTarget">
-          <Btn v-for="(q, i) in aliveOthers" :key="q" class="rise" size="sm" tone="red" block :style="{ '--i': i }" :disabled="!myTurn || sending" @click="playSelected({ target: q })">{{ names[q] }}</Btn>
-        </template>
-        <Btn v-else class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || selected === null || sending || !myLegal.includes(selected)" @click="playSelected({ target: aliveOthers[0] })">{{ T.play }}</Btn>
-      </template>
+        <div v-else-if="chooseTarget" key="target" class="grp">
+          <Btn v-for="(q, i) in aliveOthers" :key="q" size="sm" tone="red" block :style="{ '--i': i }" :disabled="!myTurn || sending" @click="playSelected({ target: q })">{{ names[q] }}</Btn>
+        </div>
+        <div v-else key="play" class="grp">
+          <Btn tone="red" size="lg" arrow block style="--i: 0" :disabled="!myTurn || selected === null || sending || !myLegal.includes(selected)" @click="playSelected({ target: aliveOthers[0] })">{{ T.play }}</Btn>
+        </div>
+      </Transition>
       <template v-else-if="phase === 'over'">
         <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn v-if="!net" class="rise" size="sm" icon="again" style="--i: 1" @click="newRound">{{ S.common.again }}</Btn>
@@ -873,6 +876,38 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
   flex-direction: column;
   gap: 0.45rem;
   z-index: 700;
+}
+.grp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+/* 按鈕換組：舊的往下沉、淡掉（0.16 秒），新的一顆顆往上彈（每顆晚 0.06 秒） */
+.swap-leave-active {
+  transition:
+    opacity 160ms ease-in,
+    transform 160ms ease-in;
+}
+.swap-leave-to {
+  opacity: 0;
+  transform: translateY(0.7rem);
+}
+.swap-enter-active > * {
+  animation: pop-up 340ms var(--ease-back) calc(var(--i, 0) * 60ms) both;
+}
+@keyframes pop-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.9rem) scale(0.94);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swap-leave-active {
+    transition: none;
+  }
+  .swap-enter-active > * {
+    animation: none;
+  }
 }
 .actions.over {
   width: auto;

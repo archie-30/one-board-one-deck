@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 九九互動教學：四關（數字牌不能超過 99、Q 用減的、K 直接 99、5 指定下一個人）。
+// 九九互動教學：八關，數字牌和每一種功能牌都試一次（數字牌不超過 99、4 迴轉、5 指定、10 減、J PASS、Q 減到 0、K 直接 99、黑桃 A 歸零）。
 // 畫面簡化成「桌上的總數＋出過的牌＋你的手牌」，點牌選起，再按出牌（或加／減、指定誰）。
 // 動畫：手牌一張張發上來；出的牌從手上飛到出過的牌那一疊，總數彈一下；答錯那張牌左右晃一下。系統開「減少動態」時都不動。
 import { computed, nextTick, ref } from 'vue'
@@ -18,6 +18,8 @@ import IconBtn from '@/ui/IconBtn.vue'
 
 const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const T = S.ninetynine
+/** 教學結束時整理一次：規則說明的「功能牌」那一段 */
+const FUNC = T.rules[1]
 const C = makeCard
 
 interface Lesson {
@@ -28,11 +30,15 @@ interface Lesson {
 }
 const LESSONS: Lesson[] = [
   { total: 92, hand: [C(1, 9), C(0, 6), C(2, 3)], want: 'any' },
-  { total: 95, hand: [C(1, 8), C(3, 12)], want: { card: C(3, 12), how: 'minus' } },
-  { total: 40, hand: [C(0, 7), C(1, 2), C(2, 13)], want: { card: C(2, 13) } },
+  { total: 60, hand: [C(3, 9), C(0, 4)], want: { card: C(0, 4) } },
   { total: 30, hand: [C(1, 9), C(0, 5)], want: { card: C(0, 5), how: 'target' } },
+  { total: 93, hand: [C(1, 8), C(2, 10)], want: { card: C(2, 10), how: 'minus' } },
+  { total: 97, hand: [C(1, 7), C(0, 11)], want: { card: C(0, 11) } },
+  { total: 15, hand: [C(1, 8), C(3, 12)], want: { card: C(3, 12), how: 'minus' } },
+  { total: 40, hand: [C(0, 7), C(1, 2), C(2, 13)], want: { card: C(2, 13) } },
+  { total: 98, hand: [C(2, 1), C(3, 1)], want: { card: C(3, 1) } },
 ]
-/** 第四關讓你指定的三位對手 */
+/** 指定那一關讓你挑的三位對手 */
 const foes = [3, 7, 12].map(opponentById)
 
 const step = ref(0)
@@ -134,7 +140,13 @@ const hint = computed(() => {
     <aside class="side">
       <span class="kid"><Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
     </aside>
-    <div class="mid">
+    <!-- 教學結束：中間換成「功能牌」整理（跟規則說明的第 02 段一樣），一行一行浮上來 -->
+    <div v-if="finished" class="mid recap">
+      <h3 class="rise"><span class="t-slab rnum">02</span><span class="t-black">{{ FUNC.title }}</span></h3>
+      <div class="rule wipe" style="--i: 1" />
+      <p v-for="(line, i) in FUNC.body" :key="line" class="rise" :style="{ '--i': i * 0.5 + 1.5 }">{{ line }}</p>
+    </div>
+    <div v-else class="mid">
       <div :key="`t${step}`" class="table">
         <span class="t-label lab">TABLE</span>
         <span ref="pileEl" class="pile">
@@ -143,6 +155,10 @@ const hint = computed(() => {
         <span class="total">
           <span class="t-label tl">{{ T.total }}</span>
           <span :key="bump" class="num t-slab" :class="{ hot: state.total >= 90 }">{{ state.total }}</span>
+          <svg class="dir" :class="{ ccw: state.dir === 1 }" viewBox="-12 -12 24 24" aria-hidden="true">
+            <path d="M -7 -4 A 8 8 0 1 1 -4 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
+            <path d="M -9.5 -8 L -7 -3 L -2.5 -6.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
         </span>
       </div>
       <TransitionGroup :key="`h${step}`" tag="div" name="hc" class="hand">
@@ -171,16 +187,23 @@ const hint = computed(() => {
           <Btn icon="book" size="sm" block @click="emit('rules')">{{ S.tutorial.rules }}</Btn>
           <Btn icon="back" size="sm" block @click="emit('exit')">{{ S.common.back }}</Btn>
         </template>
-        <Btn v-else-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= LESSONS.length ? S.common.done : S.common.next }}</Btn>
-        <template v-else-if="sel !== null && needsSign(sel)">
-          <Btn tone="red" block :disabled="!canPlay(state.total, sel)" @click="confirm({ minus: false })">{{ T.plus(signValue) }}</Btn>
-          <Btn tone="ink" block @click="confirm({ minus: true })">{{ T.minus(signValue) }}</Btn>
-        </template>
-        <template v-else-if="isTarget">
-          <p class="pick t-black">{{ T.pickTarget }}</p>
-          <Btn v-for="(o, i) in foes" :key="o.id" size="sm" tone="red" block @click="confirm({ target: i + 1 })">{{ o.name }}</Btn>
-        </template>
-        <Btn v-else tone="red" size="lg" arrow block :disabled="selected === null" @click="confirm()">{{ T.play }}</Btn>
+        <!-- 按鈕換組（出牌 ↔ 加／減 ↔ 指定誰 ↔ 下一步）：舊的往下沉，新的一顆顆往上彈 -->
+        <Transition v-else name="swap" mode="out-in" :duration="{ enter: 600, leave: 160 }">
+          <div v-if="solved" key="next" class="grp">
+            <Btn tone="red" size="lg" arrow block style="--i: 0" @click="next">{{ step + 1 >= LESSONS.length ? S.common.done : S.common.next }}</Btn>
+          </div>
+          <div v-else-if="sel !== null && needsSign(sel)" :key="`sign${signValue}`" class="grp">
+            <Btn tone="red" block style="--i: 0" :disabled="!canPlay(state.total, sel)" @click="confirm({ minus: false })">{{ T.plus(signValue) }}</Btn>
+            <Btn tone="ink" block style="--i: 1" @click="confirm({ minus: true })">{{ T.minus(signValue) }}</Btn>
+          </div>
+          <div v-else-if="isTarget" key="target" class="grp">
+            <p class="pick t-black" style="--i: 0">{{ T.pickTarget }}</p>
+            <Btn v-for="(o, i) in foes" :key="o.id" size="sm" tone="red" block :style="{ '--i': i + 1 }" @click="confirm({ target: i + 1 })">{{ o.name }}</Btn>
+          </div>
+          <div v-else key="play" class="grp">
+            <Btn tone="red" size="lg" arrow block style="--i: 0" :disabled="selected === null" @click="confirm()">{{ T.play }}</Btn>
+          </div>
+        </Transition>
       </div>
     </aside>
   </section>
@@ -352,6 +375,85 @@ const hint = computed(() => {
   gap: 0.5rem;
   align-self: flex-end;
   margin-top: 0.6rem;
+}
+.dir {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-top: 0.2rem;
+  color: var(--color-ink-2);
+  transform: scaleX(-1);
+  transition: transform 520ms var(--ease-back);
+}
+.dir.ccw {
+  transform: none;
+}
+.grp {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.swap-leave-active {
+  transition:
+    opacity 160ms ease-in,
+    transform 160ms ease-in;
+}
+.swap-leave-to {
+  opacity: 0;
+  transform: translateY(0.7rem);
+}
+.swap-enter-active > * {
+  animation: pop-up 340ms var(--ease-back) calc(var(--i, 0) * 60ms) both;
+}
+@keyframes pop-up {
+  from {
+    opacity: 0;
+    transform: translateY(0.9rem) scale(0.94);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .swap-leave-active,
+  .dir {
+    transition: none;
+  }
+  .swap-enter-active > * {
+    animation: none;
+  }
+}
+.recap {
+  justify-content: center;
+  gap: 0;
+  overflow-y: auto;
+}
+.recap h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+.rnum {
+  font-size: 1.4rem;
+  color: var(--color-red);
+}
+.recap .rule {
+  height: 0.16rem;
+  margin: 0.4rem 0 0.5rem;
+  background: var(--color-ink);
+}
+.recap p {
+  position: relative;
+  padding-left: 1.2rem;
+  font-size: 1.02rem;
+  line-height: 1.75;
+}
+.recap p::before {
+  content: '';
+  position: absolute;
+  left: 0.1rem;
+  top: 0.68em;
+  width: 0.42rem;
+  height: 0.42rem;
+  background: var(--color-ink);
 }
 .pick {
   font-size: 0.85rem;

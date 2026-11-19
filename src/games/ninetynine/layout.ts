@@ -50,14 +50,23 @@ export function ninetyNineLayout(W: number, H: number): NinetyNineLayout {
 
 /** 每一張牌該在哪裡。bust：正在攤牌的人和他的牌（攤完才收到出過的牌底下） */
 export function ninetyNinePoses(L: NinetyNineLayout, s: NinetyNineState, selected: Card | null, gathered: boolean, bust: { player: number; cards: Card[] } | null): Map<Card, Pose> {
-  const out = cardPoses(L, { hands: s.hands, selected: selected === null ? [] : [selected], pile: [], discard: [], gathered })
-  if (gathered) return out
   const { cw, tableScale: ts } = L
+  // 發牌前、收牌時：所有牌整齊疊在牌堆的位置；等一下要發出去的牌在最上面（照發牌順序，第一張在最頂），
+  // 發牌時一張張從頂上飛出去，牌堆本身不會亂動
+  if (gathered) {
+    const out = new Map<Card, Pose>()
+    const dealOrder: Card[] = []
+    for (let k = 0; k < Math.max(0, ...s.hands.map((h) => h.length)); k++) s.hands.forEach((h) => h[k] !== undefined && dealOrder.push(h[k]))
+    const stack = [...s.played, ...s.deck.slice().reverse(), ...dealOrder.slice().reverse()]
+    stack.forEach((c, i) => out.set(c, { x: L.deckAt.x - i * 0.12, y: L.deckAt.y - i * 0.16, r: hash(c, 1) * 3, s: ts * 0.86, f: 0, z: 20 + i }))
+    return out
+  }
+  const out = cardPoses(L, { hands: s.hands, selected: selected === null ? [] : [selected], pile: [], discard: [], gathered })
   // 牌堆：蓋著疊起來，deck[0]（下一張要抽的）在最上面
   const n = s.deck.length
   s.deck.forEach((c, i) => {
     const k = n - 1 - i
-    out.set(c, { x: L.deckAt.x - k * 0.22, y: L.deckAt.y - k * 0.3, r: hash(c, 1) * 3, s: ts * 0.86, f: 0, z: 20 + k })
+    out.set(c, { x: L.deckAt.x - k * 0.12, y: L.deckAt.y - k * 0.16, r: hash(c, 1) * 3, s: ts * 0.86, f: 0, z: 20 + k })
   })
   // 出過的牌：最上面幾張散開一點看得出疊了好幾張，越下面越整齊
   const m = s.played.length
