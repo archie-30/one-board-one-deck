@@ -2,7 +2,7 @@
 //   要試的步：棋子能走的每一格，加上「擋在對方最短路上」的牆（不會亂放離對方很遠的牆）。
 //   難度（quoridorAt）：低只看一步、常亂挑、偶爾隨手走；中看兩步；高、挑戰一層一層往深算（局面數用完為止，挑戰約可多想一秒）、不失誤。
 //   不會亂晃：隨手走只走最短路；差不多好的步裡，不往前的走棋拿掉（除非它就是最好的）。
-//   不亂丟牆：對方還遠（5 步以上）時只考慮至少讓他多繞 2 步的牆。
+//   不亂丟牆：對方還很遠（6 步以上）時只考慮至少讓他多繞 3 步的牆，5 步時至少 2 步。
 // 棋盤全部公開，沒有偷看的問題。純函式，不碰畫面。
 import { nextRandom, type RngState } from '../common/rng'
 import {
@@ -135,8 +135,8 @@ function candidates(s: QuoridorState, maxWalls: number, root = false): QuoridorA
       const gain = distTo(t, op, s.pawns[op]) - before
       const hurt = distTo(t, me, s.pawns[me]) - myNow
       if (!Number.isFinite(gain) || !Number.isFinite(hurt) || gain - hurt <= 0) continue
-      // 這一步真的要放的牆：對方還遠（5 步以上）時，只擋 1 步的牆不划算，留著（不然一開局就把牆用光）
-      if (root && before >= 5 && gain - hurt < 2) continue
+      // 這一步真的要放的牆：對方還很遠時，只擋一兩步的牆不划算，留著（不然一開局就把牆用光）
+      if (root && gain - hurt < (before >= 6 ? 3 : before >= 5 ? 2 : 1)) continue
       walls.push({ a: { type: 'wall', at: w.at, o: w.o }, k: (gain - hurt) * 10 - 5 })
     }
     walls.sort((x, y) => y.k - x.k)
@@ -242,6 +242,9 @@ export function chooseQuoridorAction(s: QuoridorState, st: QuoridorStyle, rng: R
     const to = moves.reduce((b, m) => (dMe[m] < dMe[b] ? m : b), moves[0])
     return [{ type: 'move', to }, rng]
   }
+  // 沒有更接近終點的走棋（左右橫移、往回走）先扣分：只有明顯比較好（多出半步以上）才會選它，看起來才不會亂晃
+  const nowD = dMe[s.pawns[me]]
+  for (const x of scored) if (x.a.type === 'move' && dMe[x.a.to] >= nowD) x.v -= 6
   scored.sort((x, y) => y.v - x.v)
   // 一樣好的步（例如怎麼走都輸、怎麼走都贏）：走棋優先、離終點越近越好，不會原地亂晃、亂丟牆
   const after = (a: QuoridorAction) => (a.type === 'move' ? dMe[a.to] : 99)
