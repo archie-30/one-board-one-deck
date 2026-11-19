@@ -93,7 +93,7 @@ describe('步步為營電腦', () => {
     }
     expect(duel('mid', 'low', 12)).toBeGreaterThanOrEqual(8)
     expect(duel('high', 'mid', 12)).toBeGreaterThanOrEqual(7)
-    expect(duel('master', 'high', 8)).toBeGreaterThanOrEqual(5)
+    expect(duel('master', 'high', 16)).toBeGreaterThanOrEqual(10)
   }, 600000)
 
   it('牆用完了就照最短的路走，不會來回晃（對方故意原地踏步也一樣）', () => {
