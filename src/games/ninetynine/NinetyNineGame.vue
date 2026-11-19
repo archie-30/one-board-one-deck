@@ -276,6 +276,30 @@ function finish() {
   later(() => (resultOpen.value = true), 900)
 }
 
+/**
+ * 快速結算（只有單人對電腦、你已經爆了的時候）：剩下的電腦一瞬間照原本的打法打完，直接結算，不用等他們一手一手出。
+ */
+function quickFinish() {
+  if (net || !meOut.value || state.value.over || phase.value !== 'play') return
+  timers.forEach((t) => window.clearTimeout(t))
+  timers.clear()
+  bust.value = null
+  effect.value = null
+  let s = state.value
+  while (!s.over) {
+    const p = s.turn
+    let a: NinetyNineAction
+    ;[a, rng] = chooseNinetyNineAction(s, ninetyNineAt(opponents[p - 1].persona.bigtwo, difficulty), rng)
+    const r = applyNinetyNine(s, a)
+    if (!r.ok) break
+    s = r.state
+  }
+  state.value = s
+  playSound('shuffle')
+  sync(ALL, { stagger: 6, dur: 380, arc: 12 })
+  later(finish, 500)
+}
+
 function newRound() {
   if (net) return
   timers.forEach((t) => window.clearTimeout(t))
@@ -578,6 +602,8 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
           <Btn tone="red" size="lg" arrow block style="--i: 0" :disabled="!myTurn || selected === null || sending || !myLegal.includes(selected)" @click="playSelected({ target: aliveOthers[0] })">{{ T.play }}</Btn>
         </div>
       </Transition>
+      <!-- 你爆了（單人）：可以直接快速結算，不用等電腦打完 -->
+      <Btn v-else-if="meOut && !net && phase === 'play'" class="rise" tone="ink" size="lg" arrow block @click="quickFinish">{{ T.quickFinish }}</Btn>
       <template v-else-if="phase === 'over'">
         <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
         <Btn v-if="!net" class="rise" size="sm" icon="again" style="--i: 1" @click="newRound">{{ S.common.again }}</Btn>

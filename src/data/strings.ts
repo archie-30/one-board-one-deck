@@ -1015,6 +1015,7 @@ export const S = {
     pickOne: '選一張牌',
     mustOut: '每一張都會超過 99……爆了！',
     youOut: '你爆了，看看誰撐到最後',
+    quickFinish: '快速結算',
     waiting: (name: string) => `${name}出牌中…`,
     busted: (name: string) => `${name}爆了！`,
     outTag: '爆了',
