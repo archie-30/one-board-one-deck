@@ -18,6 +18,8 @@ import IconBtn from '@/ui/IconBtn.vue'
 
 const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const T = S.ninetynine
+/** 教學結束時整理一次：規則說明的「功能牌」那一段 */
+const FUNC = T.rules[1]
 const C = makeCard
 
 interface Lesson {
@@ -138,7 +140,13 @@ const hint = computed(() => {
     <aside class="side">
       <span class="kid"><Avatar :look="myLook()" :mood="finished || solved ? 'happy' : misses ? 'shock' : 'think'" /></span>
     </aside>
-    <div class="mid">
+    <!-- 教學結束：中間換成「功能牌」整理（跟規則說明的第 02 段一樣），一行一行浮上來 -->
+    <div v-if="finished" class="mid recap">
+      <h3 class="rise"><span class="t-slab rnum">02</span><span class="t-black">{{ FUNC.title }}</span></h3>
+      <div class="rule wipe" style="--i: 1" />
+      <p v-for="(line, i) in FUNC.body" :key="line" class="rise" :style="{ '--i': i * 0.5 + 1.5 }">{{ line }}</p>
+    </div>
+    <div v-else class="mid">
       <div :key="`t${step}`" class="table">
         <span class="t-label lab">TABLE</span>
         <span ref="pileEl" class="pile">
@@ -410,6 +418,42 @@ const hint = computed(() => {
   .swap-enter-active > * {
     animation: none;
   }
+}
+.recap {
+  justify-content: center;
+  gap: 0;
+  overflow-y: auto;
+}
+.recap h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  font-size: 1.6rem;
+  line-height: 1.2;
+}
+.rnum {
+  font-size: 1.4rem;
+  color: var(--color-red);
+}
+.recap .rule {
+  height: 0.16rem;
+  margin: 0.4rem 0 0.5rem;
+  background: var(--color-ink);
+}
+.recap p {
+  position: relative;
+  padding-left: 1.2rem;
+  font-size: 1.02rem;
+  line-height: 1.75;
+}
+.recap p::before {
+  content: '';
+  position: absolute;
+  left: 0.1rem;
+  top: 0.68em;
+  width: 0.42rem;
+  height: 0.42rem;
+  background: var(--color-ink);
 }
 .pick {
   font-size: 0.85rem;
