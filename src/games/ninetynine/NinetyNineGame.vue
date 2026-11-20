@@ -497,7 +497,78 @@ const status = computed(() => {
 /** 選起來的牌會有什麼效果（輪到你時才顯示在狀態列） */
 const preview = computed(() => (myTurn.value && selected.value !== null && state.value.hands[ME].includes(selected.value) ? cardPreview(state.value.total, selected.value) : null))
 
+// ── 拖曳出牌：按住手牌拖到桌框裡放開＝出這張；10、Q 要選加減、5 要選指定誰的，放開後選起來、按鈕換成選項 ──
+let drag: { c: Card; id: number; x0: number; y0: number; base: ReturnType<CardStage['target']>; moving: boolean } | null = null
+let suppressClick = false
+function local(e: PointerEvent) {
+  const r = stageEl.value!.getBoundingClientRect()
+  return { x: e.clientX - r.left, y: e.clientY - r.top }
+}
+function onDown(c: Card, e: PointerEvent) {
+  if (watching || drag || phase.value !== 'play' || !state.value.hands[ME].includes(c) || (e.pointerType === 'mouse' && e.button !== 0)) return
+  const p = local(e)
+  drag = { c, id: e.pointerId, x0: p.x, y0: p.y, base: stage.target(c), moving: false }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+  window.addEventListener('pointercancel', onCancel)
+}
+function onMove(e: PointerEvent) {
+  if (!drag || e.pointerId !== drag.id) return
+  const p = local(e)
+  const dx = p.x - drag.x0
+  const dy = p.y - drag.y0
+  if (!drag.moving && Math.hypot(dx, dy) < (e.pointerType === 'mouse' ? 6 : 14)) return
+  drag.moving = true
+  stage.move(drag.c, { ...drag.base, x: drag.base.x + dx, y: drag.base.y + dy, r: 0, s: 1.06, z: 1000 }, { instant: true })
+}
+function stopDrag() {
+  window.removeEventListener('pointermove', onMove)
+  window.removeEventListener('pointerup', onUp)
+  window.removeEventListener('pointercancel', onCancel)
+  const d = drag
+  drag = null
+  return d
+}
+function onUp(e: PointerEvent) {
+  if (!drag || e.pointerId !== drag.id) return
+  const d = stopDrag()!
+  if (!d.moving) return
+  suppressClick = true
+  window.setTimeout(() => (suppressClick = false), 0)
+  const p = local(e)
+  const b = L.value.box
+  const onTable = p.x > b.x && p.x < b.x + b.w && p.y > b.y && p.y < b.y + b.h
+  if (onTable && myTurn.value && state.value.hands[ME].includes(d.c)) {
+    message.value = ''
+    // 10、Q（加或減）、5（剩不只一個人可以指定）：選起來，等你按選項
+    if (needsSign(d.c) || (kindOf(d.c) === 'target' && aliveOthers.value.length > 1)) {
+      selected.value = d.c
+      playSound('cardPick')
+      return backToHand(d.c)
+    }
+    if (myLegal.value.includes(d.c)) {
+      selected.value = d.c
+      acted.value = true
+      if (mine({ type: 'play', player: ME, card: d.c, target: aliveOthers.value[0] })) return
+    } else playSound('error')
+  }
+  backToHand(d.c)
+}
+function onCancel() {
+  const d = stopDrag()
+  if (d?.moving) backToHand(d.c)
+}
+/** 沒出成：牌照它在手牌裡的疊放順序滑回去，落地輕輕壓一下 */
+function backToHand(c: Card) {
+  sync()
+  const pose = ninetyNinePoses(L.value, state.value, selected.value, gathered.value, bust.value).get(c)
+  if (!pose) return
+  stage.move(c, pose, { dur: 380, arc: L.value.cw * 0.3, flightZ: pose.z, land: true })
+}
+onBeforeUnmount(() => stopDrag())
+
 function tapCard(c: Card) {
+  if (suppressClick) return
   if (watching || phase.value !== 'play' || !state.value.hands[ME].includes(c)) return
   selected.value = selected.value === c ? null : c
   message.value = ''
@@ -578,6 +649,7 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
         class="sprite"
         :class="{ mine: !watching && state.hands[ME].includes(c), sel: selected === c, dim: myTurn && state.hands[ME].includes(c) && !myLegal.includes(c) }"
         :style="{ width: `${L.cw}px`, height: `${ch}px`, marginLeft: `${-L.cw / 2}px`, marginTop: `${-ch / 2}px` }"
+        @pointerdown="onDown(c, $event)"
         @click="tapCard(c)"
       >
         <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="rankText(c)" :suit="suitOf(c)" /></svg>
@@ -768,7 +840,8 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
   display: none;
 }
 .sprite.mine {
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
 }
 /* 輪到你時出不了的牌（加上去會超過 99）：淡一點 */
 .sprite.dim svg {
