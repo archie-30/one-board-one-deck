@@ -138,6 +138,26 @@ describe('連線對局（伺服器當裁判）', () => {
     expect(end.rng).toBe(0)
   })
 
+  it('九九：只剩你跟電腦、牌堆洗過一次後可以並列第一結算；剩下的是真人就不行', () => {
+    const { room, ids, m } = started('ninetynine', 2)
+    const now = T0 + COUNTDOWN_MS + START_DELAY
+    const s = m.s as NinetyNineState
+    // 擺成：座位 0（真人 A）和座位 2（電腦）還在，牌堆從剩兩人起已經洗過一次
+    m.s = { ...s, alive: [true, false, true, false], out: [1, 3], twoAt: 1, reshuffles: 2, turn: 2 }
+    const bot = m.seats.findIndex((x) => !x.pid)
+    expect(bot).toBeGreaterThanOrEqual(0)
+    // 另一位是真人 P1（座位 1）：不行
+    m.s = { ...(m.s as NinetyNineState), alive: [true, true, false, false], out: [2, 3], turn: 1 }
+    expect(playerAct(room, ids[0], { type: 'tie' }, now)).toEqual([])
+    // 另一位是電腦：可以，馬上攤牌結算、兩個人並列第一
+    m.s = { ...(m.s as NinetyNineState), alive: [true, false, true, false], out: [1, 3], turn: 2 }
+    const r = playerAct(room, ids[0], { type: 'tie' }, now)
+    expect(r[0].pub).toEqual({ type: 'tie', player: 0 })
+    expect(m.over).toBe(true)
+    const end = r[r.length - 1].pub as NinetyNineState
+    expect(end.alive).toEqual([true, false, true, false])
+  })
+
   it('撿紅點：輪到翻牌時，牌堆最上面那張翻開給大家看（其他時候牌堆不給）', () => {
     const { room, m } = started('redpoint', 1)
     runToEnd(room, T0 + COUNTDOWN_MS)

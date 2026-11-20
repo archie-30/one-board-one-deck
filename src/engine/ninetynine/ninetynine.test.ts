@@ -3,7 +3,7 @@ import { ninetyNineAt, type CardLevel } from '../common/difficulty'
 import { PERSONAS } from '../common/personas'
 import { seedRng, shuffle } from '../common/rng'
 import { chooseNinetyNineAction } from './ai'
-import { applyNinetyNine, canPlay, createNinetyNine, dealNinetyNine, legalCards, mustOut, ranks, SPADE_ACE, timeoutPlay, totalAfter, winners, makeCard, type NinetyNineAction, type NinetyNineState } from './rules'
+import { applyNinetyNine, canPlay, canTie, tieNinetyNine, createNinetyNine, dealNinetyNine, legalCards, mustOut, ranks, SPADE_ACE, timeoutPlay, totalAfter, winners, makeCard, type NinetyNineAction, type NinetyNineState } from './rules'
 
 const C = (s: number, r: number) => makeCard(s, r)
 function must(s: NinetyNineState, a: NinetyNineAction) {
@@ -168,5 +168,22 @@ describe('九九電腦', () => {
       expect(a2).toEqual(a1)
       expect(legalCards(t, me)).toEqual(legalCards(s, me))
     }
+  })
+})
+
+describe('九九：並列第一並結算', () => {
+  it('只剩兩個人、牌堆洗過一次之後才能按；按了兩個人並列第一', () => {
+    const base = dealNinetyNine(5)
+    const two: NinetyNineState = { ...base, alive: [true, false, true, false], out: [1, 3], twoAt: 2, reshuffles: 2 }
+    expect(canTie(two, 0)).toBe(false) // 還沒洗過
+    const later = { ...two, reshuffles: 3 }
+    expect(canTie(later, 0)).toBe(true)
+    expect(canTie(later, 1)).toBe(false) // 已經出局的人不能按
+    expect(canTie({ ...later, alive: [true, true, true, false], out: [3] }, 0)).toBe(false) // 還剩三個人
+    const done = tieNinetyNine(later, 2)! // 不是輪到他也可以
+    expect(done.over).toBe(true)
+    expect(winners(done)).toEqual([0, 2])
+    expect(ranks(done)).toEqual([1, 4, 1, 3])
+    expect(tieNinetyNine(two, 0)).toBeNull()
   })
 })

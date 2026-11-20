@@ -376,6 +376,7 @@ export const S = {
     again: '再玩一次',
     againWait: (n: number, all: number) => `等大家（${n}／${all}）`,
     againOff: '有人回到房間了',
+    againCount: (n: number, all: number) => `${n}／${all} 人已按再玩一次`,
     leaveMidAsk: '離開房間？',
     leaveMidLead: '這一局還沒打完。離開後你會離開這個房間、回到主畫面，你的位子由電腦接手打完。',
     stayHere: '繼續打',
@@ -1076,6 +1077,9 @@ export const S = {
     outAt: (k: number) => `第 ${k} 個爆`,
     how: '手上每一張牌都會讓總數超過 99 就爆了出局，最後留下的人贏。',
     duelTie: '只剩兩個人，牌堆又洗了兩次還分不出來，兩個人並列第一。',
+    /** 連線：只剩你跟電腦、牌堆洗過一次後可以按 */
+    tieSettle: '並列第一並結算',
+    tieHow: (name: string) => `只剩兩個人，牌堆洗過一次後${name}按了並列第一，兩個人並列第一。`,
     record: (rounds: number, wins: number) => `累計　打了 ${rounds} 局　贏 ${wins} 局`,
     errors: {
       over: '這一局已經結束',

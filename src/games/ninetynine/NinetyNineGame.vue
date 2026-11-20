@@ -16,7 +16,7 @@ import { TURN_SECONDS } from '@/data/timer'
 import { asCardLevel, ninetyNineAt } from '@/engine/common/difficulty'
 import { seedRng, nextInt, type RngState } from '@/engine/common/rng'
 import { chooseNinetyNineAction } from '@/engine/ninetynine/ai'
-import { applyNinetyNine, canPlay, dealNinetyNine, kindOf, legalCards, mustOut, needsSign, nextAlive, RANK_LABELS, rankOf, ranks, suitOf, winners, type Card, type NinetyNineAction, type NinetyNineState } from '@/engine/ninetynine/rules'
+import { applyNinetyNine, canPlay, canTie, dealNinetyNine, kindOf, legalCards, mustOut, needsSign, nextAlive, RANK_LABELS, rankOf, ranks, suitOf, winners, type Card, type NinetyNineAction, type NinetyNineState } from '@/engine/ninetynine/rules'
 import { CardStage } from '@/games/bigtwo/cardStage'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -407,6 +407,11 @@ function pump() {
     return
   }
   if (e.end) return reveal(e.ev as NinetyNineState)
+  // 有人按了並列第一：接著伺服器就攤牌結算
+  if ((e.ev as { type: string }).type === 'tie') {
+    tiedBy.value = toLocal(m, (e.ev as { player: number }).player)
+    return pump()
+  }
   const raw = e.ev as { type: 'play' | 'out'; player: number; card?: number; minus?: boolean; target?: number; cards?: number[]; draw?: number }
   const p = toLocal(m, raw.player)
   if (p === ME) sending.value = false
@@ -575,6 +580,20 @@ function tapCard(c: Card) {
   playSound('cardPick')
   sync()
 }
+// ── 連線：只剩你跟電腦、牌堆洗過一次後，可以直接並列第一並結算 ──
+const tiedBy = ref<number | null>(null)
+const tieSent = ref(false)
+const tieOffer = computed(() => {
+  if (!net || watching || phase.value !== 'play' || tieSent.value || !canTie(state.value, ME)) return false
+  const other = state.value.alive.findIndex((v, i) => v && i !== ME)
+  return other > 0 && opponents[other - 1]?.tag !== S.online.humanTag
+})
+function askTie() {
+  if (!tieOffer.value) return
+  tieSent.value = true
+  sendAct({ type: 'tie' })
+}
+
 function playSelected(extra: { minus?: boolean; target?: number } = {}) {
   const c = selected.value
   if (!myTurn.value || c === null) return
@@ -661,6 +680,8 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
 
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
     <div class="actions" :class="{ over: phase === 'over' }">
+      <!-- 連線：只剩你跟電腦、牌堆洗過一次 -->
+      <Btn v-if="tieOffer" class="rise" tone="ink" size="sm" block @click="askTie">{{ T.tieSettle }}</Btn>
       <!-- 按鈕換組（出牌 ↔ 加／減 ↔ 指定誰）：舊的往下沉、淡掉，新的一顆顆往上彈出來 -->
       <Transition v-if="phase !== 'over' && !watching && !meOut" name="swap" mode="out-in" :duration="{ enter: 540, leave: 160 }">
         <!-- 10、Q：加或減 -->
@@ -711,7 +732,7 @@ const outIndex = (p: number) => state.value.out.indexOf(p)
           </tr>
         </tbody>
       </table>
-      <p class="how">{{ won.length > 1 ? T.duelTie : T.how }}</p>
+      <p class="how">{{ tiedBy !== null ? T.tieHow(names[tiedBy]) : won.length > 1 ? T.duelTie : T.how }}</p>
       <p v-if="!watching" class="lifetime t-black">{{ T.record(stats.ninetynine.rounds, stats.ninetynine.wins) }}</p>
       <template #actions>
         <Btn icon="exit" size="sm" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>

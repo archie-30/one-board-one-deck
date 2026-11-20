@@ -13,7 +13,7 @@ import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink, ninetyNineAt, sevensAt 
 import { PERSONAS } from '../../../src/engine/common/personas'
 import type { RngState } from '../../../src/engine/common/rng'
 import { chooseNinetyNineAction } from '../../../src/engine/ninetynine/ai'
-import { applyNinetyNine, dealNinetyNine, PLAYERS as NN_PLAYERS, type NinetyNineAction, type NinetyNineState } from '../../../src/engine/ninetynine/rules'
+import { tieNinetyNine, applyNinetyNine, dealNinetyNine, PLAYERS as NN_PLAYERS, type NinetyNineAction, type NinetyNineState } from '../../../src/engine/ninetynine/rules'
 import { chooseRedPointAction } from '../../../src/engine/redpoint/ai'
 import { applyRedPoint, dealRedPoint, type RedPointAction, type RedPointState } from '../../../src/engine/redpoint/rules'
 import { chooseSevensAction } from '../../../src/engine/sevens/ai'
@@ -54,6 +54,8 @@ export interface MatchDef<S, A> {
   undo?: boolean
   /** 悔棋退到這一方「連著走的那一串」的第一步之前（暗棋連吃） */
   undoRun?: boolean
+  /** 並列第一並結算（九九：只剩你跟電腦時）：isHuman(side) 那一方是不是在場的真人；不能結算就回 null */
+  tie?(s: S, side: number, isHuman: (side: number) => boolean): S | null
   /** 認輸（任何時候都可以）：side 這一方認輸後的局面 */
   resign?(s: S, side: number): S | null
 }
@@ -174,6 +176,12 @@ const ninetynineDef: MatchDef<NinetyNineState, NinetyNineAction> = {
   start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), deck: s.deck.length, turn: s.turn, total: s.total, dir: s.dir }),
   // 攤牌：大家最後的手牌（牌堆順序、亂數不給）
   reveal: (s) => ({ ...s, rng: 0 }),
+  // 剩下的另一位是電腦（或不在的人）才可以
+  tie(s, side, isHuman) {
+    const other = s.alive.findIndex((v, i) => v && i !== side)
+    if (other < 0 || isHuman(other)) return null
+    return tieNinetyNine(s, side)
+  },
 }
 
 // ── 撿紅點 ──

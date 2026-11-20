@@ -266,6 +266,17 @@ export function playerAct(room: RoomState, pid: string, raw: unknown, now: numbe
     else schedule(room, now)
     return m.log.slice(start)
   }
+  if (raw.type === 'tie') {
+    const after = def.tie?.(m.s, side, (sd) => {
+      const st = m.seats[seatOf(m, sd)]
+      return !!st?.pid && present(room, st.pid)
+    })
+    if (!after) return []
+    m.s = after
+    push(m, { type: 'tie', player: side }, seat)
+    end(m)
+    return m.log.slice(start)
+  }
   if (raw.type === 'undo') return askUndo(room, seat, now)
   if (raw.type === 'undoReply') {
     // 只有被問的人能回答（申請的人自己不行、答過的不能再答）
