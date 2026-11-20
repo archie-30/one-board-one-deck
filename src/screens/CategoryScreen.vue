@@ -41,6 +41,12 @@ const index = ref(start >= 0 ? start : 0)
 const game = computed(() => games.value[index.value])
 /** 從遊戲退回來：卡片堆不播進場上浮（過場層要量卡片的位置讓卡片飛回去，位置必須一開始就是定位） */
 const returning = launchFx.active && launchFx.mode === 'exit'
+/**
+ * 從遊戲退回來：標題、右邊說明與按鈕不再播進場（上浮、從遮罩滑上來）——
+ * 過場的色塊蓋著時就已經放好；不然上浮剛好在卡片飛回去時播完，按鈕會閃一下。
+ * 右邊說明換成別的模式之後照常播。
+ */
+const calmId = ref(returning ? games.value[index.value]?.id ?? '' : '')
 /** 從另一個分類切過來：卡片堆從右邊滑進來 */
 const swappedIn = swapFlag
 swapFlag = false
@@ -372,13 +378,16 @@ function guardTitle() {
   }, 1600)
 }
 onMounted(guardTitle)
-watch(game, guardTitle)
+watch(game, (g) => {
+  if (g.id !== calmId.value) calmId.value = ''
+  guardTitle()
+})
 onBeforeUnmount(() => window.clearTimeout(titleGuard))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </script>
 
 <template>
-  <section class="mode" :class="[`c-${category}`, { locked, swapping }]">
+  <section class="mode" :class="[`c-${category}`, { locked, swapping, calm: returning }]">
     <div class="corner"><IconBtn icon="home" :label="S.common.home" @click="back()" /></div>
     <header class="head">
       <h1 class="t-black title"><span class="mask"><span>{{ S.category[category].title }}</span></span></h1>
@@ -452,7 +461,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       </div>
 
       <aside ref="panelRoot" class="panel">
-        <div :key="game.id" class="detail">
+        <div :key="game.id" class="detail" :class="{ calm: game.id === calmId }">
           <p class="t-label rise">{{ game.players }}</p>
           <h2 class="t-black name"><span class="mask"><span>{{ game.name }}</span></span></h2>
           <p class="summary rise" style="--i: 2">{{ game.summary }}</p>
@@ -499,6 +508,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .mode.locked {
   pointer-events: none;
+}
+/* 從遊戲退回來：不播進場（見 calmId） */
+.mode.calm .head .rise,
+.mode.calm .head .mask > span,
+.mode.calm .wipe,
+.mode.calm .acts .rise,
+.detail.calm .rise,
+.detail.calm .mask > span {
+  animation: none;
 }
 .mode.c-cards {
   --tone: var(--color-red);
