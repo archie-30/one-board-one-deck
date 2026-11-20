@@ -17,6 +17,14 @@ const showRules = ref(false)
 /** 暫停選單裡的規則設定：會影響這一局公平的選項反灰；不影響的（例如棋子樣式）可以當場改 */
 const showOptions = ref(false)
 const hasOptions = computed(() => props.game.settings.some((d) => d.key !== 'difficulty'))
+/** 這次打開規則設定後有沒有改過東西（改過的話返回按鈕叫「儲存並返回」；改回原樣就還是「返回」） */
+let openedWith: Record<string, string | boolean> = {}
+const optChanged = computed(() => {
+  if (!showOptions.value) return false
+  const now = gamePrefs(props.game.id).options
+  return Object.keys(now).some((k) => now[k] !== openedWith[k])
+})
+watch(showOptions, (on) => on && (openedWith = { ...gamePrefs(props.game.id).options }))
 function setOption(key: string, value: string | boolean) {
   // 存進偏好；對局畫面（PlayScreen）會把「不影響公平」的選項馬上套用到這一局
   gamePrefs(props.game.id).options[key] = value
@@ -125,7 +133,7 @@ const view = computed(() => (showRules.value ? 'rules' : showOptions.value ? 'op
     </div>
     </Transition>
     <template v-if="showRules || showOptions" #actions>
-      <Btn icon="back" size="sm" @click="(showRules = false), (showOptions = false)">{{ S.common.back }}</Btn>
+      <Btn icon="back" size="sm" @click="(showRules = false), (showOptions = false)">{{ showOptions && optChanged ? S.common.saveBack : S.common.back }}</Btn>
     </template>
   </Dialog>
   <AppSettings :open="settingsOpen" @close="settingsOpen = false" />

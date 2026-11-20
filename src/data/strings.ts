@@ -67,6 +67,8 @@ export const S = {
       check: '被將軍時時間到：跳過的話王就會被吃掉，所以直接算輸。',
     },
     back: '返回',
+    /** 對局中改過規則設定：返回按鈕改叫這個 */
+    saveBack: '儲存並返回',
     close: '關閉',
     confirm: '確定',
     cancel: '取消',
