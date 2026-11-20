@@ -14,7 +14,8 @@ const emit = defineEmits<{ close: [] }>()
   <!-- 明確給動畫長度：Vue 只看最外層的淡入（0.2 秒）就以為結束了，會把裡面還在轉的紙片硬切到定位（看起來像卡一下） -->
   <Transition :name="flip ? 'dialog-flip' : cover ? 'dialog-cover' : 'dialog'" :duration="flip ? { enter: 780, leave: 290 } : cover ? { enter: 330, leave: 230 } : { enter: 430, leave: 230 }">
     <div v-if="open" class="fixed inset-0 z-[900] grid place-items-center" role="dialog" aria-modal="true">
-      <div class="backdrop absolute inset-0" :class="{ cover }" @click="emit('close')" />
+      <!-- 暫停選單（cover）：點旁邊空白不會關，只能按「繼續」（或 Esc、返回鍵） -->
+      <div class="backdrop absolute inset-0" :class="{ cover }" @click="!cover && emit('close')" />
       <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip back-${tone ?? 'ink'}` : '']">
         <div class="band halftone" :class="`b-${tone ?? 'ink'}`"><span class="t-label">{{ label }}</span></div>
         <div class="body">
