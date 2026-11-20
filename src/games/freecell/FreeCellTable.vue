@@ -57,11 +57,13 @@ function sync(instant = false) {
   const moved: Card[] = []
   for (const [c, w] of where) if (prevWhere.size && prevWhere.get(c) !== w) moved.push(c)
   moved.sort((a, b) => poses.get(a)!.z - poses.get(b)!.z)
+  // 這一批疊在還在飛的牌上面（例如飛回原位的牌、上一張收上去的牌），不會從底下穿過去
+  const zb = 900 + stage.lift(moved.length)
   for (const [c, pose] of poses) {
     const k = moved.indexOf(c)
     if (k >= 0 && !instant) {
       const v = Math.random()
-      stage.move(c, pose, { delay: k * 45 + v * 25, dur: 300 * (0.9 + v * 0.25), arc: L.value.ch * (0.15 + Math.random() * 0.2), flightZ: 900 + k, land: true })
+      stage.move(c, pose, { delay: k * 45 + v * 25, dur: 300 * (0.9 + v * 0.25), arc: L.value.ch * (0.15 + Math.random() * 0.2), flightZ: zb + k, land: true })
     } else stage.move(c, pose, { dur: 200, instant })
   }
   prevWhere = where
@@ -226,7 +228,7 @@ function onCancel() {
   drag = null
   if (d && d.moved) flyBack(d)
 }
-const flyBack = (d: Drag) => d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
+const flyBack = (d: Drag) => { const z = 900 + stage.lift(d.cards.length); d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: z + k })) }
 function onMove(e: PointerEvent) {
   if (!drag || e.pointerId !== drag.id) return
   const p = local(e)

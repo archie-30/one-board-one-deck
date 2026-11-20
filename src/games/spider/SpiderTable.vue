@@ -63,12 +63,14 @@ function sync(instant = false) {
   const colOf = (c: Card) => Number(where.get(c)!.slice(1))
   moved.sort((a, b) => (fromStock ? colOf(a) - colOf(b) : poses.get(a)!.z - poses.get(b)!.z))
   if (fromStock && !instant) dealingUntil = performance.now() + moved.length * 55 + 400
+  // 這一批疊在還在飛的牌上面（例如飛回原位的牌、上一張收上去的牌），不會從底下穿過去
+  const zb = 900 + stage.lift(moved.length)
   for (const [c, pose] of poses) {
     const k = moved.indexOf(c)
     if (k >= 0 && !instant) {
       const v = Math.random()
       const step = fromStock ? 55 : 40
-      stage.move(c, pose, { delay: k * step + v * 20, dur: 300 * (0.9 + v * 0.25), arc: L.value.ch * (0.15 + Math.random() * 0.2), flightZ: 900 + k, land: true })
+      stage.move(c, pose, { delay: k * step + v * 20, dur: 300 * (0.9 + v * 0.25), arc: L.value.ch * (0.15 + Math.random() * 0.2), flightZ: zb + k, land: true })
     } else stage.move(c, pose, { dur: 200, instant })
   }
   prevWhere = where
@@ -223,7 +225,7 @@ function onCancel() {
   window.removeEventListener('pointercancel', onCancel)
   const d = drag
   drag = null
-  if (d && d.from !== 'stock' && d.moved) d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
+  if (d && d.from !== 'stock' && d.moved) { const z = 900 + stage.lift(d.cards.length); d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: z + k })) }
 }
 function onMove(e: PointerEvent) {
   if (!drag || e.pointerId !== drag.id || drag.from === 'stock') return
@@ -265,7 +267,7 @@ function onUp(e: PointerEvent) {
   if (col !== null && col !== from.col && canPlace(props.state, d.cards, { col })) emit('action', { type: 'move', from, to: { col } })
   else {
     if (col !== null && col !== from.col) emit('invalid', d.cards)
-    d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
+    { const z = 900 + stage.lift(d.cards.length); d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: z + k })) }
   }
 }
 let lastTap = 0

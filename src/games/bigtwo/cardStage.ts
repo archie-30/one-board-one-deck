@@ -120,6 +120,20 @@ export class CardStage {
     this.kick()
   }
 
+  /**
+   * 新一批要飛的牌的疊放基準（0～99，加在 flightZ 上）：上一批還在空中時，這一批就疊在它們上面，
+   * 不會從還在飛的牌底下穿過去、落地才突然跳到上面。沒有牌在飛時從 0 重新算。n＝這一批幾張。
+   */
+  lift(n = 1): number {
+    let flying = false
+    for (const s of this.sprites.values()) if (s.active) flying = true
+    if (!flying) this.seq = 0
+    const base = Math.min(this.seq, Math.max(0, 99 - n))
+    this.seq = base + n
+    return base
+  }
+  private seq = 0
+
   destroy() {
     cancelAnimationFrame(this.raf)
     this.raf = 0
