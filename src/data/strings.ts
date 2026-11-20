@@ -1412,6 +1412,7 @@ export const S = {
     resultLabel: 'FREECELL',
     collected: '收好',
     tooMany: '空位不夠，一次搬不了這麼多張',
+    tooManyDetail: (n: number, max: number) => `這串 ${n} 張，現在一次最多搬 ${max} 張（多空出暫存格或一整疊就能搬更多）`,
     undoTag: '+1 步',
     undoCost: '返回也算一步',
     fewest: (n: number) => (n ? `最少 ${n} 步` : '還沒有過關紀錄'),

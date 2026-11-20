@@ -74,14 +74,15 @@ onBeforeUnmount(() => {
 const clock = computed(() => `${Math.floor(seconds.value / 60)}:${String(seconds.value % 60).padStart(2, '0')}`)
 
 let msgTimer = 0
-function say(text: string) {
+function say(text: string, ms = 1600) {
   message.value = text
   window.clearTimeout(msgTimer)
-  msgTimer = window.setTimeout(() => (message.value = ''), 1600)
+  msgTimer = window.setTimeout(() => (message.value = ''), ms)
 }
-function onInvalid(reason: FreeCellError) {
+function onInvalid(reason: FreeCellError, info?: { n: number; max: number }) {
   playSound('error')
-  say(reason === 'tooMany' ? T.tooMany : S.solitaire.cantPlace)
+  if (reason === 'tooMany') say(info ? T.tooManyDetail(info.n, info.max) : T.tooMany, 3200)
+  else say(S.solitaire.cantPlace)
 }
 
 function commit(next: FreeCellState) {
