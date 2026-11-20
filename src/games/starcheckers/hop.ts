@@ -2,7 +2,7 @@
 import { CELLS, hexDistance } from '@/engine/starcheckers/rules'
 
 /** 走一格的距離要多久（毫秒）：別人（電腦、對手）走的慢一點，看得清楚 */
-export const cellMs = (slow?: boolean) => (slow ? 180 : 85)
+export const cellMs = (slow?: boolean) => (slow ? 150 : 70)
 /** 路線每一段有幾格長（跳一定是直線，格數就是距離） */
 export const segLens = (path: readonly number[]) => path.slice(1).map((p, k) => hexDistance(CELLS[path[k]], CELLS[p]))
 /** 整條路線要動多久 */

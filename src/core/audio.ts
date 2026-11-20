@@ -5,6 +5,7 @@
 //   棋盤：棋子落在木頭棋盤、從棋罐拿棋子、提子丟進盒蓋、西洋棋／象棋走子與吃子、拿起棋子
 //   介面：按鈕、卡片滑動、錯誤、贏、輸、和局、答對
 import { renderSfx, SFX_NAMES, type SfxName } from './sfx'
+import { buzz } from './haptics'
 import { settings } from './settings'
 
 export type Sound = SfxName
@@ -133,6 +134,8 @@ export const setMuted = (v: boolean) => (muted = v)
 
 export function playSound(sound: Sound) {
   if (muted) return
+  // 震動反饋：跟著音效一起（音效關掉也照樣震，設定裡另外有開關）
+  buzz(sound)
   const ac = audio()
   if (!ac) return
   const now = performance.now()

@@ -1,10 +1,17 @@
 <script setup lang="ts">
 // 輪到誰：那個人那一側淡淡地亮起一片漸層（從畫面邊緣往中間淡掉）。不擋任何點擊。
 // me：玩家自己那一側。玩家的倒數剩四分之一時，黃色漸層慢慢變成紅色並閃爍（跟倒數條一起）。
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
+import { buzz } from '@/core/haptics'
 import { turnClock } from '@/core/turnClock'
 
 const props = defineProps<{ side: 'left' | 'right' | 'top' | 'bottom'; on: boolean; me?: boolean }>()
+
+// 輪到你：震一下
+watch(
+  () => props.me && props.on,
+  (now) => now && buzz('turn'),
+)
 
 /** 0＝平常的黃色，1＝時間快到的紅色 */
 const heat = computed(() => {

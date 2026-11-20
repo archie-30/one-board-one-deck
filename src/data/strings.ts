@@ -422,6 +422,8 @@ export const S = {
     fullscreenNo: '這個瀏覽器不支援全螢幕。',
     cardStarts: '點卡片開始遊戲',
     cardStartsHelp: '在模式選單點中間那張卡片就開始遊戲。關掉的話只能按「開始遊戲」按鈕，比較不會誤觸。',
+    haptics: '震動',
+    hapticsHelp: '發牌、出牌、落子、吃子、輪到你時手機輕輕震一下，事情越大震得越明顯。',
     keepAwake: '保持螢幕恆亮',
     keepAwakeHelp: '開著遊戲時螢幕不會自動變暗、鎖住，想很久也不怕；切到別的 App 就照手機原本的設定。',
     avoidCutout: '鏡頭防遮擋',
@@ -2048,6 +2050,10 @@ export const S = {
       illegal: '不能這樣走',
     } as Record<string, string>,
     settings: {
+      drag: {
+        label: '拖曳彈珠',
+        help: '打開後可以按住自己的彈珠拖到落點放開。關著時（預設）只能點彈珠、再點要去的地方，比較不會手滑拖錯。',
+      },
       allAtOnce: {
         label: '一次顯示所有落點',
         help: '打開後，點彈珠就直接顯示連跳能到的所有地方，點哪裡就一口氣跳過去。關著時（預設）一步一步跳：每跳一格再顯示下一跳，按「結束」才算走完，結束前可以「取消移動」。',

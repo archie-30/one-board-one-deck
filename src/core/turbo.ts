@@ -3,6 +3,7 @@
 // 音效先關掉；補完（done() 成立）之後再等一下，恢復正常速度，接著照常玩。
 // 只在補播那一小段時間打開，各遊戲畫面不用改。
 import { setMuted } from './audio'
+import { setHapticsQuiet } from './haptics'
 
 const SPEED = 25
 let on = false
@@ -16,6 +17,7 @@ export function runTurbo(done: () => boolean, maxMs = 60_000) {
   window.setTimeout = fast
   document.documentElement.classList.add('turbo')
   setMuted(true)
+  setHapticsQuiet(true)
   const started = performance.now()
   let raf = 0
   // 用 element.animate 做的動畫：一個個加速
@@ -30,6 +32,7 @@ export function runTurbo(done: () => boolean, maxMs = 60_000) {
     for (const a of document.getAnimations()) a.playbackRate = 1
     document.documentElement.classList.remove('turbo')
     setMuted(false)
+    setHapticsQuiet(false)
     on = false
   }
   const check = () => {
