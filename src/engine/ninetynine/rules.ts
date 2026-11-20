@@ -247,6 +247,17 @@ export function applyNinetyNine(state: NinetyNineState, action: NinetyNineAction
   return { ok: true, state: { ...s, turn } }
 }
 
+/** 只剩兩個人、從剩兩人起牌堆又洗過幾次之後，可以直接並列第一結算（連線時只有對手是電腦才給按） */
+export const TIE_RESHUFFLES = 1
+/** player 現在能不能按「並列第一並結算」 */
+export function canTie(s: NinetyNineState, player: number): boolean {
+  return !s.over && aliveCount(s) === 2 && !!s.alive[player] && s.twoAt !== undefined && s.reshuffles - s.twoAt >= TIE_RESHUFFLES
+}
+/** 並列第一並結算：還在場上的兩個人都算第一（不是輪到他也可以按）；不能按就是 null */
+export function tieNinetyNine(s: NinetyNineState, player: number): NinetyNineState | null {
+  return canTie(s, player) ? { ...s, moves: s.moves + 1, over: true } : null
+}
+
 /** 贏家：最後留下的人（剩兩人洗兩次牌還分不出來、或拖太久結束的話，還在場上的人都算贏） */
 export const winners = (s: NinetyNineState): number[] => s.alive.map((v, i) => (v ? i : -1)).filter((i) => i >= 0)
 /** 名次（1 是第一名）：還在場上的並列第一，之後照出局的順序倒過來排 */

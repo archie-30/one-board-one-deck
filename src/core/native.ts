@@ -12,6 +12,7 @@ import { settings } from './settings'
 interface ObodPlugin {
   setKeepAwake(o: { on: boolean }): Promise<void>
   cutout(): Promise<{ t: number; r: number; b: number; l: number }>
+  vibrate(o: { pattern: number[]; amp: number }): Promise<void>
 }
 const Obod = registerPlugin<ObodPlugin>('Obod')
 type W = Window & {
@@ -23,6 +24,11 @@ const w = (typeof window !== 'undefined' ? window : {}) as W
 
 /** 是不是在 Android App 裡（不是瀏覽器） */
 export const isApp = Capacitor.isNativePlatform()
+
+/** App 裡的震動（分得出大小）：pattern＝[震, 停, 震, …] 毫秒，amp＝1～255 */
+export function nativeVibrate(pattern: number[], amp: number) {
+  void Obod.vibrate({ pattern, amp }).catch(() => {})
+}
 
 async function readCutout() {
   try {

@@ -27,6 +27,8 @@ interface Settings {
   cardStarts: boolean
   /** 保持螢幕恆亮：開著遊戲時不讓手機自動變暗、鎖螢幕 */
   keepAwake: boolean
+  /** 震動反饋：發牌、出牌、落子、輪到你…依事情大小震不同強度 */
+  haptics: boolean
 }
 
 interface Stats {
@@ -56,7 +58,7 @@ interface Stats {
   cardLevels: number
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true }))
 
 const STATS_DEFAULT: Stats = {
   gomoku: { wins: 0, losses: 0, draws: 0 },

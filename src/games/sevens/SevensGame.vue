@@ -502,7 +502,7 @@ const order = (p: number) => [...state.value.covered[p]].sort((a, b) => rankOf(a
 
 <template>
   <section ref="stageEl" class="felt">
-    <TurnGlow v-for="(side, p) in SIDES" :key="side" :side="side" :on="phase === 'play' && !state.over && state.turn === p" />
+    <TurnGlow v-for="(side, p) in SIDES" :key="side" :side="side" :me="p === ME" :on="phase === 'play' && !state.over && state.turn === p" />
     <TurnTimer v-if="timed" :side="SIDES[state.turn]" :active="phase === 'play' && !state.over && !(grace && state.turn === ME)" :paused="!net && (menuOpen || resultOpen)" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
 
     <div class="table-box" :style="{ left: `${L.box.x}px`, top: `${L.box.y}px`, width: `${L.box.w}px`, height: `${L.box.h}px` }">

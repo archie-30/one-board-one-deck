@@ -642,7 +642,7 @@ const rankText = (c: Card) => RANK_LABELS[rankOf(c)]
 <template>
   <section ref="stageEl" class="felt">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
-    <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :on="phase === 'play' && state.phase !== 'over' && state.turn === p" />
+    <TurnGlow v-for="(side, p) in (['bottom', 'right', 'top', 'left'] as const)" :key="side" :side="side" :me="p === 0" :on="phase === 'play' && state.phase !== 'over' && state.turn === p" />
     <TurnTimer v-if="timed" :side="(['bottom', 'right', 'top', 'left'] as const)[state.turn]" :active="phase === 'play' && state.phase !== 'over' && !(grace && state.turn === 0)" :paused="!net && (menuOpen || resultOpen)" :seconds="TURN_SECONDS.cards" :turn-key="state" @timeout="onTimeout" />
     <!-- 數牌：每一列一個人，左邊名字、右邊累加的分數 -->
     <template v-if="tally && !resultOpen">

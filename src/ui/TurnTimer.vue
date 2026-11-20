@@ -2,6 +2,7 @@
 // 倒數時間條：貼在輪到的那個人那一側的畫面邊緣，慢慢縮短；剩四分之一時變紅、閃動。
 // active：現在在計時；paused：暫停（選單打開、結算中）；turnKey 一變就重新開始算。時間到發出 timeout。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { turnClock } from '@/core/turnClock'
 
 // inline：不貼邊，放在一般排版裡（例如猜拳視窗）
 const props = defineProps<{ side: 'left' | 'right' | 'top' | 'bottom'; active: boolean; seconds: number; paused?: boolean; turnKey?: unknown; inline?: boolean }>()
@@ -26,20 +27,30 @@ function loop(t: number) {
   if (!props.active || props.paused || fired) return
   remain -= dt
   left.value = Math.max(0, remain / (props.seconds * 1000))
+  publish()
   if (remain <= 0) {
     fired = true
     emit('timeout')
   }
 }
+/** 告訴 TurnGlow 現在誰在計時、剩多少（猜拳視窗裡那條 inline 的不算） */
+function publish() {
+  if (props.inline) return
+  turnClock.side = props.active && !fired ? props.side : ''
+  turnClock.left = left.value
+}
 watch(
   () => [props.turnKey, props.active, props.side],
-  () => reset(),
+  () => (reset(), publish()),
 )
 onMounted(() => {
   reset()
   raf = requestAnimationFrame(loop)
 })
-onBeforeUnmount(() => cancelAnimationFrame(raf))
+onBeforeUnmount(() => {
+  cancelAnimationFrame(raf)
+  if (!props.inline && turnClock.side === props.side) turnClock.side = ''
+})
 
 const vertical = computed(() => props.side === 'left' || props.side === 'right')
 const low = computed(() => left.value < 0.25)

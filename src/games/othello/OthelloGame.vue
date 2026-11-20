@@ -416,7 +416,7 @@ const grace = useGrace(props.options, state, () => state.value.turn === human.va
 <template>
   <section ref="sectionEl" class="gm">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
-    <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
+    <TurnGlow side="left" me :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
     <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !flying && !(grace && state.turn === human)" :paused="!bn && menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>

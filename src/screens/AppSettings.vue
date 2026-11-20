@@ -5,6 +5,7 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { fullscreenSupported, isFullscreen, setFullscreen } from '@/core/fullscreen'
 import { resetStats, settings } from '@/core/settings'
 import { clearAllResume } from '@/core/resume'
+import { canVibrate } from '@/core/haptics'
 import { isApp } from '@/core/native'
 import { S } from '@/data/strings'
 import { VERSION } from '@/data/version'
@@ -75,6 +76,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
               <p class="help">{{ fullscreenSupported ? T.fullscreenHelp : T.fullscreenNo }}</p>
             </div>
             <Switch :on="isFullscreen" :label="T.fullscreen" :disabled="!fullscreenSupported" @change="(v) => ((settings.fullscreen = v), setFullscreen(v))" />
+          </div>
+          <!-- 震不了的裝置（例如 iPhone 的瀏覽器）不放這個開關 -->
+          <div v-if="canVibrate" class="row rise" style="--i: 4">
+            <div>
+              <p class="t-black lb">{{ T.haptics }}</p>
+              <p class="help">{{ T.hapticsHelp }}</p>
+            </div>
+            <Switch :on="settings.haptics" :label="T.haptics" @change="(v) => (settings.haptics = v)" />
           </div>
           <div class="row rise" style="--i: 4">
             <div>

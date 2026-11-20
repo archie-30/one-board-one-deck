@@ -88,6 +88,8 @@ const undoUsed = ref(saved?.undoUsed ?? false)
 const last = shallowRef<number[] | null>(null)
 /** 規則設定「一次顯示所有落點」（只影響自己的畫面，可以當場改） */
 const allAtOnce = computed(() => props.options.allAtOnce === true)
+/** 規則設定「拖曳彈珠」：預設關，只能點 */
+const dragOn = computed(() => props.options.drag === true)
 /** 一步一步跳：正在走的那顆的路線（還沒按「結束」） */
 const moving = ref<number[] | null>(null)
 /** 要播的跳的動畫（電腦、別人走的慢一點） */
@@ -520,7 +522,7 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
 
 <template>
   <section class="gm">
-    <TurnGlow v-for="l in [0, 1, 2]" :key="`g${l}`" :side="(['bottom', 'left', 'right'] as const)[l]" :on="phase === 'playing' && local(state.turn) === l" />
+    <TurnGlow v-for="l in [0, 1, 2]" :key="`g${l}`" :me="l === 0" :side="(['bottom', 'left', 'right'] as const)[l]" :on="phase === 'playing' && local(state.turn) === l" />
     <TurnTimer v-if="timed" :side="side(state.turn)" :active="phase === 'playing' && !(grace && state.turn === me)" :paused="!net && menuOpen" :seconds="TURN_SECONDS.checkers" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 
@@ -541,7 +543,7 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
     </aside>
 
     <div class="board-wrap">
-      <StarBoard :board="shown" :view="me" :selected="selected" :targets="targets" :last="moving ?? last" :anim="anim" :rewind="rewind" :interactive="myTurn" :can-drag="canDrag" @pick="pick" @drop="drop" />
+      <StarBoard :board="shown" :view="me" :selected="selected" :targets="targets" :last="moving ?? last" :anim="anim" :rewind="rewind" :interactive="myTurn" :can-drag="dragOn ? canDrag : null" @pick="pick" @drop="drop" />
     </div>
 
     <aside class="side right">
