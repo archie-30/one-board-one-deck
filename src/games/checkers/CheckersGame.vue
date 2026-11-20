@@ -389,7 +389,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 
 <template>
   <section class="gm">
-    <TurnGlow side="left" :on="phase === 'playing' && state.turn === human" />
+    <TurnGlow side="left" me :on="phase === 'playing' && state.turn === human" />
     <TurnGlow side="right" :on="phase === 'playing' && state.turn !== human" />
     <TurnTimer v-if="timed" :side="state.turn === human ? 'left' : 'right'" :active="phase === 'playing' && !(grace && state.turn === human)" :paused="!bn && menuOpen" :seconds="TURN_SECONDS.checkers" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>

@@ -520,7 +520,7 @@ const leftOf = (seat: number) => remaining(state.value.board, seat) - 20
 
 <template>
   <section class="gm">
-    <TurnGlow v-for="l in [0, 1, 2]" :key="`g${l}`" :side="(['bottom', 'left', 'right'] as const)[l]" :on="phase === 'playing' && local(state.turn) === l" />
+    <TurnGlow v-for="l in [0, 1, 2]" :key="`g${l}`" :me="l === 0" :side="(['bottom', 'left', 'right'] as const)[l]" :on="phase === 'playing' && local(state.turn) === l" />
     <TurnTimer v-if="timed" :side="side(state.turn)" :active="phase === 'playing' && !(grace && state.turn === me)" :paused="!net && menuOpen" :seconds="TURN_SECONDS.checkers" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
 

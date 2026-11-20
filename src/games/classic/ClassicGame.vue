@@ -410,7 +410,7 @@ const boardAspect = computed(() => (A.kind === 'chess' ? '1 / 1' : '94 / 104'))
 <template>
   <section class="gm">
     <!-- 輪到誰：那個人那一側淡淡亮起 -->
-    <TurnGlow side="left" :on="phase === 'playing' && A.turn(state) === human" />
+    <TurnGlow side="left" me :on="phase === 'playing' && A.turn(state) === human" />
     <TurnGlow side="right" :on="phase === 'playing' && A.turn(state) !== human" />
     <TurnTimer v-if="timed" :side="A.turn(state) === human ? 'left' : 'right'" :active="phase === 'playing' && !(grace && A.turn(state) === human)" :paused="!bn && menuOpen" :seconds="TURN_SECONDS.board" :turn-key="state" @timeout="onTimeout" />
     <div class="corner"><IconBtn icon="menu" :label="S.common.menu" @click="menuOpen = true" /></div>
