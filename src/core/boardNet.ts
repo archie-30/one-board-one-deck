@@ -102,7 +102,7 @@ export function useBoardNet(gameId: string, hooks: BoardNetHooks) {
         return next()
       case 'undo':
         undoAsked.value = false
-        if (ev.by === mySide.value && !watching) ((undoWaiting.value = false), (undoUsed.value = true))
+        if (ev.by === mySide.value && !watching) undoWaiting.value = false
         return hooks.undo(ev.by!)
       case 'resign':
         sending.value = false
@@ -138,7 +138,7 @@ export function useBoardNet(gameId: string, hooks: BoardNetHooks) {
     next,
     send,
     pickRps: (hand: RpsHand) => sendAct({ type: 'rps', hand }),
-    askUndo: () => !undoWaiting.value && !undoUsed.value && sendAct({ type: 'undo' }),
+    askUndo: () => !undoWaiting.value && sendAct({ type: 'undo' }),
     answerUndo(ok: boolean) {
       undoAsked.value = false
       sendAct({ type: 'undoReply', ok })

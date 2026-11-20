@@ -309,7 +309,8 @@ function askUndo(room: RoomState, seat: number, now: number): LogEntry[] {
   const m = room.match!
   const def = MATCH_DEFS[m.gameId]
   const side = sideOf(m, seat)
-  if (!def.undo || m.undoUsed[seat] || m.undoAsk !== null || lastMoveOf(m, side) < 0) return []
+  // 連線不限悔棋次數：每次都要其他人同意（對電腦、對方不在就直接同意）
+  if (!def.undo || m.undoAsk !== null || lastMoveOf(m, side) < 0) return []
   // 對手是電腦、或不在：直接同意
   if (!askees(room, seat).length) return doUndo(room, seat, now)
   const start = m.log.length
@@ -334,7 +335,6 @@ function doUndo(room: RoomState, seat: number, now: number): LogEntry[] {
   let s = m.s0
   for (const x of m.acts) s = def.apply(s, x.a) ?? s
   m.s = s
-  m.undoUsed[seat] = true
   push(m, { type: 'undo', by: side, moves: m.acts.length }, seat)
   schedule(room, now)
   return m.log.slice(start)

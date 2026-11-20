@@ -236,9 +236,10 @@ describe('連線對局（伺服器當裁判）', () => {
     const ok = playerAct(room, ids[1], { type: 'undoReply', ok: true }, now)
     expect(ok[0].pub).toEqual({ type: 'undo', by: 0, moves: 0 })
     expect((m.s as { moves: number[] }).moves).toEqual([])
-    // 每局一次
+    // 連線不限次數：再下一手，還能再申請，對方同意就再退
     playerAct(room, ids[0], { type: 'place', index: 112 }, now)
-    expect(playerAct(room, ids[0], { type: 'undo' }, now)).toEqual([])
+    expect(playerAct(room, ids[0], { type: 'undo' }, now)[0].pub).toEqual({ type: 'undoAsk', by: 0 })
+    expect(playerAct(room, ids[1], { type: 'undoReply', ok: true }, now)[0].pub).toEqual({ type: 'undo', by: 0, moves: 0 })
   })
 
   it('暗棋也能悔棋：翻開的棋蓋回去', () => {
