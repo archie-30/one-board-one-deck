@@ -72,11 +72,13 @@ function sync(instant = false) {
     prevWhere = where
     return
   }
+  // 這一批疊在還在飛的牌上面（例如飛回原位的牌、上一張收上去的牌），不會從底下穿過去
+  const zb = 900 + stage.lift(moved.length)
   for (const [c, pose] of poses) {
     const k = moved.indexOf(c)
     if (k >= 0 && !instant) {
       const v = Math.random()
-      stage.move(c, pose, { delay: k * 45 + v * 25, dur: 300 * (0.9 + v * 0.25), arc: L.value.ch * (0.15 + Math.random() * 0.2), flightZ: 900 + k, land: true })
+      stage.move(c, pose, { delay: k * 45 + v * 25, dur: 300 * (0.9 + v * 0.25), arc: L.value.ch * (0.15 + Math.random() * 0.2), flightZ: zb + k, land: true })
     } else stage.move(c, pose, { dur: 200, instant })
   }
   prevWhere = where
@@ -302,7 +304,7 @@ function onCancel() {
   window.removeEventListener('pointercancel', onCancel)
   const d = drag
   drag = null
-  if (d && d.from !== 'stock' && d.moved) d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
+  if (d && d.from !== 'stock' && d.moved) { const z = 900 + stage.lift(d.cards.length); d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: z + k })) }
 }
 function onMove(e: PointerEvent) {
   if (!drag || e.pointerId !== drag.id || drag.from === 'stock') return
@@ -348,7 +350,7 @@ function onUp(e: PointerEvent) {
   } else {
     if (spot && !sameSpot(from, spot as Target)) emit('invalid')
     // 放不下：各自飛回原位
-    d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
+    { const z = 900 + stage.lift(d.cards.length); d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: z + k })) }
   }
 }
 /** 點一張翻開的牌：沒有選牌時選起它；已經選了，就把選的牌放到這張牌所在的那一疊。

@@ -386,7 +386,6 @@ function netUndo(by: number) {
     state.value = hist[k].state
     hist.length = k
     rewind.value = { moves, plies: A.plies(state.value), key: (rewind.value?.key ?? 0) + 1 }
-    if (by === human.value) undoUsed.value = true
     selected.value = -1
     promoAsk.value = null
     message.value = ''

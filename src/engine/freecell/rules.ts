@@ -121,13 +121,17 @@ export function applyFreeCell(state: FreeCellState, action: FreeCellAction): Res
 /**
  * 拖一串牌去某一疊時，實際要搬的是哪一段（跟 Windows 新接龍一樣）：
  *   搬到有牌的一疊：從拿起來的這串裡找「接得上」的那一張開始，多拿的不用管；
- *   搬到空的一疊：張數超過一次能搬的上限，就只搬最上面能搬的那幾張。
+ *   搬到空的一疊：張數超過一次能搬的上限，就只搬最上面能搬的那幾張；
+ *   搬到暫存格、收牌區：只拿最上面那一張。
  * 只調整從哪一張開始搬；調整不了就原樣回傳（交給 applyFreeCell 判斷）。
  */
 export function fitSource(s: FreeCellState, from: Source, to: Target): Source {
-  if (from.pile !== 'tableau' || to.pile !== 'tableau' || from.col === to.col) return from
+  if (from.pile !== 'tableau') return from
   const cards = cardsAt(s, from)
   if (!cards.length) return from
+  // 拖一串到暫存格或收牌區：只放最上面那一張
+  if (to.pile !== 'tableau') return { ...from, index: from.index + cards.length - 1 }
+  if (from.col === to.col) return from
   if (!s.tableau[to.col]?.length) {
     const max = maxMove(s, true)
     return cards.length > max ? { ...from, index: from.index + cards.length - max } : from

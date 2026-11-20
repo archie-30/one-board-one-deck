@@ -378,7 +378,6 @@ async function netUndo(by: number) {
   if (k >= 0) {
     const prev = hist[k].state
     hist.length = k
-    if (by === sideOfHuman()) undoUsed.value = true
     await revert(prev)
   }
   bn!.next()

@@ -83,6 +83,15 @@ describe('新接龍：拖一串時自動挑要搬的那一段', () => {
     expect(r.tableau[1].length).toBe(4)
     expect(r.tableau[0].length).toBe(2)
   })
+  it('拖一串到空的暫存格：只放最上面那一張', () => {
+    const s = table({ 0: ['SJ', 'H10', 'S9'] })
+    const to: Target = { pile: 'cell', slot: 0 }
+    const from = fitSource(s, { pile: 'tableau', col: 0, index: 0 }, to)
+    expect(from).toEqual({ pile: 'tableau', col: 0, index: 2 })
+    const r = ok(s, { type: 'move', from, to })
+    expect(r.cells[0]).not.toBeNull()
+    expect(r.tableau[0].length).toBe(2)
+  })
   it('接不上就原樣回傳', () => {
     const s = table({ 0: ['S9', 'H8'], 1: ['S5'] })
     expect(fitSource(s, { pile: 'tableau', col: 0, index: 0 }, T(1))).toEqual({ pile: 'tableau', col: 0, index: 0 })

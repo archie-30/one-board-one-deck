@@ -6,7 +6,7 @@ import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vu
 import { playSound } from '@/core/audio'
 import { afterReveal } from '@/core/launch'
 import { RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
-import { applyFreeCell, autoTarget, cardsAt, fitSource, type FreeCellAction, type FreeCellError, type FreeCellState, type Source, type Target } from '@/engine/freecell/rules'
+import { applyFreeCell, autoTarget, cardsAt, fitSource, maxMove, type FreeCellAction, type FreeCellError, type FreeCellState, type Source, type Target } from '@/engine/freecell/rules'
 import CardArt from '@/ui/art/Card.vue'
 import { SUIT_PATHS, isRedSuit } from '@/ui/art/suits'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
@@ -23,7 +23,7 @@ const props = withDefaults(
   }>(),
   { interactive: true, hintCards: () => [], hintSpot: null, dealIn: true, dealKey: 0 },
 )
-const emit = defineEmits<{ action: [action: FreeCellAction]; invalid: [reason: FreeCellError]; ready: [] }>()
+const emit = defineEmits<{ action: [action: FreeCellAction]; invalid: [reason: FreeCellError, info?: { n: number; max: number }]; ready: [] }>()
 
 const dealing = ref(false)
 const canAct = computed(() => props.interactive && !dealing.value)
@@ -57,11 +57,13 @@ function sync(instant = false) {
   const moved: Card[] = []
   for (const [c, w] of where) if (prevWhere.size && prevWhere.get(c) !== w) moved.push(c)
   moved.sort((a, b) => poses.get(a)!.z - poses.get(b)!.z)
+  // 這一批疊在還在飛的牌上面（例如飛回原位的牌、上一張收上去的牌），不會從底下穿過去
+  const zb = 900 + stage.lift(moved.length)
   for (const [c, pose] of poses) {
     const k = moved.indexOf(c)
     if (k >= 0 && !instant) {
       const v = Math.random()
-      stage.move(c, pose, { delay: k * 45 + v * 25, dur: 300 * (0.9 + v * 0.25), arc: L.value.ch * (0.15 + Math.random() * 0.2), flightZ: 900 + k, land: true })
+      stage.move(c, pose, { delay: k * 45 + v * 25, dur: 300 * (0.9 + v * 0.25), arc: L.value.ch * (0.15 + Math.random() * 0.2), flightZ: zb + k, land: true })
     } else stage.move(c, pose, { dur: 200, instant })
   }
   prevWhere = where
@@ -226,7 +228,7 @@ function onCancel() {
   drag = null
   if (d && d.moved) flyBack(d)
 }
-const flyBack = (d: Drag) => d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: 1000 + k }))
+const flyBack = (d: Drag) => { const z = 900 + stage.lift(d.cards.length); d.cards.forEach((c, k) => stage.move(c, d.base[k], { delay: k * 30, dur: 260, arc: 10, flightZ: z + k })) }
 function onMove(e: PointerEvent) {
   if (!drag || e.pointerId !== drag.id) return
   const p = local(e)
@@ -270,7 +272,10 @@ function attempt(picked: Source, to: Target): boolean {
     emit('action', { type: 'move', from, to })
     return true
   }
-  emit('invalid', r.reason)
+  if (r.reason === 'tooMany' && to.pile === 'tableau') {
+    // 告訴玩家這串幾張、現在一次最多能搬幾張
+    emit('invalid', r.reason, { n: cardsAt(props.state, from).length, max: maxMove(props.state, !props.state.tableau[to.col].length) })
+  } else emit('invalid', r.reason)
   return false
 }
 let lastTap = 0
@@ -365,7 +370,7 @@ defineExpose({ layout: L })
         :style="{ width: `${L.cw}px`, height: `${L.ch}px`, marginLeft: `${-L.cw / 2}px`, marginTop: `${-L.ch / 2}px` }"
         @pointerdown="onDown(c, $event)"
       >
-        <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="rankText(c)" :suit="suitOf(c)" /></svg>
+        <svg class="face" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt :rank="rankText(c)" :suit="suitOf(c)" side /></svg>
         <svg class="back" viewBox="-2 -2 78 108" aria-hidden="true"><CardArt back /></svg>
       </div>
     </div>

@@ -479,7 +479,7 @@ function pump() {
   }
   if (ev.type === 'undo') {
     undoAsked.value = false
-    if (ev.by === me) ((undoWaiting.value = false), (undoUsed.value = true))
+    if (ev.by === me) undoWaiting.value = false
     revertSeat(ev.by!)
     return void later(pump, 600)
   }
