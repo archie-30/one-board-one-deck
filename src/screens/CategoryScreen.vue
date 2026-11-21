@@ -451,8 +451,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <span class="t-black">{{ S.category[other].title }}</span>
       </button>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
-      <!-- 條列顯示：左半邊換成一列一列（記住，撲克牌、棋盤共用） -->
-      <span class="vsw rise" style="--i: 1"><span class="t-label">{{ S.lobby.listView }}</span><Switch :on="listView" :label="S.lobby.listViewLabel" @change="setListView" /></span>
       <!-- 右上角：在房間裡＝房號（點了回房間）；不在房間＝連線（開房、加入） -->
       <!-- 在房間裡：兩行——房間模式、準備狀況（點了回房間） -->
       <button v-if="online.room" class="room-tag rise" style="--i: 2" :aria-label="S.online.backRoom" @click="go({ name: 'room' })">
@@ -535,11 +533,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </div>
         <div class="pager">
           <button class="arrow prev" :disabled="index === 0" :aria-label="S.common.back" @click="turn(-1)"><Icon name="arrow" /></button>
-          <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
-          <span class="dots">
-            <button v-for="(g, k) in games" :key="g.id" class="dot" :class="{ on: k === index }" :aria-label="g.name" @click="show(k)" />
-          </span>
           <button class="arrow" :disabled="index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
+          <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
+          <!-- 條列顯示：左半邊換成一列一列（記住，撲克牌、棋盤共用） -->
+          <span class="vsw"><span class="t-label">{{ S.lobby.listView }}</span><Switch :on="listView" :label="S.lobby.listViewLabel" @change="setListView" /></span>
         </div>
       </div>
 
@@ -789,12 +786,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .pk {
   margin-left: auto;
 }
-/* 條列顯示的開關：「選一個模式」右邊 */
+/* 條列顯示的開關：翻頁列最右邊 */
 .vsw {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin: 0 0.4rem 0 0.9rem;
+  margin-left: auto;
 }
 .vsw .t-label {
   color: var(--color-ink-2);
@@ -1001,6 +998,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   animation: none;
 }
 /* 選中的那一列：往右推一點、陰影拉長、底色帶一點分類色 */
+.row:not(.front) {
+  /* 沒選中的調暗、褪色一點，一眼看出選了哪個 */
+  filter: brightness(0.86) saturate(0.6);
+}
 .row.front {
   background: color-mix(in srgb, var(--color-card) 88%, var(--tone));
   box-shadow: 0.34rem 0.34rem 0 var(--color-ink);
@@ -1096,28 +1097,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .count i {
   font-style: normal;
   color: var(--color-ink-3);
-}
-.dots {
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  gap: 0.35rem;
-}
-.dot {
-  width: 0.55rem;
-  height: 0.55rem;
-  border: 0.1rem solid var(--color-ink);
-  border-radius: 50%;
-  background: none;
-  padding: 0;
-  transition:
-    width 260ms var(--ease-out),
-    background-color 200ms ease;
-}
-.dot.on {
-  width: 1.4rem;
-  border-radius: 999px;
-  background: var(--color-ink);
 }
 .panel {
   display: flex;
