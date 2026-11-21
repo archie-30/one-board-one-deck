@@ -10,7 +10,7 @@ import { leaveRoom, online } from '@/core/online'
 import { leaveMid, liveMatch, liveOver, rejoinMatch } from '@/core/onlineMatch'
 import { runTurbo } from '@/core/turbo'
 import { GRACE_AFTER_MS } from '@/core/grace'
-import { clearResume, flushResume, getResume, setResume } from '@/core/resume'
+import { clearResume, flushResume, getResume, resumeSlot, setResume } from '@/core/resume'
 import { S } from '@/data/strings'
 import { resolveOptions } from '@/games/options'
 import { getGame } from '@/games/registry'
@@ -21,9 +21,11 @@ const props = defineProps<{ gameId: string }>()
 const game = getGame(props.gameId)
 /** 連線對戰（在房間裡開的局）：不讀、也不存「沒玩完的紀錄」，大家都從新的一局開始 */
 const onlineMatch = !!online.room
-const saved = onlineMatch ? null : getResume(props.gameId)
-
 const options = ref(resolveOptions(game))
+/** 存檔的格子：同一個玩法不同難度各自一份 */
+const slot = resumeSlot(props.gameId, options.value.difficulty)
+const saved = onlineMatch ? null : getResume(slot)
+
 // 暫停選單裡改了「不影響公平」的選項（例如棋子樣式）：馬上套用到這一局；其他選項要下一局才生效
 watch(
   () => gamePrefs(game.id).options,
@@ -42,11 +44,11 @@ function continueSaved() {
   if (!saved) return
   options.value = { ...options.value, ...saved.options, graceFirst: Date.now() - saved.savedAt > GRACE_AFTER_MS }
   resume.value = saved.data
-  clearResume(props.gameId)
+  clearResume(slot)
   ready.value = true
 }
 function startNew() {
-  clearResume(props.gameId)
+  clearResume(slot)
   ready.value = true
 }
 // ── 切走分頁、離開視窗、關掉分頁：自動暫停，並把進度存起來（下次開這個玩法會問要不要繼續） ──
@@ -57,8 +59,8 @@ function autoPause() {
   g.pause?.()
   if (onlineMatch) return
   const data = g.snapshot?.() ?? null
-  if (data) setResume(props.gameId, data, keep())
-  else clearResume(props.gameId)
+  if (data) setResume(slot, data, keep())
+  else clearResume(slot)
   flushResume()
 }
 /** 網頁版：按 Esc 暫停（選單已經打開時由選單自己處理） */
@@ -99,7 +101,7 @@ function keep() {
   return rest
 }
 function onSave(data: unknown) {
-  if (!onlineMatch) setResume(props.gameId, data, keep())
+  if (!onlineMatch) setResume(slot, data, keep())
   void leave(true)
 }
 
@@ -132,7 +134,7 @@ async function leave(saved = false) {
   if (leaving) return
   leaving = true
   // 不保存直接離開：把自動存下的進度也刪掉
-  if (!saved && !onlineMatch) clearResume(props.gameId)
+  if (!saved && !onlineMatch) clearResume(slot)
   if (reducedMotion()) return back()
   const css = getComputedStyle(document.documentElement)
   const color = css.getPropertyValue(game.category === 'cards' ? '--color-red' : '--color-blue').trim()
