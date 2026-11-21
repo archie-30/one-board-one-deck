@@ -281,6 +281,7 @@ export const S = {
     rulesSubGo: '氣、提子、眼、算地',
     pickGame: '選一個模式',
     listView: '條列',
+    deckView: '卡片',
     listViewLabel: '條列顯示玩法',
     best: '最高分',
     selected: '已選擇',

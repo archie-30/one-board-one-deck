@@ -28,7 +28,6 @@ import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import OnlineDialog from '@/ui/OnlineDialog.vue'
-import Switch from '@/ui/Switch.vue'
 import Tabs from '@/ui/Tabs.vue'
 
 const props = defineProps<{ category: GameCategory }>()
@@ -131,10 +130,16 @@ const locked = computed(() => launching.value || launchFx.active || !!viewAnim.v
 // ── 條列顯示：左半邊改成一列一列（設定記住，撲克牌、棋盤共用） ──
 /** 現在畫的是哪一種 */
 const listView = ref(settings.modeView === 'list')
-/** 開關的位置：按下去就立刻滑過去（畫面接著變形） */
+/** 卡片／條列切換：按下去就立刻換格（畫面接著變形） */
 const listSwitch = ref(listView.value)
+const viewChoices = [
+  { value: 'deck', label: S.lobby.deckView },
+  { value: 'list', label: S.lobby.listView },
+]
 /** 切換中（morph）：動畫中整個模式選單鎖住 */
 const viewAnim = ref<'' | 'morph'>('')
+/** 切換過檢視方式：卡片堆／條列不再播進場上浮（拿掉後 CSS 會重播一次＝閃一下） */
+const morphed = ref(false)
 const listEl = ref<HTMLElement>()
 const rowEls: (HTMLElement | null)[] = []
 const wait = (ms: number) => new Promise((r) => window.setTimeout(r, reducedMotion() ? 0 : ms))
@@ -178,6 +183,7 @@ async function setListView(on: boolean) {
   listSwitch.value = on
   settings.modeView = on ? 'list' : 'deck'
   viewAnim.value = 'morph'
+  morphed.value = true
   // 先記下現在看得到的卡片（或列）在哪裡，換過去之後新的從那裡變形過來
   const before = on ? visibleRects(cardEls) : visibleRects(rowEls, listEl.value?.getBoundingClientRect())
   await nextTick()
@@ -213,6 +219,51 @@ function scrollToRow(smooth = true) {
   const top = el.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2
   box.scrollTo({ top: Math.max(0, top), behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
 }
+// ── 條列的捲動進度條 ──
+const bar = ref({ top: 0, h: 1 })
+function syncBar() {
+  const el = listEl.value
+  if (!el || !el.scrollHeight) return
+  const h = Math.min(1, el.clientHeight / el.scrollHeight)
+  bar.value = { h, top: h >= 1 ? 0 : (el.scrollTop / (el.scrollHeight - el.clientHeight)) * (1 - h) }
+}
+let barRo: ResizeObserver | undefined
+watch(listEl, (el) => {
+  barRo?.disconnect()
+  if (!el) return
+  barRo = new ResizeObserver(syncBar)
+  barRo.observe(el)
+  for (const r of el.children) barRo.observe(r)
+  syncBar()
+})
+onBeforeUnmount(() => barRo?.disconnect())
+/** 拖把手（或點進度條某處）捲動條列 */
+function barDown(e: PointerEvent) {
+  const el = listEl.value
+  const track = e.currentTarget as HTMLElement
+  if (!el || locked.value) return
+  const rect = track.getBoundingClientRect()
+  const range = el.scrollHeight - el.clientHeight
+  const thumbH = bar.value.h * rect.height
+  const thumbTop = rect.top + bar.value.top * rect.height
+  // 點在把手外面：先跳到那裡（把手中心對準手指）
+  let grab = e.clientY - thumbTop
+  if (grab < 0 || grab > thumbH) {
+    grab = thumbH / 2
+    el.scrollTop = ((e.clientY - rect.top - grab) / (rect.height - thumbH)) * range
+  }
+  track.setPointerCapture(e.pointerId)
+  const move = (ev: PointerEvent) => (el.scrollTop = ((ev.clientY - rect.top - grab) / (rect.height - thumbH)) * range)
+  const up = () => {
+    track.removeEventListener('pointermove', move)
+    track.removeEventListener('pointerup', up)
+    track.removeEventListener('pointercancel', up)
+  }
+  track.addEventListener('pointermove', move)
+  track.addEventListener('pointerup', up)
+  track.addEventListener('pointercancel', up)
+}
+
 watch(index, () => {
   if (!listView.value) return
   scrollToRow()
@@ -530,9 +581,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <div class="rule wipe" style="--i: 1" />
 
     <div class="body">
-      <div class="deck-wrap" :class="{ morph: !!viewAnim }">
+      <div class="deck-wrap" :class="{ morph: morphed }">
         <!-- 條列：一列一列，上下滑動；點一列選它，選中的再點一下開始 -->
-        <div v-if="listView" ref="listEl" class="list" :class="{ settled: returning, swapin: swappedIn }" role="listbox" :aria-activedescendant="`mode-${game.id}`">
+        <div v-if="listView" class="list-box" :class="{ swapin: swappedIn }">
+        <div ref="listEl" class="list" :class="{ settled: returning }" role="listbox" :aria-activedescendant="`mode-${game.id}`" @scroll.passive="syncBar">
           <button
             v-for="(g, k) in games"
             :id="`mode-${g.id}`"
@@ -555,6 +607,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <span v-for="t in g.tags" :key="t" class="tag">{{ t }}</span>
             </span>
           </button>
+        </div>
+        <!-- 捲動進度條：黑框膠囊、分類色的把手（瀏覽器自己的捲軸藏起來），可以拖 -->
+        <div v-show="bar.h < 1" class="sbar" @pointerdown="barDown">
+          <span class="thumb" :style="{ top: `${bar.top * 100}%`, height: `${bar.h * 100}%` }" />
+        </div>
         </div>
         <div
           v-else
@@ -597,7 +654,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <button class="arrow" :disabled="index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
           <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
           <!-- 條列顯示：左半邊換成一列一列（記住，撲克牌、棋盤共用） -->
-          <span class="vsw"><span class="t-label">{{ S.lobby.listView }}</span><Switch :on="listSwitch" :label="S.lobby.listViewLabel" @change="setListView" /></span>
+          <span class="vsw" :aria-label="S.lobby.listViewLabel"><Tabs class="small" :choices="viewChoices" :value="listSwitch ? 'list' : 'deck'" @change="(v) => setListView(v === 'list')" /></span>
         </div>
       </div>
 
@@ -729,7 +786,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   pointer-events: none;
 }
 .mode.swapping .deck,
-.mode.swapping .list {
+.mode.swapping .list-box {
   animation: swap-out 300ms var(--ease-in-out) forwards;
 }
 .mode.swapping .panel,
@@ -741,7 +798,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   transform: translateY(0.6rem);
 }
 .deck.swapin,
-.list.swapin {
+.list-box.swapin {
   animation: swap-in 560ms var(--ease-out) both;
 }
 /* 卡片堆 ↔ 條列：每張卡片直接變形成它那一列（反過來也一樣，見 morphFrom）；變形中不播一般的進場 */
@@ -848,8 +905,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 0.4rem;
   margin-left: auto;
 }
-.vsw .t-label {
-  color: var(--color-ink-2);
+.vsw .small :deep(.tab) {
+  padding: 0.12rem 0.65rem;
+  font-size: 0.72rem;
 }
 .rule {
   height: 0.22rem;
@@ -1010,6 +1068,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   background: var(--color-yellow);
 }
 /* ── 條列：一列一列，上下滑動 ── */
+.list-box {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
 .list {
   position: relative;
   display: flex;
@@ -1019,9 +1083,42 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 0.6rem;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.2rem 0.6rem 0.6rem 0.15rem;
+  padding: 0.2rem 1.8rem 0.6rem 0.15rem;
   touch-action: pan-y;
-  scrollbar-width: thin;
+  /* 瀏覽器自己的捲軸藏起來，改用 .sbar */
+  scrollbar-width: none;
+}
+.list::-webkit-scrollbar {
+  display: none;
+}
+/* 捲動進度條：黑框膠囊、米白底，把手是分類色（跟按鈕一樣有一點偏移陰影） */
+.sbar {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.15rem;
+  bottom: 0.7rem;
+  width: 0.95rem;
+  border: 0.12rem solid var(--color-ink);
+  border-radius: 999px;
+  background: var(--color-paper-2);
+  box-shadow: 0.12rem 0.12rem 0 var(--color-ink);
+  cursor: pointer;
+  touch-action: none;
+}
+/* 看不見的點擊範圍大一圈，手指好按 */
+.sbar::after {
+  content: '';
+  position: absolute;
+  inset: 0 -0.5rem;
+}
+.thumb {
+  position: absolute;
+  left: 0.12rem;
+  right: 0.12rem;
+  min-height: 1.6rem;
+  border-radius: 999px;
+  background: var(--tone);
+  box-shadow: inset 0 0 0 0.1rem var(--color-ink);
 }
 .row {
   position: relative;
