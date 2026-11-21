@@ -7,34 +7,37 @@ import { settings } from './settings'
 
 export type Feel = SfxName | 'turn'
 
-/** [震動的長短（毫秒；多段就是 震, 停, 震…）, 強度 1～255]。沒列的（按按鈕、卡片滑動）不震 */
+/** [震動的長短（毫秒；多段就是 震, 停, 震…）, 強度 1～255]。使用者嫌弱，整體加強過一次 */
 const FEELS: Partial<Record<Feel, [number[], number]>> = {
-  // 撲克牌：每張牌輕輕一下
-  deal: [[7], 45],
-  card: [[9], 70],
-  flip: [[8], 55],
-  cardPick: [[6], 40],
-  collect: [[12], 90],
-  shuffle: [[14, 40, 14], 50],
-  pass: [[14], 80],
+  // 介面：按鈕、切換、滑卡片（輕輕一下）
+  tap: [[12], 90],
+  slide: [[14], 110],
+  // 撲克牌：每張牌一下
+  deal: [[12], 100],
+  card: [[15], 130],
+  flip: [[13], 110],
+  cardPick: [[10], 90],
+  collect: [[18], 150],
+  shuffle: [[20, 45, 20], 110],
+  pass: [[20], 140],
   // 棋盤：落子、走子中等；吃子、提子重一點
-  stone: [[14], 120],
-  stonePick: [[6], 40],
-  piece: [[12], 100],
-  xqPiece: [[14], 120],
-  piecePick: [[6], 40],
-  capture: [[20], 170],
-  chessCapture: [[22], 170],
-  xqCapture: [[22], 180],
-  // 介面
-  reveal: [[14], 90],
-  correct: [[12, 50, 18], 110],
-  error: [[25, 45, 25], 150],
-  win: [[30, 60, 30, 60, 90], 210],
-  lose: [[160], 120],
-  draw: [[40, 70, 40], 120],
+  stone: [[20], 180],
+  stonePick: [[10], 90],
+  piece: [[18], 170],
+  xqPiece: [[20], 180],
+  piecePick: [[10], 90],
+  capture: [[30], 230],
+  chessCapture: [[32], 230],
+  xqCapture: [[32], 240],
+  // 結果與提示
+  reveal: [[20], 150],
+  correct: [[18, 55, 26], 170],
+  error: [[35, 50, 35], 210],
+  win: [[45, 70, 45, 70, 130], 255],
+  lose: [[220], 190],
+  draw: [[55, 80, 55], 180],
   // 輪到你：明顯一點
-  turn: [[28, 60, 28], 170],
+  turn: [[40, 70, 40], 230],
 }
 
 const supported = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'

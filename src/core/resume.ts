@@ -15,14 +15,31 @@ export interface ResumeEntry {
 const store = reactive(loadSave<Record<string, ResumeEntry>>('resume', {}))
 watch(store, (v) => writeSave('resume', v), { deep: true })
 
-export const getResume = (gameId: string): ResumeEntry | null => store[gameId] ?? null
+/**
+ * 存檔放在哪一格：同一個玩法、不同難度各自一份（選簡單不會讀到困難的存檔），沒有難度的玩法一格。
+ * 存檔裡的鍵名照舊（obod.resume.v1），只是裡面的格子分得更細。
+ */
+export const resumeSlot = (gameId: string, level?: string | boolean) => (typeof level === 'string' && level ? `${gameId}@${level}` : gameId)
 
-export function setResume(gameId: string, data: unknown, options: Record<string, string | boolean>) {
-  store[gameId] = { savedAt: Date.now(), options: { ...options }, data: JSON.parse(JSON.stringify(data)) }
+export function getResume(slot: string): ResumeEntry | null {
+  if (store[slot]) return store[slot]
+  // 舊存檔（還沒分難度時存的，放在玩法那一格）：存的難度一樣才搬過來用
+  const at = slot.indexOf('@')
+  if (at < 0) return null
+  const gameId = slot.slice(0, at)
+  const old = store[gameId]
+  if (!old || (old.options.difficulty !== undefined && old.options.difficulty !== slot.slice(at + 1))) return null
+  store[slot] = old
+  delete store[gameId]
+  return old
 }
 
-export function clearResume(gameId: string) {
-  delete store[gameId]
+export function setResume(slot: string, data: unknown, options: Record<string, string | boolean>) {
+  store[slot] = { savedAt: Date.now(), options: { ...options }, data: JSON.parse(JSON.stringify(data)) }
+}
+
+export function clearResume(slot: string) {
+  delete store[slot]
 }
 
 /** 格式化遊戲進度：刪掉所有保存中、玩到一半的對局 */

@@ -14,6 +14,7 @@ import { back, go, replace } from '@/core/nav'
 import { canChangeMode, changeMode, online, recommendMode } from '@/core/online'
 import { sendRules } from '@/core/onlineMatch'
 import { playSound } from '@/core/audio'
+import { buzz } from '@/core/haptics'
 import { launch as launchFx, startLaunch } from '@/core/launch'
 import { isStaleChunk, reloadForUpdate } from '@/core/staleReload'
 import { reducedMotion } from '@/core/motion'
@@ -34,7 +35,8 @@ const games = computed(() => gamesIn(props.category))
 const n = computed(() => games.value.length)
 // 在連線房間裡：一進來停在房間目前的模式；從規則設定、規則說明等頁回來時，停在剛剛看的那張
 const seen = browsed[props.category]
-const startId = online.room ? (seen && seen.room === online.room.gameId ? seen.id : online.room.gameId || settings.lastGame[props.category]) : settings.lastGame[props.category]
+// 一律從上次滑到的那張繼續（使用者要的）；房間裡還沒滑過才停在房間的模式
+const startId = online.room ? (seen ? seen.id : online.room.gameId || settings.lastGame[props.category]) : settings.lastGame[props.category]
 const start = games.value.findIndex((g) => g.id === startId)
 /** 目前選中的是第幾張。不繞圈：前面的模式疊在左邊、後面的疊在右邊，到頭尾就停住。 */
 const index = ref(start >= 0 ? start : 0)
@@ -205,6 +207,7 @@ function onDown(e: PointerEvent) {
   moved = false
   // 上一次換卡片還在滑：停在現在的位置，從這裡接著拖
   cancelAnimationFrame(glideRaf)
+  lastNear = Math.min(n.value - 1, Math.max(0, Math.round(pos.value)))
   dragging.value = true
   deckEl.value?.setPointerCapture(e.pointerId)
 }
@@ -212,7 +215,14 @@ function onMove(e: PointerEvent) {
   if (!dragging.value || e.pointerId !== pid) return
   dragX.value = e.clientX - x0
   if (Math.abs(dragX.value) > 6) moved = true
+  // 拖著卡片經過一張就輕輕震一下（像轉盤的段落感）
+  const near = Math.min(n.value - 1, Math.max(0, Math.round(pos.value)))
+  if (near !== lastNear) {
+    lastNear = near
+    buzz('slide')
+  }
 }
+let lastNear = -1
 function onUp(e: PointerEvent) {
   if (!dragging.value || e.pointerId !== pid) return
   dragging.value = false
