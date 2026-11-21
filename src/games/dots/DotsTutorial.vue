@@ -169,7 +169,8 @@ function next() {
   animation: rise 520ms var(--ease-out) both;
 }
 .board-box {
-  width: min(100cqw, 100cqh);
+  /* 3 × 3 的小棋盤：大螢幕上不跟著放到超大 */
+  width: min(100cqw, 100cqh, 460px);
   aspect-ratio: 1;
 }
 .guide {
