@@ -129,24 +129,80 @@ const pad = (k: number) => String(k).padStart(2, '0')
 const locked = computed(() => launching.value || launchFx.active || !!viewAnim.value)
 
 // ── 條列顯示：左半邊改成一列一列（設定記住，撲克牌、棋盤共用） ──
-/** 現在畫的是哪一種（切換時先等舊的收起來才換） */
+/** 現在畫的是哪一種 */
 const listView = ref(settings.modeView === 'list')
-/** 切換動畫：out＝舊的往下沉、in＝新的浮上來；動畫中整個模式選單鎖住 */
-const viewAnim = ref<'' | 'out' | 'in'>('')
+/** 開關的位置：按下去就立刻滑過去（畫面接著變形） */
+const listSwitch = ref(listView.value)
+/** 切換中（morph）：動畫中整個模式選單鎖住 */
+const viewAnim = ref<'' | 'morph'>('')
 const listEl = ref<HTMLElement>()
 const rowEls: (HTMLElement | null)[] = []
 const wait = (ms: number) => new Promise((r) => window.setTimeout(r, reducedMotion() ? 0 : ms))
+const MORPH_MS = 560
+/** 看得到的卡片／列：遊戲 id → 在畫面上的位置 */
+function visibleRects(els: (HTMLElement | null)[], clip?: DOMRect): Map<string, DOMRect> {
+  const out = new Map<string, DOMRect>()
+  els.forEach((el, k) => {
+    if (!el || !games.value[k]) return
+    if (Number(getComputedStyle(el).opacity) < 0.05 || getComputedStyle(el).visibility === 'hidden') return
+    const r = el.getBoundingClientRect()
+    if (clip && (r.bottom < clip.top + 4 || r.top > clip.bottom - 4)) return
+    out.set(games.value[k].id, r)
+  })
+  return out
+}
+/**
+ * 從舊的位置（old）變形到現在的位置：在原本的 transform 前面加一段「平移＋縮放」，以元素看起來的中心為準，
+ * 播完就是原本的樣子（卡片的 3D 位置照舊）。裡面的字先淡掉、後半段才浮出來，壓扁拉長時看不出變形。
+ */
+function morphFrom(el: HTMLElement, old: DOMRect, delay = 0) {
+  const n = el.getBoundingClientRect()
+  const parent = (el.offsetParent as HTMLElement | null)?.getBoundingClientRect()
+  if (!parent || !n.width || !n.height) return
+  const scrollTop = (el.offsetParent as HTMLElement).scrollTop
+  // 沒有 transform 時元素的中心（transform 的原點）
+  const bx = parent.left + el.offsetLeft + el.offsetWidth / 2
+  const by = parent.top + el.offsetTop - scrollTop + el.offsetHeight / 2
+  const vx = n.left + n.width / 2 - bx
+  const vy = n.top + n.height / 2 - by
+  const dx = old.left + old.width / 2 - (n.left + n.width / 2)
+  const dy = old.top + old.height / 2 - (n.top + n.height / 2)
+  const final = el.style.transform || getComputedStyle(el).transform
+  const end = final && final !== 'none' ? final : 'translate(0px, 0px)'
+  const start = `translate(${vx + dx}px, ${vy + dy}px) scale(${old.width / n.width}, ${old.height / n.height}) translate(${-vx}px, ${-vy}px) ${end === 'translate(0px, 0px)' ? '' : end}`
+  el.animate([{ transform: start }, { transform: end }], { duration: MORPH_MS, delay, easing: 'cubic-bezier(.22,.8,.24,1)', fill: 'backwards' })
+  for (const c of el.querySelectorAll<HTMLElement>('.info, .no, .rt, .tags')) c.animate([{ opacity: 0 }, { opacity: 0, offset: 0.45 }, { opacity: 1 }], { duration: MORPH_MS, delay, fill: 'backwards' })
+}
 async function setListView(on: boolean) {
   if (locked.value || on === listView.value) return
+  listSwitch.value = on
   settings.modeView = on ? 'list' : 'deck'
-  viewAnim.value = 'out'
-  await wait(260)
+  viewAnim.value = 'morph'
+  // 先記下現在看得到的卡片（或列）在哪裡，換過去之後新的從那裡變形過來
+  const before = on ? visibleRects(cardEls) : visibleRects(rowEls, listEl.value?.getBoundingClientRect())
+  await nextTick()
   listView.value = on
-  viewAnim.value = 'in'
   await nextTick()
   if (on) scrollToRow(false)
-  else glideTo(index.value)
-  await wait(on ? 560 + Math.min(games.value.length, 12) * 35 : 640)
+  else {
+    cancelAnimationFrame(glideRaf)
+    vis.value = index.value
+    measure()
+    await nextTick()
+  }
+  if (!reducedMotion()) {
+    const els = on ? rowEls : cardEls
+    let late = 0
+    els.forEach((el, k) => {
+      const g = games.value[k]
+      if (!el || !g) return
+      const old = before.get(g.id)
+      if (old) morphFrom(el, old)
+      // 原本看不到的：跟在後面淡淡浮上來
+      else el.animate([{ opacity: 0, translate: '0 0.8rem' }, { opacity: 1, translate: '0 0' }], { duration: 380, delay: 160 + Math.min(late++, 8) * 40, easing: 'ease-out', fill: 'backwards' })
+    })
+  }
+  await wait(MORPH_MS + 120)
   viewAnim.value = ''
 }
 /** 條列：選中的那一列捲到看得到的地方 */
@@ -157,7 +213,12 @@ function scrollToRow(smooth = true) {
   const top = el.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2
   box.scrollTo({ top: Math.max(0, top), behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
 }
-watch(index, () => listView.value && scrollToRow())
+watch(index, () => {
+  if (!listView.value) return
+  scrollToRow()
+  // 選中的那一列會慢慢變高（上一列慢慢變矮），放大完再對準一次
+  window.setTimeout(() => listView.value && scrollToRow(), 440)
+})
 onMounted(() => listView.value && scrollToRow(false))
 function tapRow(k: number) {
   if (locked.value) return
@@ -469,7 +530,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <div class="rule wipe" style="--i: 1" />
 
     <div class="body">
-      <div class="deck-wrap" :class="viewAnim && `v-${viewAnim}`">
+      <div class="deck-wrap" :class="{ morph: !!viewAnim }">
         <!-- 條列：一列一列，上下滑動；點一列選它，選中的再點一下開始 -->
         <div v-if="listView" ref="listEl" class="list" :class="{ settled: returning, swapin: swappedIn }" role="listbox" :aria-activedescendant="`mode-${game.id}`">
           <button
@@ -536,7 +597,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <button class="arrow" :disabled="index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
           <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
           <!-- 條列顯示：左半邊換成一列一列（記住，撲克牌、棋盤共用） -->
-          <span class="vsw"><span class="t-label">{{ S.lobby.listView }}</span><Switch :on="listView" :label="S.lobby.listViewLabel" @change="setListView" /></span>
+          <span class="vsw"><span class="t-label">{{ S.lobby.listView }}</span><Switch :on="listSwitch" :label="S.lobby.listViewLabel" @change="setListView" /></span>
         </div>
       </div>
 
@@ -683,16 +744,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .list.swapin {
   animation: swap-in 560ms var(--ease-out) both;
 }
-/* 卡片堆 ↔ 條列：舊的往下沉、淡掉，新的浮上來（條列一列一列浮上來） */
-.deck-wrap.v-out .deck,
-.deck-wrap.v-out .list {
-  animation: view-out 260ms var(--ease-in-out) forwards;
-}
-@keyframes view-out {
-  to {
-    opacity: 0;
-    transform: translateY(1rem);
-  }
+/* 卡片堆 ↔ 條列：每張卡片直接變形成它那一列（反過來也一樣，見 morphFrom）；變形中不播一般的進場 */
+.deck-wrap.morph .deck,
+.deck-wrap.morph .row {
+  animation: none;
 }
 @keyframes swap-out {
   to {
@@ -795,10 +850,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .vsw .t-label {
   color: var(--color-ink-2);
-}
-.vsw :deep(.switch) {
-  width: 2.8rem;
-  height: 1.5rem;
 }
 .rule {
   height: 0.22rem;
@@ -960,6 +1011,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 /* ── 條列：一列一列，上下滑動 ── */
 .list {
+  position: relative;
   display: flex;
   min-height: 0;
   flex: 1;
@@ -986,10 +1038,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   text-align: left;
   box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
   cursor: pointer;
+  /* 換選的時候：高度、陰影、底色、明暗一起慢慢變（不要一下子跳過去） */
   transition:
-    transform 240ms var(--ease-out),
-    box-shadow 240ms var(--ease-out),
-    background-color 240ms ease;
+    height 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    transform 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    box-shadow 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    background-color 320ms ease,
+    filter 320ms ease;
   animation: rise 460ms var(--ease-out) both;
   animation-delay: calc(min(var(--i), 12) * 35ms);
 }
@@ -997,15 +1052,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .mode.calm .row {
   animation: none;
 }
-/* 選中的那一列：往右推一點、陰影拉長、底色帶一點分類色 */
+/* 沒選中的調暗、褪色一點，一眼看出選了哪個 */
 .row:not(.front) {
-  /* 沒選中的調暗、褪色一點，一眼看出選了哪個 */
   filter: brightness(0.86) saturate(0.6);
 }
+/* 選中的那一列：變高、插圖和字放大、往右推一點、陰影拉長、底色帶一點分類色 */
 .row.front {
+  height: 5.6rem;
   background: color-mix(in srgb, var(--color-card) 88%, var(--tone));
   box-shadow: 0.34rem 0.34rem 0 var(--color-ink);
-  transform: translateX(0.35rem);
+  transform: translateX(0.3rem);
 }
 .row.lifted {
   visibility: hidden;
@@ -1013,6 +1069,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .row .cv {
   width: 5.6rem;
   height: 100%;
+  transition: width 420ms cubic-bezier(0.22, 0.8, 0.24, 1);
   padding: 0.2rem 0.4rem;
   border-bottom: 0;
   border-right: 0.14rem solid var(--color-ink);
@@ -1031,6 +1088,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .row .nm {
   font-size: 1.1rem;
   line-height: 1.25;
+  transition: font-size 420ms cubic-bezier(0.22, 0.8, 0.24, 1);
+}
+.row.front .cv {
+  width: 8rem;
+}
+.row.front .nm {
+  font-size: 1.45rem;
 }
 .row .sm {
   -webkit-line-clamp: 1;
