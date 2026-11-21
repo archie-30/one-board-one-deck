@@ -6,6 +6,7 @@ import type { BigTwoState } from '../../../src/engine/bigtwo/game'
 import type { SevensState } from '../../../src/engine/sevens/rules'
 import type { RedPointState } from '../../../src/engine/redpoint/rules'
 import type { NinetyNineState } from '../../../src/engine/ninetynine/rules'
+import type { DotsState } from '../../../src/engine/dots/rules'
 import { legalMoves, type OthelloState } from '../../../src/engine/othello/rules'
 import { legalMoves as starMoves, type StarState } from '../../../src/engine/starcheckers/rules'
 
@@ -376,6 +377,30 @@ describe('連線對局（伺服器當裁判）', () => {
     // 對局照樣打得完
     runToEnd(room, T0 + COUNTDOWN_MS + 20)
     expect(room.match!.over).toBe(true)
+  })
+
+  it('點格棋：難度決定棋盤大小；圍到格子同一個人再畫；下得完', () => {
+    for (const [difficulty, n] of [['low', 4], ['high', 6]] as const) {
+      const { room, ids, m } = started('dots', 2, { difficulty })
+      expect((m.s as DotsState).n).toBe(n)
+      let t = T0 + COUNTDOWN_MS + 1000
+      playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, t)
+      playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, t)
+      t += 3000
+      // A 先畫：左上那格的三條邊（A、B、A），再由 B 補第四條 → B 拿到那格、還是輪到 B
+      expect(playerAct(room, ids[0], { type: 'line', line: 0 }, t)).toHaveLength(1)
+      expect(playerAct(room, ids[0], { type: 'line', line: 1 }, t)).toEqual([]) // 不是 A 的回合
+      playerAct(room, ids[1], { type: 'line', line: n * (n + 1) }, t)
+      playerAct(room, ids[0], { type: 'line', line: n }, t)
+      playerAct(room, ids[1], { type: 'line', line: n * (n + 1) + 1 }, t)
+      const s = m.s as DotsState
+      expect(s.score).toEqual([0, 1])
+      expect(s.turn).toBe(1)
+      runToEnd(room, t)
+      expect(m.over).toBe(true)
+      const fin = m.log[m.log.length - 1].pub as DotsState
+      expect(fin.score[0] + fin.score[1]).toBe(n * n)
+    }
   })
 
   it('西洋跳棋、星形跳棋：伺服器發局、電腦補位、時間到的真人由電腦代打，都下得完', () => {

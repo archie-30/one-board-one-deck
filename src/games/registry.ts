@@ -23,6 +23,7 @@ import BanqiCover from './covers/BanqiCover.vue'
 import CheckersCover from './covers/CheckersCover.vue'
 import StarCheckersCover from './covers/StarCheckersCover.vue'
 import QuoridorCover from './covers/QuoridorCover.vue'
+import DotsCover from './covers/DotsCover.vue'
 import NinetyNineCover from './covers/NinetyNineCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
@@ -326,6 +327,20 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./quoridor/QuoridorTutorial.vue')),
     component: defineAsyncComponent(() => import('./quoridor/QuoridorGame.vue')),
     settings: [level(), toggle('doubleTap', S.quoridor.settings.doubleTap, false, { group: 'other', live: true }), timer()],
+  },
+  {
+    id: 'dots',
+    category: 'board',
+    name: S.dots.name,
+    summary: S.dots.summary,
+    players: S.dots.players,
+    cover: DotsCover,
+    tags: S.dots.tags,
+    rulesIntro: withTimer(S.dots.rules, [...TR.board]),
+    tutorial: defineAsyncComponent(() => import('./dots/DotsTutorial.vue')),
+    component: defineAsyncComponent(() => import('./dots/DotsGame.vue')),
+    // 難度也決定棋盤大小：低 4 × 4、中 5 × 5、高 6 × 6
+    settings: [choice('difficulty', S.dots.settings.difficulty, 'mid'), timer()],
   },
 
 ]
