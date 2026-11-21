@@ -1,4 +1,4 @@
-// 棋盤類在伺服器上怎麼跑（五子棋、圍棋、黑白棋、西洋棋、象棋、暗棋、西洋跳棋、步步為營；星形跳棋是 3 人、不猜拳）。
+// 棋盤類在伺服器上怎麼跑（五子棋、圍棋、黑白棋、西洋棋、象棋、暗棋、西洋跳棋、步步為營、點格棋；星形跳棋是 3 人、不猜拳）。
 // 都是兩個人：開局先猜拳（rps），贏的人先走。引擎的座位：0 = 先走的那一方（黑棋／白棋／紅方），1 = 後走。
 // 除了暗棋（蓋著的棋），其他都是完全公開的，大家看到的都一樣。
 import { chooseBanqiAction } from '../../../src/engine/banqi/ai'
@@ -16,6 +16,8 @@ import { chooseGomokuMove } from '../../../src/engine/gomoku/ai'
 import { createGomoku, placeStone, skipTurn, type GomokuState } from '../../../src/engine/gomoku/rules'
 import { chooseOthelloMove } from '../../../src/engine/othello/ai'
 import { applyOthello, createOthello, type OthelloAction, type OthelloState } from '../../../src/engine/othello/rules'
+import { chooseDotsAction } from '../../../src/engine/dots/ai'
+import { applyDots, createDots, lineCount, sizeOf, type DotsAction, type DotsState } from '../../../src/engine/dots/rules'
 import { chooseQuoridorAction } from '../../../src/engine/quoridor/ai'
 import { applyQuoridor, createQuoridor, W as QW, type QuoridorAction, type QuoridorState } from '../../../src/engine/quoridor/rules'
 import { chooseStarMove } from '../../../src/engine/starcheckers/ai'
@@ -279,4 +281,26 @@ const quoridor: MatchDef<QuoridorState, QuoridorAct> = {
   resign: (s, side) => unwrap(applyQuoridor(s, { type: 'resign', side: side as 0 | 1 })),
 }
 
-export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor }
+// ── 點格棋（難度＝棋盤大小：低 4、中 5、高 6 格；圍到格子同一個人再畫一條）──
+type DotsAct = Exclude<DotsAction, { type: 'resign' }> & { player: number }
+const dots: MatchDef<DotsState, DotsAct> = {
+  ...board,
+  undo: true,
+  deal: (_seed, o) => createDots(sizeOf(asCardLevel(o.difficulty))),
+  apply: (s, a) => unwrap(applyDots(s, a.type === 'line' ? { type: 'line', line: a.line } : { type: 'timeout' })),
+  turn: (s) => (s.status !== 'playing' ? -1 : s.turn),
+  parse: (raw, side) => (isObj(raw) && raw.type === 'line' && isIdx(raw.line, lineCount(6)) ? { type: 'line', line: raw.line as number, player: side } : null),
+  bot(s, _id, o, rng) {
+    const [a, next] = chooseDotsAction(s, asCardLevel(o.difficulty), rng)
+    return [a.type === 'line' ? { type: 'line', line: a.line, player: s.turn } : { type: 'timeout', player: s.turn }, next]
+  },
+  // 連吃時（剛圍到格子、同一個人再畫）快一點
+  think: (s, _id, o, r) => (s.last?.boxes.length && s.last.side === s.turn ? 380 + r * 220 : 700 + (asCardLevel(o.difficulty) === 'high' ? 300 : 0) + r * 500),
+  timeout: (side) => ({ type: 'timeout', player: side }),
+  render: (_b, _a, a) => ({ pub: a }),
+  start: (s) => s,
+  reveal: (s) => s,
+  resign: (s, side) => unwrap(applyDots(s, { type: 'resign', side: side as 0 | 1 })),
+}
+
+export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor, dots }

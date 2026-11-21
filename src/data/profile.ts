@@ -35,6 +35,7 @@ export const TOP_LEVEL: Record<string, string> = {
   checkers: 'master',
   starcheckers: 'master',
   quoridor: 'master',
+  dots: 'high',
 }
 
 export type TitleRule =
@@ -65,8 +66,8 @@ export const TITLES: { id: string; rule: TitleRule }[] = [
   { id: 'lv88', rule: { kind: 'level', n: 88 } },
   { id: 'lv100', rule: { kind: 'level', n: 100 } },
   { id: 'lv250', rule: { kind: 'level', n: 250 } },
-  // 每個玩法 3 個稱號（暗棋、兩種跳棋、步步為營、九九、蜘蛛接龍、新接龍是後來加的：有自己的稱號，但「十項全能」還是原本那十種）
-  ...[...ALL_GAMES, 'banqi', 'checkers', 'starcheckers', 'quoridor', 'ninetynine', 'spider', 'freecell'].flatMap((game) => [
+  // 每個玩法 3 個稱號（暗棋、兩種跳棋、步步為營、點格棋、九九、蜘蛛接龍、新接龍是後來加的：有自己的稱號，但「十項全能」還是原本那十種）
+  ...[...ALL_GAMES, 'banqi', 'checkers', 'starcheckers', 'quoridor', 'dots', 'ninetynine', 'spider', 'freecell'].flatMap((game) => [
     { id: `${game}A`, rule: { kind: 'wins', game, n: 5 } as TitleRule },
     { id: `${game}B`, rule: { kind: 'wins', game, n: 30 } as TitleRule },
     { id: `${game}Top`, rule: (game === 'redpoint' || game === 'freecell' ? { kind: 'wins', game, n: 80 } : { kind: 'top', game, n: 3 }) as TitleRule },
