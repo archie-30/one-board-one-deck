@@ -9,7 +9,7 @@ const browsed: Partial<Record<string, { id: string; room: string }>> = {}
 // 模式選單：左半邊是各模式的卡片，疊成一疊、可以左右滑（最前面那張就是選中的模式），
 // 右半邊是選中模式的介紹、最常用的「開始遊戲」大按鈕，以及比較少用的小按鈕（教學、規則、設定）。
 // 滑：手指（或滑鼠）按住最前面那張左右拖，放開後換下一張／上一張；也可以點後面露出來的卡片、按左右箭頭。
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { back, go, replace } from '@/core/nav'
 import { canChangeMode, changeMode, online, recommendMode } from '@/core/online'
 import { sendRules } from '@/core/onlineMatch'
@@ -28,6 +28,7 @@ import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import OnlineDialog from '@/ui/OnlineDialog.vue'
+import Switch from '@/ui/Switch.vue'
 import Tabs from '@/ui/Tabs.vue'
 
 const props = defineProps<{ category: GameCategory }>()
@@ -125,7 +126,45 @@ const pad = (k: number) => String(k).padStart(2, '0')
 
 /** 換到第 k 張 */
 /** 卡片正在拿起來（進遊戲）或飛回來（離開遊戲）：先鎖住所有操作，免得卡片被換掉、動畫對不上 */
-const locked = computed(() => launching.value || launchFx.active)
+const locked = computed(() => launching.value || launchFx.active || !!viewAnim.value)
+
+// ── 條列顯示：左半邊改成一列一列（設定記住，撲克牌、棋盤共用） ──
+/** 現在畫的是哪一種（切換時先等舊的收起來才換） */
+const listView = ref(settings.modeView === 'list')
+/** 切換動畫：out＝舊的往下沉、in＝新的浮上來；動畫中整個模式選單鎖住 */
+const viewAnim = ref<'' | 'out' | 'in'>('')
+const listEl = ref<HTMLElement>()
+const rowEls: (HTMLElement | null)[] = []
+const wait = (ms: number) => new Promise((r) => window.setTimeout(r, reducedMotion() ? 0 : ms))
+async function setListView(on: boolean) {
+  if (locked.value || on === listView.value) return
+  settings.modeView = on ? 'list' : 'deck'
+  viewAnim.value = 'out'
+  await wait(260)
+  listView.value = on
+  viewAnim.value = 'in'
+  await nextTick()
+  if (on) scrollToRow(false)
+  else glideTo(index.value)
+  await wait(on ? 560 + Math.min(games.value.length, 12) * 35 : 640)
+  viewAnim.value = ''
+}
+/** 條列：選中的那一列捲到看得到的地方 */
+function scrollToRow(smooth = true) {
+  const el = rowEls[index.value]
+  const box = listEl.value
+  if (!el || !box) return
+  const top = el.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2
+  box.scrollTo({ top: Math.max(0, top), behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
+}
+watch(index, () => listView.value && scrollToRow())
+onMounted(() => listView.value && scrollToRow(false))
+function tapRow(k: number) {
+  if (locked.value) return
+  if (k !== index.value) show(k)
+  // 設定「點卡片開始遊戲」關掉時，只能按「開始遊戲」按鈕
+  else if (settings.cardStarts) void launch()
+}
 function show(k: number) {
   if (locked.value) return
   const next = Math.min(n.value - 1, Math.max(0, k))
@@ -152,14 +191,19 @@ let x0 = 0
 let pid = -1
 let moved = false
 let ro: ResizeObserver | undefined
+const measure = () => {
+  const el = deckEl.value?.querySelector<HTMLElement>('.card')
+  if (el) cardW.value = el.offsetWidth
+}
 onMounted(() => {
-  const measure = () => {
-    const el = deckEl.value?.querySelector<HTMLElement>('.card')
-    if (el) cardW.value = el.offsetWidth
-  }
   measure()
   ro = new ResizeObserver(measure)
   if (deckEl.value) ro.observe(deckEl.value)
+})
+// 從條列換回卡片堆：卡片堆是新的元素，重新量、重新觀察
+watch(deckEl, (el) => {
+  ro?.disconnect()
+  if (el) (ro?.observe(el), measure())
 })
 onBeforeUnmount(() => ro?.disconnect())
 
@@ -319,11 +363,12 @@ function roomPick() {
 async function launch() {
   if (inRoom.value) return roomPick()
   if (launching.value) return
-  if (!cardEls[index.value] || reducedMotion()) return open('play')
+  const els = listView.value ? rowEls : cardEls
+  if (!els[index.value] || reducedMotion()) return open('play')
   launching.value = true
   // 這一下點擊剛好讓畫面恢復全螢幕的話，先等畫面重排完再拿起卡片（不然翻面動畫會被吃掉）
   await fullscreenSettled()
-  const el = cardEls[index.value]
+  const el = els[index.value]
   if (!el) return ((launching.value = false), open('play'))
   const g = game.value
   const color = getComputedStyle(el.querySelector('.cv') ?? el).backgroundColor
@@ -406,6 +451,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <span class="t-black">{{ S.category[other].title }}</span>
       </button>
       <p class="t-label rise pk" style="--i: 1">{{ S.lobby.pickGame }}</p>
+      <!-- 條列顯示：左半邊換成一列一列（記住，撲克牌、棋盤共用） -->
+      <span class="vsw rise" style="--i: 1"><span class="t-label">{{ S.lobby.listView }}</span><Switch :on="listView" :label="S.lobby.listViewLabel" @change="setListView" /></span>
       <!-- 右上角：在房間裡＝房號（點了回房間）；不在房間＝連線（開房、加入） -->
       <!-- 在房間裡：兩行——房間模式、準備狀況（點了回房間） -->
       <button v-if="online.room" class="room-tag rise" style="--i: 2" :aria-label="S.online.backRoom" @click="go({ name: 'room' })">
@@ -424,8 +471,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <div class="rule wipe" style="--i: 1" />
 
     <div class="body">
-      <div class="deck-wrap">
+      <div class="deck-wrap" :class="viewAnim && `v-${viewAnim}`">
+        <!-- 條列：一列一列，上下滑動；點一列選它，選中的再點一下開始 -->
+        <div v-if="listView" ref="listEl" class="list" :class="{ settled: returning, swapin: swappedIn }" role="listbox" :aria-activedescendant="`mode-${game.id}`">
+          <button
+            v-for="(g, k) in games"
+            :id="`mode-${g.id}`"
+            :key="g.id"
+            :ref="(el) => (rowEls[k] = el as HTMLElement | null)"
+            class="row"
+            :class="{ front: k === index, lifted: (launching && k === index) || (launchFx.active && launchFx.mode === 'exit' && launchFx.gameId === g.id) }"
+            :style="{ '--i': k }"
+            role="option"
+            :aria-selected="k === index"
+            @click="tapRow(k)"
+          >
+            <span class="cv halftone"><component :is="g.cover" :active="k === index && !locked" /></span>
+            <span class="t-slab no">{{ pad(k + 1) }}</span>
+            <span class="rt">
+              <span class="nm t-black">{{ g.name }}</span>
+              <span class="sm">{{ g.summary }}</span>
+            </span>
+            <span class="tags">
+              <span v-for="t in g.tags" :key="t" class="tag">{{ t }}</span>
+            </span>
+          </button>
+        </div>
         <div
+          v-else
           ref="deckEl"
           class="deck"
           :class="{ settled: returning, swapin: swappedIn }"
@@ -597,7 +670,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .mode.swapping {
   pointer-events: none;
 }
-.mode.swapping .deck {
+.mode.swapping .deck,
+.mode.swapping .list {
   animation: swap-out 300ms var(--ease-in-out) forwards;
 }
 .mode.swapping .panel,
@@ -608,8 +682,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   opacity: 0;
   transform: translateY(0.6rem);
 }
-.deck.swapin {
+.deck.swapin,
+.list.swapin {
   animation: swap-in 560ms var(--ease-out) both;
+}
+/* 卡片堆 ↔ 條列：舊的往下沉、淡掉，新的浮上來（條列一列一列浮上來） */
+.deck-wrap.v-out .deck,
+.deck-wrap.v-out .list {
+  animation: view-out 260ms var(--ease-in-out) forwards;
+}
+@keyframes view-out {
+  to {
+    opacity: 0;
+    transform: translateY(1rem);
+  }
 }
 @keyframes swap-out {
   to {
@@ -703,6 +789,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .pk {
   margin-left: auto;
 }
+/* 條列顯示的開關：「選一個模式」右邊 */
+.vsw {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0.4rem 0 0.9rem;
+}
+.vsw .t-label {
+  color: var(--color-ink-2);
+}
+.vsw :deep(.switch) {
+  width: 2.8rem;
+  height: 1.5rem;
+}
 .rule {
   height: 0.22rem;
   margin-top: 0.45rem;
@@ -715,8 +815,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   gap: 1.8rem;
   padding-top: 0.7rem;
 }
-/* 左半邊：一疊卡片＋下面的翻頁列 */
+/* 左半邊：一疊卡片（或條列）＋下面的翻頁列 */
 .deck-wrap {
+  container-type: inline-size;
   display: flex;
   min-width: 0;
   flex: 1.1;
@@ -859,6 +960,96 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .front .tag {
   background: var(--color-yellow);
+}
+/* ── 條列：一列一列，上下滑動 ── */
+.list {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.6rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.2rem 0.6rem 0.6rem 0.15rem;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+}
+.row {
+  position: relative;
+  display: flex;
+  height: 3.9rem;
+  flex: none;
+  align-items: center;
+  gap: 0.7rem;
+  overflow: hidden;
+  border: 0.14rem solid var(--color-ink);
+  border-radius: 0.45rem;
+  background: var(--color-card);
+  padding: 0 0.8rem 0 0;
+  text-align: left;
+  box-shadow: 0.2rem 0.2rem 0 var(--color-ink);
+  cursor: pointer;
+  transition:
+    transform 240ms var(--ease-out),
+    box-shadow 240ms var(--ease-out),
+    background-color 240ms ease;
+  animation: rise 460ms var(--ease-out) both;
+  animation-delay: calc(min(var(--i), 12) * 35ms);
+}
+.list.settled .row,
+.mode.calm .row {
+  animation: none;
+}
+/* 選中的那一列：往右推一點、陰影拉長、底色帶一點分類色 */
+.row.front {
+  background: color-mix(in srgb, var(--color-card) 88%, var(--tone));
+  box-shadow: 0.34rem 0.34rem 0 var(--color-ink);
+  transform: translateX(0.35rem);
+}
+.row.lifted {
+  visibility: hidden;
+}
+.row .cv {
+  width: 5.6rem;
+  height: 100%;
+  padding: 0.2rem 0.4rem;
+  border-bottom: 0;
+  border-right: 0.14rem solid var(--color-ink);
+  border-radius: 0.32rem 0 0 0.32rem;
+}
+.row .no {
+  flex: none;
+  font-size: 0.8rem;
+}
+.row .rt {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+.row .nm {
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+.row .sm {
+  -webkit-line-clamp: 1;
+  font-size: 0.7rem;
+}
+.row .tags {
+  flex: none;
+  flex-wrap: nowrap;
+  margin: 0;
+}
+/* 左半邊太窄（手機）：標籤收起來，名字和說明才放得下 */
+@container (max-width: 30rem) {
+  .row .tags {
+    display: none;
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .row:not(.front):hover {
+    transform: translateX(0.15rem);
+  }
 }
 .pager {
   display: flex;

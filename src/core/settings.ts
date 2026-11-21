@@ -29,6 +29,8 @@ interface Settings {
   keepAwake: boolean
   /** 震動反饋：發牌、出牌、落子、輪到你…依事情大小震不同強度 */
   haptics: boolean
+  /** 模式選單的樣子：一疊卡片（deck）或一列一列（list）；撲克牌、棋盤共用 */
+  modeView: 'deck' | 'list'
 }
 
 interface Stats {
@@ -59,7 +61,7 @@ interface Stats {
   cardLevels: number
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, modeView: 'deck' }))
 
 const STATS_DEFAULT: Stats = {
   gomoku: { wins: 0, losses: 0, draws: 0 },
