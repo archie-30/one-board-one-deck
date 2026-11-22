@@ -89,9 +89,9 @@ const banner = ref('')
 const menuOpen = ref(false)
 const resultOpen = ref(false)
 const moods = reactive<Mood[]>(['idle', 'idle', 'idle', 'idle'])
-/** 每個人頭上剛說的話（「2 張 7」「過」「吹牛！」） */
-const says = reactive<string[]>(['', '', '', ''])
-const sayKey = reactive([0, 0, 0, 0])
+/** 桌上「誰說了什麼」（最新的在最上面；留到下一個人做事，下一位想多久都看得到） */
+const log = ref<{ id: number; p: number; text: string; hot: boolean }[]>([])
+let logId = 0
 /** 正在播動畫（被抓翻牌、收牌）：這段時間不能操作 */
 const busy = ref(false)
 
@@ -164,11 +164,9 @@ function deal() {
   }, 52 * 24 + 420)
 }
 
-function say(p: number, text: string) {
-  says[p] = text
-  sayKey[p]++
-  const k = sayKey[p]
-  later(() => sayKey[p] === k && (says[p] = ''), 2200)
+/** 記一句「某某：2 張 7」到桌上（只留最近兩句） */
+function note(p: number, text: string, hot = false) {
+  log.value = [{ id: ++logId, p, text, hot }, ...log.value].slice(0, 2)
 }
 
 let scheduledFor: BluffState | null = null
@@ -218,13 +216,13 @@ function act(a: BluffAction): boolean {
   let wait = 520
   const ev = evs[0] as BluffEvent
   if (ev.type === 'play') {
-    say(p, T.said(ev.count, RANK_LABELS[ev.rank]))
+    note(p, T.said(ev.count, RANK_LABELS[ev.rank]))
     const played = r.state.plays[r.state.plays.length - 1].cards
     shown.value = r.state
     // 一張張蓋到桌上：平順地滑過去、途中翻成背面（不往上拋）
     sync(played, { stagger: 90, dur: 560, arc: L.value.cw * 0.25, z: 1100 })
   } else if (ev.type === 'pass') {
-    say(p, T.passed)
+    note(p, T.passed)
     playSound('pass')
     const clear = evs.find((e) => e.type === 'clear')
     if (clear) {
@@ -248,7 +246,7 @@ function act(a: BluffAction): boolean {
   } else if (ev.type === 'call') {
     // 抓：喊「吹牛！」→ 那一手翻開 → 說謊／說真話 → 整疊飛到吃牌的人手上
     busy.value = true
-    say(p, T.call)
+    note(p, T.call, true)
     moods[ev.target] = 'shock'
     playSound('reveal')
     shown.value = before
@@ -285,7 +283,7 @@ function act(a: BluffAction): boolean {
   }
   for (const x of newlyOut) {
     later(() => {
-      say(x, T.place(r.state.out.indexOf(x) + 1))
+      note(x, T.place(r.state.out.indexOf(x) + 1))
       flash(x, 'happy', 2000)
     }, wait - 300)
   }
@@ -330,7 +328,7 @@ function newRound() {
   leadRank.value = null
   message.value = ''
   banner.value = ''
-  says.fill('')
+  log.value = []
   moods.fill('idle')
   busy.value = false
   revealCards.value = null
@@ -588,6 +586,12 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
     <!-- 收掉幾張、桌上幾張 -->
     <span v-if="shown.discard.length" class="tiny t-label" :style="{ left: `${L.discardAt.x}px`, top: `${L.discardAt.y + ch * L.tableScale * 0.55}px` }">{{ T.discardLabel(shown.discard.length) }}</span>
     <span v-if="shown.plays.length && !revealCards" class="tiny t-label" :style="{ left: `${L.pileAt.x}px`, top: `${L.pileAt.y + ch * L.tableScale * 0.75}px` }">{{ T.pileLabel(pileCount(shown)) }}</span>
+    <!-- 誰說了什麼：桌框左上角，最新一句粗黑、上一句淡淡的；留到下一個人做事 -->
+    <TransitionGroup tag="ol" name="lg" class="log" :style="{ left: `${L.box.x + L.cw * 0.18}px`, top: `${L.box.y + L.cw * 0.2}px`, maxWidth: `${L.box.w * 0.36}px` }">
+      <li v-for="(l, i) in log" :key="l.id" class="ln" :class="{ old: i > 0, hot: l.hot }">
+        <span class="who-nm">{{ names[l.p] }}</span><span class="said">{{ l.text }}</span>
+      </li>
+    </TransitionGroup>
     <!-- 這一輪喊的點數 -->
     <div class="claim" :style="{ left: `${L.claimAt.x}px`, top: `${L.claimAt.y}px` }">
       <span class="t-label">{{ T.claimLabel }}</span>
@@ -606,9 +610,6 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
         <span class="nm t-black"><span class="hl" />{{ names[p] }}</span>
         <span class="t-label tg">{{ state.out.includes(p) ? T.place(state.out.indexOf(p) + 1) : p === ME ? seated![0].tag : opponents[p - 1].tag }}</span>
       </div>
-      <Transition name="say">
-        <span v-if="says[p]" :key="sayKey[p]" class="say t-black" :class="[`al-${L.sayAt[p].align}`, { hot: says[p] === T.call }]" :style="{ left: `${L.sayAt[p].x}px`, top: `${L.sayAt[p].y}px` }">{{ says[p] }}</span>
-      </Transition>
     </template>
 
     <div class="cards">
@@ -762,47 +763,65 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
 .pop-leave-to {
   opacity: 0;
 }
-.say {
+.log {
   position: absolute;
-  z-index: 800;
-  translate: -50% -50%;
-  padding: 0.05rem 0.55rem;
-  border: 0.13rem solid var(--color-ink);
-  border-radius: 1rem;
-  background: var(--color-card);
-  font-size: 0.9rem;
-  white-space: nowrap;
+  /* 疊在牌上面：飛過去的牌、收掉的牌都不會蓋到字 */
+  z-index: 760;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   pointer-events: none;
 }
-.say.al-left {
-  translate: 0 -50%;
-  transform-origin: left center;
-}
-.say.al-right {
-  translate: -100% -50%;
-  transform-origin: right center;
-}
-.say.hot {
-  background: var(--color-red);
-  color: var(--color-card);
+.ln {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  white-space: nowrap;
   font-size: 1.1rem;
-}
-.say-enter-active {
+  font-weight: 900;
+  line-height: 1.25;
   transition:
-    opacity 160ms var(--ease-out),
-    scale 300ms var(--ease-back);
+    font-size 260ms var(--ease-out),
+    opacity 260ms ease;
 }
-.say-leave-active {
+.who-nm {
+  padding: 0 0.3rem;
+  background: var(--color-ink);
+  color: var(--color-card);
+  font-size: 0.8em;
+}
+.said {
+  color: var(--color-ink);
+}
+.ln.hot .said {
+  color: var(--color-red);
+}
+/* 上一句：縮小、淡掉（新的一句一來就把它往下推） */
+.ln.old {
+  font-size: 0.72rem;
+  opacity: 0.55;
+}
+.lg-enter-active {
   transition:
-    opacity 200ms ease-in,
-    translate 200ms ease-in;
+    opacity 200ms var(--ease-out),
+    transform 300ms var(--ease-back);
 }
-.say-enter-from {
+.lg-enter-from {
   opacity: 0;
-  scale: 0.5;
+  transform: translateY(-0.5rem) scale(0.9);
 }
-.say-leave-to {
+.lg-leave-active {
+  position: absolute;
+  transition: opacity 160ms ease-in;
+}
+.lg-leave-to {
   opacity: 0;
+}
+.lg-move {
+  transition: transform 260ms var(--ease-out);
 }
 .cards {
   position: absolute;

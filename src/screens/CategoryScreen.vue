@@ -1376,8 +1376,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-size: 1.45rem;
 }
 .row .sm {
-  -webkit-line-clamp: 1;
+  /* 說明可以換一行（使用者要的；選中放大後也一樣） */
+  -webkit-line-clamp: 2;
   font-size: 0.7rem;
+  line-height: 1.35;
 }
 .row .tags {
   flex: none;

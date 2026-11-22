@@ -14,8 +14,6 @@ export interface BluffLayout extends Layout {
   claimAt: { x: number; y: number }
   /** 桌上的牌縮放倍率 */
   tableScale: number
-  /** 每個人頭上冒出的話（「2 張 7」）放在哪裡；align：對話框從這一點往哪邊長（left＝這點是左邊緣、right＝右邊緣，靠畫面邊的不會被切掉） */
-  sayAt: { x: number; y: number; align: 'left' | 'right' | 'center' }[]
 }
 
 export function bluffLayout(W: number, H: number): BluffLayout {
@@ -40,13 +38,6 @@ export function bluffLayout(W: number, H: number): BluffLayout {
     pileAt,
     claimAt: { x: box.x + box.w * 0.8, y: cy },
     tableScale,
-    // 對話框都放在頭像旁邊、不壓到任何人的牌：左右兩家在頭像上面，上面那位在他手牌的右邊，你在頭像上面
-    sayAt: [
-      { x: cw * 0.25, y: H - cw * 1.45, align: 'left' },
-      { x: W - cw * 0.25, y: H * 0.4 - L.seats[1].kid.w - cw * 0.32, align: 'right' },
-      { x: W / 2 + cw * 2.3, y: cw * 0.55, align: 'left' },
-      { x: cw * 0.25, y: H * 0.4 - L.seats[3].kid.w - cw * 0.32, align: 'left' },
-    ],
   }
 }
 
