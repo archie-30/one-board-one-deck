@@ -50,14 +50,20 @@ let quiet = false
 export const setHapticsQuiet = (v: boolean) => (quiet = v)
 
 export function buzz(feel: Feel) {
-  if (!settings.haptics || quiet || !canVibrate) return
+  const level = settings.hapticsLevel
+  if (level === 'off' || quiet || !canVibrate) return
   const f = FEELS[feel]
   if (!f) return
   // 太密（一次發很多張牌）就跳過幾下，不會震成一整條
   const now = performance.now()
   if (now - last < 35 && feel !== 'turn') return
   last = now
-  const [pattern, amp] = f
+  let [pattern, amp] = f
+  // 低：強度約一半、每一下短一點（網頁版只能分長短）
+  if (level === 'low') {
+    amp = Math.max(1, Math.round(amp * 0.5))
+    pattern = pattern.map((ms, i) => (i % 2 ? ms : Math.max(6, Math.round(ms * 0.6))))
+  }
   if (isApp) nativeVibrate(pattern, amp)
   else {
     try {

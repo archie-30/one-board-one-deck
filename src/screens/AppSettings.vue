@@ -5,18 +5,26 @@ import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { fullscreenSupported, isFullscreen, setFullscreen } from '@/core/fullscreen'
 import { resetStats, settings } from '@/core/settings'
 import { clearAllResume } from '@/core/resume'
-import { canVibrate } from '@/core/haptics'
+import { buzz, canVibrate } from '@/core/haptics'
 import { isApp } from '@/core/native'
 import { S } from '@/data/strings'
 import { VERSION } from '@/data/version'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import Switch from '@/ui/Switch.vue'
+import Tabs from '@/ui/Tabs.vue'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const T = S.appSettings
 
+/** 震動：關／低／中（haptics 開關跟著存，舊版本讀得懂） */
+function setHaptics(v: string) {
+  settings.hapticsLevel = v as 'off' | 'low' | 'mid'
+  settings.haptics = v !== 'off'
+  // 換好後照新的強度再震一下，馬上感覺得到差多少
+  window.setTimeout(() => buzz('turn'), 80)
+}
 function setSound(on: boolean) {
   settings.volume = on ? 0.8 : 0
 }
@@ -83,7 +91,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
               <p class="t-black lb">{{ T.haptics }}</p>
               <p class="help">{{ T.hapticsHelp }}</p>
             </div>
-            <Switch :on="settings.haptics" :label="T.haptics" @change="(v) => (settings.haptics = v)" />
+            <Tabs :choices="T.hapticsLevels" :value="settings.hapticsLevel" :aria-label="T.haptics" @change="setHaptics" />
           </div>
           <div class="row rise" style="--i: 4">
             <div>

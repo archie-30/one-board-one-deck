@@ -29,6 +29,8 @@ interface Settings {
   keepAwake: boolean
   /** 震動反饋：發牌、出牌、落子、輪到你…依事情大小震不同強度 */
   haptics: boolean
+  /** 震動強弱：關／低／中（原本只有開關，開著＝中） */
+  hapticsLevel: 'off' | 'low' | 'mid'
   /** 模式選單的樣子：一疊卡片（deck）或一列一列（list）；撲克牌、棋盤共用 */
   modeView: 'deck' | 'list'
 }
@@ -61,7 +63,9 @@ interface Stats {
   cardLevels: number
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, modeView: 'deck' }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, hapticsLevel: 'mid', modeView: 'deck' }))
+// 舊存檔只有震動開關：關掉的搬成「關」（只搬一次：之後 haptics 跟著 hapticsLevel 走）
+if (!settings.haptics && settings.hapticsLevel === 'mid') settings.hapticsLevel = 'off'
 
 const STATS_DEFAULT: Stats = {
   gomoku: { wins: 0, losses: 0, draws: 0 },
