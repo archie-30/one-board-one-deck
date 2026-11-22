@@ -1,12 +1,14 @@
 <script setup lang="ts">
 // 吹牛互動教學：四關（帶頭照實出、沒那個點數就吹牛、抓一定說謊的人、說真話出完出線）。
 // 畫面簡化成「桌上這一輪蓋著的牌＋喊的點數＋上一家喊了什麼＋你的手牌」。
-// 動畫：手牌一張張發上來；出的牌翻成背面飛到桌上那疊；抓人時上一家那兩張翻開；答錯那張牌左右晃一下。系統開「減少動態」時都不動。
+// 動畫：手牌一張張發上來；出的牌一邊飛一邊翻成背面、落到桌上那疊（真的牌，不是替身）；抓人時上一家那兩張從牌堆拿起來翻開，
+// 接著整疊飛到上一家那邊；答錯那張牌左右晃一下。系統開「減少動態」時都不動。
 import { computed, nextTick, ref } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
 import { myLook } from '@/core/profile'
 import { online } from '@/core/online'
+import { OPPONENTS } from '@/data/names'
 import { S } from '@/data/strings'
 import { makeCard, MAX_PLAY, RANK_LABELS, rankOf, suitOf, type Card } from '@/engine/bluff/rules'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -45,16 +47,22 @@ const finished = ref(false)
 const selected = ref<Card[]>([])
 const leadRank = ref<number | null>(null)
 const hand = ref<Card[]>(LESSONS[0].hand.slice())
-const pile = ref(LESSONS[0].pile)
-/** 抓到時翻開的牌 */
-const revealed = ref<Card[] | null>(null)
+/** 桌上這一輪蓋著的牌（null＝不知道是什麼的牌；你出的就是那張牌） */
+const pile = ref<(Card | null)[]>(Array(LESSONS[0].pile).fill(null))
+/** 剛從手上飛過來的那幾張（不播「冒出來」） */
+const flown = ref(new Set<number>())
+/** 抓人：0＝還沒、1＝那一手翻開、2＝整疊飛去給上一家 */
+const callStage = ref(0)
+/** 上一家的頭像 */
+const PREV_LOOK = OPPONENTS[3].look
 const text = computed(() => T.tutorial[step.value])
 const lesson = computed(() => LESSONS[step.value])
 const claim = computed(() => (lesson.value.claim === null ? leadRank.value : lesson.value.claim))
 
 const handEls = new Map<Card, HTMLElement>()
+const pileEls = new Map<number, HTMLElement>()
 const pileEl = ref<HTMLElement>()
-const EASE = 'cubic-bezier(.22,1,.36,1)'
+const prevEl = ref<HTMLElement>()
 
 function shake(cs: readonly Card[]) {
   if (reducedMotion()) return
@@ -94,25 +102,33 @@ function play() {
           : false
   if (!ok) return miss()
   const from = sel.map((c) => handEls.get(c)?.getBoundingClientRect())
+  const start = pile.value.length
   hand.value = hand.value.filter((c) => !sel.includes(c))
   selected.value = []
-  pile.value += sel.length
+  pile.value = [...pile.value, ...sel]
+  flown.value = new Set(sel.map((_, k) => start + k))
   solved.value = true
   playSound('card')
-  window.setTimeout(() => playSound('correct'), 400)
+  window.setTimeout(() => playSound('correct'), 500)
   if (reducedMotion()) return
   void nextTick(() => {
-    const to = pileEl.value?.getBoundingClientRect()
-    if (!to) return
     from.forEach((f, k) => {
-      if (!f) return
-      const ghost = document.createElement('div')
-      ghost.className = 'tt-ghost'
-      Object.assign(ghost.style, { left: `${f.left}px`, top: `${f.top}px`, width: `${f.width}px`, height: `${f.height}px` })
-      document.body.appendChild(ghost)
-      const dx = to.left + to.width / 2 - (f.left + f.width / 2)
-      const dy = to.top + to.height / 2 - (f.top + f.height / 2)
-      ghost.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${dx}px, ${dy}px) scale(0.7) rotate(${(k - 0.5) * 14}deg)`, opacity: 1 }], { duration: 520, delay: k * 70, easing: EASE, fill: 'forwards' }).onfinish = () => ghost.remove()
+      const el = pileEls.get(start + k)
+      if (!f || !el) return
+      const r = el.getBoundingClientRect()
+      const dx = f.left + f.width / 2 - (r.left + r.width / 2)
+      const dy = f.top + f.height / 2 - (r.top + r.height / 2)
+      const sc = f.width / r.width
+      // 從手上的位置（正面朝上）一路滑過去、途中翻成背面，落下時輕輕壓一下
+      el.animate(
+        [
+          { transform: `translate(${dx}px, ${dy}px) scale(${sc}) rotateY(180deg)`, easing: 'cubic-bezier(.35,0,.6,1)' },
+          { transform: `translate(${dx * 0.45}px, ${dy * 0.45 - 14}px) scale(${(sc + 1) / 2 + 0.06}) rotateY(90deg)`, offset: 0.5, easing: 'cubic-bezier(.3,0,.4,1)' },
+          { transform: 'scale(1.05, 0.94)', offset: 0.88 },
+          { transform: 'none' },
+        ],
+        { duration: 680, delay: k * 120, fill: 'backwards' },
+      )
     })
   })
 }
@@ -123,10 +139,45 @@ function pass() {
 function call() {
   if (solved.value) return
   if (lesson.value.want !== 'call') return miss([])
-  revealed.value = lesson.value.last!.cards
+  // 上一家那一手（桌上最後兩張）換成真的牌：先拿起來翻開，停一下，整疊飛去給上一家
+  const cards = lesson.value.last!.cards
+  pile.value = [...pile.value.slice(0, pile.value.length - cards.length), ...cards]
   solved.value = true
-  playSound('flip')
-  window.setTimeout(() => playSound('correct'), 500)
+  playSound('reveal')
+  window.setTimeout(() => {
+    callStage.value = 1
+    playSound('flip')
+  }, 120)
+  window.setTimeout(() => playSound('correct'), 900)
+  window.setTimeout(() => {
+    if (step.value !== 2) return
+    callStage.value = 2
+    playSound('collect')
+    flyToPrev()
+  }, 2000)
+}
+/** 整疊牌飛到上一家的頭像那邊、縮小淡掉 */
+function flyToPrev() {
+  const from = pileEl.value?.getBoundingClientRect()
+  const to = prevEl.value?.getBoundingClientRect()
+  if (!from || !to || reducedMotion()) {
+    pile.value = []
+    return
+  }
+  const dx = to.left + to.width / 2 - (from.left + from.width / 2)
+  const dy = to.top + to.height / 2 - (from.top + from.height / 2)
+  const a = pileEl.value!.animate(
+    [
+      { transform: 'none', opacity: 1 },
+      { transform: `translate(${dx * 0.8}px, ${dy * 0.8}px) scale(0.55)`, opacity: 1, offset: 0.75 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.3)`, opacity: 0 },
+    ],
+    { duration: 620, easing: 'cubic-bezier(.45,0,.25,1)', fill: 'forwards' },
+  )
+  a.onfinish = () => {
+    pile.value = []
+    a.cancel()
+  }
 }
 function next() {
   if (step.value + 1 >= LESSONS.length) {
@@ -137,8 +188,9 @@ function next() {
   step.value++
   const l = LESSONS[step.value]
   hand.value = l.hand.slice()
-  pile.value = l.pile
-  revealed.value = null
+  pile.value = Array(l.pile).fill(null)
+  flown.value = new Set()
+  callStage.value = 0
   solved.value = false
   misses.value = 0
   selected.value = []
@@ -167,17 +219,27 @@ const hint = computed(() => {
         <!-- 桌上這一輪蓋著的牌 -->
         <div class="pilebox">
           <span ref="pileEl" class="pile">
-            <svg v-for="k in Math.min(pile, 8)" :key="k" viewBox="-2 -2 78 108" class="pback" :style="{ rotate: `${((k * 37) % 23) - 11}deg`, translate: `${((k * 13) % 9) - 4}px ${((k * 7) % 5) - 2}px` }"><CardArt back :shadow="false" /></svg>
-            <span v-if="revealed" class="rev">
-              <svg v-for="(c, k) in revealed" :key="c" viewBox="-2 -2 78 108" class="rcard" :style="{ '--k': k }"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" /></svg>
+            <span
+              v-for="(c, k) in pile"
+              :key="k"
+              :ref="(el) => (el ? pileEls.set(k, el as HTMLElement) : pileEls.delete(k))"
+              class="pc"
+              :class="{ appear: !flown.has(k), up: callStage >= 1 && k >= pile.length - (lesson.last?.cards.length ?? 0) }"
+              :style="{ '--r': `${((k * 37) % 23) - 11}deg`, '--x': `${((k * 13) % 9) - 4}px`, '--y': `${((k * 7) % 5) - 2}px`, '--u': k - (pile.length - (lesson.last?.cards.length ?? 0)) - ((lesson.last?.cards.length ?? 1) - 1) / 2, '--d': `${k * 60}ms` }"
+            >
+              <svg viewBox="-2 -2 78 108" class="b"><CardArt back :shadow="false" /></svg>
+              <svg v-if="c !== null" viewBox="-2 -2 78 108" class="f"><CardArt :rank="RANK_LABELS[rankOf(c)]" :suit="suitOf(c)" :shadow="false" /></svg>
             </span>
           </span>
-          <span class="t-label cnt">{{ T.pileLabel(pile) }}</span>
+          <span class="t-label cnt">{{ T.pileLabel(pile.length) }}</span>
         </div>
         <!-- 上一家喊的 -->
         <div v-if="lesson.last" class="lastsay">
-          <span class="say t-black" :class="{ hot: revealed }">{{ revealed ? T.call : T.said(lesson.last.count, RANK_LABELS[lesson.claim!]) }}</span>
-          <span v-if="revealed" class="t-black res">{{ T.lied(T.prev) }}</span>
+          <span ref="prevEl" class="prev"><Avatar :look="PREV_LOOK" :mood="callStage ? 'sad' : 'smug'" /></span>
+          <span class="say t-black">{{ T.said(lesson.last.count, RANK_LABELS[lesson.claim!]) }}</span>
+          <Transition name="res">
+            <span v-if="callStage" class="t-black res">{{ T.lied(T.prev) }}</span>
+          </Transition>
         </div>
         <div class="claim">
           <span class="t-label">{{ T.claimLabel }}</span>
@@ -262,6 +324,8 @@ const hint = computed(() => {
 }
 .table {
   position: relative;
+  /* 飛過來的牌要在手牌上面，不能從手牌底下穿過去 */
+  z-index: 2;
   display: flex;
   min-height: 9.5rem;
   align-items: center;
@@ -291,30 +355,64 @@ const hint = computed(() => {
   width: 3.6rem;
   height: 5rem;
 }
-.pback {
+.pc {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  rotate: var(--r);
+  translate: var(--x) var(--y);
+  transition:
+    rotate 420ms var(--ease-out),
+    translate 520ms var(--ease-out) var(--d),
+    transform 520ms var(--ease-out) var(--d),
+    scale 420ms var(--ease-out);
+}
+.pc.appear {
+  /* 只動 scale／opacity、不留住（transform 要留給翻牌用，不然被抓時翻不開） */
+  animation: pc-pop 320ms var(--ease-back) calc(var(--d) * 0.5) backwards;
+}
+@keyframes pc-pop {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+.pc svg {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  animation: t-pop 320ms var(--ease-back) both;
+  backface-visibility: hidden;
 }
-.rev {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  display: flex;
-  gap: 0.3rem;
-  translate: -50% -50%;
+.pc .f {
+  transform: rotateY(180deg);
 }
-.rcard {
-  width: 3.4rem;
-  flex: none;
-  animation: flip-in 520ms var(--ease-out) calc(var(--k) * 140ms) both;
+/* 被抓的那一手：從牌堆拿起來、往兩邊攤開、翻成正面 */
+.pc.up {
+  z-index: 5;
+  rotate: 0deg;
+  /* 往右攤開（牌堆在桌子左邊，往左會超出桌框） */
+  translate: calc((var(--u) + 0.5) * 108% + 6%) -12%;
+  scale: 1.05;
+  transform: rotateY(180deg);
 }
-@keyframes flip-in {
-  from {
-    transform: scaleX(0);
-  }
+.res-enter-active {
+  transition:
+    opacity 200ms var(--ease-out) 500ms,
+    scale 320ms var(--ease-back) 500ms;
+}
+.res-enter-from {
+  opacity: 0;
+  scale: 0.6;
+}
+.prev {
+  display: block;
+  width: 2.6rem;
+  height: 2.6rem;
+}
+.prev :deep(svg) {
+  width: 100%;
+  height: 100%;
 }
 .cnt {
   color: var(--color-ink-2);
@@ -332,10 +430,6 @@ const hint = computed(() => {
   background: var(--color-card);
   font-size: 0.95rem;
   white-space: nowrap;
-}
-.say.hot {
-  background: var(--color-red);
-  color: var(--color-card);
 }
 .res {
   font-size: 0.8rem;
@@ -461,21 +555,9 @@ const hint = computed(() => {
 }
 @media (prefers-reduced-motion: reduce) {
   .hcard.deal,
-  .pback,
-  .rcard {
+  .pc {
     animation: none;
+    transition: none;
   }
-}
-</style>
-
-<style>
-/* 教學：出的牌（背面）從手上飛到桌上那疊（暫時掛在 body 上，飛完就拿掉） */
-.tt-ghost {
-  position: fixed;
-  z-index: 900;
-  border: 0.12rem solid var(--color-ink);
-  border-radius: 0.35rem;
-  background: repeating-linear-gradient(45deg, var(--color-blue) 0 0.3rem, color-mix(in srgb, var(--color-blue) 80%, white) 0.3rem 0.6rem);
-  pointer-events: none;
 }
 </style>
