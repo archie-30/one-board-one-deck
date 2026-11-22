@@ -159,3 +159,6 @@ android/local.properties
 # Cloudflare 本機暫存
 server/.wrangler/
 server/.dev.vars
+
+# 版面檢查的截圖只放暫存資料夾；根目錄的圖一律不提交（store/、public/、android/ 底下的不受影響）
+/*.png
