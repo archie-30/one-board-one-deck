@@ -15,3 +15,10 @@ export function checkNews(now = Date.now()) {
   writeSave('news', saved)
   newsOpen.value = true
 }
+
+/** 不用看這則公告了（第一次玩的新玩家：所有玩法本來就都是新的） */
+export function markNewsSeen() {
+  if (saved.seen.includes(NEWS.id)) return
+  saved.seen = [...saved.seen, NEWS.id]
+  writeSave('news', saved)
+}
