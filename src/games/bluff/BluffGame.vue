@@ -175,7 +175,7 @@ function noteQuad(p: number, rank: number) {
 
 /** 記一句「某某：2 張 7」到桌上（只留最近兩句） */
 function note(p: number, text: string, hot = false) {
-  log.value = [{ id: ++logId, p, text, hot }, ...log.value].slice(0, 2)
+  log.value = [{ id: ++logId, p, text, hot }, ...log.value].slice(0, 3)
 }
 
 let scheduledFor: BluffState | null = null
@@ -616,11 +616,11 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
       <span class="t-label lab">TABLE</span>
     </div>
     <!-- 收掉幾張、桌上幾張 -->
-    <span v-if="shown.discard.length" class="tiny t-label" :style="{ left: `${L.discardAt.x}px`, top: `${L.discardAt.y + ch * L.tableScale * 0.55}px` }">{{ T.discardLabel(shown.discard.length) }}</span>
+    <span v-if="shown.discard.length" class="tiny t-label side" :style="{ left: `${L.discardAt.x + L.cw * L.tableScale * 0.55}px`, top: `${L.discardAt.y}px` }">{{ T.discardLabel(shown.discard.length) }}</span>
     <span v-if="shown.plays.length && !revealCards" class="tiny t-label" :style="{ left: `${L.pileAt.x}px`, top: `${L.pileAt.y + ch * L.tableScale * 0.75}px` }">{{ T.pileLabel(pileCount(shown)) }}</span>
     <!-- 誰說了什麼：桌框左上角，最新一句粗黑、上一句淡淡的；留到下一個人做事 -->
     <TransitionGroup tag="ol" name="lg" class="log" :style="{ left: `${L.box.x + L.cw * 0.18}px`, top: `${L.box.y + L.cw * 0.2}px`, maxWidth: `${L.box.w * 0.36}px` }">
-      <li v-for="(l, i) in log" :key="l.id" class="ln" :class="{ old: i > 0, hot: l.hot }">
+      <li v-for="(l, i) in log" :key="l.id" class="ln" :class="{ old: i > 0, older: i > 1, hot: l.hot }">
         <span class="who-nm">{{ names[l.p] }}</span><span class="said">{{ l.text }}</span>
       </li>
     </TransitionGroup>
@@ -751,6 +751,10 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
   color: var(--color-ink-2);
   pointer-events: none;
 }
+/* 收掉的牌的字：放在牌疊右邊（牌疊在左下角，底下是點數按鈕） */
+.tiny.side {
+  translate: 0 -50%;
+}
 .claim {
   position: absolute;
   z-index: 3;
@@ -835,6 +839,10 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
 .ln.old {
   font-size: 0.72rem;
   opacity: 0.55;
+}
+/* 再上一句：更淡 */
+.ln.older {
+  opacity: 0.35;
 }
 .lg-enter-active {
   transition:

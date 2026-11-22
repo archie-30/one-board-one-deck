@@ -1,5 +1,5 @@
 // 吹牛的牌桌版面：座位、手牌沿用大老二的排法（tableLayout.ts）。
-// 中間的桌框裡由左到右：收掉的牌（蓋著疊一疊）、這一輪蓋著的牌（一手一手亂亂地疊在中間）、喊的點數（大大的）。
+// 中間的桌框裡由左到右：收掉的牌（蓋著疊一疊，放在左下角，左上角留給「誰說了什麼」）、這一輪蓋著的牌（一手一手亂亂地疊在中間）、喊的點數（大大的）。
 // 有人喊「吹牛」時，被抓的那一手翻開排在牌堆上面給大家看。純計算，不碰 DOM。
 import { cardPoses, hash, makeLayout, type Layout } from '@/games/bigtwo/tableLayout'
 import type { Pose } from '@/games/bigtwo/cardStage'
@@ -29,12 +29,15 @@ export function bluffLayout(W: number, H: number): BluffLayout {
   const cy = box.y + (box.h - cw * 1.3) / 2 + cw * 0.1
   const tableScale = Math.min(0.9, ((box.h - cw * 1.4) * 0.75) / ch)
   const pileAt = { x: box.x + box.w * 0.45, y: cy }
+  // 收掉的牌：左下角，底邊貼在點數按鈕那一排上面（左上角是「誰說了什麼」，不能蓋到）
+  const dw = cw * tableScale * 0.8
+  const discardAt = { x: box.x + dw * 0.75 + cw * 0.2, y: box.y + box.h - cw * 1.18 - ch * tableScale * 0.8 * 0.58 - cw * 0.12 }
   return {
     ...L,
     // 發牌前牌都疊在桌子中間
     pile: pileAt,
     box,
-    discardAt: { x: box.x + box.w * 0.13, y: cy },
+    discardAt,
     pileAt,
     claimAt: { x: box.x + box.w * 0.8, y: cy },
     tableScale,
