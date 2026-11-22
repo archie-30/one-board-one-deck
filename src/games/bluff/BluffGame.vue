@@ -557,7 +557,12 @@ function tapCard(c: Card) {
   playSound('cardPick')
   sync()
 }
+/** 收掉的牌（含四張一樣棄掉的） */
+const discardCount = computed(() => shown.value.discard.length + (shown.value.quads?.length ?? 0) * 4)
+/** 四張都棄掉的點數：不能喊 */
+const deadRanks = computed(() => new Set((state.value.quads ?? []).map((q) => q.rank)))
 function pickRank(r: number) {
+  if (deadRanks.value.has(r)) return
   leadRank.value = r
   playSound('tap')
 }
@@ -616,7 +621,7 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
       <span class="t-label lab">TABLE</span>
     </div>
     <!-- 收掉幾張、桌上幾張 -->
-    <span v-if="shown.discard.length" class="tiny t-label side" :style="{ left: `${L.discardAt.x + L.cw * L.tableScale * 0.55}px`, top: `${L.discardAt.y}px` }">{{ T.discardLabel(shown.discard.length) }}</span>
+    <span v-if="discardCount" class="dcount t-slab" :title="T.discardLabel(discardCount)" :style="{ left: `${L.discardAt.x + (L.cw * L.discardScale) / 2}px`, top: `${L.discardAt.y - (ch * L.discardScale) / 2}px` }">{{ discardCount }}</span>
     <span v-if="shown.plays.length && !revealCards" class="tiny t-label" :style="{ left: `${L.pileAt.x}px`, top: `${L.pileAt.y + ch * L.tableScale * 0.75}px` }">{{ T.pileLabel(pileCount(shown)) }}</span>
     <!-- 誰說了什麼：桌框左上角，最新一句粗黑、上一句淡淡的；留到下一個人做事 -->
     <TransitionGroup tag="ol" name="lg" class="log" :style="{ left: `${L.box.x + L.cw * 0.18}px`, top: `${L.box.y + L.cw * 0.2}px`, maxWidth: `${L.box.w * 0.36}px` }">
@@ -661,8 +666,8 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
 
     <!-- 帶頭：選要喊的點數 -->
     <Transition name="ranks">
-      <div v-if="leading" class="ranks" :style="{ left: `${L.box.x + 8}px`, width: `${L.box.w - 16}px`, top: `${L.box.y + L.box.h - L.cw * 1.18}px` }" role="radiogroup" :aria-label="T.pickRank">
-        <button v-for="r in RANKS" :key="r" class="rk t-slab" :class="{ on: leadRank === r }" role="radio" :aria-checked="leadRank === r" @click="pickRank(r)">{{ RANK_LABELS[r] }}</button>
+      <div v-if="leading" class="ranks" :style="{ left: `${L.ranksLeft}px`, width: `${L.box.x + L.box.w - 8 - L.ranksLeft}px`, top: `${L.box.y + L.box.h - L.cw * 1.18}px` }" role="radiogroup" :aria-label="T.pickRank">
+        <button v-for="r in RANKS" :key="r" class="rk t-slab" :class="{ on: leadRank === r }" role="radio" :aria-checked="leadRank === r" :disabled="deadRanks.has(r)" @click="pickRank(r)">{{ RANK_LABELS[r] }}</button>
       </div>
     </Transition>
 
@@ -751,9 +756,20 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
   color: var(--color-ink-2);
   pointer-events: none;
 }
-/* 收掉的牌的字：放在牌疊右邊（牌疊在左下角，底下是點數按鈕） */
-.tiny.side {
-  translate: 0 -50%;
+/* 收掉幾張：牌疊右上角的小圓牌（牌疊塞在左下角，旁邊是點數按鈕，放不下字） */
+.dcount {
+  position: absolute;
+  z-index: 700;
+  min-width: 1.15rem;
+  translate: -50% -50%;
+  border-radius: 999px;
+  background: var(--color-ink);
+  padding: 0.05rem 0.3rem;
+  color: var(--color-card);
+  font-size: 0.62rem;
+  line-height: 1.3;
+  text-align: center;
+  pointer-events: none;
 }
 .claim {
   position: absolute;
@@ -940,9 +956,18 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
   background: var(--color-ink);
   color: var(--color-card);
 }
-.rk:active {
+.rk:not(:disabled):active {
   translate: 0.1rem 0.1rem;
   box-shadow: none;
+}
+/* 四張都棄掉的點數：灰掉、不給按 */
+.rk:disabled {
+  border-color: var(--color-ink-3);
+  background: var(--color-paper);
+  box-shadow: none;
+  color: var(--color-ink-3);
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .ranks-enter-active {
   transition:

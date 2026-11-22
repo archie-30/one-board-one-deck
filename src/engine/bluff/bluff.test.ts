@@ -103,6 +103,11 @@ describe('吹牛：抓', () => {
 
 describe('吹牛：四張一樣棄牌', () => {
   const four = (r: number) => [0, 1, 2, 3].map((suit) => C(suit, r))
+  it('四張都棄掉的點數不能喊', () => {
+    const s = createBluff([[...four(9), C(0, 2)], [C(1, 3)], [C(2, 5)], [C(3, 6)]], 0, { fourDiscard: true })
+    expect(applyBluff(s, { type: 'play', player: 0, cards: [C(0, 2)], rank: 9 })).toMatchObject({ ok: false, reason: 'deadRank' })
+    expect(applyBluff(s, { type: 'play', player: 0, cards: [C(0, 2)], rank: 2 }).ok).toBe(true)
+  })
   it('開局發到四張一樣：自動棄掉、公開', () => {
     const s = createBluff([[...four(9), C(0, 2)], [C(1, 3)], [C(2, 5)], [C(3, 6)]], 0, { fourDiscard: true })
     expect(s.hands[0]).toEqual([C(0, 2)])
@@ -118,11 +123,6 @@ describe('吹牛：四張一樣棄牌', () => {
     expect(s.quads).toEqual([{ player: 1, rank: 7 }])
     expect(s.out).toEqual([0, 1])
     expect(s.events.map((e) => e.type)).toEqual(['call', 'quad'])
-  })
-  it('棄掉的點數有人喊：電腦一定抓', () => {
-    let s = createBluff([[C(0, 2)], [C(1, 3), C(0, 5)], [...four(9), C(2, 5)], [C(3, 6)]], 1, { fourDiscard: true })
-    s = must(s, { type: 'play', player: 1, cards: [C(1, 3)], rank: 9 })
-    expect(truthChance(s, 2)).toBe(0)
   })
 })
 

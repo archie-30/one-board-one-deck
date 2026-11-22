@@ -10,6 +10,10 @@ export interface BluffLayout extends Layout {
   box: { x: number; y: number; w: number; h: number }
   /** 收掉的牌、桌上這一輪的牌、喊的點數的中心 */
   discardAt: { x: number; y: number }
+  /** 收掉的牌的縮放（小小一疊塞在左下角） */
+  discardScale: number
+  /** 點數按鈕那一排從哪裡開始（左下角讓給收掉的牌） */
+  ranksLeft: number
   pileAt: { x: number; y: number }
   claimAt: { x: number; y: number }
   /** 桌上的牌縮放倍率 */
@@ -29,15 +33,21 @@ export function bluffLayout(W: number, H: number): BluffLayout {
   const cy = box.y + (box.h - cw * 1.3) / 2 + cw * 0.1
   const tableScale = Math.min(0.9, ((box.h - cw * 1.4) * 0.75) / ch)
   const pileAt = { x: box.x + box.w * 0.45, y: cy }
-  // 收掉的牌：左下角，底邊貼在點數按鈕那一排上面（左上角是「誰說了什麼」，不能蓋到）
-  const dw = cw * tableScale * 0.8
-  const discardAt = { x: box.x + dw * 0.75 + cw * 0.2, y: box.y + box.h - cw * 1.18 - ch * tableScale * 0.8 * 0.58 - cw * 0.12 }
+  // 收掉的牌：小小一疊塞在桌框左下角，底邊貼著狀態文字那一條上緣（左上角是「誰說了什麼」，不能蓋到；
+  // 桌框矮的時候上面沒空間，所以跟點數按鈕同一高度，按鈕那一排從它右邊開始）
+  const discardScale = tableScale * 0.62
+  const dw = cw * discardScale
+  const dh = ch * discardScale
+  const discardAt = { x: box.x + cw * 0.18 + dw / 2, y: box.y + box.h - cw * 0.5 - dh / 2 }
+  const ranksLeft = box.x + cw * 0.18 + dw + cw * 0.16
   return {
     ...L,
     // 發牌前牌都疊在桌子中間
     pile: pileAt,
     box,
     discardAt,
+    discardScale,
+    ranksLeft,
     pileAt,
     claimAt: { x: box.x + box.w * 0.8, y: cy },
     tableScale,
@@ -53,21 +63,12 @@ export function bluffPoses(L: BluffLayout, s: BluffState, selected: readonly Car
   if (gathered) return out
   const { cw, tableScale: ts } = L
   if (showAll) for (let p = 1; p < 4; p++) for (const c of s.hands[p]) out.set(c, { ...out.get(c)!, f: 1 })
-  // 收掉的牌：一疊，往右上錯開一點點
-  s.discard.forEach((c, k) => out.set(c, { x: L.discardAt.x + hash(c, 3) * 3 - k * 0.18, y: L.discardAt.y + hash(c, 4) * 3 - k * 0.25, r: hash(c, 5) * 10, s: ts * 0.8, f: 0, z: 100 + k }))
-  // 四張一樣棄掉的：翻開、小小的，每組四張扇開，在桌框上緣由右往左排（放不下就擠一點）
-  const qs = s.quads ?? []
-  if (qs.length) {
-    const sq = ts * 0.5
-    const cardW = cw * sq
-    const room = L.box.w * 0.5
-    const step = Math.min(cardW * 2.3, (room - cardW * 1.8) / Math.max(1, qs.length - 1))
-    const y = L.box.y + (cw * 108) / 78 * sq * 0.5 + cw * 0.12
-    qs.forEach((q, i) => {
-      const x0 = L.box.x + L.box.w - cardW * 1.3 - i * step
-      quadCards(q.rank).forEach((c, k) => out.set(c, { x: x0 + (k - 1.5) * cardW * 0.28, y, r: (k - 1.5) * 4, s: sq, f: 1, z: 160 + i * 4 + k }))
-    })
-  }
+  // 收掉的牌：一疊，往右上錯開一點點（四張一樣棄掉的墊在下面）
+  const q0 = (s.quads?.length ?? 0) * 4
+  const lift = (k: number) => Math.min(k, 16) * 0.2
+  s.discard.forEach((c, k) => out.set(c, { x: L.discardAt.x + hash(c, 3) * 2 + lift(k + q0) * 0.6, y: L.discardAt.y + hash(c, 4) * 2 - lift(k + q0), r: hash(c, 5) * 4, s: L.discardScale, f: 0, z: 100 + k }))
+  // 四張一樣棄掉的：不另外擺出來，蓋著墊在收掉的牌最下面
+  ;(s.quads ?? []).flatMap((q) => quadCards(q.rank)).forEach((c, k) => out.set(c, { x: L.discardAt.x + hash(c, 3) * 2 + lift(k) * 0.6, y: L.discardAt.y + hash(c, 4) * 2 - lift(k), r: hash(c, 5) * 4, s: L.discardScale, f: 0, z: 40 + k }))
   // 這一輪的牌：一手一手亂亂地疊在中間（每一手往不同方向偏一點、轉一個角度）
   let z = 300
   s.plays.forEach((play, i) => {
