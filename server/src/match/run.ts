@@ -229,7 +229,7 @@ function commit(room: RoomState, seat: number, a: unknown, now: number): LogEntr
     m.undoAsk = null
     m.undoUntil = 0
   }
-  m.log.push({ seq: m.log.length + 1, pub: r.pub, ...(r.own !== undefined ? { own: r.own } : {}), seat })
+  m.log.push({ seq: m.log.length + 1, pub: r.pub, ...(r.own !== undefined ? { own: r.own } : {}), seat: r.ownSide !== undefined ? seatOf(m, r.ownSide) : seat })
   if (def.turn(after) < 0) end(m)
   else schedule(room, now)
   return m.log.slice(start)

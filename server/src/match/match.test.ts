@@ -53,7 +53,7 @@ function runToEnd(room: RoomState, from: number) {
 }
 
 describe('連線對局（伺服器當裁判）', () => {
-  for (const gameId of ['bigtwo', 'crazybigtwo', 'sevens', 'redpoint', 'ninetynine']) {
+  for (const gameId of ['bigtwo', 'crazybigtwo', 'sevens', 'redpoint', 'ninetynine', 'bluff']) {
     it(`${gameId}：兩個真人＋兩個電腦，一路跑到結束（真人沒動就逾時跳過），最後攤牌`, () => {
       const { room, m } = started(gameId)
       expect(m.seats.filter((s) => s.pid)).toHaveLength(2)
@@ -105,6 +105,21 @@ describe('連線對局（伺服器當裁判）', () => {
     // 別人的手牌不在裡面（拿一手別人的牌比對整串）
     expect(json).not.toContain(JSON.stringify(s.hands[0]))
     expect(json).not.toContain('seed')
+  })
+
+  it('吹牛：出的牌只有自己知道；被抓時翻開那手大家看得到，整疊是哪些只有吃下的人知道', () => {
+    const { room, m } = started('bluff', 1)
+    runToEnd(room, T0 + COUNTDOWN_MS)
+    const play = m.log.find((e) => (e.pub as { type: string }).type === 'play')!
+    expect((entryFor(play, play.seat) as { cards?: number[] }).cards?.length).toBeGreaterThan(0)
+    expect((entryFor(play, (play.seat + 1) % 4) as { cards?: number[] }).cards).toBeUndefined()
+    const call = m.log.find((e) => (e.pub as { type: string }).type === 'call')!
+    expect(call).toBeTruthy()
+    const pub = call.pub as { taker: number; cards: number[]; pile: number }
+    expect(call.seat).toBe(pub.taker)
+    expect((entryFor(call, pub.taker) as { pileCards: number[] }).pileCards).toHaveLength(pub.pile)
+    expect((entryFor(call, (pub.taker + 1) % 4) as { pileCards?: number[] }).pileCards).toBeUndefined()
+    expect(pub.cards.length).toBeGreaterThan(0)
   })
 
   it('排七：蓋牌只有自己知道蓋了哪張，別人只看到「蓋了一張」', () => {

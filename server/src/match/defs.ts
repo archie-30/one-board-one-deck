@@ -9,7 +9,9 @@ import { chooseBigTwoAction } from '../../../src/engine/bigtwo/ai'
 import type { Card } from '../../../src/engine/bigtwo/cards'
 import { applyBigTwo, dealBigTwo, PLAYER_COUNT, type BigTwoAction, type BigTwoState } from '../../../src/engine/bigtwo/game'
 import { DEFAULT_BIGTWO_OPTIONS, type BigTwoOptions } from '../../../src/engine/bigtwo/options'
-import { asCardLevel, bigtwoAt, bigtwoLevel, extraThink, ninetyNineAt, sevensAt } from '../../../src/engine/common/difficulty'
+import { asCardLevel, bigtwoAt, bigtwoLevel, bluffAt, extraThink, ninetyNineAt, sevensAt } from '../../../src/engine/common/difficulty'
+import { chooseBluffAction } from '../../../src/engine/bluff/ai'
+import { applyBluff, canCall, dealBluff, mustLead, PLAYERS as BLUFF_PLAYERS, type BluffAction, type BluffState } from '../../../src/engine/bluff/rules'
 import { PERSONAS } from '../../../src/engine/common/personas'
 import type { RngState } from '../../../src/engine/common/rng'
 import { chooseNinetyNineAction } from '../../../src/engine/ninetynine/ai'
@@ -27,6 +29,8 @@ export type Options = Record<string, string | boolean>
 export interface Rendered {
   pub: unknown
   own?: unknown
+  /** own 給哪一方看（引擎的座位；沒填就是做動作的那一位）。例如吹牛被抓時，吃下整疊牌的人才知道是哪些牌 */
+  ownSide?: number
 }
 
 export interface MatchDef<S, A> {
@@ -184,6 +188,46 @@ const ninetynineDef: MatchDef<NinetyNineState, NinetyNineAction> = {
   },
 }
 
+// ── 吹牛 ──
+// 牌都蓋著出：大家只看到「誰喊了幾張什麼點數」，出的是哪幾張只有自己知道（own）。
+// 被抓時那一手翻開給大家看；整疊牌是哪些，只有吃下的人知道（own 給 taker）。
+
+const bluffDef: MatchDef<BluffState, BluffAction> = {
+  seats: BLUFF_PLAYERS,
+  seconds: TURN_SECONDS.cards,
+  deal: (seed) => dealBluff(seed),
+  apply: (s, a) => {
+    const r = applyBluff(s, a)
+    return r.ok ? r.state : null
+  },
+  turn: (s) => (s.over ? -1 : s.turn),
+  parse(raw, seat) {
+    if (!isObj(raw)) return null
+    if (raw.type === 'pass' || raw.type === 'call') return { type: raw.type, player: seat }
+    if (raw.type !== 'play' || !Array.isArray(raw.cards) || raw.cards.length < 1 || raw.cards.length > 4 || !raw.cards.every((c) => isCard(c, 52))) return null
+    const rank = typeof raw.rank === 'number' && Number.isInteger(raw.rank) && raw.rank >= 1 && raw.rank <= 13 ? raw.rank : undefined
+    return { type: 'play', player: seat, cards: raw.cards as number[], ...(rank !== undefined ? { rank } : {}) }
+  },
+  bot: (s, botId, opts, rng) => chooseBluffAction(s, bluffAt(PERSONAS[botId].bigtwo, asCardLevel(opts.difficulty)), rng),
+  think: (s, _id, _o, r) => (mustLead(s) || canCall(s) ? 1900 : 1300) + r * 1100,
+  timeout: (seat) => ({ type: 'timeout', player: seat }),
+  render(before, after, a) {
+    const ev = after.events[0]
+    if (ev.type === 'play') {
+      const cards = after.plays[after.plays.length - 1].cards
+      return { pub: { type: 'play', player: a.player, count: ev.count, rank: ev.rank }, own: { type: 'play', player: a.player, count: ev.count, rank: ev.rank, cards } }
+    }
+    if (ev.type === 'call') {
+      const pub = { type: 'call', player: a.player, cards: ev.cards, liar: ev.liar, taker: ev.taker, pile: ev.pile }
+      return { pub, own: { ...pub, pileCards: before.plays.flatMap((x) => x.cards) }, ownSide: ev.taker }
+    }
+    return { pub: { type: 'pass', player: a.player } }
+  },
+  start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), turn: s.turn }),
+  // 攤牌：最後的局面（大家剩的手牌、收掉的牌）
+  reveal: (s) => ({ ...s, events: [] }),
+}
+
 // ── 撿紅點 ──
 
 const redpointDef: MatchDef<RedPointState, RedPointAction> = {
@@ -218,6 +262,7 @@ export const MATCH_DEFS: Record<string, MatchDef<any, any>> = {
   crazybigtwo: bigtwoDef(2),
   sevens: sevensDef,
   ninetynine: ninetynineDef,
+  bluff: bluffDef,
   redpoint: redpointDef,
   ...BOARD_DEFS,
 }

@@ -51,6 +51,7 @@ interface Stats {
   othello: { wins: number; losses: number; draws: number }
   sevens: { rounds: number; wins: number }
   ninetynine: { rounds: number; wins: number }
+  bluff: { rounds: number; wins: number }
   banqi: { wins: number; losses: number; draws: number }
   checkers: { wins: number; losses: number; draws: number }
   /** 星形跳棋：玩了幾局、拿第一幾次 */
@@ -81,6 +82,7 @@ const STATS_DEFAULT: Stats = {
   othello: { wins: 0, losses: 0, draws: 0 },
   sevens: { rounds: 0, wins: 0 },
   ninetynine: { rounds: 0, wins: 0 },
+  bluff: { rounds: 0, wins: 0 },
   banqi: { wins: 0, losses: 0, draws: 0 },
   checkers: { wins: 0, losses: 0, draws: 0 },
   starcheckers: { games: 0, firsts: 0 },
