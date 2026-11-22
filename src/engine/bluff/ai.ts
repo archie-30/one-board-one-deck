@@ -57,8 +57,11 @@ function junk(hand: readonly Card[], avoid: number): Card {
 }
 
 /** 上一手說真話的機率（只用公開資訊和自己的手牌）。
- *  先算「他手上剛好有這麼多張」的機率，再想到：有的人照實出、沒有的人只有一部分會吹牛，
- *  所以他真的出了，說真話的機會比單看機率高（貝氏）。吹牛多半只蓋一張，喊兩張以上說謊的少。 */
+ *  1. 他手上的牌只可能是「還在大家手上」的牌：收掉的、桌上這輪前面幾手的都不算。
+ *  2. 那個點數剩幾張：4 張扣掉我手上的，再扣掉這一輪前面幾手、之前收掉的幾輪已經「喊過」的（別人喊的多半是真的，打個折）。
+ *     喊過的加起來超過 4 張＝一定有人說謊，剩給他的就很少，他說真話的機會跟著掉。
+ *  3. 用「他手上剛好有這麼多張」的機率，再想到有的人照實出、沒有的人只有一部分會吹牛（貝氏）。
+ *     帶頭的人是挑自己最多的點數喊，多半是真的；跟牌只蓋一張的最常是吹牛。 */
 export function truthChance(s: BluffState, me: number): number {
   const lastPlay = s.plays[s.plays.length - 1]
   const n = lastPlay.cards.length
@@ -67,16 +70,26 @@ export function truthChance(s: BluffState, me: number): number {
   // 一副牌每個點數只有 4 張；那個點數的四張已經被棄掉（公開）也一定是假的
   if (mine + n > 4 || s.quads?.some((q) => q.rank === claim)) return 0
   const target = lastPlay.player
-  // 沒看過的牌：不在我手上的都算（別人的手牌、桌上的、收掉的）
-  const unseen = 52 - s.hands[me].length - (s.quads?.length ?? 0) * 4
-  const good = 4 - mine
-  // 他出這手之前手上有幾張
-  const before = s.hands[target].length + n
-  const has = atLeast(unseen, good, before, n)
-  // 他出完最後的牌：拚出線的人比較敢吹
-  const lie = (n === 1 ? 0.45 : 0.18) * (s.hands[target].length === 0 ? 1.6 : 1)
+  const lead = s.plays.length === 1
+  // 別處已經喊過幾張（這一輪前面幾手＋收掉的幾輪），當成七成是真的
+  const earlier = s.plays.slice(0, -1).reduce((a, p) => a + p.cards.length, 0)
+  const taken = Math.min(4 - mine, (earlier + (s.told?.[claim] ?? 0)) * TRUST)
+  // 他手上的牌從哪裡來：除了我以外，大家現在的手牌＋他剛出的那幾張
+  const pool = s.hands.reduce((a, h, i) => a + (i === me ? 0 : h.length), 0) + n
+  const hold = s.hands[target].length + n
+  // 剩給別人的那個點數可能是小數（打折過）：前後兩個整數內插
+  const left = 4 - mine - taken
+  const lo = Math.floor(left)
+  const f = left - lo
+  let has = atLeast(pool, lo, hold, n) * (1 - f) + (f ? atLeast(pool, lo + 1, hold, n) * f : 0)
+  // 帶頭的人挑自己最多張的點數喊：手上真的有的機會高很多
+  if (lead) has = 1 - (1 - has) ** 3
+  // 不是真的話，他會這樣喊的機會：帶頭少吹、跟牌蓋一張最常吹；出完最後的牌拚出線的更敢
+  const lie = (lead ? 0.12 : n === 1 ? 0.5 : 0.2) * (s.hands[target].length === 0 ? 1.6 : 1)
   return has / (has + (1 - has) * lie)
 }
+/** 別人喊過的那個點數，當成幾成是真的 */
+const TRUST = 0.7
 
 export function chooseBluffAction(s: BluffState, st: BluffStyle, rng: RngState): [BluffAction, RngState] {
   const p = s.turn

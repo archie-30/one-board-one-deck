@@ -60,6 +60,8 @@ export interface BluffState {
   discard: Card[]
   /** 出線順序（第 1 名在最前面） */
   out: number[]
+  /** 收掉的那幾輪，每個點數總共「喊過」幾張（index＝點數；公開資訊，電腦用來算剩幾張；舊存檔沒有） */
+  told?: number[]
   /** 四張一樣棄掉的（公開；舊存檔沒有） */
   quads?: { player: number; rank: number }[]
   /** 規則設定（舊存檔沒有＝不棄牌） */
@@ -166,7 +168,9 @@ function clearPile(s: BluffState, events: BluffEvent[]): BluffState {
   events.push({ type: 'clear', player: last, pile: pile.length })
   // 最後出牌的人帶下一輪；他已經出線了就換他的下一家
   const leader = s.hands[last].length ? last : nextActive(s, last)
-  return { ...s, discard: [...s.discard, ...pile], plays: [], claim: null, last: null, passes: 0, turn: leader < 0 ? s.turn : leader }
+  const told = (s.told ?? new Array(14).fill(0)).slice()
+  if (s.claim !== null) told[s.claim] += pile.length
+  return { ...s, told, discard: [...s.discard, ...pile], plays: [], claim: null, last: null, passes: 0, turn: leader < 0 ? s.turn : leader }
 }
 
 export function applyBluff(state: BluffState, action: BluffAction): Result<BluffState, BluffError> {

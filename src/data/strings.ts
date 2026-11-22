@@ -1101,6 +1101,7 @@ export const S = {
     lied: (name: string) => `抓到了！${name}吹牛`,
     prev: '上一家',
     quad: (rank: string) => `棄掉四張 ${rank}`,
+    quadBanner: (name: string, rank: string) => `${name} 湊齊四張 ${rank}，棄掉！`,
     honest: (name: string) => `${name}說的是真的`,
     takes: (name: string, n: number) => `${name}吃下 ${n} 張`,
     cleared: '大家都過，桌上的牌收掉',

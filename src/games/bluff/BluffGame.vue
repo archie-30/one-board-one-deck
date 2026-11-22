@@ -157,15 +157,64 @@ function deal() {
   phase.value = 'deal'
   playSound('shuffle')
   gathered.value = false
+  // 開局就湊齊四張的：先照常發到他手上，發完再翻開給大家看
+  held.value = (state.value.quads ?? []).slice()
+  shown.value = withHeld(state.value)
   const order = new Map<Card, number>()
-  state.value.hands.forEach((h, seat) => h.forEach((c, k) => order.set(c, k * 4 + seat)))
+  shown.value.hands.forEach((h, seat) => h.forEach((c, k) => order.set(c, k * 4 + seat)))
   sync(ALL, { stagger: 24, dur: 320, arc: 16, order: (c) => order.get(c) ?? 0 })
   later(() => {
     phase.value = 'play'
-    // 開局就湊齊四張的：寫在桌上
-    for (const q of state.value.quads ?? []) noteQuad(q.player, q.rank)
-    nextTurn()
+    // 開局就湊齊四張的：一組組翻開給大家看，再收到棄牌堆
+    if (held.value.length) announceQuads(held.value)
+    else afterMove()
   }, 52 * 24 + 420)
+}
+/** 還沒公布的四張一樣：畫面上先留在那人手上（翻開給大家看完才收到棄牌堆） */
+const held = ref<{ player: number; rank: number }[]>([])
+/** 畫面用的局面：把還沒公布的四張放回那人手上 */
+function withHeld(s: BluffState, back = held.value): BluffState {
+  if (!back.length) return s
+  const hands = s.hands.map((h) => h.slice())
+  for (const q of back) hands[q.player] = [...hands[q.player], ...quadCards(q.rank)].sort((x, y) => rankOf(x) - rankOf(y) || suitOf(x) - suitOf(y))
+  return { ...s, hands, quads: (s.quads ?? []).filter((q) => !back.some((b) => b.rank === q.rank)) }
+}
+/** 有人湊齊四張：一組一組從他手上翻開飛到桌子中間、寫大字讓大家知道，看完再蓋著收到棄牌堆。
+ *  delay 毫秒後開始，回傳全部播完的時間。播的時候 busy（不能操作、連線先不拿下一個動作） */
+function announceQuads(qs: { player: number; rank: number }[], delay = 0): number {
+  if (!qs.length) return delay
+  held.value = qs.slice()
+  busy.value = true
+  const per = 1800
+  qs.forEach((q, i) =>
+    later(() => {
+      const cards = quadCards(q.rank)
+      // 前一組收到棄牌堆、這一組從手上翻開飛到中間
+      held.value = qs.slice(i + 1)
+      shown.value = withHeld(state.value, qs.slice(i))
+      revealCards.value = cards
+      revealOpen.value = true
+      banner.value = T.quadBanner(names[q.player], RANK_LABELS[q.rank])
+      noteQuad(q.player, q.rank)
+      playSound('flip')
+      sync([...cards, ...(i ? quadCards(qs[i - 1].rank) : [])], { stagger: 90, dur: 520, arc: L.value.cw * 0.3, z: 1100 })
+    }, delay + i * per),
+  )
+  const end = delay + qs.length * per
+  later(() => {
+    revealCards.value = null
+    revealOpen.value = false
+    banner.value = ''
+    held.value = []
+    shown.value = state.value
+    playSound('collect')
+    sync(quadCards(qs[qs.length - 1].rank), { stagger: 50, dur: 480, arc: L.value.cw * 0.3, z: 1100 })
+  }, end)
+  later(() => {
+    busy.value = false
+    nextTurn()
+  }, end + 560)
+  return end + 560
 }
 /** 某人棄掉四張一樣的：桌上記一句、對他來說是好事 */
 function noteQuad(p: number, rank: number) {
@@ -279,14 +328,20 @@ function act(a: BluffAction): boolean {
       banner.value = T.takes(names[ev.taker], ev.pile)
       revealCards.value = null
       revealOpen.value = false
-      shown.value = state.value
+      // 整疊一張張飛到吃牌的人手上（湊齊四張的也先進他手上，等一下再翻開給大家看）
+      shown.value = withHeld(state.value)
       playSound('collect')
-      // 整疊一張張飛到吃牌的人手上（湊齊四張的直接翻開飛到桌上棄牌區）
-      sync([...before.plays.flatMap((x) => x.cards), ...evs.flatMap((e) => (e.type === 'quad' ? quadCards(e.rank) : []))], { stagger: 40, dur: 560, arc: L.value.cw * 0.4, z: 1100 })
-      for (const e of evs) if (e.type === 'quad') noteQuad(e.player, e.rank)
+      sync(before.plays.flatMap((x) => x.cards), { stagger: 40, dur: 560, arc: L.value.cw * 0.4, z: 1100 })
       later(() => (banner.value = ''), 1200)
-      busy.value = false
+      // 還有四張一樣要公布：保持 busy，由 announceQuads 放開
+      busy.value = held.value.length > 0
     }, 2500)
+    // 吃下整疊湊齊四張：先記著（畫面上留在他手上），等牌進手再公布
+    const qs = evs.flatMap((e) => (e.type === 'quad' ? [{ player: e.player, rank: e.rank }] : []))
+    if (qs.length) {
+      held.value = qs
+      wait = announceQuads(qs, 3200)
+    }
   } else {
     shown.value = r.state
     sync()
@@ -298,8 +353,30 @@ function act(a: BluffAction): boolean {
     }, wait - 300)
   }
   if (r.state.over && !net) later(finish, wait + 700)
+  // 單人：你出線了就不用看電腦慢慢打，直接排完名次結算（使用者要的）
+  else if (!net && newlyOut.includes(ME)) later(quickFinish, wait + 900)
   else later(nextTurn, wait)
   return true
+}
+/** 發完牌（或公布完四張）之後：開局你就棄光出線了也直接結算 */
+function afterMove() {
+  if (!net && state.value.out.includes(ME) && !state.value.over) quickFinish()
+  else nextTurn()
+}
+/** 單人：你出線之後，剩下的電腦照原本的打法一瞬間打完、排出名次，直接結算 */
+function quickFinish() {
+  if (net || state.value.over) return finish()
+  let s = state.value
+  for (let k = 0; k < 3000 && !s.over; k++) {
+    let a: BluffAction
+    ;[a, rng] = chooseBluffAction(s, bluffAt(opponents[s.turn - 1].persona.bigtwo, difficulty), rng)
+    const r = applyBluff(s, a)
+    if (!r.ok) break
+    s = r.state
+  }
+  state.value = s
+  held.value = []
+  finish()
 }
 
 function flash(p: number, mood: Mood, ms: number) {
@@ -334,6 +411,7 @@ function newRound() {
   timers.clear()
   menuOpen.value = false
   resultOpen.value = false
+  held.value = []
   selected.value = []
   leadRank.value = null
   message.value = ''
@@ -502,11 +580,15 @@ function pump() {
     // 他棄光了又剛好輪到他：換下一個還有牌的人
     if (!s.hands[s.turn].length) for (let k = 1; k <= 4; k++) if (s.hands[(s.turn + k) % 4].length) ((s = { ...s, turn: (s.turn + k) % 4 }), (k = 9))
     state.value = s
-    shown.value = s
     for (const c of cards) known.delete(c)
-    later(() => noteQuad(qp, q.rank), raw.type === 'call' ? 2600 : 0)
   }
-  if (raw.quads?.length) later(() => sync(raw.quads!.flatMap((q) => quadCards(q.rank)), { stagger: 40, dur: 520, z: 1100 }), raw.type === 'call' ? 2550 : 0)
+  // 公布：畫面上先留在他手上（吃牌的動畫會把它們一起飛進他手裡），再翻開給大家看
+  if (raw.quads?.length) {
+    const qs = raw.quads.map((q) => ({ player: toLocal(m, q.player), rank: q.rank }))
+    held.value = qs
+    if (raw.type !== 'call') shown.value = withHeld(state.value)
+    announceQuads(qs, raw.type === 'call' ? 3200 : 0)
+  }
 }
 /** 伺服器攤牌：背面的牌換成真的（位置不動），再結算 */
 function revealEnd(fin: BluffState) {
@@ -635,7 +717,8 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
       <span class="big t-slab" :class="{ none: shown.claim === null }">{{ shown.claim === null ? '－' : RANK_LABELS[shown.claim] }}</span>
     </div>
     <Transition name="pop">
-      <p v-if="banner" :key="banner" class="banner t-black" :style="{ left: `${L.pileAt.x}px`, top: `${L.pileAt.y - ch * L.tableScale * 0.95}px` }">{{ banner }}</p>
+      <!-- 大字：放在桌框偏右（左上角是「誰說了什麼」，不能蓋到） -->
+      <p v-if="banner" :key="banner" class="banner t-black" :style="{ left: `${L.box.x + L.box.w * 0.66}px`, top: `${Math.max(L.box.y + L.cw * 0.42, L.pileAt.y - ch * L.tableScale * 0.95)}px` }">{{ banner }}</p>
     </Transition>
 
     <!-- 座位上的人 -->
@@ -677,10 +760,10 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
     <div class="actions" :class="{ over: phase === 'over' }">
       <template v-if="phase !== 'over' && !watching">
         <Transition name="callin">
-          <Btn v-if="callable" class="callbtn" tone="yellow" size="lg" block @click="callBluff">{{ T.call }}</Btn>
+          <Btn v-if="callable" class="callbtn" tone="yellow" block @click="callBluff">{{ T.call }}</Btn>
         </Transition>
-        <Btn v-if="!mustLead(state) && phase === 'play'" size="sm" block :disabled="!myTurn || sending" @click="passTurn">{{ T.pass }}</Btn>
-        <Btn class="rise" tone="red" size="lg" block :style="{ '--fs': '1.05rem' }" :disabled="!myTurn || !selected.length || claimRank === null || sending" @click="playSel">{{ selected.length && claimRank !== null ? T.playAs(selected.length, RANK_LABELS[claimRank]) : T.play }}</Btn>
+        <Btn v-if="!mustLead(state) && phase === 'play'" block :disabled="!myTurn || sending" @click="passTurn">{{ T.pass }}</Btn>
+        <Btn class="rise" tone="red" block :disabled="!myTurn || !selected.length || claimRank === null || sending" @click="playSel">{{ selected.length && claimRank !== null ? T.playAs(selected.length, RANK_LABELS[claimRank]) : T.play }}</Btn>
       </template>
       <template v-else-if="phase === 'over'">
         <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>

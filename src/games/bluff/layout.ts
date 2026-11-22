@@ -81,7 +81,9 @@ export function bluffPoses(L: BluffLayout, s: BluffState, selected: readonly Car
   if (reveal) {
     const n = reveal.length
     const gap = cw * ts * 1.12
-    reveal.forEach((c, k) => out.set(c, { x: L.pileAt.x + (k - (n - 1) / 2) * gap * (opened ? 1 : 0.45), y: L.pileAt.y - cw * (opened ? 0.12 : 0.3), r: opened ? 0 : (k - (n - 1) / 2) * 6, s: ts * (opened ? 1.05 : 1.12), f: opened ? 1 : 0, z: 900 + k }))
+    // 桌框矮的螢幕：往下挪，不蓋到左上角三行「誰說了什麼」
+    const y0 = Math.max(L.pileAt.y, L.box.y + cw * 0.8 + ((cw * 108) / 78) * ts * 0.56)
+    reveal.forEach((c, k) => out.set(c, { x: L.pileAt.x + (k - (n - 1) / 2) * gap * (opened ? 1 : 0.45), y: y0 - cw * (opened ? 0.12 : 0.3), r: opened ? 0 : (k - (n - 1) / 2) * 6, s: ts * (opened ? 1.05 : 1.12), f: opened ? 1 : 0, z: 900 + k }))
   }
   return out
 }
