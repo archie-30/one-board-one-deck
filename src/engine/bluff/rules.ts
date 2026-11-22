@@ -75,7 +75,7 @@ export type BluffAction =
   | { type: 'pass'; player: number }
   | { type: 'call'; player: number }
   | { type: 'timeout'; player: number }
-export type BluffError = 'over' | 'notYourTurn' | 'notInHand' | 'count' | 'needRank' | 'wrongRank' | 'mustLead' | 'cantCall'
+export type BluffError = 'over' | 'notYourTurn' | 'notInHand' | 'count' | 'needRank' | 'wrongRank' | 'mustLead' | 'cantCall' | 'deadRank'
 
 const sortHand = (h: Card[]) => h.slice().sort((a, b) => rankOf(a) - rankOf(b) || suitOf(a) - suitOf(b))
 
@@ -220,6 +220,8 @@ export function applyBluff(state: BluffState, action: BluffAction): Result<Bluff
   let rank = state.claim
   if (rank === null) {
     if (!a.rank || a.rank < 1 || a.rank > 13) return { ok: false, reason: 'needRank' }
+    // 四張都棄掉的點數不能喊
+    if (state.quads?.some((q) => q.rank === a.rank)) return { ok: false, reason: 'deadRank' }
     rank = a.rank
   } else if (a.rank !== undefined && a.rank !== rank) return { ok: false, reason: 'wrongRank' }
   let s = settleFinisher(base)
