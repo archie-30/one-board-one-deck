@@ -432,6 +432,11 @@ export const S = {
     cardStartsHelp: '在模式選單點中間那張卡片就開始遊戲。關掉的話只能按「開始遊戲」按鈕，比較不會誤觸。',
     haptics: '震動',
     hapticsHelp: '發牌、出牌、落子、吃子、輪到你時手機輕輕震一下，事情越大震得越明顯。',
+    hapticsLevels: [
+      { value: 'off', label: '關' },
+      { value: 'low', label: '低' },
+      { value: 'mid', label: '中' },
+    ],
     keepAwake: '保持螢幕恆亮',
     keepAwakeHelp: '開著遊戲時螢幕不會自動變暗、鎖住，想很久也不怕；切到別的 App 就照手機原本的設定。',
     avoidCutout: '鏡頭防遮擋',
