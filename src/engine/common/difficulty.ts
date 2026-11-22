@@ -217,6 +217,17 @@ export const ninetyNineAt = (st: BigTwoStyle, d: CardLevel): { skill: number; ag
       : { skill: clamp(st.skill * 0.15), aggression: st.aggression, blunder: clamp(0.4 + st.blunder) }
 
 /**
+ * 吹牛：低／中／高（用大老二的打法當底：愛不愛壓人＝敢不敢吹牛）。
+ *   低：不太敢吹、常常亂抓、常亂來；中：偶爾吹、抓得有點多、偶爾亂來；高：沒那個點數幾乎都吹、只在很有把握時抓、不失誤
+ */
+export const bluffAt = (st: BigTwoStyle, d: CardLevel): { bluff: number; line: number; noise: number; blunder: number } =>
+  d === 'high'
+    ? { bluff: clamp(0.85 + st.aggression * 0.15), line: 0.08, noise: 0, blunder: 0 }
+    : d === 'mid'
+      ? { bluff: clamp(0.35 + st.aggression * 0.3), line: 0.3, noise: 0.25, blunder: clamp(0.06 + st.blunder) }
+      : { bluff: clamp(st.aggression * 0.4), line: 0.45, noise: 0.5, blunder: clamp(0.3 + st.blunder) }
+
+/**
  * 暗棋：低／中／高（跟牌類一樣三段）。
  *   低：只看一步、不太管走完會不會被吃、常常亂翻亂走
  *   中：看一步，會顧自己被吃；偶爾隨手走

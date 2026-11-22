@@ -8,6 +8,7 @@ import { DEFAULT_GO_OPTIONS as GO } from '@/engine/go/rules'
 import { bestAt, stats } from '@/core/settings'
 import { DEFAULT_LEVEL } from '@/engine/common/difficulty'
 import BigTwoCover from './covers/BigTwoCover.vue'
+import BluffCover from './covers/BluffCover.vue'
 import CrazyBigTwoCover from './covers/CrazyBigTwoCover.vue'
 import ChessCover from './covers/ChessCover.vue'
 import GoCover from './covers/GoCover.vue'
@@ -158,6 +159,19 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./ninetynine/NinetyNineTutorial.vue')),
     component: defineAsyncComponent(() => import('./ninetynine/NinetyNineGame.vue')),
     settings: [choice('difficulty', S.ninetynine.settings.difficulty, 'mid'), timer()],
+  },
+  {
+    id: 'bluff',
+    category: 'cards',
+    name: S.bluff.name,
+    summary: S.bluff.summary,
+    players: S.bluff.players,
+    cover: BluffCover,
+    tags: S.bluff.tags,
+    rulesIntro: withTimer(S.bluff.rules, [...TR.cards, TR.bluff]),
+    tutorial: defineAsyncComponent(() => import('./bluff/BluffTutorial.vue')),
+    component: defineAsyncComponent(() => import('./bluff/BluffGame.vue')),
+    settings: [choice('difficulty', S.bluff.settings.difficulty, 'mid'), timer()],
   },
   {
     id: 'solitaire',
