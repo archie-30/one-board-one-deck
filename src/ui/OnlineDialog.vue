@@ -45,9 +45,20 @@ function toProfile() {
   emit('close')
   go({ name: 'profile' })
 }
+/** 按下的那一顆亮一下（點的、打鍵盤的都算；同一顆連按也會重播） */
+const hit = ref('')
+const hitN = ref(0)
+let hitTimer = 0
+function flash(k: string) {
+  hit.value = k
+  hitN.value++
+  window.clearTimeout(hitTimer)
+  hitTimer = window.setTimeout(() => (hit.value = ''), 320)
+}
 /** 數字盤／鍵盤：加一個數字 */
 function press(d: string) {
   if (busy.value || code.value.length >= ROOM_CODE_LENGTH) return
+  flash(d)
   code.value += d
   error.value = ''
   playSound('tap')
@@ -55,6 +66,7 @@ function press(d: string) {
 /** 倒退一格 */
 function erase() {
   if (busy.value || !code.value) return
+  flash('del')
   code.value = code.value.slice(0, -1)
   error.value = ''
   playSound('tap')
@@ -152,10 +164,10 @@ async function create() {
       <div class="pad" :aria-label="T.joinLabel">
         <template v-for="(k, i) in KEYS" :key="i">
           <span v-if="!k" />
-          <button v-else-if="k === 'del'" type="button" tabindex="-1" class="key del" @pointerdown.prevent :aria-label="T.erase" :disabled="busy || !code" @click="erase">
+          <button v-else-if="k === 'del'" type="button" tabindex="-1" :key="hit === 'del' ? `del${hitN}` : 'del'" class="key del" :class="{ hit: hit === 'del' }" @pointerdown.prevent :aria-label="T.erase" :disabled="busy || !code" @click="erase">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h12v14H8l-6-7z" /><path d="m11.5 9.5 5 5m0-5-5 5" /></svg>
           </button>
-          <button v-else type="button" tabindex="-1" class="key t-slab" @pointerdown.prevent :disabled="busy || code.length >= ROOM_CODE_LENGTH" @click="press(k)">{{ k }}</button>
+          <button v-else type="button" tabindex="-1" :key="hit === k ? `${k}${hitN}` : k" class="key t-slab" :class="{ hit: hit === k }" @pointerdown.prevent :disabled="busy || code.length >= ROOM_CODE_LENGTH" @click="press(k)">{{ k }}</button>
         </template>
       </div>
     </div>
@@ -172,10 +184,12 @@ async function create() {
   align-items: flex-start;
   gap: 0.6rem;
 }
-/* 左邊：原本的加入、建立；右邊：數字盤 */
+/* 左邊：原本的加入、建立；右邊：數字盤
+   右下多留一點空：最右、最下那排鍵按下去會往右下壓，加上看不見的點擊範圍，不然會被切掉、跑出左右捲軸 */
 .cols {
   display: flex;
   gap: 1.4rem;
+  padding: 0 0.45rem 0.45rem 0;
 }
 .left {
   min-width: 0;
@@ -266,6 +280,15 @@ async function create() {
     transform 110ms var(--ease-out),
     box-shadow 110ms var(--ease-out);
 }
+/* 按下去亮一下黃色，再慢慢退回原本的底色 */
+.key.hit {
+  animation: key-hit 320ms ease-out;
+}
+@keyframes key-hit {
+  from {
+    background: var(--color-yellow);
+  }
+}
 .key:focus,
 .key:focus-visible {
   /* 按了不會留住焦點框（鍵也不搶 Enter：Enter 是「加入」） */
@@ -276,8 +299,9 @@ async function create() {
   position: absolute;
   inset: -0.2rem;
 }
-/* 按下去：跟一般按鈕一樣往陰影方向壓下去（不變色、不出現框） */
+/* 按下去：跟一般按鈕一樣往陰影方向壓下去、亮黃色（不出現框） */
 .key:active:not(:disabled) {
+  background: var(--color-yellow);
   transform: translate(0.16rem, 0.16rem);
   box-shadow: 0 0 0 var(--color-ink);
 }
