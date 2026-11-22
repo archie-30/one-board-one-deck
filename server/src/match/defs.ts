@@ -195,7 +195,7 @@ const ninetynineDef: MatchDef<NinetyNineState, NinetyNineAction> = {
 const bluffDef: MatchDef<BluffState, BluffAction> = {
   seats: BLUFF_PLAYERS,
   seconds: TURN_SECONDS.cards,
-  deal: (seed) => dealBluff(seed),
+  deal: (seed, opts) => dealBluff(seed, { fourDiscard: opts.fourDiscard !== false }),
   apply: (s, a) => {
     const r = applyBluff(s, a)
     return r.ok ? r.state : null
@@ -211,19 +211,22 @@ const bluffDef: MatchDef<BluffState, BluffAction> = {
   bot: (s, botId, opts, rng) => chooseBluffAction(s, bluffAt(PERSONAS[botId].bigtwo, asCardLevel(opts.difficulty)), rng),
   think: (s, _id, _o, r) => (mustLead(s) || canCall(s) ? 1900 : 1300) + r * 1100,
   timeout: (seat) => ({ type: 'timeout', player: seat }),
+  // 湊齊四張棄掉的（quads）公開：大家都看得到是誰、哪個點數
   render(before, after, a) {
     const ev = after.events[0]
+    const qs = after.events.flatMap((e) => (e.type === 'quad' ? [{ player: e.player, rank: e.rank }] : []))
+    const quads = qs.length ? { quads: qs } : {}
     if (ev.type === 'play') {
       const cards = after.plays[after.plays.length - 1].cards
       return { pub: { type: 'play', player: a.player, count: ev.count, rank: ev.rank }, own: { type: 'play', player: a.player, count: ev.count, rank: ev.rank, cards } }
     }
     if (ev.type === 'call') {
-      const pub = { type: 'call', player: a.player, cards: ev.cards, liar: ev.liar, taker: ev.taker, pile: ev.pile }
+      const pub = { type: 'call', player: a.player, cards: ev.cards, liar: ev.liar, taker: ev.taker, pile: ev.pile, ...quads }
       return { pub, own: { ...pub, pileCards: before.plays.flatMap((x) => x.cards) }, ownSide: ev.taker }
     }
-    return { pub: { type: 'pass', player: a.player } }
+    return { pub: { type: 'pass', player: a.player, ...quads } }
   },
-  start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), turn: s.turn }),
+  start: (s, v) => ({ hand: v >= 0 ? s.hands[v] : [], counts: counts(s.hands), turn: s.turn, quads: s.quads ?? [] }),
   // 攤牌：最後的局面（大家剩的手牌、收掉的牌）
   reveal: (s) => ({ ...s, events: [] }),
 }

@@ -64,11 +64,11 @@ export function truthChance(s: BluffState, me: number): number {
   const n = lastPlay.cards.length
   const claim = s.claim!
   const mine = s.hands[me].filter((c) => rankOf(c) === claim).length
-  // 一副牌每個點數只有 4 張
-  if (mine + n > 4) return 0
+  // 一副牌每個點數只有 4 張；那個點數的四張已經被棄掉（公開）也一定是假的
+  if (mine + n > 4 || s.quads?.some((q) => q.rank === claim)) return 0
   const target = lastPlay.player
   // 沒看過的牌：不在我手上的都算（別人的手牌、桌上的、收掉的）
-  const unseen = 52 - s.hands[me].length
+  const unseen = 52 - s.hands[me].length - (s.quads?.length ?? 0) * 4
   const good = 4 - mine
   // 他出這手之前手上有幾張
   const before = s.hands[target].length + n

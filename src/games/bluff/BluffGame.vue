@@ -15,7 +15,7 @@ import { TURN_SECONDS } from '@/data/timer'
 import { asCardLevel, bluffAt } from '@/engine/common/difficulty'
 import { seedRng, nextInt, type RngState } from '@/engine/common/rng'
 import { chooseBluffAction } from '@/engine/bluff/ai'
-import { applyBluff, canCall, dealBluff, MAX_PLAY, mustLead, pileCount, placings, RANK_LABELS, rankOf, suitOf, type BluffAction, type BluffEvent, type BluffState, type Card } from '@/engine/bluff/rules'
+import { applyBluff, canCall, dealBluff, MAX_PLAY, mustLead, pileCount, placings, quadCards, RANK_LABELS, rankOf, suitOf, takeQuads, type BluffAction, type BluffEvent, type BluffState, type Card } from '@/engine/bluff/rules'
 import { CardStage } from '@/games/bigtwo/cardStage'
 import type { GameDef } from '@/games/types'
 import Avatar from '@/ui/art/Avatar.vue'
@@ -71,7 +71,9 @@ if (net)
   )
 const looks = seated ? seated.map((o) => o.look) : [myLook(), ...opponents.map((o) => o.look)]
 
-const state = shallowRef<BluffState>(net ? netStart() : saved ? saved.state : dealBluff(seed))
+/** 規則設定「四張一樣棄牌」（預設開） */
+const bluffOpts = { fourDiscard: rules.fourDiscard !== false }
+const state = shallowRef<BluffState>(net ? netStart() : saved ? saved.state : dealBluff(seed, bluffOpts))
 /** 畫面上照這個局面擺牌（被抓、收牌時先停在動作之前的樣子一下，再換成 state） */
 const shown = shallowRef<BluffState>(state.value)
 /** 正在翻開給大家看的那一手；revealOpen＝已經翻成正面（還沒翻時先拿起來） */
@@ -160,8 +162,15 @@ function deal() {
   sync(ALL, { stagger: 24, dur: 320, arc: 16, order: (c) => order.get(c) ?? 0 })
   later(() => {
     phase.value = 'play'
+    // 開局就湊齊四張的：寫在桌上
+    for (const q of state.value.quads ?? []) noteQuad(q.player, q.rank)
     nextTurn()
   }, 52 * 24 + 420)
+}
+/** 某人棄掉四張一樣的：桌上記一句、對他來說是好事 */
+function noteQuad(p: number, rank: number) {
+  note(p, T.quad(RANK_LABELS[rank]))
+  flash(p, 'smug', 1400)
 }
 
 /** 記一句「某某：2 張 7」到桌上（只留最近兩句） */
@@ -272,8 +281,9 @@ function act(a: BluffAction): boolean {
       revealOpen.value = false
       shown.value = state.value
       playSound('collect')
-      // 整疊一張張飛到吃牌的人手上
-      sync(before.plays.flatMap((x) => x.cards), { stagger: 40, dur: 560, arc: L.value.cw * 0.4, z: 1100 })
+      // 整疊一張張飛到吃牌的人手上（湊齊四張的直接翻開飛到桌上棄牌區）
+      sync([...before.plays.flatMap((x) => x.cards), ...evs.flatMap((e) => (e.type === 'quad' ? quadCards(e.rank) : []))], { stagger: 40, dur: 560, arc: L.value.cw * 0.4, z: 1100 })
+      for (const e of evs) if (e.type === 'quad') noteQuad(e.player, e.rank)
       later(() => (banner.value = ''), 1200)
       busy.value = false
     }, 2500)
@@ -339,7 +349,7 @@ function newRound() {
     let k: number
     ;[k, rng] = nextInt(rng, 2147483646)
     seed = k + 1
-    state.value = dealBluff(seed)
+    state.value = dealBluff(seed, bluffOpts)
     shown.value = state.value
     acted.value = false
     deal()
@@ -375,12 +385,15 @@ function fromServer(s: BluffState): BluffState {
 }
 function netStart(): BluffState {
   const m = net!
-  const st = m.start as { hand: Card[]; counts: number[]; turn: number }
+  const st = m.start as { hand: Card[]; counts: number[]; turn: number; quads?: { player: number; rank: number }[] }
   const counts = rotate(m, st.counts)
-  const unknown = ALL.filter((c) => !st.hand.includes(c))
+  const quads = (st.quads ?? []).map((q) => ({ player: toLocal(m, q.player), rank: q.rank }))
+  const gone = quads.flatMap((q) => quadCards(q.rank))
+  const unknown = ALL.filter((c) => !st.hand.includes(c) && !gone.includes(c))
   let k = 0
   const hands = counts.map((n, p) => (p === ME && !watching ? st.hand.slice() : unknown.slice(k, (k += n))))
-  return { hands, plays: [], claim: null, turn: toLocal(m, st.turn), last: null, passes: 0, discard: [], out: [], moves: 0, events: [], over: false }
+  // 棄牌由伺服器說（別人的手牌在這裡是假的，本機算不出誰湊齊四張）
+  return { hands, plays: [], claim: null, turn: toLocal(m, st.turn), last: null, passes: 0, discard: [], out: [], moves: 0, events: [], over: false, quads, opts: { fourDiscard: false } }
 }
 function mine(a: BluffAction): boolean {
   if (!net) return act(a)
@@ -429,7 +442,7 @@ function pump() {
     later(pump, 200)
     return
   }
-  const raw = e.ev as { type: string; player: number; count?: number; rank?: number; cards?: Card[]; pileCards?: Card[] }
+  const raw = e.ev as { type: string; player: number; count?: number; rank?: number; cards?: Card[]; pileCards?: Card[]; quads?: { player: number; rank: number }[] }
   const p = toLocal(m, raw.player)
   if (p === ME) sending.value = false
   let a: BluffAction
@@ -475,6 +488,25 @@ function pump() {
     state.value = { ...s, hands: z.slice(0, 4).map((h, i) => (i === 0 ? h.slice().sort((x, y) => rankOf(x) - rankOf(y) || suitOf(x) - suitOf(y)) : h)), discard: z[4] }
     for (const c of raw.pileCards) known.delete(c)
   }
+  // 伺服器說有人湊齊四張棄掉：把那四張換到他手上（畫面上換身分），再從手上拿掉
+  for (const q of raw.quads ?? []) {
+    const qp = toLocal(m, q.player)
+    const cards = quadCards(q.rank)
+    let s = state.value
+    if (qp !== ME || watching) {
+      const z = hiddenZones(s)
+      bringAll(z, qp - H0, cards, cards)
+      s = withZones(s, z)
+    }
+    s = takeQuads(s, qp, [q.rank])
+    // 他棄光了又剛好輪到他：換下一個還有牌的人
+    if (!s.hands[s.turn].length) for (let k = 1; k <= 4; k++) if (s.hands[(s.turn + k) % 4].length) ((s = { ...s, turn: (s.turn + k) % 4 }), (k = 9))
+    state.value = s
+    shown.value = s
+    for (const c of cards) known.delete(c)
+    later(() => noteQuad(qp, q.rank), raw.type === 'call' ? 2600 : 0)
+  }
+  if (raw.quads?.length) later(() => sync(raw.quads!.flatMap((q) => quadCards(q.rank)), { stagger: 40, dur: 520, z: 1100 }), raw.type === 'call' ? 2550 : 0)
 }
 /** 伺服器攤牌：背面的牌換成真的（位置不動），再結算 */
 function revealEnd(fin: BluffState) {

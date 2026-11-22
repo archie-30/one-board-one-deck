@@ -3,7 +3,7 @@
 // 有人喊「吹牛」時，被抓的那一手翻開排在牌堆上面給大家看。純計算，不碰 DOM。
 import { cardPoses, hash, makeLayout, type Layout } from '@/games/bigtwo/tableLayout'
 import type { Pose } from '@/games/bigtwo/cardStage'
-import type { BluffState, Card } from '@/engine/bluff/rules'
+import { quadCards, type BluffState, type Card } from '@/engine/bluff/rules'
 
 export interface BluffLayout extends Layout {
   /** 桌面框 */
@@ -52,6 +52,19 @@ export function bluffPoses(L: BluffLayout, s: BluffState, selected: readonly Car
   if (showAll) for (let p = 1; p < 4; p++) for (const c of s.hands[p]) out.set(c, { ...out.get(c)!, f: 1 })
   // 收掉的牌：一疊，往右上錯開一點點
   s.discard.forEach((c, k) => out.set(c, { x: L.discardAt.x + hash(c, 3) * 3 - k * 0.18, y: L.discardAt.y + hash(c, 4) * 3 - k * 0.25, r: hash(c, 5) * 10, s: ts * 0.8, f: 0, z: 100 + k }))
+  // 四張一樣棄掉的：翻開、小小的，每組四張扇開，在桌框上緣由右往左排（放不下就擠一點）
+  const qs = s.quads ?? []
+  if (qs.length) {
+    const sq = ts * 0.5
+    const cardW = cw * sq
+    const room = L.box.w * 0.5
+    const step = Math.min(cardW * 2.3, (room - cardW * 1.8) / Math.max(1, qs.length - 1))
+    const y = L.box.y + (cw * 108) / 78 * sq * 0.5 + cw * 0.12
+    qs.forEach((q, i) => {
+      const x0 = L.box.x + L.box.w - cardW * 1.3 - i * step
+      quadCards(q.rank).forEach((c, k) => out.set(c, { x: x0 + (k - 1.5) * cardW * 0.28, y, r: (k - 1.5) * 4, s: sq, f: 1, z: 160 + i * 4 + k }))
+    })
+  }
   // 這一輪的牌：一手一手亂亂地疊在中間（每一手往不同方向偏一點、轉一個角度）
   let z = 300
   s.plays.forEach((play, i) => {
