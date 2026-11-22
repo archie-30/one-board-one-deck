@@ -715,6 +715,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </span>
           </button>
         </div>
+        <!-- 正中間那一列上下各一條淡灰線，像相框框住選中的 -->
+        <span class="frame" aria-hidden="true" />
         <!-- 捲動進度條：黑框膠囊、分類色的把手（瀏覽器自己的捲軸藏起來），可以拖 -->
         <div v-show="bar.h < 1" class="sbar" @pointerdown="barDown">
           <span class="thumb" :style="{ top: `${bar.top * 100}%`, height: `${bar.h * 100}%` }" />
@@ -756,7 +758,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </span>
           </button>
         </div>
-        <div class="pager">
+        <div class="pager" :class="{ vert: listSwitch }">
           <button class="arrow prev" :disabled="index === 0" :aria-label="S.common.back" @click="turn(-1)"><Icon name="arrow" /></button>
           <button class="arrow" :disabled="index === games.length - 1" :aria-label="S.common.next" @click="turn(1)"><Icon name="arrow" /></button>
           <span class="t-slab count">{{ pad(index + 1) }} <i>/</i> {{ pad(games.length) }}</span>
@@ -1207,6 +1209,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   /* 瀏覽器自己的捲軸藏起來，改用 .sbar */
   scrollbar-width: none;
 }
+/* 相框線：選中的那一列（5.6rem 高）上下各一條，落在列與列的空隙裡 */
+.frame {
+  position: absolute;
+  top: calc(50% - 3.35rem);
+  right: 1.8rem;
+  left: 0;
+  height: 6.85rem;
+  border-block: 0.1rem solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  pointer-events: none;
+}
 .list::-webkit-scrollbar {
   display: none;
 }
@@ -1265,6 +1277,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   /* 換選的時候：高度、陰影、底色、明暗一起慢慢變（不要一下子跳過去） */
   transition:
     height 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    margin 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
     transform 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
     box-shadow 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
     background-color 320ms ease,
@@ -1283,6 +1296,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 /* 選中的那一列：變高、插圖和字放大、往右推一點、陰影拉長、底色帶一點分類色 */
 .row.front {
   height: 5.6rem;
+  /* 上下多留一點空，相框線（.frame）才放得下 */
+  margin-block: 0.5rem;
   background: color-mix(in srgb, var(--color-card) 88%, var(--tone));
   box-shadow: 0.34rem 0.34rem 0 var(--color-ink);
   transform: translateX(0.3rem);
@@ -1360,8 +1375,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .arrow svg {
   width: 0.9rem;
 }
+.arrow svg {
+  transition: rotate 320ms var(--ease-out);
+}
 .arrow.prev svg {
   rotate: 180deg;
+}
+/* 條列時箭頭轉成「上」「下」 */
+.pager.vert .arrow.prev svg {
+  rotate: 270deg;
+}
+.pager.vert .arrow:not(.prev) svg {
+  rotate: 90deg;
 }
 .arrow:disabled {
   opacity: 0.3;
