@@ -16,6 +16,7 @@ import TitleScreen from '@/screens/TitleScreen.vue'
 import LaunchOverlay from '@/ui/LaunchOverlay.vue'
 import RoomCountdown from '@/ui/RoomCountdown.vue'
 import UnlockDialog from '@/ui/UnlockDialog.vue'
+import NewsDialog from '@/ui/NewsDialog.vue'
 import UpdateDialog from '@/ui/UpdateDialog.vue'
 
 /** 離開一頁：往下沉一點、淡出（0.2 秒）；對局頁、減少動態時直接換 */
@@ -61,6 +62,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     </Transition>
     <UnlockDialog />
     <UpdateDialog />
+    <NewsDialog />
     <LaunchOverlay />
     <RoomCountdown />
     <div class="rotate">{{ S.app.rotate }}</div>

@@ -15,6 +15,7 @@ import Icon from '@/ui/art/Icon.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import OnlineDialog from '@/ui/OnlineDialog.vue'
 import ProfileChip from '@/ui/ProfileChip.vue'
+import { checkNews } from '@/core/news'
 import AppSettings from './AppSettings.vue'
 
 const picked = ref<GameCategory | null>(null)
@@ -40,7 +41,10 @@ onMounted(async () => {
     return it !== Infinity && a.playState !== 'finished'
   })
   await Promise.race([Promise.allSettled(finite.map((a) => a.finished)), new Promise((ok) => window.setTimeout(ok, 2500))])
-  if (alive) locked.value = false
+  if (!alive) return
+  locked.value = false
+  // 新玩法公告（期限前第一次進來才跳一次）
+  checkNews()
 })
 onBeforeUnmount(() => {
   alive = false
