@@ -1335,12 +1335,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .row:not(.front) {
   filter: brightness(0.86) saturate(0.6);
 }
-/* 選中的那一列：變高、插圖和字放大、往右推一點、陰影拉長、底色帶一點分類色 */
+/* 選中的那一列：變高、插圖和字放大、陰影拉長、底色帶一點分類色（不往右推：左邊跟其他列對齊成一條線） */
 .row.front {
   /* 高度、上下留白由 rowStyle 照轉到的位置算（中間那列 5.6rem、上下各多 0.5rem 給相框線） */
   background: color-mix(in srgb, var(--color-card) 88%, var(--tone));
   box-shadow: 0.34rem 0.34rem 0 var(--color-ink);
-  transform: translateX(0.3rem);
 }
 .row.lifted {
   visibility: hidden;
@@ -1390,11 +1389,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 @container (max-width: 30rem) {
   .row .tags {
     display: none;
-  }
-}
-@media (hover: hover) and (pointer: fine) {
-  .row:not(.front):hover {
-    transform: translateX(0.15rem);
   }
 }
 .pager {
