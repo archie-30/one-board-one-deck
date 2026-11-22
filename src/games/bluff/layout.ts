@@ -14,6 +14,8 @@ export interface BluffLayout extends Layout {
   claimAt: { x: number; y: number }
   /** 桌上的牌縮放倍率 */
   tableScale: number
+  /** 每個人頭上冒出的話（「2 張 7」）放在哪裡；align：對話框從這一點往哪邊長（left＝這點是左邊緣、right＝右邊緣，靠畫面邊的不會被切掉） */
+  sayAt: { x: number; y: number; align: 'left' | 'right' | 'center' }[]
 }
 
 export function bluffLayout(W: number, H: number): BluffLayout {
@@ -21,7 +23,8 @@ export function bluffLayout(W: number, H: number): BluffLayout {
   const { cw } = L
   const ch = (cw * 108) / 78
   const top = cw * 1.2
-  const bottom = H - cw * 1.62
+  // 比排七高一點：手牌選起來會往上浮，不能蓋到桌框底下的狀態文字
+  const bottom = H - cw * 2
   const w = Math.min(W * 0.56, W - cw * 6.2)
   const box = { x: W / 2 - w / 2, y: top, w, h: bottom - top }
   // 框底下留一條給狀態文字（帶頭時上面再多一排點數按鈕）
@@ -37,6 +40,13 @@ export function bluffLayout(W: number, H: number): BluffLayout {
     pileAt,
     claimAt: { x: box.x + box.w * 0.8, y: cy },
     tableScale,
+    // 對話框都放在頭像旁邊、不壓到任何人的牌：左右兩家在頭像上面，上面那位在他手牌的右邊，你在頭像上面
+    sayAt: [
+      { x: cw * 0.25, y: H - cw * 1.45, align: 'left' },
+      { x: W - cw * 0.25, y: H * 0.4 - L.seats[1].kid.w - cw * 0.32, align: 'right' },
+      { x: W / 2 + cw * 2.3, y: cw * 0.55, align: 'left' },
+      { x: cw * 0.25, y: H * 0.4 - L.seats[3].kid.w - cw * 0.32, align: 'left' },
+    ],
   }
 }
 
@@ -44,7 +54,7 @@ export function bluffLayout(W: number, H: number): BluffLayout {
  * 每一張牌該在哪裡。
  * reveal：正在翻開給大家看的那一手（翻成正面、排一排放在牌堆上）；showAll：結束了，大家的手牌翻開
  */
-export function bluffPoses(L: BluffLayout, s: BluffState, selected: readonly Card[], gathered: boolean, reveal: readonly Card[] | null, showAll: boolean): Map<Card, Pose> {
+export function bluffPoses(L: BluffLayout, s: BluffState, selected: readonly Card[], gathered: boolean, reveal: readonly Card[] | null, showAll: boolean, opened = true): Map<Card, Pose> {
   const out = cardPoses(L, { hands: s.hands, selected: selected.slice(), pile: [], discard: [], gathered })
   if (gathered) return out
   const { cw, tableScale: ts } = L
@@ -59,11 +69,11 @@ export function bluffPoses(L: BluffLayout, s: BluffState, selected: readonly Car
     const rot = hash(i * 7 + play.player, 9) * 40
     play.cards.forEach((c, k) => out.set(c, { x: L.pileAt.x + ox + (k - (play.cards.length - 1) / 2) * cw * 0.16, y: L.pileAt.y + oy, r: rot + (k - (play.cards.length - 1) / 2) * 5, s: ts, f: 0, z: z++ }))
   })
-  // 翻開的那一手：正面朝上排一排，壓在最上面
+  // 被抓的那一手：先從牌堆裡拿起來（還蓋著、放大一點），再一張張翻開排一排，壓在最上面
   if (reveal) {
     const n = reveal.length
-    const gap = cw * ts * 1.08
-    reveal.forEach((c, k) => out.set(c, { x: L.pileAt.x + (k - (n - 1) / 2) * gap, y: L.pileAt.y - cw * 0.1, r: 0, s: ts * 1.05, f: 1, z: 900 + k }))
+    const gap = cw * ts * 1.12
+    reveal.forEach((c, k) => out.set(c, { x: L.pileAt.x + (k - (n - 1) / 2) * gap * (opened ? 1 : 0.45), y: L.pileAt.y - cw * (opened ? 0.12 : 0.3), r: opened ? 0 : (k - (n - 1) / 2) * 6, s: ts * (opened ? 1.05 : 1.12), f: opened ? 1 : 0, z: 900 + k }))
   }
   return out
 }

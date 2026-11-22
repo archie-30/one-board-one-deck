@@ -74,8 +74,9 @@ const looks = seated ? seated.map((o) => o.look) : [myLook(), ...opponents.map((
 const state = shallowRef<BluffState>(net ? netStart() : saved ? saved.state : dealBluff(seed))
 /** 畫面上照這個局面擺牌（被抓、收牌時先停在動作之前的樣子一下，再換成 state） */
 const shown = shallowRef<BluffState>(state.value)
-/** 正在翻開給大家看的那一手 */
+/** 正在翻開給大家看的那一手；revealOpen＝已經翻成正面（還沒翻時先拿起來） */
 const revealCards = shallowRef<Card[] | null>(null)
+const revealOpen = ref(false)
 const grace = useGrace(props.options, state, () => state.value.turn === ME)
 const phase = ref<'deal' | 'play' | 'over'>(saved ? 'play' : 'deal')
 const gathered = ref(!saved)
@@ -115,8 +116,8 @@ stage.onLand = () => {
   if (now - lastLand > 45) playSound(phase.value === 'deal' ? 'deal' : 'card')
   lastLand = now
 }
-function sync(fly: Card[] = [], opts: { stagger?: number; dur?: number; arc?: number; order?: (c: Card) => number } = {}, instant = false) {
-  const poses = bluffPoses(L.value, shown.value, selected.value, gathered.value, revealCards.value, phase.value === 'over')
+function sync(fly: Card[] = [], opts: { stagger?: number; dur?: number; arc?: number; order?: (c: Card) => number; z?: number } = {}, instant = false) {
+  const poses = bluffPoses(L.value, shown.value, selected.value, gathered.value, revealCards.value, phase.value === 'over', revealOpen.value)
   for (const c of ALL) {
     let pose = poses.get(c)
     if (!pose) continue
@@ -126,7 +127,7 @@ function sync(fly: Card[] = [], opts: { stagger?: number; dur?: number; arc?: nu
       const k = opts.order ? opts.order(c) : fi
       const v = Math.random()
       const st = opts.stagger ?? 0
-      stage.move(c, pose, { delay: k * st + v * st * 0.4, dur: (opts.dur ?? 420) * (0.88 + v * 0.3), arc: (opts.arc ?? L.value.cw * 0.8) * (0.65 + Math.random() * 0.7), flightZ: 600 + k, land: true, instant })
+      stage.move(c, pose, { delay: k * st + v * st * 0.4, dur: (opts.dur ?? 420) * (0.88 + v * 0.3), arc: (opts.arc ?? L.value.cw * 0.8) * (0.65 + Math.random() * 0.7), flightZ: (opts.z ?? 600) + k, land: true, instant })
     } else stage.move(c, pose, { dur: 240, instant })
   }
 }
@@ -220,7 +221,8 @@ function act(a: BluffAction): boolean {
     say(p, T.said(ev.count, RANK_LABELS[ev.rank]))
     const played = r.state.plays[r.state.plays.length - 1].cards
     shown.value = r.state
-    sync(played, { stagger: 60, dur: 420, arc: L.value.cw * 0.6 })
+    // 一張張蓋到桌上：平順地滑過去、途中翻成背面（不往上拋）
+    sync(played, { stagger: 90, dur: 560, arc: L.value.cw * 0.25, z: 1100 })
   } else if (ev.type === 'pass') {
     say(p, T.passed)
     playSound('pass')
@@ -250,28 +252,33 @@ function act(a: BluffAction): boolean {
     moods[ev.target] = 'shock'
     playSound('reveal')
     shown.value = before
+    // 先把那一手從牌堆裡拿起來（還蓋著），停一下再一張張翻開
     revealCards.value = ev.cards
-    sync()
-    wait = 3000
+    revealOpen.value = false
+    sync(ev.cards, { stagger: 70, dur: 380, arc: L.value.cw * 0.15, z: 1100 })
+    wait = 3300
     later(() => {
+      revealOpen.value = true
       playSound('flip')
-      sync(ev.cards, { stagger: 80, dur: 360, arc: 0 })
-    }, 350)
+      sync(ev.cards, { stagger: 160, dur: 460, arc: L.value.cw * 0.2, z: 1100 })
+    }, 650)
     later(() => {
       banner.value = ev.liar ? T.lied(names[ev.target]) : T.honest(names[ev.target])
       flash(ev.liar ? p : ev.target, 'smug', 1600)
       flash(ev.taker, 'sad', 1800)
       playSound(ev.liar ? 'correct' : 'error')
-    }, 1100)
+    }, 1450)
     later(() => {
       banner.value = T.takes(names[ev.taker], ev.pile)
       revealCards.value = null
+      revealOpen.value = false
       shown.value = state.value
       playSound('collect')
-      sync(before.plays.flatMap((x) => x.cards), { stagger: 35, dur: 520, arc: L.value.cw * 0.6 })
+      // 整疊一張張飛到吃牌的人手上
+      sync(before.plays.flatMap((x) => x.cards), { stagger: 40, dur: 560, arc: L.value.cw * 0.4, z: 1100 })
       later(() => (banner.value = ''), 1200)
       busy.value = false
-    }, 2200)
+    }, 2500)
   } else {
     shown.value = r.state
     sync()
@@ -299,6 +306,7 @@ function finish() {
   banner.value = ''
   shown.value = state.value
   revealCards.value = null
+  revealOpen.value = false
   const pl = places.value
   for (let p = 0; p < 4; p++) moods[p] = pl[p] === 1 ? 'happy' : pl[p] === 4 ? 'sad' : 'idle'
   sync()
@@ -599,7 +607,7 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
         <span class="t-label tg">{{ state.out.includes(p) ? T.place(state.out.indexOf(p) + 1) : p === ME ? seated![0].tag : opponents[p - 1].tag }}</span>
       </div>
       <Transition name="say">
-        <span v-if="says[p]" :key="sayKey[p]" class="say t-black" :class="{ hot: says[p] === T.call }" :style="{ left: `${seat.stamp.x}px`, top: `${seat.stamp.y}px` }">{{ says[p] }}</span>
+        <span v-if="says[p]" :key="sayKey[p]" class="say t-black" :class="[`al-${L.sayAt[p].align}`, { hot: says[p] === T.call }]" :style="{ left: `${L.sayAt[p].x}px`, top: `${L.sayAt[p].y}px` }">{{ says[p] }}</span>
       </Transition>
     </template>
 
@@ -634,7 +642,7 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
           <Btn v-if="callable" class="callbtn" tone="yellow" size="lg" block @click="callBluff">{{ T.call }}</Btn>
         </Transition>
         <Btn v-if="!mustLead(state) && phase === 'play'" size="sm" block :disabled="!myTurn || sending" @click="passTurn">{{ T.pass }}</Btn>
-        <Btn class="rise" tone="red" size="lg" arrow block :disabled="!myTurn || !selected.length || claimRank === null || sending" @click="playSel">{{ selected.length && claimRank !== null ? T.playAs(selected.length, RANK_LABELS[claimRank]) : T.play }}</Btn>
+        <Btn class="rise" tone="red" size="lg" block :style="{ '--fs': '1.05rem' }" :disabled="!myTurn || !selected.length || claimRank === null || sending" @click="playSel">{{ selected.length && claimRank !== null ? T.playAs(selected.length, RANK_LABELS[claimRank]) : T.play }}</Btn>
       </template>
       <template v-else-if="phase === 'over'">
         <Btn class="rise" size="sm" icon="exit" @click="emit('exit')">{{ net ? S.online.backRoom : S.common.quit }}</Btn>
@@ -766,6 +774,14 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
   white-space: nowrap;
   pointer-events: none;
 }
+.say.al-left {
+  translate: 0 -50%;
+  transform-origin: left center;
+}
+.say.al-right {
+  translate: -100% -50%;
+  transform-origin: right center;
+}
 .say.hot {
   background: var(--color-red);
   color: var(--color-card);
@@ -787,7 +803,6 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
 }
 .say-leave-to {
   opacity: 0;
-  translate: -50% -80%;
 }
 .cards {
   position: absolute;
@@ -875,15 +890,10 @@ const order = computed(() => [0, 1, 2, 3].sort((a, b) => places.value[a] - place
     opacity 200ms var(--ease-out),
     translate 260ms var(--ease-out);
 }
-.ranks-leave-active {
-  transition: opacity 140ms ease-in;
-}
+/* 收起來不播動畫：出牌時牌會從這裡飛過去，不能從還在淡出的按鈕底下穿過 */
 .ranks-enter-from {
   opacity: 0;
   translate: 0 0.5rem;
-}
-.ranks-leave-to {
-  opacity: 0;
 }
 .who {
   position: absolute;
