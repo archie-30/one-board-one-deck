@@ -383,7 +383,8 @@ function barDown(e: PointerEvent) {
   const track = e.currentTarget as HTMLElement
   if (locked.value) return
   cancelAnimationFrame(listRaf)
-  const rect = track.getBoundingClientRect()
+  // 把手在內縮的軌道裡跑（上下留一點空，到頂到底不會貼到外框）
+  const rect = (track.querySelector('.rail') ?? track).getBoundingClientRect()
   const thumbH = bar.value.h * rect.height
   const thumbTop = rect.top + bar.value.top * rect.height
   let grab = e.clientY - thumbTop
@@ -764,7 +765,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         <span class="frame" aria-hidden="true" />
         <!-- 捲動進度條：黑框膠囊、分類色的把手（瀏覽器自己的捲軸藏起來），可以拖 -->
         <div v-show="bar.h < 1" class="sbar" @pointerdown="barDown">
-          <span class="thumb" :style="{ top: `${bar.top * 100}%`, height: `${bar.h * 100}%` }" />
+          <span class="rail"><span class="thumb" :style="{ top: `${bar.top * 100}%`, height: `${bar.h * 100}%` }" /></span>
         </div>
         </div>
         <div
@@ -1244,7 +1245,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   min-height: 0;
   flex: 1;
   overflow: hidden;
-  padding: 0 1.8rem 0 0.15rem;
+  /* 左邊留給捲動進度條，右邊留給選中那一列的偏移陰影 */
+  padding: 0 0.5rem 0 1.3rem;
   /* 不用瀏覽器的捲動：拖、滑、滾輪都自己算（CategoryScreen 的 lp） */
   touch-action: none;
   user-select: none;
@@ -1261,8 +1263,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .frame {
   position: absolute;
   top: calc(50% - 3.35rem);
-  right: 1.8rem;
-  left: 0;
+  right: 0.5rem;
+  left: 1.15rem;
   height: 6.85rem;
   border-block: 0.1rem solid color-mix(in srgb, var(--color-ink) 16%, transparent);
   pointer-events: none;
@@ -1275,14 +1277,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     cursor: grabbing;
   }
 }
-/* 捲動進度條：黑框膠囊、米白底，把手是分類色（跟按鈕一樣有一點偏移陰影） */
+/* 捲動進度條：在條列左邊，細細的黑框膠囊、米白底，把手是分類色（跟按鈕一樣有一點偏移陰影） */
 .sbar {
   position: absolute;
   top: 0.3rem;
-  right: 0.15rem;
+  left: 0.1rem;
   bottom: 0.7rem;
-  width: 0.95rem;
-  border: 0.12rem solid var(--color-ink);
+  width: 0.7rem;
+  border: 0.1rem solid var(--color-ink);
   border-radius: 999px;
   background: var(--color-paper-2);
   box-shadow: 0.12rem 0.12rem 0 var(--color-ink);
@@ -1295,14 +1297,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   position: absolute;
   inset: 0 -0.5rem;
 }
+.rail {
+  position: absolute;
+  inset: 0.16rem 0.07rem;
+}
 .thumb {
   position: absolute;
-  left: 0.12rem;
-  right: 0.12rem;
-  min-height: 1.6rem;
+  left: 0;
+  right: 0;
+  min-height: 1.2rem;
   border-radius: 999px;
   background: var(--tone);
-  box-shadow: inset 0 0 0 0.1rem var(--color-ink);
+  box-shadow: inset 0 0 0 0.08rem var(--color-ink);
 }
 .row {
   position: relative;
@@ -1335,12 +1341,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .row:not(.front) {
   filter: brightness(0.86) saturate(0.6);
 }
-/* 選中的那一列：變高、插圖和字放大、往右推一點、陰影拉長、底色帶一點分類色 */
+/* 選中的那一列：變高、插圖和字放大、陰影拉長、底色帶一點分類色（不往右推：左邊跟其他列對齊成一條線） */
 .row.front {
   /* 高度、上下留白由 rowStyle 照轉到的位置算（中間那列 5.6rem、上下各多 0.5rem 給相框線） */
   background: color-mix(in srgb, var(--color-card) 88%, var(--tone));
   box-shadow: 0.34rem 0.34rem 0 var(--color-ink);
-  transform: translateX(0.3rem);
 }
 .row.lifted {
   visibility: hidden;
@@ -1390,11 +1395,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 @container (max-width: 30rem) {
   .row .tags {
     display: none;
-  }
-}
-@media (hover: hover) and (pointer: fine) {
-  .row:not(.front):hover {
-    transform: translateX(0.15rem);
   }
 }
 .pager {
