@@ -222,10 +222,10 @@ export const ninetyNineAt = (st: BigTwoStyle, d: CardLevel): { skill: number; ag
  */
 export const bluffAt = (st: BigTwoStyle, d: CardLevel): { bluff: number; line: number; noise: number; blunder: number } =>
   d === 'high'
-    ? { bluff: clamp(0.85 + st.aggression * 0.15), line: 0.08, noise: 0, blunder: 0 }
+    ? { bluff: clamp(0.9 + st.aggression * 0.1), line: 0.7, noise: 0, blunder: 0 }
     : d === 'mid'
-      ? { bluff: clamp(0.35 + st.aggression * 0.3), line: 0.3, noise: 0.25, blunder: clamp(0.06 + st.blunder) }
-      : { bluff: clamp(st.aggression * 0.4), line: 0.45, noise: 0.5, blunder: clamp(0.3 + st.blunder) }
+      ? { bluff: clamp(0.35 + st.aggression * 0.3), line: 0.45, noise: 0.25, blunder: clamp(0.06 + st.blunder) }
+      : { bluff: clamp(st.aggression * 0.4), line: 0.4, noise: 0.6, blunder: clamp(0.3 + st.blunder) }
 
 /**
  * 暗棋：低／中／高（跟牌類一樣三段）。

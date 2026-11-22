@@ -191,3 +191,24 @@ describe('吹牛：電腦', () => {
     expect(avg('mid', 'low')).toBeLessThan(2.3)
   })
 })
+
+describe('吹牛：電腦會算別處喊過幾張', () => {
+  it('收掉的那幾輪：每個點數喊過幾張記在 told', () => {
+    let s = createBluff([[C(0, 9), C(1, 9), C(0, 2)], [C(2, 3), C(0, 5)], [C(3, 6), C(1, 5)], [C(2, 7), C(3, 5)]], 0)
+    s = must(s, { type: 'play', player: 0, cards: [C(0, 9), C(1, 9)], rank: 9 })
+    s = must(s, { type: 'pass', player: 1 })
+    s = must(s, { type: 'pass', player: 2 })
+    s = must(s, { type: 'pass', player: 3 })
+    expect(s.told?.[9]).toBe(2)
+  })
+  it('我手上有一張、大家已經喊了三張，再有人喊一張：電腦覺得多半是假的', () => {
+    const hands = [[C(0, 2), C(1, 2), C(2, 3)], [C(0, 4), C(1, 4), C(2, 4)], [C(0, 6), C(1, 6)], [C(0, 7), C(1, 7), C(3, 8)]]
+    let fresh = createBluff(hands.map((h) => h.slice()), 1)
+    fresh = must(fresh, { type: 'play', player: 1, cards: [C(0, 4)], rank: 8 })
+    fresh = must(fresh, { type: 'play', player: 2, cards: [C(0, 6)], rank: 8 })
+    const told = { ...fresh, told: Object.assign(new Array(14).fill(0), { 8: 2 }) }
+    expect(truthChance(told, 3)).toBeLessThan(truthChance(fresh, 3))
+    expect(truthChance(told, 3)).toBeLessThan(0.5)
+  })
+})
+
