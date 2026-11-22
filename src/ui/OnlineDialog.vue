@@ -181,7 +181,7 @@ async function create() {
   min-width: 0;
   flex: 1;
 }
-/* 房號格：跟「加入」按鈕一樣高（中號按鈕 2.4rem）、陰影一樣深；裡面四條底線 */
+/* 房號：四條底線（不再框起來），跟「加入」按鈕一樣高（中號按鈕 2.4rem） */
 .code {
   box-sizing: border-box;
   display: flex;
@@ -189,11 +189,8 @@ async function create() {
   min-width: 0;
   flex: 1;
   align-items: flex-end;
-  gap: 0.55rem;
-  border: 2px solid var(--color-ink);
-  background: var(--color-card);
-  box-shadow: 0.22rem 0.22rem 0 var(--color-ink);
-  padding: 0 0.7rem 0.35rem;
+  gap: 0.7rem;
+  padding: 0 0.2rem 0.15rem 0;
 }
 .slot {
   position: relative;
@@ -202,7 +199,7 @@ async function create() {
   flex: 1;
   align-items: flex-end;
   justify-content: center;
-  border-bottom: 0.16rem solid var(--color-ink-3);
+  border-bottom: 0.22rem solid var(--color-ink);
   transition: border-color 160ms ease;
 }
 .slot.next {
@@ -211,7 +208,7 @@ async function create() {
 }
 @keyframes caret {
   50% {
-    border-color: var(--color-ink-3);
+    border-color: var(--color-ink);
   }
 }
 .d {
@@ -240,9 +237,10 @@ async function create() {
   transform: translateY(0.5rem) scale(0.8);
 }
 .code.bad {
-  border-color: var(--color-red);
-  box-shadow: 0.22rem 0.22rem 0 var(--color-red);
   animation: nope 0.3s linear 1;
+}
+.code.bad .slot {
+  border-color: var(--color-red);
 }
 /* 數字盤：3 × 4 方鍵，黑框、實心陰影，按下去往陰影方向壓 */
 .pad {
@@ -265,11 +263,11 @@ async function create() {
   font-size: 1.25rem;
   box-shadow: 0.16rem 0.16rem 0 var(--color-ink);
   transition:
-    transform 90ms var(--ease-out),
-    box-shadow 90ms var(--ease-out),
-    background-color 120ms ease;
+    transform 110ms var(--ease-out),
+    box-shadow 110ms var(--ease-out);
 }
-.key:focus {
+.key:focus,
+.key:focus-visible {
   /* 按了不會留住焦點框（鍵也不搶 Enter：Enter 是「加入」） */
   outline: none;
 }
@@ -278,10 +276,10 @@ async function create() {
   position: absolute;
   inset: -0.2rem;
 }
+/* 按下去：跟一般按鈕一樣往陰影方向壓下去（不變色、不出現框） */
 .key:active:not(:disabled) {
   transform: translate(0.16rem, 0.16rem);
-  box-shadow: none;
-  background: var(--color-yellow);
+  box-shadow: 0 0 0 var(--color-ink);
 }
 .key:disabled {
   opacity: 0.4;
