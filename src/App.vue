@@ -18,6 +18,8 @@ import RoomCountdown from '@/ui/RoomCountdown.vue'
 import UnlockDialog from '@/ui/UnlockDialog.vue'
 import NewsDialog from '@/ui/NewsDialog.vue'
 import UpdateDialog from '@/ui/UpdateDialog.vue'
+import WelcomeScreen from '@/ui/WelcomeScreen.vue'
+import { welcomeDone } from '@/core/welcome'
 
 /** 離開一頁：往下沉一點、淡出（0.2 秒）；對局頁、減少動態時直接換 */
 function pageLeave(el: Element, done: () => void) {
@@ -43,7 +45,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   <main class="relative h-full">
     <!-- 換頁：舊的那一頁先往下沉、淡出（各頁進場時元件會自己依序上浮），對局頁有自己的色塊過場 -->
     <Transition :css="false" mode="out-in" @leave="pageLeave">
-        <TitleScreen v-if="route.name === 'title'" :key="routeKey" />
+        <TitleScreen v-if="route.name === 'title'" :key="`${routeKey}-${welcomeDone}`" />
         <NamesScreen v-else-if="route.name === 'names'" :key="routeKey" />
         <ProfileScreen v-else-if="route.name === 'profile'" :key="routeKey" />
         <RoomScreen v-else-if="route.name === 'room'" :key="routeKey" />
@@ -63,6 +65,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     <UnlockDialog />
     <UpdateDialog />
     <NewsDialog />
+    <WelcomeScreen />
     <LaunchOverlay />
     <RoomCountdown />
     <div class="rotate">{{ S.app.rotate }}</div>

@@ -16,6 +16,7 @@ import IconBtn from '@/ui/IconBtn.vue'
 import OnlineDialog from '@/ui/OnlineDialog.vue'
 import ProfileChip from '@/ui/ProfileChip.vue'
 import { checkNews } from '@/core/news'
+import { welcomeGate } from '@/core/welcome'
 import AppSettings from './AppSettings.vue'
 
 const picked = ref<GameCategory | null>(null)
@@ -41,7 +42,8 @@ onMounted(async () => {
     return it !== Infinity && a.playState !== 'finished'
   })
   await Promise.race([Promise.allSettled(finite.map((a) => a.finished)), new Promise((ok) => window.setTimeout(ok, 2500))])
-  if (!alive) return
+  // 第一次玩：歡迎畫面還蓋著，先不放開（收掉時主畫面會整個重新進場一次）
+  if (!alive || welcomeGate.value) return
   locked.value = false
   // 新玩法公告（期限前第一次進來才跳一次）
   checkNews()

@@ -3,6 +3,7 @@
 //   2. 牌扇、小棋盤停在和主畫面插圖一樣的姿勢（牌翻正面、扇開；棋盤只留兩顆子）
 //   3. 主畫面開始進場，牌扇和棋盤各自飛到主畫面「撲克牌」「棋盤」插圖的位置，背景同時淡掉
 //   4. 落定後換成主畫面真正的插圖，移除加載畫面
+import { welcomeOpen } from './welcome'
 import { reducedMotion } from './motion'
 
 // ── 字型與進度條 ──
@@ -123,7 +124,8 @@ export async function finishBoot() {
 
   // 減少動態，或不是停在主畫面：直接淡掉
   cancelAnimationFrame(barRaf)
-  if (reducedMotion() || !cardsArt || !boardArt || !fan || !goban) {
+  // 第一次玩：歡迎畫面蓋在主畫面上，牌扇、棋盤不飛過去（會飛到歡迎畫面上），直接淡掉
+  if (reducedMotion() || welcomeOpen.value || !cardsArt || !boardArt || !fan || !goban) {
     root.classList.remove('booting')
     boot.style.transition = 'opacity 300ms ease'
     boot.style.opacity = '0'
