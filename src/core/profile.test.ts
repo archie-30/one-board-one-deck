@@ -48,6 +48,18 @@ describe('個人資料：經驗值與稱號', () => {
     expect(hasTitle('sevensTop')).toBe(true)
   })
 
+  it('新玩法：玩滿 100 場（輸贏都算）拿「玩滿」稱號；八種新玩法都贏過拿「八面玲瓏」', () => {
+    for (let i = 0; i < 99; i++) gainXp('dots', 'mid', 'l', 0)
+    expect(hasTitle('dotsP')).toBe(false)
+    gainXp('dots', 'mid', 'l', 0)
+    expect(hasTitle('dotsP')).toBe(true)
+    const news = ['ninetynine', 'spider', 'freecell', 'banqi', 'checkers', 'starcheckers', 'quoridor']
+    for (const id of news) gainXp(id, 'mid', 'w')
+    expect(hasTitle('allNew')).toBe(false)
+    gainXp('dots', 'mid', 'w')
+    expect(hasTitle('allNew')).toBe(true)
+  })
+
   it('儲存：最多裝 2 個稱號，沒解鎖的、沒解鎖的頭像零件都不採用', () => {
     saveProfile({ name: '  小明  ', equipped: ['rookie', 'passby', 'messy'], look: { shape: 'drop', tone: 'red', fill: 'dots', acc: 'crown' } })
     expect(profile.name).toBe('小明')
