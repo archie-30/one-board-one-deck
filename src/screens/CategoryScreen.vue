@@ -216,141 +216,189 @@ async function setListView(on: boolean) {
   await wait(MORPH_MS + 120)
   viewAnim.value = ''
 }
-/** 條列：選中的那一列捲到看得到的地方 */
-function scrollToRow(smooth = true) {
-  const el = rowEls[index.value]
-  const box = listEl.value
-  if (!el || !box) return
-  const top = el.offsetTop - box.clientHeight / 2 + el.offsetHeight / 2
-  box.scrollTo({ top: Math.max(0, top), behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
-}
-// ── 條列的捲動：選中的那一列永遠在正中間；滑鼠可以按住拖、手指滑、滾輪捲，
-//    放手停下來後，最靠中間的那一列吸到正中間並選起來（跟卡片堆滑到哪張就選哪張一樣） ──
-/** 上下留白：第一列、最後一列也能捲到正中間 */
-const listPad = ref(0)
+// ── 條列的捲動：不用瀏覽器的自由捲動，跟卡片堆一樣用「轉到第幾列」（lp，可以是小數）算每一列的位置。
+//    選中的那一列永遠在正中間；滑鼠、手指按住拖（有一點阻力），放手後吸到比較近的那一列並選起來；
+//    滾輪一格換一列。列的高度跟著 lp 連續變（中間那列最高），換列時不會先掉下去再彈回來。 ──
+const ROW_H = 3.9
+const ROW_GROW = 1.7
+const ROW_MARGIN = 0.5
+const ROW_GAP = 0.6
 const remPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-/** 現在離中間最近的是第幾列 */
-function nearestRow(): number {
-  const box = listEl.value
-  if (!box) return index.value
-  const mid = box.scrollTop + box.clientHeight / 2
-  let best = index.value
-  let bd = Infinity
-  rowEls.forEach((el, k) => {
-    if (!el) return
-    const d = Math.abs(el.offsetTop + el.offsetHeight / 2 - mid)
-    if (d < bd) ((bd = d), (best = k))
-  })
-  return best
+/** 條列轉到的位置（整數＝停在那一列） */
+const lv = ref(index.value)
+const listH = ref(0)
+/** 拖曳中的位移（px，往上拖是負的） */
+const listDrag = ref(0)
+const listDragging = ref(false)
+/** 中間那一列跟 lp 差多少：0～1 的「有多靠中間」 */
+const nearW = (k: number, p: number) => Math.max(0, 1 - Math.abs(k - p))
+/** 拖曳換算：手指移動多少 px 算一列（一般列＋間隔，拖起來比手指慢一點＝阻力） */
+const rowStep = () => (ROW_H + ROW_GROW * 0.5 + ROW_MARGIN + ROW_GAP) * remPx() * 1.15
+const lp = computed(() => {
+  let p = lv.value - listDrag.value / rowStep()
+  if (p < 0) p *= 0.3
+  if (p > n.value - 1) p = n.value - 1 + (p - (n.value - 1)) * 0.3
+  return p
+})
+/** 現在最靠中間的是第幾列（選中的樣式跟著它） */
+const listNear = computed(() => Math.min(n.value - 1, Math.max(0, Math.round(lp.value))))
+/** 每一列的高度、上下留白（rem） */
+function rowStyle(k: number) {
+  const w = nearW(k, lp.value)
+  return { height: `${ROW_H + ROW_GROW * w}rem`, marginBlock: `${ROW_MARGIN * w}rem` }
 }
-/** 使用者在捲（拖、滑、滾輪）：停下來才吸到中間；程式自己捲的不算 */
-let userScroll = false
-let rowNear = -1
-let snapTimer = 0
-let holding = false
-function onListScroll() {
-  syncBar()
-  if (!userScroll) return
-  // 經過中間換了一列：輕輕震一下（跟拖卡片一樣）
-  const k = nearestRow()
-  if (k !== rowNear) {
-    rowNear = k
-    buzz('slide')
+/** 第 k 列的中心離整串最上面多遠（px） */
+function rowCenter(k: number, p: number): number {
+  const r = remPx()
+  let y = 0
+  for (let j = 0; j < k; j++) y += (ROW_H + (ROW_GROW + ROW_MARGIN * 2) * nearW(j, p) + ROW_GAP) * r
+  return y + ((ROW_H + (ROW_GROW + ROW_MARGIN * 2) * nearW(k, p)) * r) / 2
+}
+/** 整串往上移多少，lp 那一列的中心才會在正中間 */
+const trackY = computed(() => {
+  const p = lp.value
+  const a = Math.min(n.value - 1, Math.max(0, Math.floor(p)))
+  const b = Math.min(n.value - 1, a + 1)
+  const t = Math.min(1, Math.max(0, p - a))
+  const c = rowCenter(a, p) * (1 - t) + rowCenter(b, p) * t + (p < 0 ? p : p > n.value - 1 ? p - (n.value - 1) : 0) * rowStep() / 1.15
+  return listH.value / 2 - c
+})
+let listRaf = 0
+/** 從現在的位置平順轉到第 target 列 */
+function glideList(target: number, instant = false) {
+  cancelAnimationFrame(listRaf)
+  const from = lp.value
+  listDrag.value = 0
+  if (instant || reducedMotion() || Math.abs(from - target) < 0.001) {
+    lv.value = target
+    return
   }
-  scheduleSnap()
+  lv.value = from
+  const t0 = performance.now()
+  const dur = 380 + Math.min(3, Math.abs(target - from)) * 60
+  const step = (now: number) => {
+    const t = Math.min(1, (now - t0) / dur)
+    lv.value = from + (target - from) * (1 - Math.pow(1 - t, 3))
+    if (t < 1) listRaf = requestAnimationFrame(step)
+  }
+  listRaf = requestAnimationFrame(step)
 }
-function scheduleSnap() {
-  window.clearTimeout(snapTimer)
-  if (holding) return
-  snapTimer = window.setTimeout(snapToCenter, 150)
+onBeforeUnmount(() => cancelAnimationFrame(listRaf))
+/** 條列：選中的那一列轉到正中間 */
+function scrollToRow(smooth = true) {
+  glideList(index.value, !smooth)
 }
-function snapToCenter() {
-  if (!userScroll || holding || locked.value) return
-  userScroll = false
-  const k = nearestRow()
-  if (k !== index.value) show(k)
-  else scrollToRow()
+/** 放手：從放手的位置吸到比較近的那一列（甩得快就順勢多走幾列），選起來 */
+function releaseList(vel = 0) {
+  const p = lp.value
+  const fling = Math.max(-3, Math.min(3, vel * 160))
+  const target = Math.min(n.value - 1, Math.max(0, Math.round(p + fling)))
+  lv.value = p
+  listDrag.value = 0
+  listDragging.value = false
+  if (target !== index.value) show(target)
+  glideList(target)
 }
-onBeforeUnmount(() => window.clearTimeout(snapTimer))
-function startUserScroll() {
-  userScroll = true
-  rowNear = nearestRow()
-}
-/** 滑鼠按住拖著捲（手指本來就能滑） */
+// 經過中間換了一列：輕輕震一下（跟拖卡片一樣）
+watch(listNear, () => {
+  if (listDragging.value) buzz('slide')
+})
+/** 按住拖（滑鼠、手指都一樣）；沒拖動就是點一下 */
 let rowDragged = false
 function onListDown(e: PointerEvent) {
-  if (e.pointerType !== 'mouse' || e.button !== 0 || locked.value) return
-  const box = listEl.value
-  if (!box) return
+  if ((e.pointerType === 'mouse' && e.button !== 0) || locked.value) return
+  cancelAnimationFrame(listRaf)
   const y0 = e.clientY
-  const s0 = box.scrollTop
+  const id = e.pointerId
   let moved = false
-  holding = true
-  startUserScroll()
+  let lastY = y0
+  let lastT = performance.now()
+  let vel = 0
   const move = (ev: PointerEvent) => {
+    if (ev.pointerId !== id) return
     const dy = ev.clientY - y0
-    if (!moved && Math.abs(dy) < 5) return
-    moved = true
-    box.scrollTop = s0 - dy
+    if (!moved && Math.abs(dy) < 6) return
+    if (!moved) {
+      moved = true
+      listDragging.value = true
+    }
+    const now = performance.now()
+    const dt = Math.max(1, now - lastT)
+    // 速度（列／毫秒，往下拖＝往前面的列），稍微平滑
+    vel = vel * 0.6 + (-(ev.clientY - lastY) / rowStep() / dt) * 0.4
+    lastY = ev.clientY
+    lastT = now
+    listDrag.value = dy
   }
-  const up = () => {
+  const up = (ev: PointerEvent) => {
+    if (ev.pointerId !== id) return
     window.removeEventListener('pointermove', move)
     window.removeEventListener('pointerup', up)
     window.removeEventListener('pointercancel', up)
-    holding = false
+    if (!moved) return
     // 拖過了：這一下不算點到某一列
-    if (moved) {
-      rowDragged = true
-      window.setTimeout(() => (rowDragged = false), 0)
-    }
-    scheduleSnap()
+    rowDragged = true
+    window.setTimeout(() => (rowDragged = false), 0)
+    // 放手前停了一下：不甩
+    releaseList(performance.now() - lastT > 90 ? 0 : vel)
   }
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', up)
   window.addEventListener('pointercancel', up)
 }
-
-// ── 條列的捲動進度條 ──
-const bar = ref({ top: 0, h: 1 })
-function syncBar() {
-  const el = listEl.value
-  if (!el || !el.scrollHeight) return
-  listPad.value = Math.max(0, el.clientHeight / 2 - remPx() * 2.8)
-  const h = Math.min(1, el.clientHeight / el.scrollHeight)
-  bar.value = { h, top: h >= 1 ? 0 : (el.scrollTop / (el.scrollHeight - el.clientHeight)) * (1 - h) }
+/** 滾輪：一格換一列（觸控板慢慢累積到一定量才換） */
+let wheelAcc = 0
+let wheelAt = 0
+function onListWheel(e: WheelEvent) {
+  if (locked.value) return
+  const now = performance.now()
+  if (now - wheelAt > 250) wheelAcc = 0
+  wheelAt = now
+  wheelAcc += e.deltaMode === 1 ? e.deltaY * 30 : e.deltaY
+  if (Math.abs(wheelAcc) < 40) return
+  const d = Math.sign(wheelAcc)
+  wheelAcc = 0
+  turn(d)
 }
+
+// ── 條列的捲動進度條（照轉到的位置畫，可以拖） ──
+const bar = computed(() => {
+  const r = remPx()
+  const total = (n.value * (ROW_H + ROW_GAP) + ROW_GROW + ROW_MARGIN * 2) * r
+  const h = listH.value ? Math.min(1, listH.value / total) : 1
+  const p = Math.min(1, Math.max(0, lp.value / Math.max(1, n.value - 1)))
+  return { h, top: p * (1 - h) }
+})
 let barRo: ResizeObserver | undefined
 watch(listEl, (el) => {
   barRo?.disconnect()
   if (!el) return
-  barRo = new ResizeObserver(syncBar)
+  barRo = new ResizeObserver(() => (listH.value = el.clientHeight))
   barRo.observe(el)
-  for (const r of el.children) barRo.observe(r)
-  syncBar()
+  listH.value = el.clientHeight
 })
 onBeforeUnmount(() => barRo?.disconnect())
-/** 拖把手（或點進度條某處）捲動條列 */
+/** 拖把手（或點進度條某處）：照位置轉到那一列附近，放手吸到最近的一列 */
 function barDown(e: PointerEvent) {
-  const el = listEl.value
   const track = e.currentTarget as HTMLElement
-  if (!el || locked.value) return
+  if (locked.value) return
+  cancelAnimationFrame(listRaf)
   const rect = track.getBoundingClientRect()
-  const range = el.scrollHeight - el.clientHeight
-  holding = true
-  startUserScroll()
   const thumbH = bar.value.h * rect.height
   const thumbTop = rect.top + bar.value.top * rect.height
-  // 點在把手外面：先跳到那裡（把手中心對準手指）
   let grab = e.clientY - thumbTop
-  if (grab < 0 || grab > thumbH) {
-    grab = thumbH / 2
-    el.scrollTop = ((e.clientY - rect.top - grab) / (rect.height - thumbH)) * range
+  if (grab < 0 || grab > thumbH) grab = thumbH / 2
+  const to = (y: number) => {
+    const f = Math.min(1, Math.max(0, (y - rect.top - grab) / Math.max(1, rect.height - thumbH)))
+    lv.value = f * (n.value - 1)
   }
+  listDrag.value = 0
+  listDragging.value = true
+  to(e.clientY)
   track.setPointerCapture(e.pointerId)
-  const move = (ev: PointerEvent) => (el.scrollTop = ((ev.clientY - rect.top - grab) / (rect.height - thumbH)) * range)
+  const move = (ev: PointerEvent) => to(ev.clientY)
   const up = () => {
-    holding = false
-    scheduleSnap()
+    releaseList(0)
     track.removeEventListener('pointermove', move)
     track.removeEventListener('pointerup', up)
     track.removeEventListener('pointercancel', up)
@@ -360,11 +408,9 @@ function barDown(e: PointerEvent) {
   track.addEventListener('pointercancel', up)
 }
 
-watch(index, () => {
-  if (!listView.value) return
-  scrollToRow()
-  // 選中的那一列會慢慢變高（上一列慢慢變矮），放大完再對準一次
-  window.setTimeout(() => listView.value && scrollToRow(), 440)
+watch(index, (k) => {
+  if (!listView.value || listDragging.value) return
+  glideList(k)
 })
 onMounted(() => listView.value && scrollToRow(false))
 function tapRow(k: number) {
@@ -684,22 +730,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           ref="listEl"
           class="list"
           :class="{ settled: returning }"
-          :style="{ '--pad': `${listPad}px` }"
           role="listbox"
           :aria-activedescendant="`mode-${game.id}`"
-          @scroll.passive="onListScroll"
           @pointerdown="onListDown"
-          @touchstart.passive="startUserScroll"
-          @wheel.passive="startUserScroll"
+          @wheel.prevent="onListWheel"
         >
+        <div class="track" :style="{ transform: `translateY(${trackY}px)` }">
           <button
             v-for="(g, k) in games"
             :id="`mode-${g.id}`"
             :key="g.id"
             :ref="(el) => (rowEls[k] = el as HTMLElement | null)"
             class="row"
-            :class="{ front: k === index, lifted: (launching && k === index) || (launchFx.active && launchFx.mode === 'exit' && launchFx.gameId === g.id) }"
-            :style="{ '--i': k }"
+            :style="{ ...rowStyle(k), '--i': k }"
+            :class="{ front: k === listNear, lifted: (launching && k === index) || (launchFx.active && launchFx.mode === 'exit' && launchFx.gameId === g.id) }"
             role="option"
             :aria-selected="k === index"
             @click="tapRow(k)"
@@ -714,6 +758,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               <span v-for="t in g.tags" :key="t" class="tag">{{ t }}</span>
             </span>
           </button>
+        </div>
         </div>
         <!-- 正中間那一列上下各一條淡灰線，像相框框住選中的 -->
         <span class="frame" aria-hidden="true" />
@@ -1196,18 +1241,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 .list {
   position: relative;
-  display: flex;
   min-height: 0;
   flex: 1;
+  overflow: hidden;
+  padding: 0 1.8rem 0 0.15rem;
+  /* 不用瀏覽器的捲動：拖、滑、滾輪都自己算（CategoryScreen 的 lp） */
+  touch-action: none;
+  user-select: none;
+}
+/* 整串列：照轉到的位置往上下移，中間那一列對準正中間 */
+.track {
+  position: relative;
+  display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  /* 上下留白（--pad，照條列高度算）：第一列、最後一列也能捲到正中間 */
-  padding: max(0.2rem, var(--pad, 0px)) 1.8rem max(0.6rem, var(--pad, 0px)) 0.15rem;
-  touch-action: pan-y;
-  /* 瀏覽器自己的捲軸藏起來，改用 .sbar */
-  scrollbar-width: none;
+  will-change: transform;
 }
 /* 相框線：選中的那一列（5.6rem 高）上下各一條，落在列與列的空隙裡 */
 .frame {
@@ -1218,9 +1266,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   height: 6.85rem;
   border-block: 0.1rem solid color-mix(in srgb, var(--color-ink) 16%, transparent);
   pointer-events: none;
-}
-.list::-webkit-scrollbar {
-  display: none;
 }
 @media (hover: hover) and (pointer: fine) {
   .list {
@@ -1262,7 +1307,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .row {
   position: relative;
   display: flex;
-  height: 3.9rem;
   flex: none;
   align-items: center;
   gap: 0.7rem;
@@ -1276,8 +1320,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   cursor: pointer;
   /* 換選的時候：高度、陰影、底色、明暗一起慢慢變（不要一下子跳過去） */
   transition:
-    height 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
-    margin 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
     transform 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
     box-shadow 420ms cubic-bezier(0.22, 0.8, 0.24, 1),
     background-color 320ms ease,
@@ -1295,9 +1337,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 }
 /* 選中的那一列：變高、插圖和字放大、往右推一點、陰影拉長、底色帶一點分類色 */
 .row.front {
-  height: 5.6rem;
-  /* 上下多留一點空，相框線（.frame）才放得下 */
-  margin-block: 0.5rem;
+  /* 高度、上下留白由 rowStyle 照轉到的位置算（中間那列 5.6rem、上下各多 0.5rem 給相框線） */
   background: color-mix(in srgb, var(--color-card) 88%, var(--tone));
   box-shadow: 0.34rem 0.34rem 0 var(--color-ink);
   transform: translateX(0.3rem);
