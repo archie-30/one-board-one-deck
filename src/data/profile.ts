@@ -46,9 +46,13 @@ export type TitleRule =
   | { kind: 'played'; n: number }
   | { kind: 'lost'; n: number }
   | { kind: 'allWins' }
+  | { kind: 'gamePlayed'; game: string; n: number }
+  | { kind: 'allNew' }
 
 /** 有勝負的玩法（「十項全能」要每個都贏過） */
 export const ALL_GAMES = ['bigtwo', 'crazybigtwo', 'sevens', 'redpoint', 'solitaire', 'gomoku', 'go', 'othello', 'chess', 'xiangqi']
+/** 後來加的八種玩法（「八面玲瓏」要每個都贏過；每種另有一個「玩滿 100 場」的稱號） */
+export const NEW_GAMES = ['ninetynine', 'spider', 'freecell', 'banqi', 'checkers', 'starcheckers', 'quoridor', 'dots']
 
 /**
  * 所有稱號（顯示順序）。門檻刻意拉高，不會一下子拿一大堆：
@@ -71,11 +75,14 @@ export const TITLES: { id: string; rule: TitleRule }[] = [
     { id: `${game}A`, rule: { kind: 'wins', game, n: 5 } as TitleRule },
     { id: `${game}B`, rule: { kind: 'wins', game, n: 30 } as TitleRule },
     { id: `${game}Top`, rule: (game === 'redpoint' || game === 'freecell' ? { kind: 'wins', game, n: 80 } : { kind: 'top', game, n: 3 }) as TitleRule },
+    // 後來加的玩法：再多一個「這個玩法玩滿 100 場」（輸贏都算）
+    ...(NEW_GAMES.includes(game) ? [{ id: `${game}P`, rule: { kind: 'gamePlayed', game, n: 100 } as TitleRule }] : []),
   ]),
   { id: 'played100', rule: { kind: 'played', n: 100 } },
   { id: 'lost50', rule: { kind: 'lost', n: 50 } },
   { id: 'played500', rule: { kind: 'played', n: 500 } },
   { id: 'allWins', rule: { kind: 'allWins' } },
+  { id: 'allNew', rule: { kind: 'allNew' } },
 ]
 /** 同時可以裝備幾個稱號 */
 export const TITLE_SLOTS = 2

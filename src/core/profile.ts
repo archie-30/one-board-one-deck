@@ -3,7 +3,7 @@
 // 接著檢查有沒有新解鎖的稱號、頭像零件，有的話放進 unlockQueue，由 App 層的 UnlockDialog 跳出來。
 import { reactive, watch } from 'vue'
 import {
-  ALL_GAMES,
+  ALL_GAMES, NEW_GAMES,
   AVATAR_ACCS,
   AVATAR_FILLS,
   AVATAR_SHAPES,
@@ -99,6 +99,10 @@ function earned(rule: TitleRule): boolean {
       return profile.lost >= rule.n
     case 'allWins':
       return ALL_GAMES.every((id) => g(id).wins >= 1)
+    case 'gamePlayed':
+      return g(rule.game).played >= rule.n
+    case 'allNew':
+      return NEW_GAMES.every((id) => g(id).wins >= 1)
   }
 }
 

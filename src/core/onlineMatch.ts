@@ -172,7 +172,9 @@ export function matchPlayers(m: MatchIntro): Opponent[] {
     // 他離開房間了：位子由電腦代打，名字註明
     if (!p && online.room) return { ...bot, name: S.online.botFor(seat.name ?? bot.name), tag: S.online.botTag }
     const look: Look = p?.look ?? OPPONENTS[seat.bot].look
-    return { ...bot, name: p?.name ?? S.online.someone, look, tag: S.online.humanTag, persona: PERSONAS[seat.bot] }
+    // 名字下面放他裝備的稱號（最多兩個）；沒裝稱號才寫「真人玩家」
+    const titles = (p?.titles ?? []).map((id) => S.profile.titles[id]?.name).filter(Boolean)
+    return { ...bot, name: p?.name ?? S.online.someone, look, tag: titles.length ? titles.join(S.online.titleSep) : S.online.humanTag, human: true, persona: PERSONAS[seat.bot] }
   })
 }
 /** 有人離開房間（改由電腦代打）時，把畫面上的名字換掉：fn 收到每個座位（自己的視角）現在的樣子 */

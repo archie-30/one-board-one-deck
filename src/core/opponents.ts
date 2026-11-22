@@ -7,6 +7,8 @@ import { opponentName } from './names'
 export interface Opponent extends OpponentProfile {
   id: number
   persona: Persona
+  /** 連線對局裡的真人（名字下面是他的稱號，不是個性） */
+  human?: boolean
 }
 
 /** 名字用玩家取的（沒取就是預設） */

@@ -586,7 +586,7 @@ const tieSent = ref(false)
 const tieOffer = computed(() => {
   if (!net || watching || phase.value !== 'play' || tieSent.value || !canTie(state.value, ME)) return false
   const other = state.value.alive.findIndex((v, i) => v && i !== ME)
-  return other > 0 && opponents[other - 1]?.tag !== S.online.humanTag
+  return other > 0 && !opponents[other - 1]?.human
 })
 function askTie() {
   if (!tieOffer.value) return
