@@ -16,9 +16,10 @@ const emit = defineEmits<{ close: [] }>()
     <div v-if="open" class="fixed inset-0 z-[900] grid place-items-center" role="dialog" aria-modal="true">
       <!-- 暫停選單（cover）：點旁邊空白不會關，只能按「繼續」（或 Esc、返回鍵） -->
       <div class="backdrop absolute inset-0" :class="{ cover }" @click="!cover && emit('close')" />
-      <div class="sheet relative flex max-h-[92vh] flex-col" :class="[wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip back-${tone ?? 'ink'}` : '']">
+      <div class="sheet relative flex max-h-[92vh] flex-col" :class="[flip ? (wide ? 'w-[46rem]' : 'w-[33rem]') : wide ? 'w-[36rem]' : 'w-[22rem]', flip ? `flip back-${tone ?? 'ink'}` : '']">
         <div class="band halftone" :class="`b-${tone ?? 'ink'}`"><span class="t-label">{{ label }}</span></div>
-        <div class="body">
+        <!-- 結算（flip）：按鈕排在右邊一欄，橫的畫面高度省下來，內容不用上下滑 -->
+        <div class="body" :class="{ side: flip && $slots.actions }">
           <IconBtn v-if="closeX" class="x" icon="close" size="2.1rem" :label="S.common.close" @click="emit('close')" />
           <h2 v-if="title" class="t-black title"><span class="mask"><span>{{ title }}</span></span></h2>
           <div class="scroll-y min-h-0"><slot /></div>
@@ -80,6 +81,37 @@ const emit = defineEmits<{ close: [] }>()
   min-height: 0;
   flex-direction: column;
   padding: 0.8rem 1.3rem 1.1rem;
+}
+/* 結算：左邊標題＋內容、右邊一欄按鈕（由下往上排） */
+.body.side {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  column-gap: 1.2rem;
+  padding-top: 0.6rem;
+}
+.body.side > .title {
+  grid-column: 1;
+  font-size: 1.7rem;
+}
+.body.side > .scroll-y {
+  grid-column: 1;
+}
+.body.side > .actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: stretch;
+  gap: 0.55rem;
+  width: 9.5rem;
+  padding: 0 0.25rem 0.2rem 1.2rem;
+  border-left: 0.07rem dashed var(--color-ink-3);
+}
+.body.side > .actions :deep(.btn) {
+  display: block;
+  width: 100%;
 }
 .title {
   font-size: 1.9rem;
