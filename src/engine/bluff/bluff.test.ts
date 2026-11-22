@@ -14,7 +14,7 @@ function must(s: BluffState, a: BluffAction) {
 
 describe('吹牛：出牌與跟牌', () => {
   it('每人 13 張；帶頭要喊點數、不能過；一次 1～4 張', () => {
-    const s = dealBluff(5)
+    const s = dealBluff(5, { fourDiscard: false })
     expect(s.hands.map((h) => h.length)).toEqual([13, 13, 13, 13])
     const p = s.turn
     expect(applyBluff(s, { type: 'pass', player: p })).toEqual({ ok: false, reason: 'mustLead' })
@@ -101,6 +101,31 @@ describe('吹牛：抓', () => {
   })
 })
 
+describe('吹牛：四張一樣棄牌', () => {
+  const four = (r: number) => [0, 1, 2, 3].map((suit) => C(suit, r))
+  it('開局發到四張一樣：自動棄掉、公開', () => {
+    const s = createBluff([[...four(9), C(0, 2)], [C(1, 3)], [C(2, 5)], [C(3, 6)]], 0, { fourDiscard: true })
+    expect(s.hands[0]).toEqual([C(0, 2)])
+    expect(s.quads).toEqual([{ player: 0, rank: 9 }])
+    expect(createBluff([[...four(9), C(0, 2)], [C(1, 3)], [C(2, 5)], [C(3, 6)]], 0, { fourDiscard: false }).hands[0]).toHaveLength(5)
+  })
+  it('吃下整疊湊齊四張：自動棄掉；棄光就出線', () => {
+    let s = createBluff([[C(0, 7), C(1, 7)], [C(2, 7), C(3, 7)], [C(0, 2), C(1, 2)], [C(3, 1)]], 0, { fourDiscard: true })
+    s = must(s, { type: 'play', player: 0, cards: [C(0, 7), C(1, 7)], rank: 7 })
+    s = must(s, { type: 'call', player: 1 })
+    // 0 號說真話，1 號抓錯吃下兩張 7，湊齊四張 7 棄光 → 出線；0 號也出完了 → 出線
+    expect(s.hands[1]).toEqual([])
+    expect(s.quads).toEqual([{ player: 1, rank: 7 }])
+    expect(s.out).toEqual([0, 1])
+    expect(s.events.map((e) => e.type)).toEqual(['call', 'quad'])
+  })
+  it('棄掉的點數有人喊：電腦一定抓', () => {
+    let s = createBluff([[C(0, 2)], [C(1, 3), C(0, 5)], [...four(9), C(2, 5)], [C(3, 6)]], 1, { fourDiscard: true })
+    s = must(s, { type: 'play', player: 1, cards: [C(1, 3)], rank: 9 })
+    expect(truthChance(s, 2)).toBe(0)
+  })
+})
+
 describe('吹牛：電腦', () => {
   const play = (seed: number, levels: ('low' | 'mid' | 'high')[]) => {
     let s = dealBluff(seed)
@@ -117,7 +142,7 @@ describe('吹牛：電腦', () => {
       const lv = (['low', 'mid', 'high'] as const)[g % 3]
       const s = play(g + 1, [lv, lv, lv, lv])
       expect(s.over).toBe(true)
-      expect(s.hands.flat().length + s.discard.length + pileCount(s)).toBe(52)
+      expect(s.hands.flat().length + s.discard.length + pileCount(s) + (s.quads?.length ?? 0) * 4).toBe(52)
       expect(new Set(s.out).size).toBe(4)
     }
   })

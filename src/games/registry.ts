@@ -171,7 +171,7 @@ export const GAMES: GameDef[] = [
     rulesIntro: withTimer(S.bluff.rules, [...TR.cards, TR.bluff]),
     tutorial: defineAsyncComponent(() => import('./bluff/BluffTutorial.vue')),
     component: defineAsyncComponent(() => import('./bluff/BluffGame.vue')),
-    settings: [choice('difficulty', S.bluff.settings.difficulty, 'mid'), timer()],
+    settings: [choice('difficulty', S.bluff.settings.difficulty, 'mid'), toggle('fourDiscard', S.bluff.settings.fourDiscard, true), timer()],
   },
   {
     id: 'solitaire',

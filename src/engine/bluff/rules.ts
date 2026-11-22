@@ -4,6 +4,8 @@
 //   有一張不是喊的點數 → 他說謊，桌上整疊牌都給他；全部都對 → 你抓錯，整疊牌給你。抓贏的人帶下一輪。
 // 出牌之後其他人都過（又輪回出牌的人），桌上這疊牌收掉（不算任何人的），最後出牌的人帶下一輪。
 // 手牌出完、而且下一家沒抓（或抓錯）就出線；剩下的人繼續打到排出 1～4 名（只剩一個人有牌就結束）。
+// 規則設定「四張一樣棄牌」（預設開，使用者要的）：手上湊齊四張同點數（開局發到、吃下整疊時）就自動翻開棄掉，
+// 大家都看得到（quads）；靠棄牌把手牌棄光也算出線。
 // 純函式，狀態可序列化成 JSON。
 import { nextInt, seedRng, shuffle } from '../common/rng'
 import type { Result } from '../common/types'
@@ -34,6 +36,14 @@ export type BluffEvent =
   | { type: 'call'; player: number; target: number; cards: Card[]; liar: boolean; taker: number; pile: number }
   /** 大家都過：桌上這疊收掉 */
   | { type: 'clear'; player: number; pile: number }
+  /** 四張一樣自動棄掉 */
+  | { type: 'quad'; player: number; rank: number }
+
+export interface BluffOptions {
+  /** 四張一樣自動棄牌（預設開） */
+  fourDiscard: boolean
+}
+export const DEFAULT_BLUFF_OPTIONS: BluffOptions = { fourDiscard: true }
 
 export interface BluffState {
   hands: Card[][]
@@ -50,6 +60,10 @@ export interface BluffState {
   discard: Card[]
   /** 出線順序（第 1 名在最前面） */
   out: number[]
+  /** 四張一樣棄掉的（公開；舊存檔沒有） */
+  quads?: { player: number; rank: number }[]
+  /** 規則設定（舊存檔沒有＝不棄牌） */
+  opts?: BluffOptions
   moves: number
   /** 剛剛發生的事（可能一次好幾件：例如過牌後大家都過、牌收掉） */
   events: BluffEvent[]
@@ -66,7 +80,7 @@ export type BluffError = 'over' | 'notYourTurn' | 'notInHand' | 'count' | 'needR
 const sortHand = (h: Card[]) => h.slice().sort((a, b) => rankOf(a) - rankOf(b) || suitOf(a) - suitOf(b))
 
 /** 發牌開局（同一個 seed 會發出同一副牌）；誰先帶頭用亂數 */
-export function dealBluff(seed: number): BluffState {
+export function dealBluff(seed: number, opts: BluffOptions = DEFAULT_BLUFF_OPTIONS): BluffState {
   const [deck, r2] = shuffle(
     Array.from({ length: 52 }, (_, i) => i),
     seedRng(seed),
@@ -75,12 +89,38 @@ export function dealBluff(seed: number): BluffState {
   return createBluff(
     Array.from({ length: PLAYERS }, (_, p) => deck.slice(p * 13, p * 13 + 13)),
     first,
+    opts,
   )
 }
 
 /** 用指定的手牌開局（測試、教學用） */
-export function createBluff(hands: Card[][], turn = 0): BluffState {
-  return { hands: hands.map(sortHand), plays: [], claim: null, turn, last: null, passes: 0, discard: [], out: [], moves: 0, events: [], over: false }
+export function createBluff(hands: Card[][], turn = 0, opts: BluffOptions = { fourDiscard: false }): BluffState {
+  const s: BluffState = { hands: hands.map(sortHand), plays: [], claim: null, turn, last: null, passes: 0, discard: [], out: [], moves: 0, events: [], over: false, quads: [], opts }
+  return opts.fourDiscard ? autoQuads(s) : s
+}
+
+/** 某個點數的四張牌 */
+export const quadCards = (rank: number): Card[] => [0, 1, 2, 3].map((suit) => makeCard(suit, rank))
+/** 手上湊齊四張的點數 */
+export function quadRanks(hand: readonly Card[]): number[] {
+  const n = new Map<number, number>()
+  for (const c of hand) n.set(rankOf(c), (n.get(rankOf(c)) ?? 0) + 1)
+  return [...n].filter(([, k]) => k >= 4).map(([r]) => r)
+}
+/** player 棄掉這幾個點數的四張（翻開、公開）；手牌棄光就出線 */
+export function takeQuads(s: BluffState, player: number, ranks: readonly number[]): BluffState {
+  if (!ranks.length) return s
+  const hands = s.hands.map((h, i) => (i === player ? h.filter((c) => !ranks.includes(rankOf(c))) : h))
+  const quads = [...(s.quads ?? []), ...ranks.map((rank) => ({ player, rank }))]
+  const events = [...s.events, ...ranks.map((rank) => ({ type: 'quad' as const, player, rank }))]
+  const out = !hands[player].length && !s.out.includes(player) ? [...s.out, player] : s.out
+  return { ...s, hands, quads, events, out }
+}
+/** 每個人手上湊齊四張的都棄掉（規則設定開著時） */
+export function autoQuads(s: BluffState): BluffState {
+  let t = s
+  for (let p = 0; p < PLAYERS; p++) t = takeQuads(t, p, quadRanks(t.hands[p]))
+  return t
 }
 
 /** 桌上這一輪一共蓋了幾張 */
@@ -154,8 +194,10 @@ export function applyBluff(state: BluffState, action: BluffAction): Result<Bluff
     let s: BluffState = { ...base, hands, plays: [], claim: null, last: null, passes: 0 }
     // 被抓的人沒說謊、而且那手是他最後的牌：出線
     if (!liar && !hands[target].length && !s.out.includes(target)) s = { ...s, out: [...s.out, target] }
+    // 吃下整疊湊齊四張：自動棄掉（棄光也算出線）
+    if (s.opts?.fourDiscard) s = takeQuads(s, taker, quadRanks(s.hands[taker]))
     // 抓贏的人帶下一輪（他出線了就換他的下一家）
-    const leader = hands[winner].length ? winner : nextActive(s, winner)
+    const leader = s.hands[winner].length ? winner : nextActive(s, winner)
     s = { ...s, turn: leader < 0 ? p : leader }
     return { ok: true, state: checkOver(s) }
   }

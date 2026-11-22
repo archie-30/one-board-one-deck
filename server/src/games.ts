@@ -52,7 +52,7 @@ export const MATCH_RULES: Record<string, Record<string, readonly (string | boole
   crazybigtwo: BIGTWO_RULES,
   sevens: { difficulty: LEVEL, timer: B },
   ninetynine: { difficulty: LEVEL, timer: B },
-  bluff: { difficulty: LEVEL, timer: B },
+  bluff: { difficulty: LEVEL, fourDiscard: B, timer: B },
   redpoint: { hints: B, timer: B },
   gomoku: { difficulty: LEVEL4, forbidden: B, overlineWins: B, timer: B },
   go: { difficulty: LEVEL4, size: ['19', '13', '9'], timer: B },
