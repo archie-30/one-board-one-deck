@@ -700,7 +700,14 @@ export const S = {
     pass: '過牌',
     passed: '過',
     yourTurn: '輪到你',
+    /** 輪到你、桌上有牌：寫出桌上是什麼牌型 */
+    yourTurnBeat: (table: string) => `輪到你：壓過桌上的${table}，或過牌`,
     yourLead: '輪到你，可以出任何牌型',
+    /** 選了牌之後的狀態列 */
+    canPlay: (combo: string) => `可以出：${combo}`,
+    needType: (table: string) => `桌上是${table}，要出${table}才行`,
+    cantBeat: (combo: string, table: string) => `這手${combo}壓不過桌上的${table}`,
+    notCombo: '選的牌不是能出的牌型',
     firstLead: '你有梅花 3，第一手要包含它',
     waiting: (name: string) => `${name}出牌中…`,
     cardsLeft: (n: number) => `${n} 張`,
