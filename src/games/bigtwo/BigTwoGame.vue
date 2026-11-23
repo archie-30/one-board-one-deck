@@ -544,9 +544,19 @@ const status = computed(() => {
   if (phase.value === 'deal') return ''
   if (s.winner >= 0) return s.winner === ME ? T.result.win : T.result.lose(names[s.winner])
   if (!myTurn.value) return (watching ? `${S.online.watchingNow}・` : '') + T.waiting(names[s.turn])
-  if (selectedCombo.value) return T.combos[selectedCombo.value.type]
+  // 有選牌：說清楚這手能不能出（以前只寫選了什麼牌型，選兩張時寫「對子」，看起來像在叫你出對子）
+  const onTable = s.table ? T.combos[s.table.combo.type] : ''
+  if (selected.value.length) {
+    if (!selectedCombo.value) return T.notCombo
+    const name = T.combos[selectedCombo.value.type]
+    const check = checkPlay(s, ME, selected.value)
+    if (check.ok) return T.canPlay(name)
+    if (check.reason === 'wrongType') return T.needType(onTable)
+    if (check.reason === 'tooSmall') return T.cantBeat(name, onTable)
+    return T.errors[check.reason]
+  }
   if (s.firstTurn) return T.firstLead
-  return s.table ? T.yourTurn : T.yourLead
+  return s.table ? T.yourTurnBeat(onTable) : T.yourLead
 })
 
 function tapCard(c: Card) {
