@@ -7,7 +7,7 @@
 import { computed, ref } from 'vue'
 import { playSound } from '@/core/audio'
 import { reducedMotion } from '@/core/motion'
-import { closeWelcome, finishWelcome, revealTitle, usableName, welcomeOpen } from '@/core/welcome'
+import { closeWelcome, finishWelcome, revealTitle, skipWelcome, usableName, welcomeOpen } from '@/core/welcome'
 import { S } from '@/data/strings'
 import { NAME_MAX_WIDTH } from '@/data/namePool'
 import Card from './art/Card.vue'
@@ -33,6 +33,16 @@ function start() {
     return
   }
   playSound('correct')
+  leave()
+}
+/** 略過：不取名字，一樣播收場動畫進主畫面 */
+function skip() {
+  if (leaving.value) return
+  skipWelcome()
+  playSound('tap')
+  leave()
+}
+function leave() {
   leaving.value = true
   // 收場：元件往下沉（約 0.33 秒）→ 整片紙往上捲走（約 0.56 秒），捲的同時底下的主畫面重新進場
   if (reducedMotion()) {
@@ -94,6 +104,7 @@ function onInput() {
       </div>
     </div>
     <footer class="foot rise" style="--i: 10">
+      <Btn class="skip" size="sm" :disabled="leaving" @click="skip">{{ T.skip }}</Btn>
       <span class="hint">{{ ok ? '' : T.need }}</span>
       <Btn tone="red" size="lg" arrow :disabled="!ok || leaving" @click="start">{{ T.start }}</Btn>
     </footer>
@@ -235,6 +246,9 @@ function onInput() {
   align-items: center;
   justify-content: flex-end;
   gap: 1rem;
+}
+.skip {
+  margin-right: auto;
 }
 .hint {
   font-size: 0.8rem;

@@ -27,6 +27,13 @@ export function finishWelcome(raw: string) {
   return true
 }
 
+/** 按「略過」：不取名字，記住看過了（名字之後可以在個人資料取） */
+export function skipWelcome() {
+  saved.done = true
+  writeSave('welcome', saved)
+  markNewsSeen()
+}
+
 /** 收場動畫：紙開始往上捲（主畫面同時重新進場） */
 export function revealTitle() {
   welcomeGate.value = false

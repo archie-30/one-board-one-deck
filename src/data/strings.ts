@@ -1076,6 +1076,7 @@ export const S = {
     bad: '這個名字不能用，換一個吧。',
     need: '先輸入名字才能開始',
     start: '開始遊戲',
+    skip: '略過',
   },
   bluff: {
     name: '吹牛',
