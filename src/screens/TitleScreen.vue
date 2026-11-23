@@ -24,8 +24,10 @@ const picked = ref<GameCategory | null>(null)
 const locked = ref(true)
 const root = ref<HTMLElement>()
 const nextFrame = () => new Promise<void>((ok) => requestAnimationFrame(() => ok()))
-/** 動畫中按鍵（Enter、空白鍵）也擋掉 */
+/** 動畫中按鍵（Enter、空白鍵）也擋掉；但在輸入框裡打字不擋（第一次玩的歡迎畫面蓋在上面時，主畫面一直鎖著，名字會打不進去） */
 const blockKeys = (e: KeyboardEvent) => {
+  const t = e.target as HTMLElement | null
+  if (t?.closest?.('input, textarea, [contenteditable]')) return
   if (locked.value) (e.preventDefault(), e.stopPropagation())
 }
 let alive = true
