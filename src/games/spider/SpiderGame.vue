@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 蜘蛛接龍對局：牌桌＋右邊的分數、時間、步數，以及返回（扣 5 分）、卡關時的選項。
 // 規則都在引擎（applySpider），這裡只管流程、計時與存紀錄。
+import { checkDeadEnd } from '@/core/deadEnd'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { bestAt, recordBest, recordResult, stats } from '@/core/settings'
@@ -106,8 +107,16 @@ let stuckTimer = 0
 function checkStuck() {
   window.clearTimeout(stuckTimer)
   stuck.value = false
-  if (!isStuck(state.value)) return
-  stuckTimer = window.setTimeout(() => (stuck.value = true), 700)
+  const s = state.value
+  if (s.won) return
+  if (isStuck(s)) {
+    stuckTimer = window.setTimeout(() => (stuck.value = true), 700)
+    return
+  }
+  // 還有步可走，但電腦算過確定怎麼走都過不了關（背景算，core/deadEnd.ts）
+  void checkDeadEnd('spider', s).then((dead) => {
+    if (dead && state.value === s && !ended.value) stuckTimer = window.setTimeout(() => (stuck.value = true), 500)
+  })
 }
 function onReady() {
   ready.value = true

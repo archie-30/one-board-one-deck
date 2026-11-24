@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 接龍對局：牌桌＋右下的分數、時間、步數，以及返回（扣分）、自動收牌、卡關時的選項。
 // 規則都在引擎（applySolitaire），這裡只管流程、計時與存紀錄。
+import { checkDeadEnd } from '@/core/deadEnd'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { bestAt, recordBest, recordResult, stats } from '@/core/settings'
@@ -126,13 +127,21 @@ function act(action: SolitaireAction) {
 }
 
 
-/** 卡關：已經沒有能讓局面前進的步。不跳視窗，「返回」下面浮出「卡關並結算」 */
+/** 卡關：已經沒有能讓局面前進的步，或電腦算過確定怎麼走都過不了關（背景算，`core/deadEnd.ts`）。
+ *  不跳視窗，「返回」下面浮出「卡關並結算」 */
 let stuckTimer = 0
 function checkStuck(now = false) {
   window.clearTimeout(stuckTimer)
   stuck.value = false
-  if (!isStuck(state.value) || plan.value) return
-  stuckTimer = window.setTimeout(() => (stuck.value = true), now ? 0 : 700)
+  const s = state.value
+  if (plan.value || s.won) return
+  if (isStuck(s)) {
+    stuckTimer = window.setTimeout(() => (stuck.value = true), now ? 0 : 700)
+    return
+  }
+  void checkDeadEnd('solitaire', s).then((dead) => {
+    if (dead && state.value === s && !plan.value && !ended.value) stuckTimer = window.setTimeout(() => (stuck.value = true), now ? 0 : 500)
+  })
 }
 /** 發完牌（或讀回存檔）可以操作時：讀回的局面可能本來就卡關了 */
 function onReady() {
