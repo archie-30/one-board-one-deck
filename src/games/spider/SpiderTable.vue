@@ -10,6 +10,7 @@ import { autoTarget, canPlace, cardsAt, type SpiderAction, type SpiderState } fr
 import CardArt from '@/ui/art/Card.vue'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
 import { dropCol, spiderLayout, spiderPoses, type SpiderLayout } from './layout'
+import { topEdge } from '../solitaire/topEdge'
 
 type Src = { col: number; index: number }
 const props = withDefaults(
@@ -37,7 +38,7 @@ const L = shallowRef<SpiderLayout>(spiderLayout(844, 390))
 const rem = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
 /** 左上角選單按鈕（距上 0.7rem、大小 2.4rem）下面再留一點空，就是牌堆的上緣 */
 const stockTop = () => rem() * (0.7 + 2.4) + Math.max(10, rem() * 0.5)
-const measureLayout = (el: HTMLElement) => spiderLayout(el.clientWidth, el.clientHeight, stockTop(), rem() * 8.6)
+const measureLayout = (el: HTMLElement) => spiderLayout(el.clientWidth, el.clientHeight, stockTop(), rem() * 8.6, topEdge())
 const stage = new CardStage()
 let lastLand = 0
 let dealingUntil = 0

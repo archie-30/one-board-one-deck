@@ -21,7 +21,8 @@ export interface SpiderLayout {
 }
 
 /** stockTop：牌堆上緣（左上角選單按鈕下面）；hudW：右邊資訊區的寬度 */
-export function spiderLayout(W: number, H: number, stockTop = 66, hudW = 136): SpiderLayout {
+/** topM：最上面一排牌離上緣多遠（觸控裝置多留，見 solitaire/topEdge.ts） */
+export function spiderLayout(W: number, H: number, stockTop = 66, hudW = 136, topM = 14): SpiderLayout {
   const m = 14
   // 寬度：左欄 1 張＋10 疊＋資訊區
   let cw = (W - 2 * m - hudW) / 13.0
@@ -32,7 +33,7 @@ export function spiderLayout(W: number, H: number, stockTop = 66, hudW = 136): S
   const ch = cw * CARD_RATIO
   const total = cw + gap * 0.45 + gap * 10 + gap * 0.3 + hudW
   const x0 = m + Math.max(0, (W - 2 * m - total) / 2) + cw / 2
-  const top = m + ch / 2
+  const top = topM + ch / 2
   const stock = { x: x0, y: stockTop + ch / 2 }
   const done = Array.from({ length: 8 }, (_, k) => ({ x: x0, y: stock.y + ch * 1.18 + k * ch * 0.08 }))
   const c0 = x0 + gap * 1.45
