@@ -12,6 +12,7 @@ import CardArt from '@/ui/art/Card.vue'
 import { SUIT_PATHS, isRedSuit } from '@/ui/art/suits'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
 import { dropSpot, solLayout, solPoses, type SolLayout } from './layout'
+import { topEdge } from './topEdge'
 
 const props = withDefaults(
   defineProps<{
@@ -198,12 +199,12 @@ onMounted(() => {
     const now = `${el.clientWidth}x${el.clientHeight}`
     if (now === size) return
     size = now
-    L.value = solLayout(el.clientWidth, el.clientHeight, 0, 0, stockTop())
+    L.value = solLayout(el.clientWidth, el.clientHeight, 0, 0, stockTop(), topEdge())
     // 發牌途中不要把牌直接擺到終點（會提早翻開），等發完再重排
     if (dealing.value) resyncAfterDeal = true
     else sync(true)
   }
-  L.value = solLayout(el.clientWidth, el.clientHeight, 0, 0, stockTop())
+  L.value = solLayout(el.clientWidth, el.clientHeight, 0, 0, stockTop(), topEdge())
   if (props.dealIn) {
     // 進場色塊揭開後才發牌，發牌動畫才看得到；在那之前牌都疊在牌堆
     dealing.value = true

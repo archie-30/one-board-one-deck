@@ -21,18 +21,19 @@ export interface FreeCellLayout {
 
 export type Spot = { pile: 'cell'; slot: number } | { pile: 'foundation'; slot: number } | { pile: 'tableau'; col: number }
 
-export function freeCellLayout(W: number, H: number, cellTop = 66): FreeCellLayout {
+/** topM：最上面一排牌離上緣多遠（觸控裝置多留，見 solitaire/topEdge.ts） */
+export function freeCellLayout(W: number, H: number, cellTop = 66, topM = 14): FreeCellLayout {
   const m = 14
   // 寬度：左右各 2 張（2.1 張寬）＋ 8 疊
   let cw = (W - 2 * m) / (4.96 + 8 * 1.12)
   // 高度：左邊 2 排暫存格在選單按鈕下面；右邊 2 排收牌區＋約 150px 的資訊區
-  const maxCw = Math.min((H - cellTop - m) / 2.1, (H - 2 * m - 150) / 2.1) / CARD_RATIO
+  const maxCw = Math.min((H - cellTop - m) / 2.1, (H - m - topM - 150) / 2.1) / CARD_RATIO
   cw = Math.min(cw, maxCw)
   const gap = cw * 1.12
   const ch = cw * CARD_RATIO
   const total = 4.96 * cw + 8 * gap
   const x0 = m + Math.max(0, (W - 2 * m - total) / 2) + cw / 2
-  const top = m + ch / 2
+  const top = topM + ch / 2
   const cy = cellTop + ch / 2
   const cells = [
     { x: x0, y: cy },

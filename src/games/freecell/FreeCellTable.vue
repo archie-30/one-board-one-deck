@@ -11,6 +11,7 @@ import CardArt from '@/ui/art/Card.vue'
 import { SUIT_PATHS, isRedSuit } from '@/ui/art/suits'
 import { CardStage, type Pose } from '../bigtwo/cardStage'
 import { dropSpot, freeCellLayout, freeCellPoses, type FreeCellLayout } from './layout'
+import { topEdge } from '../solitaire/topEdge'
 
 const props = withDefaults(
   defineProps<{
@@ -137,11 +138,11 @@ onMounted(() => {
     const now = `${el.clientWidth}x${el.clientHeight}`
     if (now === size) return
     size = now
-    L.value = freeCellLayout(el.clientWidth, el.clientHeight, cellTop())
+    L.value = freeCellLayout(el.clientWidth, el.clientHeight, cellTop(), topEdge())
     if (dealing.value) resyncAfterDeal = true
     else sync(true)
   }
-  L.value = freeCellLayout(el.clientWidth, el.clientHeight, cellTop())
+  L.value = freeCellLayout(el.clientWidth, el.clientHeight, cellTop(), topEdge())
   if (props.dealIn) {
     dealing.value = true
     stackAtDeck()
