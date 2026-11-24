@@ -8,6 +8,7 @@
 import { fullDeck, isRed, rankOf, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { shuffle, type RngState } from '@/engine/common/rng'
 import type { Result } from '@/engine/common/types'
+import { DEAD_END_BUDGET, provedDeadEnd } from '@/engine/common/deadEnd'
 
 export type { Card }
 export type DrawCount = 1 | 3
@@ -350,3 +351,57 @@ export function finalScore(score: number, seconds: number, won: boolean): number
 
 /** 快速過關獎勵（標準算法：700000 ÷ 秒數；不到 30 秒的不給，避免數字失控）。時間只會加分，不會扣分 */
 export const timeBonus = (seconds: number): number => (seconds >= 30 ? Math.floor(700000 / seconds) : 0)
+
+/**
+ * 真的卡關了嗎（電腦算過）：從目前局面試遍所有走得到的局面（連牌堆翻牌、從收牌區拿回來都算），
+ * 沒有一個能過關才算。試太多（budget）還沒試完就當成沒卡關，不會誤判。
+ * isStuck 是「沒有能前進的步」（很快）；這個是「怎麼走都過不了關」（會繞圈、看似有步其實沒救的也抓得到）。
+ */
+export function isDeadEnd(start: SolitaireState, budget = DEAD_END_BUDGET): boolean {
+  if (start.won) return false
+  const key = (s: SolitaireState) =>
+    `${s.foundations.map((f) => f.length).join('.')}|${s.tableau.map((c) => `${c.down.length}:${c.up.join(',')}`).sort().join('/')}|${s.stock.join(',')}|${s.waste.join(',')}`
+  const moves = (s: SolitaireState): SolitaireAction[] => {
+    const out: SolitaireAction[] = []
+    const targets: Target[] = [0, 1, 2, 3].map((slot) => ({ pile: 'foundation', slot }) as Target)
+    let empty = false
+    for (let col = 0; col < 7; col++) {
+      const c = s.tableau[col]
+      // 空位都一樣：只試第一個
+      if (!c.up.length && !c.down.length) {
+        if (empty) continue
+        empty = true
+      }
+      targets.push({ pile: 'tableau', col })
+    }
+    const srcs: Source[] = []
+    if (s.waste.length) srcs.push({ pile: 'waste' })
+    s.tableau.forEach((c, col) => c.up.forEach((_, index) => srcs.push({ pile: 'tableau', col, index })))
+    s.foundations.forEach((f, slot) => f.length && srcs.push({ pile: 'foundation', slot }))
+    // 先用 canPlace 過濾（applySolitaire 會先複製整個局面，拿不合法的步去試太慢）
+    for (const from of srcs) {
+      const cards = cardsAt(s, from)
+      for (const to of targets) {
+        if (from.pile === 'tableau' && to.pile === 'tableau' && from.col === to.col) continue
+        if (from.pile === 'foundation' && to.pile === 'foundation') continue
+        if (canPlace(s, cards, to)) out.push({ type: 'move', from, to })
+      }
+    }
+    if (s.stock.length || s.waste.length) out.push({ type: 'draw' })
+    return out
+  }
+  return provedDeadEnd(
+    start,
+    {
+      key,
+      moves,
+      apply: (s, a) => {
+        const r = applySolitaire(s, a)
+        return r.ok ? r.state : null
+      },
+      // 桌面都翻開了、只靠收牌和翻牌堆就收得完：一定能過關
+      done: (s) => s.won || (!s.tableau.some((c) => c.down.length) && !!finishPlan(s)),
+    },
+    budget,
+  )
+}

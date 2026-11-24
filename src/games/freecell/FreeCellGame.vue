@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // 新接龍對局：牌桌＋右下的步數、時間，以及返回（算一步）、自動收牌、卡關時的選項。
 // 比的是步數：過關用的步數越少越好（最少步數記在 stats.freecell.fewest）。
+import { checkDeadEnd } from '@/core/deadEnd'
 import { computed, onBeforeUnmount, ref, shallowRef } from 'vue'
 import { playSound } from '@/core/audio'
 import { recordResult, stats } from '@/core/settings'
@@ -110,8 +111,16 @@ let stuckTimer = 0
 function checkStuck() {
   window.clearTimeout(stuckTimer)
   stuck.value = false
-  if (!isStuck(state.value)) return
-  stuckTimer = window.setTimeout(() => (stuck.value = true), 700)
+  const s = state.value
+  if (s.won) return
+  if (isStuck(s)) {
+    stuckTimer = window.setTimeout(() => (stuck.value = true), 700)
+    return
+  }
+  // 還有步可走，但電腦算過確定怎麼走都過不了關（背景算，core/deadEnd.ts）
+  void checkDeadEnd('freecell', s).then((dead) => {
+    if (dead && state.value === s && !ended.value) stuckTimer = window.setTimeout(() => (stuck.value = true), 500)
+  })
 }
 function onReady() {
   ready.value = true

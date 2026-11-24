@@ -11,6 +11,7 @@
 import { makeCard, suitOf, type Card, type Suit } from '@/engine/bigtwo/cards'
 import { shuffle, type RngState } from '@/engine/common/rng'
 import type { Result } from '@/engine/common/types'
+import { DEAD_END_BUDGET, provedDeadEnd } from '@/engine/common/deadEnd'
 import { valueOf } from '@/engine/solitaire/rules'
 
 export type { Card }
@@ -208,4 +209,49 @@ export function isStuck(s: SpiderState): boolean {
     }
   }
   return true
+}
+
+/**
+ * 真的卡關了嗎（電腦算過）：從目前局面試遍所有走得到的局面（連發牌都算），沒有一個能過關才算。
+ * 試太多（budget）還沒試完就當成沒卡關，不會誤判。牌面一樣的牌（兩副牌）當成同一張，局面才不會重複試。
+ */
+export function isDeadEnd(start: SpiderState, budget = DEAD_END_BUDGET): boolean {
+  if (start.won) return false
+  const face = (s: SpiderState, c: Card) => s.faces[c]
+  const key = (s: SpiderState) =>
+    `${s.done.length}|${s.stock.length}|${s.tableau.map((c) => `${c.down.map((x) => face(s, x)).join(',')}:${c.up.map((x) => face(s, x)).join(',')}`).sort().join('/')}`
+  const moves = (s: SpiderState): SpiderAction[] => {
+    const out: SpiderAction[] = []
+    if (s.stock.length) out.push({ type: 'deal' })
+    let empty = -1
+    for (let j = 0; j < COLS; j++) if (!s.tableau[j].up.length && !s.tableau[j].down.length) ((empty = empty < 0 ? j : empty))
+    for (let i = 0; i < COLS; i++) {
+      const c = s.tableau[i]
+      for (let k = 0; k < c.up.length; k++) {
+        const cards = cardsAt(s, { col: i, index: k })
+        if (!cards.length) continue
+        for (let j = 0; j < COLS; j++) {
+          if (j === i || !canPlace(s, cards, { col: j })) continue
+          const t = s.tableau[j]
+          // 空位都一樣：只試第一個；整疊搬到空位、底下也沒牌：白搬
+          if (!t.up.length && !t.down.length && (j !== empty || (k === 0 && !c.down.length))) continue
+          out.push({ type: 'move', from: { col: i, index: k }, to: { col: j } })
+        }
+      }
+    }
+    return out
+  }
+  return provedDeadEnd(
+    start,
+    {
+      key,
+      moves,
+      apply: (s, a) => {
+        const r = applySpider(s, a)
+        return r.ok ? r.state : null
+      },
+      done: (s) => s.won,
+    },
+    budget,
+  )
 }

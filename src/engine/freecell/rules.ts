@@ -8,6 +8,7 @@
 import { isRed, suitOf, type Card } from '@/engine/bigtwo/cards'
 import { shuffle, type RngState } from '@/engine/common/rng'
 import type { Result } from '@/engine/common/types'
+import { DEAD_END_BUDGET, provedDeadEnd } from '@/engine/common/deadEnd'
 import { valueOf } from '@/engine/solitaire/rules'
 
 export type { Card }
@@ -220,4 +221,50 @@ export function isStuck(s: FreeCellState): boolean {
     }
   }
   return true
+}
+
+/**
+ * 真的卡關了嗎（電腦算過）：從目前局面試遍所有走得到的局面，沒有一個能過關才算。
+ * 試太多（budget）還沒試完就當成沒卡關，不會誤判。暫存格、空的一疊都一樣，只試第一個。
+ */
+export function isDeadEnd(start: FreeCellState, budget = DEAD_END_BUDGET): boolean {
+  if (start.won) return false
+  const key = (s: FreeCellState) =>
+    `${s.foundations.map((f) => f.length).join('.')}|${s.cells.map((c) => (c === null ? '-' : c)).sort().join(',')}|${s.tableau.map((c) => c.join(',')).sort().join('/')}`
+  const moves = (s: FreeCellState): FreeCellAction[] => {
+    const out: FreeCellAction[] = []
+    const freeCell = s.cells.indexOf(null)
+    const emptyCol = s.tableau.findIndex((c) => !c.length)
+    const srcs: Source[] = []
+    s.cells.forEach((c, slot) => c !== null && srcs.push({ pile: 'cell', slot }))
+    s.tableau.forEach((c, col) => c.forEach((_, index) => srcs.push({ pile: 'tableau', col, index })))
+    for (const from of srcs) {
+      const cards = cardsAt(s, from)
+      if (!cards.length) continue
+      if (cards.length === 1) {
+        out.push({ type: 'move', from, to: { pile: 'foundation', slot: suitOf(cards[0]) } })
+        if (freeCell >= 0 && from.pile === 'tableau') out.push({ type: 'move', from, to: { pile: 'cell', slot: freeCell } })
+      }
+      for (let col = 0; col < COLS; col++) {
+        if (!s.tableau[col].length && col !== emptyCol) continue
+        // 整疊搬到空的一疊：白搬
+        if (!s.tableau[col].length && from.pile === 'tableau' && from.index === 0) continue
+        out.push({ type: 'move', from, to: { pile: 'tableau', col } })
+      }
+    }
+    return out
+  }
+  return provedDeadEnd(
+    start,
+    {
+      key,
+      moves,
+      apply: (s, a) => {
+        const r = applyFreeCell(s, a)
+        return r.ok ? r.state : null
+      },
+      done: (s) => s.won || !!finishPlan(s),
+    },
+    budget,
+  )
 }
