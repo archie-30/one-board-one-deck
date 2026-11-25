@@ -9,7 +9,7 @@
 //
 // 牌：每張牌有自己的編號（0～103，畫面上每張牌是獨立的物件），faces[編號] 是它的牌面（跟大老二同一套牌面編號）。
 import { makeCard, suitOf, type Card, type Suit } from '@/engine/bigtwo/cards'
-import { shuffle, type RngState } from '@/engine/common/rng'
+import { nextInt, shuffle, type RngState } from '@/engine/common/rng'
 import type { Result } from '@/engine/common/types'
 import { DEAD_END_BUDGET, provedDeadEnd } from '@/engine/common/deadEnd'
 import { valueOf } from '@/engine/solitaire/rules'
@@ -76,6 +76,38 @@ export function createSpider(order: readonly Card[], suits: SuitCount): SpiderSt
 export function dealSpider(rng: RngState, suits: SuitCount): [SpiderState, RngState] {
   const [order, next] = shuffle(Array.from({ length: 104 }, (_, i) => i), rng)
   return [createSpider(order, suits), next]
+}
+
+/**
+ * 從「保證解得開」的發牌（data/spiderDeals.ts，2 種、4 種花色用）挑一副，再隨機變化一下：
+ *   換花色（例如黑桃、紅心整個對調）、同樣張數的疊互換位置（前 4 疊互換、後 6 疊互換，發牌時跟著換）。
+ *   這兩種換法都不影響解不解得開。bank：每副 104 張牌的編號，每張兩位 16 進位。
+ */
+export function dealFromBank(bank: readonly string[], rng: RngState, suits: SuitCount): [SpiderState, RngState] {
+  let pick: number
+  ;[pick, rng] = nextInt(rng, bank.length)
+  const raw = bank[pick]
+  const order = Array.from({ length: 104 }, (_, i) => parseInt(raw.slice(i * 2, i * 2 + 2), 16))
+  // 換花色：牌編號每 13 張一組（一組＝一種花色的 A～K），同一種花色的組換到另一種花色
+  const len = SUIT_SETS[suits].length
+  let perm: number[]
+  ;[perm, rng] = shuffle(Array.from({ length: len }, (_, i) => i), rng)
+  const relabel = (id: number) => {
+    const b = Math.floor(id / 13)
+    return (b - (b % len) + perm[b % len]) * 13 + (id % 13)
+  }
+  // 疊互換：前 4 疊（6 張）之間、後 6 疊（5 張）之間；牌堆每一輪發給第幾疊也跟著換
+  let big: number[]
+  let small: number[]
+  ;[big, rng] = shuffle([0, 1, 2, 3], rng)
+  ;[small, rng] = shuffle([4, 5, 6, 7, 8, 9], rng)
+  const from = [...big, ...small]
+  const starts = [0, 6, 12, 18, 24, 29, 34, 39, 44, 49]
+  const sizes = [6, 6, 6, 6, 5, 5, 5, 5, 5, 5]
+  const next: number[] = []
+  for (let j = 0; j < COLS; j++) next.push(...order.slice(starts[from[j]], starts[from[j]] + sizes[from[j]]))
+  for (let r = 0; r < 5; r++) for (let j = 0; j < COLS; j++) next.push(order[54 + r * COLS + from[j]])
+  return [createSpider(next.map(relabel), suits), rng]
 }
 
 const clone = (s: SpiderState): SpiderState => ({
