@@ -7,7 +7,8 @@ import { playSound } from '@/core/audio'
 import { bestAt, recordBest, recordResult, stats } from '@/core/settings'
 import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
-import { applySpider, dealSpider, isStuck, RUN_SCORE, scoreOf, START_SCORE, UNDO_PENALTY, undoTo, type SpiderAction, type SpiderState, type SuitCount } from '@/engine/spider/rules'
+import { SPIDER_DEALS } from '@/data/spiderDeals'
+import { applySpider, dealFromBank, dealSpider, isStuck, RUN_SCORE, scoreOf, START_SCORE, UNDO_PENALTY, undoTo, type SpiderAction, type SpiderState, type SuitCount } from '@/engine/spider/rules'
 import type { GameDef } from '@/games/types'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
@@ -31,7 +32,10 @@ const SUITS: Record<string, SuitCount> = { easy: 1, normal: 2, hard: 4 }
 
 function fresh(): SpiderState {
   const seed = (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0
-  return dealSpider(seedRng(seed), SUITS[level.value] ?? 1)[0]
+  const suits = SUITS[level.value] ?? 1
+  // 2 種、4 種花色：從保證解得開的發牌裡挑（使用者要的）；1 種花色隨便洗幾乎都解得開
+  if (suits !== 1) return dealFromBank(SPIDER_DEALS[suits], seedRng(seed), suits)[0]
+  return dealSpider(seedRng(seed), suits)[0]
 }
 
 const state = shallowRef<SpiderState>(saved ? saved.state : fresh())
