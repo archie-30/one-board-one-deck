@@ -21,6 +21,21 @@ const easeOut = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const D = { lift: 420, grow: 240, nameOut: 200, wipeDelay: 60, wipe: 300, cover: 300, nameIn: 260, nameInDelay: 100, shrink: 240, back: 420 }
 let safety = 0
 
+/**
+ * 複製卡片（或條列的一列）放到過場層。複製品離開了原本的容器，跟容器有關的樣式（例如條列太窄時把標籤收起來的
+ * @container）不會套到，會先閃一下擠成一團的樣子（使用者回報）：原本藏起來的子元素在複製品上也藏起來。
+ */
+function cloneCard(src: HTMLElement): HTMLElement {
+  const clone = src.cloneNode(true) as HTMLElement
+  clone.removeAttribute('style')
+  clone.classList.remove('lifted', 'peek')
+  clone.classList.add('launch-clone')
+  const a = src.querySelectorAll<HTMLElement>('*')
+  const b = clone.querySelectorAll<HTMLElement>('*')
+  for (let i = 0; i < a.length && i < b.length; i++) if (getComputedStyle(a[i]).display === 'none') b[i].style.display = 'none'
+  return clone
+}
+
 watch(
   () => launch.key,
   async () => {
@@ -33,11 +48,7 @@ watch(
     if (!f || !host || !launch.card) return notifyGrown()
     // 複製卡片（連同樣式），放在正面
     host.replaceChildren()
-    const clone = launch.card.cloneNode(true) as HTMLElement
-    clone.removeAttribute('style')
-    clone.classList.remove('lifted', 'peek')
-    clone.classList.add('launch-clone')
-    host.appendChild(clone)
+    host.appendChild(cloneCard(launch.card))
 
     const r = launch.rect
     const W = window.innerWidth
@@ -108,11 +119,7 @@ async function runExit() {
   const host = front.value
   if (!f || !host) return finishExit()
   host.replaceChildren()
-  const clone = card.cloneNode(true) as HTMLElement
-  clone.removeAttribute('style')
-  clone.classList.remove('lifted', 'peek')
-  clone.classList.add('launch-clone')
-  host.appendChild(clone)
+  host.appendChild(cloneCard(card))
   const dx = W / 2 - (r.left + r.width / 2)
   const dy = H / 2 - (r.top + r.height / 2)
   await f.animate(

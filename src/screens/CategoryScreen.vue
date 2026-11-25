@@ -157,25 +157,50 @@ function visibleRects(els: (HTMLElement | null)[], clip?: DOMRect): Map<string, 
   return out
 }
 /**
- * 從舊的位置（old）變形到現在的位置：在原本的 transform 前面加一段「平移＋縮放」，以元素看起來的中心為準，
- * 播完就是原本的樣子（卡片的 3D 位置照舊）。裡面的字先淡掉、後半段才浮出來，壓扁拉長時看不出變形。
+ * 從舊的位置（old）變形到現在的位置：在原本的 transform 前面加一段「平移＋等比縮放」，以元素看起來的中心為準，
+ * 播完就是原本的樣子（卡片的 3D 位置照舊）。不能長寬分開縮放（卡片會被壓扁、列會被拉長，使用者看到會閃一下擠壓過的樣子）：
+ * 改成等比縮放（大小接近舊的那一塊），再用 clip-path 只露出跟舊的差不多大的一段（卡片露上面插圖那段、列露左邊），
+ * 一邊縮回原本大小、一邊把框打開。裡面的字先淡掉、後半段才浮出來。
  */
 function morphFrom(el: HTMLElement, old: DOMRect, delay = 0) {
   const n = el.getBoundingClientRect()
   const parent = (el.offsetParent as HTMLElement | null)?.getBoundingClientRect()
-  if (!parent || !n.width || !n.height) return
+  const W = el.offsetWidth
+  const H = el.offsetHeight
+  if (!parent || !n.width || !n.height || !W || !H) return
   const scrollTop = (el.offsetParent as HTMLElement).scrollTop
   // 沒有 transform 時元素的中心（transform 的原點）
-  const bx = parent.left + el.offsetLeft + el.offsetWidth / 2
-  const by = parent.top + el.offsetTop - scrollTop + el.offsetHeight / 2
+  const bx = parent.left + el.offsetLeft + W / 2
+  const by = parent.top + el.offsetTop - scrollTop + H / 2
   const vx = n.left + n.width / 2 - bx
   const vy = n.top + n.height / 2 - by
   const dx = old.left + old.width / 2 - (n.left + n.width / 2)
   const dy = old.top + old.height / 2 - (n.top + n.height / 2)
+  const sw = old.width / n.width
+  const sh = old.height / n.height
+  // 等比縮放取長寬比例的中間值（不放大到蓋滿，不然一開始插圖會被放到兩三倍大）
+  const sc = Math.sqrt(sw * sh)
+  // 露出來的那一段（元素自己的座標）：比較長的那一邊切掉，貼著左邊／上面
+  const vw = Math.min(W, (W * sw) / sc)
+  const vh = Math.min(H, (H * sh) / sc)
+  // 露出來那段的中心離元素中心多遠（換算成畫面上的 px），起點要讓它對準舊的中心
+  const ox = ((vw - W) / 2) * (n.width / W) * sc
+  const oy = ((vh - H) / 2) * (n.height / H) * sc
   const final = el.style.transform || getComputedStyle(el).transform
   const end = final && final !== 'none' ? final : 'translate(0px, 0px)'
-  const start = `translate(${vx + dx}px, ${vy + dy}px) scale(${old.width / n.width}, ${old.height / n.height}) translate(${-vx}px, ${-vy}px) ${end === 'translate(0px, 0px)' ? '' : end}`
-  el.animate([{ transform: start }, { transform: end }], { duration: MORPH_MS, delay, easing: 'cubic-bezier(.22,.8,.24,1)', fill: 'backwards' })
+  const start = `translate(${vx + dx - ox}px, ${vy + dy - oy}px) scale(${sc}) translate(${-vx}px, ${-vy}px) ${end === 'translate(0px, 0px)' ? '' : end}`
+  const r = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0
+  // 框外多留一圈，右下的實心陰影才不會被切掉
+  const pad = 14
+  const cutR = W - vw > 0.5 ? `${W - vw}px` : `-${pad}px`
+  const cutB = H - vh > 0.5 ? `${H - vh}px` : `-${pad}px`
+  el.animate(
+    [
+      { transform: start, clipPath: `inset(-${pad}px ${cutR} ${cutB} -${pad}px round ${r}px)` },
+      { transform: end, clipPath: `inset(-${pad}px -${pad}px -${pad}px -${pad}px round ${r}px)` },
+    ],
+    { duration: MORPH_MS, delay, easing: 'cubic-bezier(.22,.8,.24,1)', fill: 'backwards' },
+  )
   for (const c of el.querySelectorAll<HTMLElement>('.info, .no, .rt, .tags')) c.animate([{ opacity: 0 }, { opacity: 0, offset: 0.45 }, { opacity: 1 }], { duration: MORPH_MS, delay, fill: 'backwards' })
 }
 function toggleView() {
