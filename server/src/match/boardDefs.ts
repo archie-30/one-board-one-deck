@@ -20,6 +20,8 @@ import { chooseDotsAction } from '../../../src/engine/dots/ai'
 import { applyDots, createDots, lineCount, sizeOf, type DotsAction, type DotsState } from '../../../src/engine/dots/rules'
 import { chooseHexAction } from '../../../src/engine/hex/ai'
 import { applyHex, createHex, sizeOf as hexSize, type HexAction, type HexState } from '../../../src/engine/hex/rules'
+import { chooseMorrisAction } from '../../../src/engine/morris/ai'
+import { applyMorris, createMorris, POINTS, type MorrisAction, type MorrisState } from '../../../src/engine/morris/rules'
 import { chooseQuoridorAction } from '../../../src/engine/quoridor/ai'
 import { applyQuoridor, createQuoridor, W as QW, type QuoridorAction, type QuoridorState } from '../../../src/engine/quoridor/rules'
 import { chooseStarMove } from '../../../src/engine/starcheckers/ai'
@@ -331,4 +333,35 @@ const hex: MatchDef<HexState, HexAct> = {
   resign: (s, side) => unwrap(applyHex(s, { type: 'resign', side: side as 0 | 1 })),
 }
 
-export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor, dots, hex }
+// ── 九子棋（飛子規則照房主；成三拿子跟放子／走子是同一個動作，remove 一起送）──
+type MorrisAct = Exclude<MorrisAction, { type: 'resign' }> & { player: number }
+const morris: MatchDef<MorrisState, MorrisAct> = {
+  ...board,
+  undo: true,
+  deal: (_seed, o) => createMorris(o.flying !== false),
+  apply: (s, a) => {
+    const { player: _p, ...act } = a
+    return unwrap(applyMorris(s, act as MorrisAction))
+  },
+  turn: (s) => (s.status !== 'playing' ? -1 : s.turn),
+  parse(raw, side) {
+    if (!isObj(raw)) return null
+    const rm = raw.remove === undefined ? {} : isIdx(raw.remove, POINTS) ? { remove: raw.remove as number } : null
+    if (!rm) return null
+    if (raw.type === 'place' && isIdx(raw.to, POINTS)) return { type: 'place', to: raw.to as number, ...rm, player: side }
+    if (raw.type === 'move' && isIdx(raw.from, POINTS) && isIdx(raw.to, POINTS)) return { type: 'move', from: raw.from as number, to: raw.to as number, ...rm, player: side }
+    return null
+  },
+  bot(s, _id, o, rng) {
+    const [a, next] = chooseMorrisAction(s, level(o), rng)
+    return [a.type === 'resign' ? { type: 'timeout', player: s.turn } : { ...a, player: s.turn }, next]
+  },
+  think: (_s, _id, o, r) => 700 + extraThink(level(o)) * 0.5 + r * 500,
+  timeout: (side) => ({ type: 'timeout', player: side }),
+  render: (_b, _a, a) => ({ pub: a }),
+  start: (s) => s,
+  reveal: (s) => s,
+  resign: (s, side) => unwrap(applyMorris(s, { type: 'resign', side: side as 0 | 1 })),
+}
+
+export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor, dots, hex, morris }

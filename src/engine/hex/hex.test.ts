@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { nextInt, seedRng } from '@/engine/common/rng'
 import { applyHex, canSwap, connection, createHex, mirror, neighbors, sizeOf, type HexAction, type HexState } from './rules'
-import { bridgeSave, chooseHexAction, distance, playOut, resistance } from './ai'
+import { bridges, bridgeSave, chooseHexAction, distance, playOut, resistance } from './ai'
 
 const apply = (s: HexState, a: HexAction) => {
   const r = applyHex(s, a)
@@ -133,12 +133,22 @@ describe('海克斯：電腦', () => {
     s = apply(s, { type: 'place', cell: 2 * 5 + 1 })
     expect(bridgeSave(s, 0)).toBe(2 * 5 + 2)
   })
+  it('找橋：兩顆子中間兩個共同空格都空著才算；擋了一格就不算；離邊第二排也跟邊搭橋', () => {
+    const s = board(['.....', '..R..', '.....', '.R...', '.....'])
+    expect(bridges(5, s.cells, 0)).toEqual(expect.arrayContaining([[7, 16], [7, -1], [16, -2]]))
+    const cut = board(['.....', '..R..', '.B...', '.R...', '.....'])
+    expect(bridges(5, cut.cells, 0).some(([a, b]) => a === 7 && b === 16)).toBe(false)
+  })
+  it('電阻：把橋算進去，有橋的那一邊更容易連通', () => {
+    const s = board(['.....', '..R..', '.....', '.R...', '.....'])
+    expect(resistance(5, s.cells, 0, true)).toBeLessThan(resistance(5, s.cells, 0))
+  })
   it('交換規則：電腦當藍方，紅方下在中間就交換', () => {
     const s = apply(createHex(7, true), { type: 'place', cell: 24 })
     expect(chooseHexAction(s, 'high', seedRng(3))[0]).toEqual({ type: 'swap' })
   })
   it('難度一級比一級強（7 路，同一個開局換邊各下一次）', () => {
-    const duel = (a: 'low' | 'mid' | 'high', b: 'low' | 'mid' | 'high', games: number) => {
+    const duel = (a: 'low' | 'mid' | 'high' | 'master', b: 'low' | 'mid' | 'high' | 'master', games: number) => {
       let wins = 0
       for (let g = 0; g < games; g++) {
         const aFirst = g % 2 === 0
@@ -149,7 +159,9 @@ describe('海克斯：電腦', () => {
       }
       return wins
     }
-    expect(duel('high', 'mid', 8)).toBeGreaterThanOrEqual(6)
-    expect(duel('mid', 'low', 8)).toBeGreaterThanOrEqual(5)
+    // 7 路太小，高和中差不多（正式 11 路實測高對中 13／20）；這裡驗挑戰＞高、中＞低、高＞低
+    expect(duel('master', 'high', 8)).toBeGreaterThanOrEqual(6)
+    expect(duel('mid', 'low', 8)).toBeGreaterThanOrEqual(6)
+    expect(duel('high', 'low', 8)).toBeGreaterThanOrEqual(6)
   })
 })

@@ -18,6 +18,7 @@ export const GAME_SEATS: Record<string, number> = {
   quoridor: 2,
   dots: 2,
   hex: 2,
+  morris: 2,
 }
 
 /** 電腦對手一共幾位（跟 src/data/names.ts 的 OPPONENTS 一樣多） */
@@ -66,6 +67,7 @@ export const MATCH_RULES: Record<string, Record<string, readonly (string | boole
   quoridor: { difficulty: LEVEL4, timer: B },
   dots: { difficulty: LEVEL, timer: B },
   hex: { difficulty: LEVEL4, size: ['9', '11', '13'], swap: B, timer: B },
+  morris: { difficulty: LEVEL4, flying: B, timer: B },
 }
 
 /** 檢查房主送來的規則設定：不認得的鍵、不合法的值整份不收 */

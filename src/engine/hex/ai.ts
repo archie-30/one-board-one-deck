@@ -1,12 +1,14 @@
 // 海克斯的電腦。只看棋盤（海克斯沒有藏起來的資訊）。
 //   - 每一級都會：能一步連通就直接贏；對方下一步就能連通就擋（低偶爾漏看）。
-//   - 低：算「離連通還差幾格」（最短路，自己的子不用錢、空格 1、對方的子不能走），只看這一步，常亂下。
-//   - 中：同樣只看一步，但挑得認真，偶爾失誤。
-//   - 高：「隨機下滿」很多次（把空格亂數分給兩邊直到下滿，看誰連通），統計每一格是自己的時候贏的比例，挑最高的；
-//         再加上「保橋」：自己兩顆子之間有兩個共同的空格（橋），對方佔了其中一格就補另一格。
-//   - 挑戰：「電阻評估」——把棋盤當電路（自己的子是導線、空格是電阻、對方的子斷路），算兩邊各自連通有多容易；
-//         看自己前 8 名的步、每一步再看對方最好的 12 個回應，挑最壞情況最好的（往後想兩步），不失誤。
-//   實測（電腦互下 20 局，第一手隨機下在外圈、同一個開局換邊各下一次）：挑戰對高 13 勝、高對中 20 勝、中對低 14 勝；挑戰一步最久約 0.2 秒（電腦上）。
+//   使用者嫌太簡單（v0.40.2），四級整個往上提一級：
+//   - 低：算「離連通還差幾格」（最短路，自己的子不用錢、空格 1、對方的子不能走），只看這一步，15% 從前 3 名亂挑（原本的中再弱一點）。
+//   - 中：「隨機下滿」1500 次（把空格亂數分給兩邊直到下滿，看誰連通），統計每一格是自己的時候贏的比例，挑最高的；
+//         再加上「保橋」：自己兩顆子之間有兩個共同的空格（橋），對方佔了其中一格就補另一格（原本的高）。
+//   - 高：「電阻評估」——把棋盤當電路（自己的子是導線、空格是電阻、對方的子斷路），算兩邊各自連通有多容易；
+//         看自己前 8 名的步、每一步再看對方最好的 12 個回應，挑最壞情況最好的（往後想兩步）＋保橋（原本的挑戰）。
+//   - 挑戰：同上，但電阻評估把「橋」當成已經接通（`bridges`：兩顆子、或子和邊之間擋不斷的連接），看前 10 名、對方 14 個回應。
+//   實測（電腦互下 20 局，第一手隨機下在外圈、同一個開局換邊各下一次，11 路）：挑戰對高 20 勝 0 負、高對中 13 勝、中對低 19 勝；
+//   挑戰一步最久約 0.25 秒（11 路）、0.47 秒（13 路，電腦上）。
 //   試過但沒變強的：隨機下滿次數加倍、樹搜尋（MCTS＋RAVE）、只看一步的電阻評估（都約 50%）。
 // 交換規則：電腦當藍方時，紅方第一手下在外圈以外（中間的好點）就交換；電腦當紅方時，第一手不下太好的中間點（下靠邊的位置）。
 import { nextRandom, type RngState } from '../common/rng'
@@ -68,7 +70,7 @@ export function distance(n: number, cells: readonly number[], side: Side): numbe
  * 電阻評估：把棋盤想成電路，自己的子幾乎是導線（電阻 0.01）、空格電阻 1、對方的子斷路；
  * 從自己的起點邊通電到終點邊，算出整片的等效電阻（共軛梯度法解電位）。電阻越小＝越容易連通。
  */
-export function resistance(n: number, cells: readonly number[], side: Side): number {
+export function resistance(n: number, cells: readonly number[], side: Side, vc = false): number {
   const N = n * n
   const nb = neighbors(n)
   const r = new Float64Array(N)
@@ -94,6 +96,23 @@ export function resistance(n: number, cells: readonly number[], side: Side): num
     if (onEndSide(n, side, i)) d += 1 / r[i]
     diag[i] = d
   }
+  // 橋（vc）：自己兩顆子中間的兩個共同空格都還空著＝對方擋不斷，當成幾乎接通（電阻 BRIDGE_R）；
+  // 自己的子在離邊第二排、碰到邊的兩格都空著＝跟邊也算接通
+  const extra: { a: number; b: number; g: number }[] = []
+  if (vc) {
+    const g = 1 / BRIDGE_R
+    for (const [a, bb] of bridges(n, cells, side)) {
+      if (bb === -1) {
+        diag[a] += g
+        b[a] += g
+      } else if (bb === -2) diag[a] += g
+      else {
+        diag[a] += g
+        diag[bb] += g
+        extra.push({ a, b: bb, g })
+      }
+    }
+  }
   const mul = (x: Float64Array, out: Float64Array) => {
     for (let i = 0; i < N; i++) {
       if (!alive[i]) {
@@ -103,6 +122,10 @@ export function resistance(n: number, cells: readonly number[], side: Side): num
       let v = diag[i] * x[i]
       for (const j of nb[i]) if (alive[j]) v -= x[j] / (r[i] + r[j])
       out[i] = v
+    }
+    for (const e of extra) {
+      out[e.a] -= e.g * x[e.b]
+      out[e.b] -= e.g * x[e.a]
     }
   }
   // 共軛梯度（加上對角前處理）
@@ -136,14 +159,51 @@ export function resistance(n: number, cells: readonly number[], side: Side): num
   // 從起點邊流進來的電流
   let current = 0
   for (let i = 0; i < N; i++) if (alive[i] && onStartSide(n, side, i)) current += (1 - x[i]) / r[i]
+  if (vc) for (const [a, bb] of bridges(n, cells, side)) if (bb === -1) current += (1 - x[a]) / BRIDGE_R
   return current > 1e-9 ? 1 / current : 1e6
+}
+/** 橋當成多少電阻（0＝完全接通；大一點＝還是比真的連上差一點） */
+const BRIDGE_R = 0.25
+/**
+ * side 的橋：[子, 另一顆子] 或 [子, -1 起點邊／-2 終點邊]。
+ * 兩顆子的六個「隔一格」位置裡，共同鄰居剛好兩格、兩格都空著才算。
+ */
+export function bridges(n: number, cells: readonly number[], side: Side): [number, number][] {
+  const out: [number, number][] = []
+  const at = (r: number, c: number) => (r >= 0 && r < n && c >= 0 && c < n ? r * n + c : -1)
+  const empty = (i: number) => i >= 0 && cells[i] < 0
+  // 只往「右、下」那三個方向找，每座橋只算一次：(r+1,c+1)、(r+2,c-1)、(r-1,c+2)
+  const DIRS: [number, number, [number, number], [number, number]][] = [
+    [1, 1, [0, 1], [1, 0]],
+    [2, -1, [1, -1], [1, 0]],
+    [-1, 2, [-1, 1], [0, 1]],
+  ]
+  for (let i = 0; i < n * n; i++) {
+    if (cells[i] !== side) continue
+    const r = Math.floor(i / n)
+    const c = i % n
+    for (const [dr, dc, m1, m2] of DIRS) {
+      const j = at(r + dr, c + dc)
+      if (j < 0 || cells[j] !== side) continue
+      if (empty(at(r + m1[0], c + m1[1])) && empty(at(r + m2[0], c + m2[1]))) out.push([i, j])
+    }
+    // 跟邊的橋（離邊第二排、碰到邊的兩格都空）
+    if (side === 0) {
+      if (r === 1 && empty(at(0, c)) && empty(at(0, c + 1))) out.push([i, -1])
+      if (r === n - 2 && empty(at(n - 1, c - 1)) && empty(at(n - 1, c))) out.push([i, -2])
+    } else {
+      if (c === 1 && empty(at(r, 0)) && empty(at(r + 1, 0))) out.push([i, -1])
+      if (c === n - 2 && empty(at(r - 1, n - 1)) && empty(at(r, n - 1))) out.push([i, -2])
+    }
+  }
+  return out
 }
 const onStartSide = (n: number, side: Side, i: number) => (side === 0 ? i < n : i % n === 0)
 const onEndSide = (n: number, side: Side, i: number) => (side === 0 ? i >= n * (n - 1) : i % n === n - 1)
 
 /** 電阻評估：log(對方電阻／自己電阻)，越大對自己越有利 */
-export function resistEval(n: number, cells: readonly number[], side: Side): number {
-  return Math.log(resistance(n, cells, other(side)) / resistance(n, cells, side))
+export function resistEval(n: number, cells: readonly number[], side: Side, vc = false): number {
+  return Math.log(resistance(n, cells, other(side), vc) / resistance(n, cells, side, vc))
 }
 
 /** 下在 cell 之後：對方的距離 − 自己的距離（越大越好） */
@@ -246,10 +306,10 @@ function fillStats(s: HexState, side: Side, k: number, rand: () => number): Floa
 }
 
 /** 電阻評估挑一步：先看自己每一步（1 步）；depth 2 時前 8 名再看對方最好的 8 個回應（取最壞的） */
-function resistPick(s: HexState, side: Side, depth: number): number {
+function resistPick(s: HexState, side: Side, depth: number, vc = false, width = 8, replyWidth = 12): number {
   const n = s.n
   const cells = s.cells.slice()
-  const score = (c: number[], who: Side) => resistEval(n, c, who)
+  const score = (c: number[], who: Side) => resistEval(n, c, who, vc)
   const first = emptyCells(s).map((cell) => {
     cells[cell] = side
     const v = score(cells, side)
@@ -260,14 +320,14 @@ function resistPick(s: HexState, side: Side, depth: number): number {
   if (depth < 2) return first[0].cell
   let best = first[0].cell
   let bestV = -Infinity
-  for (const f of first.slice(0, 8)) {
+  for (const f of first.slice(0, width)) {
     cells[f.cell] = side
     // 對方的回應只看最短路分數前 12 名（全部都算電阻太慢）
     const after: HexState = { ...s, cells: cells.slice(), turn: other(side) }
     const cand = emptyCells(after)
       .map((cell) => ({ cell, v: evalMove(after, cell, other(side)) }))
       .sort((a, b) => b.v - a.v)
-      .slice(0, 12)
+      .slice(0, replyWidth)
       .map((x) => x.cell)
     const replies = cand.map((cell) => {
       cells[cell] = other(side)
@@ -295,14 +355,18 @@ interface Style {
   blind: number
   /** 保橋 */
   bridge: boolean
-  /** 電阻評估往後看幾步（0＝不用；2＝看自己前 8 名、再看對方最好的 12 個回應，取最壞的） */
+  /** 電阻評估往後看幾步（0＝不用；2＝看自己前 width 名、再看對方最好的 replyWidth 個回應，取最壞的） */
   resist: number
+  /** 電阻評估把「橋」當成接通 */
+  vc?: boolean
+  width?: number
+  replyWidth?: number
 }
 export const HEX_STYLE: Record<Level, Style> = {
-  low: { fills: 0, whim: 0.45, pool: 8, blind: 0.35, bridge: false, resist: 0 },
-  mid: { fills: 0, whim: 0.12, pool: 3, blind: 0.05, bridge: false, resist: 0 },
-  high: { fills: 1500, whim: 0, pool: 1, blind: 0, bridge: true, resist: 0 },
-  master: { fills: 0, whim: 0, pool: 1, blind: 0, bridge: true, resist: 2 },
+  low: { fills: 0, whim: 0.15, pool: 3, blind: 0.1, bridge: false, resist: 0 },
+  mid: { fills: 1500, whim: 0, pool: 1, blind: 0, bridge: true, resist: 0 },
+  high: { fills: 0, whim: 0, pool: 1, blind: 0, bridge: true, resist: 2 },
+  master: { fills: 0, whim: 0, pool: 1, blind: 0, bridge: true, resist: 2, vc: true, width: 10, replyWidth: 14 },
 }
 
 export function chooseHexAction(s: HexState, level: Level, rng: RngState): [HexAction, RngState] {
@@ -351,7 +415,7 @@ export function chooseHexAction(s: HexState, level: Level, rng: RngState): [HexA
     if (save !== null) return [{ type: 'place', cell: save }, rng]
   }
 
-  if (st.resist > 0) return [{ type: 'place', cell: resistPick(s, side, st.resist) }, rng]
+  if (st.resist > 0) return [{ type: 'place', cell: resistPick(s, side, st.resist, st.vc, st.width, st.replyWidth) }, rng]
   let scored: { cell: number; v: number }[]
   if (st.fills > 0) {
     const seedVal = Math.floor(rand() * 4294967296)
