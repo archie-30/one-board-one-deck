@@ -27,6 +27,7 @@ import StarCheckersCover from './covers/StarCheckersCover.vue'
 import QuoridorCover from './covers/QuoridorCover.vue'
 import DotsCover from './covers/DotsCover.vue'
 import HexCover from './covers/HexCover.vue'
+import MorrisCover from './covers/MorrisCover.vue'
 import NinetyNineCover from './covers/NinetyNineCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
@@ -385,6 +386,19 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./hex/HexTutorial.vue')),
     component: defineAsyncComponent(() => import('./hex/HexGame.vue')),
     settings: [level(), choice('size', S.hex.settings.size, '11'), toggle('swap', S.hex.settings.swap, false), timer()],
+  },
+  {
+    id: 'morris',
+    category: 'board',
+    name: S.morris.name,
+    summary: S.morris.summary,
+    players: S.morris.players,
+    cover: MorrisCover,
+    tags: S.morris.tags,
+    rulesIntro: withTimer(S.morris.rules, [...TR.board]),
+    tutorial: defineAsyncComponent(() => import('./morris/MorrisTutorial.vue')),
+    component: defineAsyncComponent(() => import('./morris/MorrisGame.vue')),
+    settings: [level(), toggle('flying', S.morris.settings.flying, true), timer()],
   },
 
 ]

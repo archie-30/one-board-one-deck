@@ -45,7 +45,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
       </header>
       <div class="rule wipe" style="--i: 2" />
       <p class="lead rise" style="--i: 2">{{ T.newsLead(games.length) }}</p>
-      <div class="tiles">
+      <div class="tiles" :class="{ many: games.length >= 3 }">
         <button v-for="(g, i) in games" :key="g.id" class="tile rise" :class="g.category" :style="{ '--i': i + 3 }" @click="open(g.id)">
           <span class="cv halftone"><component :is="g.cover" active /></span>
           <span class="info">
@@ -180,6 +180,25 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
 .nm {
   font-size: 1.45rem;
   line-height: 1.2;
+}
+/* 名字、分類、去看看都不換行（三個以上玩法時格子窄，名字小一號） */
+.nm,
+.cat,
+.go {
+  flex: none;
+  white-space: nowrap;
+}
+.many .nm {
+  font-size: 1.15rem;
+}
+.many .row {
+  gap: 0.4rem;
+}
+/* 手機上三格太窄：「去看看」收起來（整格都能點） */
+@media (max-width: 720px) {
+  .many .go {
+    display: none;
+  }
 }
 .cat {
   padding: 0.05rem 0.35rem;

@@ -8,6 +8,7 @@ import type { RedPointState } from '../../../src/engine/redpoint/rules'
 import type { NinetyNineState } from '../../../src/engine/ninetynine/rules'
 import type { DotsState } from '../../../src/engine/dots/rules'
 import type { HexState } from '../../../src/engine/hex/rules'
+import type { MorrisState } from '../../../src/engine/morris/rules'
 import { legalMoves, type OthelloState } from '../../../src/engine/othello/rules'
 import { legalMoves as starMoves, type StarState } from '../../../src/engine/starcheckers/rules'
 
@@ -438,6 +439,27 @@ describe('連線對局（伺服器當裁判）', () => {
     expect(m.over).toBe(true)
     const fin = m.log[m.log.length - 1].pub as HexState
     expect(fin.path.length).toBeGreaterThan(0)
+  }, 60000)
+
+  it('九子棋：飛子規則照房主；成三跟拿子一起送；下得完', () => {
+    const { room, ids, m } = started('morris', 2, { flying: false })
+    expect((m.s as MorrisState).flying).toBe(false)
+    let t = T0 + COUNTDOWN_MS + 1000
+    playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, t)
+    playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, t)
+    t += 3000
+    // A 放 0、B 放 9、A 放 1、B 放 10、A 放 2 成三 → 一定要帶 remove
+    playerAct(room, ids[0], { type: 'place', to: 0 }, t)
+    playerAct(room, ids[1], { type: 'place', to: 9 }, t)
+    playerAct(room, ids[0], { type: 'place', to: 1 }, t)
+    playerAct(room, ids[1], { type: 'place', to: 10 }, t)
+    expect(playerAct(room, ids[0], { type: 'place', to: 2 }, t)).toEqual([]) // 成三沒說拿哪顆：不收
+    expect(playerAct(room, ids[0], { type: 'place', to: 2, remove: 9 }, t)).toHaveLength(1)
+    const s = m.s as MorrisState
+    expect(s.board[9]).toBe(-1)
+    expect(s.turn).toBe(1)
+    runToEnd(room, t)
+    expect(m.over).toBe(true)
   }, 60000)
 
   it('西洋跳棋、星形跳棋：伺服器發局、電腦補位、時間到的真人由電腦代打，都下得完', () => {

@@ -60,6 +60,7 @@ interface Stats {
   quoridor: { wins: number; losses: number; draws: number }
   dots: { wins: number; losses: number; draws: number }
   hex: { wins: number; losses: number }
+  morris: { wins: number; losses: number; draws: number }
   /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
   recent: Record<string, string>
   /** 一次性搬家記號（0＝還沒搬）：3＝牌類難度改成低／中／高；4＝大老二「玩到分出名次」改成預設開 */
@@ -100,6 +101,7 @@ const STATS_DEFAULT: Stats = {
   quoridor: { wins: 0, losses: 0, draws: 0 },
   dots: { wins: 0, losses: 0, draws: 0 },
   hex: { wins: 0, losses: 0 },
+  morris: { wins: 0, losses: 0, draws: 0 },
   recent: {},
   cardLevels: 0,
 }
