@@ -2,7 +2,7 @@
 import { reactive, watch } from 'vue'
 import type { Difficulty } from '@/engine/common/types'
 import { gainXp, resetProfile } from './profile'
-import { loadSave, writeSave } from './storage'
+import { loadSave, storageKey, writeSave } from './storage'
 
 export interface GamePrefs {
   difficulty: Difficulty
@@ -65,7 +65,15 @@ interface Stats {
   cardLevels: number
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, hapticsLevel: 'mid', modeView: 'deck' }))
+/** 以前就玩過（有設定存檔）：模式選單照舊預設卡片；新玩家預設條列（使用者要的） */
+const veteran = (() => {
+  try {
+    return localStorage.getItem(storageKey('settings')) !== null || localStorage.getItem(`${storageKey('settings')}.bak`) !== null
+  } catch {
+    return false
+  }
+})()
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, hapticsLevel: 'mid', modeView: veteran ? 'deck' : 'list' }))
 // 舊存檔只有震動開關：關掉的搬成「關」（只搬一次：之後 haptics 跟著 hapticsLevel 走）
 if (!settings.haptics && settings.hapticsLevel === 'mid') settings.hapticsLevel = 'off'
 

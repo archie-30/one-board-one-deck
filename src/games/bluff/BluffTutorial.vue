@@ -278,9 +278,9 @@ const hint = computed(() => {
         </template>
         <Btn v-else-if="solved" class="rise" tone="red" size="lg" arrow block @click="next">{{ step + 1 >= LESSONS.length ? S.common.done : S.common.next }}</Btn>
         <template v-else>
-          <Btn v-if="lesson.last" tone="yellow" size="lg" block :class="{ hintbtn: misses >= 2 }" @click="call">{{ T.call }}</Btn>
-          <Btn v-if="lesson.claim !== null" size="sm" block @click="pass">{{ T.pass }}</Btn>
-          <Btn tone="red" size="lg" arrow block :disabled="!selected.length || claim === null" @click="play">{{ selected.length && claim !== null ? T.playAs(selected.length, RANK_LABELS[claim]) : T.play }}</Btn>
+          <Btn v-if="lesson.last" tone="yellow" block :class="{ hintbtn: misses >= 2 }" @click="call">{{ T.call }}</Btn>
+          <Btn v-if="lesson.claim !== null" block @click="pass">{{ T.pass }}</Btn>
+          <Btn tone="red" block :disabled="!selected.length || claim === null" @click="play">{{ selected.length && claim !== null ? T.playAs(selected.length, RANK_LABELS[claim]) : T.play }}</Btn>
         </template>
       </div>
     </aside>
