@@ -370,6 +370,8 @@ export const S = {
     home: '回到主畫面',
     goCards: '撲克牌',
     goBoard: '棋盤',
+    /** 房主：隨機抽一個模式 */
+    random: '隨機',
     readyLine: (n: number, all: number, mine: boolean) => `${n}／${all} 已準備・${mine ? '您已準備' : '您尚未準備'}`,
     profileTitle: '玩家資料',
     pTitles: '稱號',

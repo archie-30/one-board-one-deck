@@ -15,7 +15,7 @@ import { canChangeMode, changeMode, isHost, kickPlayer, leaveRoom, online, ROOM_
 import { levelOf, myLook, profile } from '@/core/profile'
 import type { GameCategory } from '@/games/types'
 import { S } from '@/data/strings'
-import { getGame, seatsOf } from '@/games/registry'
+import { getGame, onlineGames, seatsOf } from '@/games/registry'
 import Avatar from '@/ui/art/Avatar.vue'
 import Icon from '@/ui/art/Icon.vue'
 import Btn from '@/ui/Btn.vue'
@@ -51,6 +51,18 @@ const nameOf = (id: string) => room.value?.players.find((p) => p.id === id)?.nam
 /** 到房間外逛模式（人還在房間裡；返回時照主畫面 → 分類的順序退） */
 const goHome = () => resetTo([{ name: 'title' }])
 const goCat = (category: GameCategory) => resetTo([{ name: 'title' }, { name: 'category', category }])
+
+/** 房主按「隨機」：從可以連線的模式裡抽一個（不抽現在這個），優先抽坐得下房間所有人的 */
+function pickRandom() {
+  const r = room.value
+  if (!r || !canChangeMode.value || locked.value) return
+  const pool = [...onlineGames('cards'), ...onlineGames('board')].filter((g) => g.id !== r.gameId)
+  const fit = pool.filter((g) => seatsOf(g) >= r.players.length)
+  const from = fit.length ? fit : pool
+  if (!from.length) return
+  const g = from[Math.floor(Math.random() * from.length)]
+  changeMode(g.id, seatsOf(g))
+}
 
 // 點成員：看玩家資料（自己的照個人資料；別人的等接上連線後由伺服器傳來）
 const viewing = ref<RoomPlayer | null>(null)
@@ -180,6 +192,7 @@ async function leave() {
               <Btn size="sm" icon="home" :disabled="locked" @click="goHome">{{ T.home }}</Btn>
               <Btn size="sm" tone="red" :disabled="locked" @click="goCat('cards')">{{ T.goCards }}</Btn>
               <Btn size="sm" tone="blue" :disabled="locked" @click="goCat('board')">{{ T.goBoard }}</Btn>
+              <Btn size="sm" tone="yellow" icon="swap" :disabled="locked || !canChangeMode" @click="pickRandom">{{ T.random }}</Btn>
             </div>
             <div v-if="room.recommends.length" class="recs">
               <p class="t-label">{{ T.recommends }}</p>
