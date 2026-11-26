@@ -18,6 +18,8 @@ import { chooseOthelloMove } from '../../../src/engine/othello/ai'
 import { applyOthello, createOthello, type OthelloAction, type OthelloState } from '../../../src/engine/othello/rules'
 import { chooseDotsAction } from '../../../src/engine/dots/ai'
 import { applyDots, createDots, lineCount, sizeOf, type DotsAction, type DotsState } from '../../../src/engine/dots/rules'
+import { chooseHexAction } from '../../../src/engine/hex/ai'
+import { applyHex, createHex, sizeOf as hexSize, type HexAction, type HexState } from '../../../src/engine/hex/rules'
 import { chooseQuoridorAction } from '../../../src/engine/quoridor/ai'
 import { applyQuoridor, createQuoridor, W as QW, type QuoridorAction, type QuoridorState } from '../../../src/engine/quoridor/rules'
 import { chooseStarMove } from '../../../src/engine/starcheckers/ai'
@@ -303,4 +305,30 @@ const dots: MatchDef<DotsState, DotsAct> = {
   resign: (s, side) => unwrap(applyDots(s, { type: 'resign', side: side as 0 | 1 })),
 }
 
-export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor, dots }
+// ── 海克斯（棋盤大小、交換規則照房主；交換＝藍方第二手把紅方第一顆換成自己的）──
+type HexAct = Exclude<HexAction, { type: 'resign' }> & { player: number }
+const hex: MatchDef<HexState, HexAct> = {
+  ...board,
+  undo: true,
+  deal: (_seed, o) => createHex(hexSize(o.size), o.swap === true),
+  apply: (s, a) => unwrap(applyHex(s, a.type === 'place' ? { type: 'place', cell: a.cell } : a.type === 'swap' ? { type: 'swap' } : { type: 'timeout' })),
+  turn: (s) => (s.status !== 'playing' ? -1 : s.turn),
+  parse(raw, side) {
+    if (!isObj(raw)) return null
+    if (raw.type === 'place' && isIdx(raw.cell, 13 * 13)) return { type: 'place', cell: raw.cell as number, player: side }
+    if (raw.type === 'swap') return { type: 'swap', player: side }
+    return null
+  },
+  bot(s, _id, o, rng) {
+    const [a, next] = chooseHexAction(s, level(o), rng)
+    return [a.type === 'resign' ? { type: 'timeout', player: s.turn } : { ...a, player: s.turn }, next]
+  },
+  think: (_s, _id, o, r) => 600 + extraThink(level(o)) * 0.5 + r * 500,
+  timeout: (side) => ({ type: 'timeout', player: side }),
+  render: (_b, _a, a) => ({ pub: a }),
+  start: (s) => s,
+  reveal: (s) => s,
+  resign: (s, side) => unwrap(applyHex(s, { type: 'resign', side: side as 0 | 1 })),
+}
+
+export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor, dots, hex }

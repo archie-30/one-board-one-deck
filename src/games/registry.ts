@@ -19,12 +19,14 @@ import SevensCover from './covers/SevensCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import SpiderCover from './covers/SpiderCover.vue'
 import FreeCellCover from './covers/FreeCellCover.vue'
+import PyramidCover from './covers/PyramidCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
 import BanqiCover from './covers/BanqiCover.vue'
 import CheckersCover from './covers/CheckersCover.vue'
 import StarCheckersCover from './covers/StarCheckersCover.vue'
 import QuoridorCover from './covers/QuoridorCover.vue'
 import DotsCover from './covers/DotsCover.vue'
+import HexCover from './covers/HexCover.vue'
 import NinetyNineCover from './covers/NinetyNineCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
@@ -220,6 +222,21 @@ export const GAMES: GameDef[] = [
     settings: [],
   },
   {
+    id: 'pyramid',
+    category: 'cards',
+    seats: 1,
+    name: S.pyramid.name,
+    summary: S.pyramid.summary,
+    players: S.pyramid.players,
+    cover: PyramidCover,
+    tags: S.pyramid.tags,
+    best: (o) => bestAt('pyramid', String(o.difficulty ?? 'easy')),
+    rulesIntro: S.pyramid.rules,
+    tutorial: defineAsyncComponent(() => import('./pyramid/PyramidTutorial.vue')),
+    component: defineAsyncComponent(() => import('./pyramid/PyramidGame.vue')),
+    settings: [choice('difficulty', S.pyramid.settings.difficulty, 'easy')],
+  },
+  {
     id: 'gomoku',
     category: 'board',
     name: S.gomoku.name,
@@ -355,6 +372,19 @@ export const GAMES: GameDef[] = [
     component: defineAsyncComponent(() => import('./dots/DotsGame.vue')),
     // 難度也決定棋盤大小：低 4 × 4、中 5 × 5、高 6 × 6
     settings: [choice('difficulty', S.dots.settings.difficulty, 'mid'), timer()],
+  },
+  {
+    id: 'hex',
+    category: 'board',
+    name: S.hex.name,
+    summary: S.hex.summary,
+    players: S.hex.players,
+    cover: HexCover,
+    tags: S.hex.tags,
+    rulesIntro: withTimer(S.hex.rules, [...TR.board]),
+    tutorial: defineAsyncComponent(() => import('./hex/HexTutorial.vue')),
+    component: defineAsyncComponent(() => import('./hex/HexGame.vue')),
+    settings: [level(), choice('size', S.hex.settings.size, '11'), toggle('swap', S.hex.settings.swap, false), timer()],
   },
 
 ]

@@ -2,7 +2,7 @@
 import { reactive, watch } from 'vue'
 import type { Difficulty } from '@/engine/common/types'
 import { gainXp, resetProfile } from './profile'
-import { loadSave, writeSave } from './storage'
+import { loadSave, storageKey, writeSave } from './storage'
 
 export interface GamePrefs {
   difficulty: Difficulty
@@ -44,6 +44,7 @@ interface Stats {
   go: { wins: number; losses: number }
   solitaire: { played: number; wins: number; best: number; fastest: number; bestBy: Record<string, number> }
   spider: { played: number; wins: number; best: number; bestBy: Record<string, number> }
+  pyramid: { played: number; wins: number; best: number; bestBy: Record<string, number> }
   /** 新接龍：fewest＝過關最少步數（0＝還沒過關過） */
   freecell: { played: number; wins: number; fewest: number }
   chess: { wins: number; losses: number; draws: number }
@@ -58,13 +59,22 @@ interface Stats {
   starcheckers: { games: number; firsts: number }
   quoridor: { wins: number; losses: number; draws: number }
   dots: { wins: number; losses: number; draws: number }
+  hex: { wins: number; losses: number }
   /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
   recent: Record<string, string>
   /** 一次性搬家記號（0＝還沒搬）：3＝牌類難度改成低／中／高；4＝大老二「玩到分出名次」改成預設開 */
   cardLevels: number
 }
 
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, hapticsLevel: 'mid', modeView: 'deck' }))
+/** 以前就玩過（有設定存檔）：模式選單照舊預設卡片；新玩家預設條列（使用者要的） */
+const veteran = (() => {
+  try {
+    return localStorage.getItem(storageKey('settings')) !== null || localStorage.getItem(`${storageKey('settings')}.bak`) !== null
+  } catch {
+    return false
+  }
+})()
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, hapticsLevel: 'mid', modeView: veteran ? 'deck' : 'list' }))
 // 舊存檔只有震動開關：關掉的搬成「關」（只搬一次：之後 haptics 跟著 hapticsLevel 走）
 if (!settings.haptics && settings.hapticsLevel === 'mid') settings.hapticsLevel = 'off'
 
@@ -76,6 +86,7 @@ const STATS_DEFAULT: Stats = {
   go: { wins: 0, losses: 0 },
   solitaire: { played: 0, wins: 0, best: 0, fastest: 0, bestBy: {} },
   spider: { played: 0, wins: 0, best: 0, bestBy: {} },
+  pyramid: { played: 0, wins: 0, best: 0, bestBy: {} },
   freecell: { played: 0, wins: 0, fewest: 0 },
   chess: { wins: 0, losses: 0, draws: 0 },
   xiangqi: { wins: 0, losses: 0, draws: 0 },
@@ -88,6 +99,7 @@ const STATS_DEFAULT: Stats = {
   starcheckers: { games: 0, firsts: 0 },
   quoridor: { wins: 0, losses: 0, draws: 0 },
   dots: { wins: 0, losses: 0, draws: 0 },
+  hex: { wins: 0, losses: 0 },
   recent: {},
   cardLevels: 0,
 }
@@ -135,9 +147,9 @@ if (stats.cardLevels < 4) {
 if (stats.solitaire.best > 0 && !Object.keys(stats.solitaire.bestBy).length) stats.solitaire.bestBy.easy = stats.solitaire.best
 
 /** 某個難度的最高分 */
-export const bestAt = (game: 'bigtwo' | 'crazybigtwo' | 'solitaire' | 'spider', level: string): number => stats[game].bestBy[level] ?? 0
+export const bestAt = (game: 'bigtwo' | 'crazybigtwo' | 'solitaire' | 'spider' | 'pyramid', level: string): number => stats[game].bestBy[level] ?? 0
 /** 記下一個分數：這個難度的最高分、所有難度裡的最高分都更新 */
-export function recordBest(game: 'bigtwo' | 'crazybigtwo' | 'solitaire' | 'spider', level: string, value: number) {
+export function recordBest(game: 'bigtwo' | 'crazybigtwo' | 'solitaire' | 'spider' | 'pyramid', level: string, value: number) {
   const g = stats[game]
   g.bestBy[level] = Math.max(g.bestBy[level] ?? 0, value)
   g.best = Math.max(g.best, value)
