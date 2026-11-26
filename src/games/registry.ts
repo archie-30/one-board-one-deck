@@ -26,6 +26,7 @@ import CheckersCover from './covers/CheckersCover.vue'
 import StarCheckersCover from './covers/StarCheckersCover.vue'
 import QuoridorCover from './covers/QuoridorCover.vue'
 import DotsCover from './covers/DotsCover.vue'
+import HexCover from './covers/HexCover.vue'
 import NinetyNineCover from './covers/NinetyNineCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
@@ -371,6 +372,19 @@ export const GAMES: GameDef[] = [
     component: defineAsyncComponent(() => import('./dots/DotsGame.vue')),
     // 難度也決定棋盤大小：低 4 × 4、中 5 × 5、高 6 × 6
     settings: [choice('difficulty', S.dots.settings.difficulty, 'mid'), timer()],
+  },
+  {
+    id: 'hex',
+    category: 'board',
+    name: S.hex.name,
+    summary: S.hex.summary,
+    players: S.hex.players,
+    cover: HexCover,
+    tags: S.hex.tags,
+    rulesIntro: withTimer(S.hex.rules, [...TR.board]),
+    tutorial: defineAsyncComponent(() => import('./hex/HexTutorial.vue')),
+    component: defineAsyncComponent(() => import('./hex/HexGame.vue')),
+    settings: [level(), choice('size', S.hex.settings.size, '11'), toggle('swap', S.hex.settings.swap, false), timer()],
   },
 
 ]

@@ -7,6 +7,7 @@ import type { SevensState } from '../../../src/engine/sevens/rules'
 import type { RedPointState } from '../../../src/engine/redpoint/rules'
 import type { NinetyNineState } from '../../../src/engine/ninetynine/rules'
 import type { DotsState } from '../../../src/engine/dots/rules'
+import type { HexState } from '../../../src/engine/hex/rules'
 import { legalMoves, type OthelloState } from '../../../src/engine/othello/rules'
 import { legalMoves as starMoves, type StarState } from '../../../src/engine/starcheckers/rules'
 
@@ -417,6 +418,27 @@ describe('連線對局（伺服器當裁判）', () => {
       expect(fin.score[0] + fin.score[1]).toBe(n * n)
     }
   })
+
+  it('海克斯：棋盤大小、交換規則照房主；藍方可以交換第一手；下得完', () => {
+    const { room, ids, m } = started('hex', 2, { size: '9', swap: true })
+    expect((m.s as HexState).n).toBe(9)
+    let t = T0 + COUNTDOWN_MS + 1000
+    playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, t)
+    playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, t)
+    t += 3000
+    // A 贏了猜拳拿紅子先下 (1,3)；B 交換 → 變成 B 的藍子在 (3,1)，換 A 下
+    expect(playerAct(room, ids[0], { type: 'place', cell: 1 * 9 + 3 }, t)).toHaveLength(1)
+    expect(playerAct(room, ids[0], { type: 'swap' }, t)).toEqual([]) // 不是 A 的回合
+    playerAct(room, ids[1], { type: 'swap' }, t)
+    const s = m.s as HexState
+    expect(s.cells[1 * 9 + 3]).toBe(-1)
+    expect(s.cells[3 * 9 + 1]).toBe(1)
+    expect(s.turn).toBe(0)
+    runToEnd(room, t)
+    expect(m.over).toBe(true)
+    const fin = m.log[m.log.length - 1].pub as HexState
+    expect(fin.path.length).toBeGreaterThan(0)
+  }, 60000)
 
   it('西洋跳棋、星形跳棋：伺服器發局、電腦補位、時間到的真人由電腦代打，都下得完', () => {
     for (const [gameId, humans] of [['checkers', 2], ['starcheckers', 2], ['starcheckers', 3]] as const) {
