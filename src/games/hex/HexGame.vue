@@ -478,11 +478,11 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   flex-direction: column;
   align-items: center;
 }
-.left {
+.side.left {
   justify-content: flex-end;
   padding-bottom: 0.6rem;
 }
-.right {
+.side.right {
   min-width: 10.2rem;
   padding-top: 0.4rem;
 }
