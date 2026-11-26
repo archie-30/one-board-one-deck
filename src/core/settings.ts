@@ -33,6 +33,8 @@ interface Settings {
   hapticsLevel: 'off' | 'low' | 'mid'
   /** 模式選單的樣子：一疊卡片（deck）或一列一列（list）；撲克牌、棋盤共用 */
   modeView: 'deck' | 'list'
+  /** 軍棋上次佈的陣（「上次的陣形」用；照佈陣點的順序每一點放什麼） */
+  junqiLayout?: number[]
 }
 
 interface Stats {
@@ -61,6 +63,7 @@ interface Stats {
   dots: { wins: number; losses: number; draws: number }
   hex: { wins: number; losses: number }
   morris: { wins: number; losses: number; draws: number }
+  junqi: { wins: number; losses: number; draws: number }
   /** 近百場戰況：「遊戲:難度」→ 最近最多 100 場的結果，一個字一場（w 贏、l 輸、d 和） */
   recent: Record<string, string>
   /** 一次性搬家記號（0＝還沒搬）：3＝牌類難度改成低／中／高；4＝大老二「玩到分出名次」改成預設開 */
@@ -102,6 +105,7 @@ const STATS_DEFAULT: Stats = {
   dots: { wins: 0, losses: 0, draws: 0 },
   hex: { wins: 0, losses: 0 },
   morris: { wins: 0, losses: 0, draws: 0 },
+  junqi: { wins: 0, losses: 0, draws: 0 },
   recent: {},
   cardLevels: 0,
 }

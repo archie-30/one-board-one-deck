@@ -20,6 +20,8 @@ import { chooseDotsAction } from '../../../src/engine/dots/ai'
 import { applyDots, createDots, lineCount, sizeOf, type DotsAction, type DotsState } from '../../../src/engine/dots/rules'
 import { chooseHexAction } from '../../../src/engine/hex/ai'
 import { applyHex, createHex, sizeOf as hexSize, type HexAction, type HexState } from '../../../src/engine/hex/rules'
+import { chooseJunqiAction } from '../../../src/engine/junqi/ai'
+import { applyJunqi, CELLS as JQ_CELLS, createJunqi, DEFAULT_LAYOUT, layoutProblem, publicInfo, viewFor as junqiView, type JunqiState, type MoveInfo, type Side as JunqiSide } from '../../../src/engine/junqi/rules'
 import { chooseMorrisAction } from '../../../src/engine/morris/ai'
 import { applyMorris, createMorris, POINTS, type MorrisAction, type MorrisState } from '../../../src/engine/morris/rules'
 import { chooseQuoridorAction } from '../../../src/engine/quoridor/ai'
@@ -364,4 +366,47 @@ const morris: MatchDef<MorrisState, MorrisAct> = {
   resign: (s, side) => unwrap(applyMorris(s, { type: 'resign', side: side as 0 | 1 })),
 }
 
-export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor, dots, hex, morris }
+// ── 軍棋（暗棋佈陣：每個人只知道自己的子；碰子的結果由伺服器算好送出去）──
+//   開局猜拳後先佈陣：先手先佈、後手再佈（都是「輪到」的那一方送；客戶端在等的時候就先擺好，輪到了馬上送）。
+//   佈陣大家只知道「佈好了」，陣形只有自己知道（own）。走子大家都看得到從哪到哪、結果（info），看不到是什麼子。
+type JunqiAct = ({ type: 'deploy'; layout: number[] } | { type: 'move'; from: number; to: number } | { type: 'timeout' }) & { player: number }
+const junqi: MatchDef<JunqiState, JunqiAct> = {
+  ...board,
+  undo: true,
+  deal: () => createJunqi(),
+  apply: (s, a) =>
+    unwrap(applyJunqi(s, a.type === 'deploy' ? { type: 'deploy', side: a.player as JunqiSide, layout: a.layout } : a.type === 'move' ? { type: 'move', from: a.from, to: a.to } : { type: 'timeout' })),
+  turn: (s) => (s.status !== 'playing' ? -1 : s.turn),
+  parse(raw, side) {
+    if (!isObj(raw)) return null
+    if (raw.type === 'deploy' && Array.isArray(raw.layout) && raw.layout.every((x) => typeof x === 'number') && !layoutProblem(raw.layout as number[])) return { type: 'deploy', layout: [...(raw.layout as number[])], player: side }
+    if (raw.type === 'move' && isIdx(raw.from, JQ_CELLS) && isIdx(raw.to, JQ_CELLS)) return { type: 'move', from: raw.from as number, to: raw.to as number, player: side }
+    return null
+  },
+  bot(s, _id, o, rng) {
+    // 電腦只看自己看得到的局面
+    const [a, next] = chooseJunqiAction(junqiView(s, s.turn), asCardLevel(o.difficulty), rng)
+    if (a.type === 'deploy') return [{ type: 'deploy', layout: a.layout ?? [...DEFAULT_LAYOUT], player: s.turn }, next]
+    if (a.type === 'move') return [{ type: 'move', from: a.from, to: a.to, player: s.turn }, next]
+    return [{ type: 'timeout', player: s.turn }, next]
+  },
+  think(s, _id, o, r) {
+    if (s.phase === 'deploy') return 700 + r * 900
+    const lv = asCardLevel(o.difficulty)
+    return 900 + (lv === 'high' ? 400 : lv === 'mid' ? 200 : 0) + r * 700
+  },
+  timeout: (side) => ({ type: 'timeout', player: side }),
+  render(before, after, a) {
+    // 佈陣（或佈陣時間到＝預設陣形）：大家只知道佈好了；陣形只給自己
+    if (before.phase === 'deploy') return { pub: { type: 'deploy', player: a.player }, own: { type: 'deploy', player: a.player, layout: a.type === 'deploy' ? a.layout : [...DEFAULT_LAYOUT] } }
+    if (a.type === 'move') return { pub: { ...a, info: publicInfo(before, after, a.from, a.to) } }
+    // 時間到跳過：結束了（太久沒碰子、對方沒子可走）要說一下
+    const info: MoveInfo | undefined = after.status !== 'playing' ? { out: 'move', end: { status: after.status, winner: after.winner } } : undefined
+    return { pub: info ? { ...a, info } : a }
+  },
+  start: (s) => s,
+  reveal: (s) => s,
+  resign: (s, side) => unwrap(applyJunqi(s, { type: 'resign', side: side as JunqiSide })),
+}
+
+export const BOARD_DEFS: Record<string, MatchDef<any, any>> = { gomoku, go, othello, chess, xiangqi, banqi, checkers, starcheckers, quoridor, dots, hex, morris, junqi }
