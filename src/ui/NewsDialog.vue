@@ -44,7 +44,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
         <p class="t-label rise badge" style="--i: 2">{{ T.newsLabel }}</p>
       </header>
       <div class="rule wipe" style="--i: 2" />
-      <p class="lead rise" style="--i: 2">{{ T.newsLead }}</p>
+      <p class="lead rise" style="--i: 2">{{ T.newsLead(games.length) }}</p>
       <div class="tiles">
         <button v-for="(g, i) in games" :key="g.id" class="tile rise" :class="g.category" :style="{ '--i': i + 3 }" @click="open(g.id)">
           <span class="cv halftone"><component :is="g.cover" active /></span>

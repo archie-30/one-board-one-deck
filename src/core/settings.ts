@@ -44,6 +44,7 @@ interface Stats {
   go: { wins: number; losses: number }
   solitaire: { played: number; wins: number; best: number; fastest: number; bestBy: Record<string, number> }
   spider: { played: number; wins: number; best: number; bestBy: Record<string, number> }
+  pyramid: { played: number; wins: number; best: number; bestBy: Record<string, number> }
   /** 新接龍：fewest＝過關最少步數（0＝還沒過關過） */
   freecell: { played: number; wins: number; fewest: number }
   chess: { wins: number; losses: number; draws: number }
@@ -76,6 +77,7 @@ const STATS_DEFAULT: Stats = {
   go: { wins: 0, losses: 0 },
   solitaire: { played: 0, wins: 0, best: 0, fastest: 0, bestBy: {} },
   spider: { played: 0, wins: 0, best: 0, bestBy: {} },
+  pyramid: { played: 0, wins: 0, best: 0, bestBy: {} },
   freecell: { played: 0, wins: 0, fewest: 0 },
   chess: { wins: 0, losses: 0, draws: 0 },
   xiangqi: { wins: 0, losses: 0, draws: 0 },
@@ -135,9 +137,9 @@ if (stats.cardLevels < 4) {
 if (stats.solitaire.best > 0 && !Object.keys(stats.solitaire.bestBy).length) stats.solitaire.bestBy.easy = stats.solitaire.best
 
 /** 某個難度的最高分 */
-export const bestAt = (game: 'bigtwo' | 'crazybigtwo' | 'solitaire' | 'spider', level: string): number => stats[game].bestBy[level] ?? 0
+export const bestAt = (game: 'bigtwo' | 'crazybigtwo' | 'solitaire' | 'spider' | 'pyramid', level: string): number => stats[game].bestBy[level] ?? 0
 /** 記下一個分數：這個難度的最高分、所有難度裡的最高分都更新 */
-export function recordBest(game: 'bigtwo' | 'crazybigtwo' | 'solitaire' | 'spider', level: string, value: number) {
+export function recordBest(game: 'bigtwo' | 'crazybigtwo' | 'solitaire' | 'spider' | 'pyramid', level: string, value: number) {
   const g = stats[game]
   g.bestBy[level] = Math.max(g.bestBy[level] ?? 0, value)
   g.best = Math.max(g.best, value)

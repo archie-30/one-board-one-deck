@@ -2,10 +2,11 @@
 import { isDeadEnd as solitaireDead } from '@/engine/solitaire/rules'
 import { isDeadEnd as spiderDead } from '@/engine/spider/rules'
 import { isDeadEnd as freecellDead } from '@/engine/freecell/rules'
+import { isDeadEnd as pyramidDead } from '@/engine/pyramid/rules'
 import type { DeadEndGame } from './deadEnd'
 
 self.onmessage = (e: MessageEvent<{ id: number; game: DeadEndGame; state: never }>) => {
   const { id, game, state } = e.data
-  const dead = game === 'solitaire' ? solitaireDead(state) : game === 'spider' ? spiderDead(state) : freecellDead(state)
+  const dead = game === 'solitaire' ? solitaireDead(state) : game === 'spider' ? spiderDead(state) : game === 'pyramid' ? pyramidDead(state) : freecellDead(state)
   ;(self as unknown as Worker).postMessage({ id, dead })
 }

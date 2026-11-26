@@ -3,8 +3,9 @@
 import { isDeadEnd as solitaireDead } from '@/engine/solitaire/rules'
 import { isDeadEnd as spiderDead } from '@/engine/spider/rules'
 import { isDeadEnd as freecellDead } from '@/engine/freecell/rules'
+import { isDeadEnd as pyramidDead } from '@/engine/pyramid/rules'
 
-export type DeadEndGame = 'solitaire' | 'spider' | 'freecell'
+export type DeadEndGame = 'solitaire' | 'spider' | 'freecell' | 'pyramid'
 
 let worker: Worker | null | undefined
 let busy: ((dead: boolean) => void) | null = null
@@ -41,7 +42,7 @@ export function checkDeadEnd(game: DeadEndGame, state: unknown): Promise<boolean
     worker = start()
   }
   if (!worker) {
-    const fn = game === 'solitaire' ? solitaireDead : game === 'spider' ? spiderDead : freecellDead
+    const fn = game === 'solitaire' ? solitaireDead : game === 'spider' ? spiderDead : game === 'pyramid' ? pyramidDead : freecellDead
     return Promise.resolve(fn(plain))
   }
   const id = ++seq

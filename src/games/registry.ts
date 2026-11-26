@@ -19,6 +19,7 @@ import SevensCover from './covers/SevensCover.vue'
 import SolitaireCover from './covers/SolitaireCover.vue'
 import SpiderCover from './covers/SpiderCover.vue'
 import FreeCellCover from './covers/FreeCellCover.vue'
+import PyramidCover from './covers/PyramidCover.vue'
 import XiangqiCover from './covers/XiangqiCover.vue'
 import BanqiCover from './covers/BanqiCover.vue'
 import CheckersCover from './covers/CheckersCover.vue'
@@ -218,6 +219,21 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./freecell/FreeCellTutorial.vue')),
     component: defineAsyncComponent(() => import('./freecell/FreeCellGame.vue')),
     settings: [],
+  },
+  {
+    id: 'pyramid',
+    category: 'cards',
+    seats: 1,
+    name: S.pyramid.name,
+    summary: S.pyramid.summary,
+    players: S.pyramid.players,
+    cover: PyramidCover,
+    tags: S.pyramid.tags,
+    best: (o) => bestAt('pyramid', String(o.difficulty ?? 'easy')),
+    rulesIntro: S.pyramid.rules,
+    tutorial: defineAsyncComponent(() => import('./pyramid/PyramidTutorial.vue')),
+    component: defineAsyncComponent(() => import('./pyramid/PyramidGame.vue')),
+    settings: [choice('difficulty', S.pyramid.settings.difficulty, 'easy')],
   },
   {
     id: 'gomoku',
