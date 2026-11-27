@@ -2378,6 +2378,8 @@ export const S = {
     placeTurn: '輪到你，點一個空點放子',
     moveTurn: '輪到你，點自己的子，再點要走到的點',
     flyTurn: '你只剩 3 顆，可以飛到任何空點',
+    /** 名字下面：這一方只剩 3 顆、可以飛子 */
+    flyTag: '可以飛子',
     pickAgain: '再點一次同一點，或按「放這裡」',
     pickTarget: '點要走到的點（亮起來的）',
     removeTurn: '成三了！點一顆對方的子拿走',

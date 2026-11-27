@@ -69,6 +69,8 @@ function hover(p: number | null, e?: PointerEvent) {
     <g v-if="last && last.removed >= 0" :key="`gone${stamp}`" class="gone" :style="{ transformOrigin: `${x(last.removed)}px ${y(last.removed)}px` }">
       <circle :cx="x(last.removed)" :cy="y(last.removed)" :r="R" class="disc" :class="last.victim === 0 ? 's0' : 's1'" />
     </g>
+    <!-- 上一步：從哪裡走來（淡淡的虛線圈） -->
+    <circle v-if="last && last.from >= 0 && last.to >= 0 && board[last.from] < 0" :cx="x(last.from)" :cy="y(last.from)" :r="R - 0.6" class="lastfrom" />
     <!-- 子 -->
     <g
       v-for="p in all"
@@ -81,6 +83,8 @@ function hover(p: number | null, e?: PointerEvent) {
       <circle :cx="x(p) + 0.8" :cy="y(p) + 1" :r="R" class="shadow" />
       <circle :cx="x(p)" :cy="y(p)" :r="R" class="disc" :class="board[p] === 0 ? 's0' : 's1'" />
       <circle v-if="selected === p" :cx="x(p)" :cy="y(p)" :r="R + 1.3" class="selring" />
+      <!-- 上一顆動的子：虛線圈（連陰影一起框） -->
+      <circle v-if="last && last.to === p && selected !== p" :cx="x(p) + 0.4" :cy="y(p) + 0.5" :r="R + 1.2" class="lastring" />
       <circle v-if="rset.has(p)" :cx="x(p)" :cy="y(p)" :r="R + 1.3" class="rmring" />
     </g>
     <!-- 預覽 -->
@@ -161,6 +165,20 @@ function hover(p: number | null, e?: PointerEvent) {
   stroke: var(--color-red);
   stroke-width: 0.9;
   animation: breathe 1.2s ease-in-out infinite;
+}
+.lastring {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 0.5;
+  stroke-dasharray: 1.2 0.9;
+}
+.lastfrom {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 0.45;
+  stroke-dasharray: 1 0.9;
+  opacity: 0.55;
+  pointer-events: none;
 }
 .rmring {
   fill: none;

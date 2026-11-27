@@ -306,6 +306,11 @@ function pick(p: number) {
     return
   }
   if (s.board[p] === human.value) {
+    // 再點一下選起來的子＝取消選取
+    if (selected.value === p) {
+      selected.value = -1
+      return
+    }
     selected.value = targetsOf(s, p).length ? p : -1
     if (selected.value < 0) message.value = T.errors.illegal
     else playSound('piecePick')
@@ -458,6 +463,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         <span class="t-label">{{ T.hand }} {{ state.hand[human] }}</span>
         <span class="dots"><i v-for="k in state.hand[human]" :key="k" :class="`c${human}`" /></span>
         <span class="t-label">{{ T.onBoard }} {{ countOf(state.board, human) }}</span>
+        <span v-if="phase === 'playing' && canFly(state, human)" class="t-label fly">{{ T.flyTag }}</span>
       </div>
     </aside>
 
@@ -487,6 +493,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         <span class="t-label">{{ T.hand }} {{ state.hand[opSide] }}</span>
         <span class="dots"><i v-for="k in state.hand[opSide]" :key="k" :class="`c${opSide}`" /></span>
         <span class="t-label">{{ T.onBoard }} {{ countOf(state.board, opSide) }}</span>
+        <span v-if="phase === 'playing' && canFly(state, opSide)" class="t-label fly">{{ T.flyTag }}</span>
       </div>
       <div class="status-box">
         <p class="status" :class="{ mine: myTurn && !message, warn: !!message }">{{ status }}</p>
@@ -634,6 +641,12 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 .pool .t-label {
   font-size: 0.56rem;
   color: var(--color-ink-2);
+}
+/* 只剩 3 顆、可以飛子：黃底小標（電腦飛起來才不會看起來像亂走） */
+.pool .fly {
+  padding: 0.08rem 0.35rem;
+  background: var(--color-yellow);
+  color: var(--color-ink);
 }
 /* 手上還沒放的子：一排小圓 */
 .dots {
