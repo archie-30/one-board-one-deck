@@ -13,6 +13,8 @@ import GuideNote from '@/ui/GuideNote.vue'
 import IconBtn from '@/ui/IconBtn.vue'
 import JunqiBoard, { type JunqiFx } from './JunqiBoard.vue'
 
+/** 子的大小（大到小）：司令 > 軍長 > … > 工兵 */
+const ORDER = [9, 8, 7, 6, 5, 4, 3, 2, 1]
 const emit = defineEmits<{ exit: []; play: []; rules: [] }>()
 const T = S.junqi
 
@@ -113,6 +115,16 @@ function next() {
       <div class="board-box">
         <JunqiBoard :key="step" :board="state.board" :rank="state.rank" :interactive="!solved && !finished" :selected="selected" :targets="targets" :hints="hints" :fx="fx" @pick="pick" />
       </div>
+      <!-- 子的大小：一直顯示 -->
+      <div class="order">
+        <p class="t-label ol">{{ T.orderLabel }}</p>
+        <p class="row">
+          <template v-for="(r, i) in ORDER" :key="r">
+            <b v-if="i" class="arr">&gt;</b>
+            <span class="tl">{{ T.full[r] }}</span>
+          </template>
+        </p>
+      </div>
     </div>
     <aside class="guide">
       <GuideNote v-if="!finished" :step="step" :total="LESSONS.length" :text="text.text" :ok="text.ok" :solved="solved" :misses="misses" />
@@ -159,13 +171,15 @@ function next() {
   display: flex;
   min-width: 0;
   flex: 1;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   container-type: size;
   animation: rise 520ms var(--ease-out) both;
 }
 .board-box {
-  width: min(100cqw, 100cqh * 130 / 54);
+  /* 下面留一行給子的大小 */
+  width: min(100cqw, (100cqh - 3.4rem) * 130 / 54);
   aspect-ratio: 130 / 54;
 }
 .guide {
@@ -183,5 +197,51 @@ function next() {
   flex-direction: column;
   gap: 0.5rem;
   align-self: flex-end;
+}
+.order {
+  max-width: 100%;
+  margin-top: 0.55rem;
+  text-align: center;
+}
+.order .row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+}
+.ol {
+  margin-bottom: 0.25rem;
+  font-size: 0.56rem;
+  color: var(--color-ink-2);
+}
+.tl {
+  padding: 0.12rem 0.3rem;
+  border: 0.1rem solid var(--color-ink);
+  border-radius: 0.25rem;
+  background: var(--color-red);
+  box-shadow: 0.12rem 0.14rem 0 var(--color-ink);
+  color: var(--color-paper);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.arr {
+  font-size: 0.75rem;
+  color: var(--color-ink-2);
+}
+/* 手機：一排放得下 */
+@media (max-width: 720px) {
+  .tl {
+    padding: 0.08rem 0.18rem;
+    font-size: 0.6rem;
+  }
+  .arr {
+    font-size: 0.6rem;
+  }
+  .order .row {
+    gap: 0.12rem;
+  }
 }
 </style>
