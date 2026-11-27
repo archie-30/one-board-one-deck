@@ -135,9 +135,12 @@ const dragged = computed(() => (drag.value?.moved ? drag.value : null))
     <!-- 子 -->
     <template v-for="at in HOLES" :key="pegKey(at)">
       <g v-if="pegs[at]" class="pc" :class="[motion(at)?.cls, { lifted: dragged?.from === at }]" :style="motionStyle(at)">
-        <circle :cx="x(at) + SX" :cy="y(at) + SY" :r="R" class="shadow" />
-        <circle :cx="x(at)" :cy="y(at)" :r="R" class="peg" />
-        <circle :cx="x(at) - 1" :cy="y(at) - 1.1" r="0.9" class="shine" />
+        <!-- 裡面再包一層：往前是外層一路順順地滑，拱起來（放大）是裡層，兩個分開才不會在半空中停一下 -->
+        <g class="lift" :style="{ transformOrigin: `${x(at)}px ${y(at)}px` }">
+          <circle :cx="x(at) + SX" :cy="y(at) + SY" :r="R" class="shadow" />
+          <circle :cx="x(at)" :cy="y(at)" :r="R" class="peg" />
+          <circle :cx="x(at) - 1" :cy="y(at) - 1.1" r="0.9" class="shine" />
+        </g>
       </g>
     </template>
     <!-- 選起來的子（連陰影一起框） -->
@@ -226,19 +229,25 @@ const dragged = computed(() => (drag.value?.moved ? drag.value : null))
   fill: transparent;
   cursor: pointer;
 }
-/* 跳過去：往上拱一下（放大）落到新孔 */
+/* 跳過去：外層從原位一路滑到新孔（只有頭尾兩格，中間不會停），裡層同時拱起來（放大再縮回） */
 .pc.hop {
-  animation: hop 380ms var(--ease-out) both;
+  animation: hop 380ms cubic-bezier(0.33, 0, 0.25, 1) both;
 }
 @keyframes hop {
   from {
     transform: translate(var(--dx), var(--dy));
   }
-  50% {
-    transform: translate(calc(var(--dx) * 0.5), calc(var(--dy) * 0.5)) scale(1.3);
-  }
+}
+.pc.hop .lift {
+  animation: lift 380ms linear both;
+}
+@keyframes lift {
+  from,
   to {
     transform: none;
+  }
+  50% {
+    transform: scale(1.28);
   }
 }
 /* 返回：被吃的那顆冒回來 */
@@ -268,6 +277,7 @@ const dragged = computed(() => (drag.value?.moved ? drag.value : null))
 }
 @media (prefers-reduced-motion: reduce) {
   .pc.hop,
+  .pc.hop .lift,
   .pc.back,
   .gone,
   .hint,

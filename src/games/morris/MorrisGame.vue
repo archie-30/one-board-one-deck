@@ -306,6 +306,11 @@ function pick(p: number) {
     return
   }
   if (s.board[p] === human.value) {
+    // 再點一下選起來的子＝取消選取
+    if (selected.value === p) {
+      selected.value = -1
+      return
+    }
     selected.value = targetsOf(s, p).length ? p : -1
     if (selected.value < 0) message.value = T.errors.illegal
     else playSound('piecePick')
@@ -337,6 +342,21 @@ function cancelPending() {
   if (!pending.value) return
   if (pending.value.from >= 0) selected.value = pending.value.from
   pending.value = null
+}
+
+/** 拖曳（走子階段）：按住自己能走的子拖到要去的點 */
+function canDrag(p: number): boolean {
+  return myTurn.value && !pending.value && !placing.value && state.value.board[p] === human.value && targetsOf(state.value, p).length > 0
+}
+function grab(p: number) {
+  if (!canDrag(p) || selected.value === p) return
+  selected.value = p
+  message.value = ''
+  playSound('piecePick')
+}
+function drop(from: number, to: number) {
+  if (!canDrag(from)) return
+  if (targetsOf(state.value, from).includes(to)) tryMove(from, to)
 }
 
 // 認輸並結算：要按兩次
@@ -458,6 +478,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         <span class="t-label">{{ T.hand }} {{ state.hand[human] }}</span>
         <span class="dots"><i v-for="k in state.hand[human]" :key="k" :class="`c${human}`" /></span>
         <span class="t-label">{{ T.onBoard }} {{ countOf(state.board, human) }}</span>
+        <span v-if="phase === 'playing' && canFly(state, human)" class="t-label fly">{{ T.flyTag }}</span>
       </div>
     </aside>
 
@@ -472,6 +493,9 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         :last="lastMark"
         :stamp="state.plies"
         :mill="millLine"
+        :can-drag="watching ? null : canDrag"
+        @grab="grab"
+        @drop="drop"
         @pick="pick"
         @hover="(p) => (hovered = p)"
       />
@@ -487,6 +511,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
         <span class="t-label">{{ T.hand }} {{ state.hand[opSide] }}</span>
         <span class="dots"><i v-for="k in state.hand[opSide]" :key="k" :class="`c${opSide}`" /></span>
         <span class="t-label">{{ T.onBoard }} {{ countOf(state.board, opSide) }}</span>
+        <span v-if="phase === 'playing' && canFly(state, opSide)" class="t-label fly">{{ T.flyTag }}</span>
       </div>
       <div class="status-box">
         <p class="status" :class="{ mine: myTurn && !message, warn: !!message }">{{ status }}</p>
@@ -506,7 +531,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
           </Transition>
           <Btn v-if="placing" tone="red" icon="check" block :disabled="!myTurn || chosen < 0 || !!pending" @click="confirmPlace">{{ T.placeHere }}</Btn>
           <div class="pair" :class="{ undoWide: undoArmed || !!bn?.undoAsked.value, resignWide: resignArmed }">
-            <div class="slot u">
+            <div class="slot u" :class="{ used: usedUndo }">
               <UndoBtn block :disabled="!canUndo" :used="usedUndo" :waiting="!!bn?.undoWaiting.value" :asked="!!bn?.undoAsked.value" @answer="(ok) => bn?.answerUndo(ok)" @undo="undo" @armed="(on) => (undoArmed = on)" />
             </div>
             <div class="slot r">
@@ -635,6 +660,12 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   font-size: 0.56rem;
   color: var(--color-ink-2);
 }
+/* 只剩 3 顆、可以飛子：黃底小標（電腦飛起來才不會看起來像亂走） */
+.pool .fly {
+  padding: 0.08rem 0.35rem;
+  background: var(--color-yellow);
+  color: var(--color-ink);
+}
 /* 手上還沒放的子：一排小圓 */
 .dots {
   display: flex;
@@ -737,6 +768,10 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
 }
 .pair :deep(.lb) {
   flex: none;
+}
+/* 已悔過棋：字比較長，拿掉箭頭才不會擠出按鈕 */
+.pair .slot.used :deep(.ic) {
+  display: none;
 }
 .end2 :deep(.face) {
   justify-content: center;
