@@ -53,6 +53,11 @@ const W = M * 2 + 11 * STEP + GAP
 const H = M * 2 + 4 * STEP
 const TW = 8.4
 const TH = 6.8
+/** 子的黑色陰影往右下偏多少（框要把子＋陰影一起框起來，看起來才正） */
+const SX = 0.6
+const SY = 0.7
+/** 框住一顆子（含陰影）的框：往外留 pad */
+const frame = (at: number, pad: number) => ({ x: x(at) - TW / 2 - pad, y: y(at) - TH / 2 - pad, width: TW + SX + pad * 2, height: TH + SY + pad * 2 })
 
 const all = Array.from({ length: CELLS }, (_, i) => i)
 const sideOf = (id: number) => (id < 25 ? 0 : 1)
@@ -155,7 +160,7 @@ const dragged = computed(() => (drag.value?.moved ? drag.value : null))
       <rect v-else :x="x(at) - 3.4" :y="y(at) - 2.6" width="6.8" height="5.2" rx="0.8" class="post" :class="{ onrail: RAIL.has(at) }" />
     </template>
     <!-- 教學、佈陣提示 -->
-    <rect v-for="at in hints ?? []" :key="`h${at}`" :x="x(at) - TW / 2 - 1" :y="y(at) - TH / 2 - 1" :width="TW + 2" :height="TH + 2" rx="1.6" class="hint" :class="{ dim: hset.size === 0 }" />
+    <rect v-for="at in hints ?? []" :key="`h${at}`" v-bind="frame(at, 1)" rx="1.6" class="hint" :class="{ dim: hset.size === 0 }" />
     <!-- 陣亡的影子 -->
     <template v-if="fx && fx.out !== 'move' && fx.out !== 'win'">
       <g :key="`ga${fx.key}`" class="ghost att" :style="fxFrom">
@@ -177,7 +182,7 @@ const dragged = computed(() => (drag.value?.moved ? drag.value : null))
         <rect :x="x(at) - TW / 2" :y="y(at) - TH / 2" :width="TW" :height="TH" rx="1.2" class="tile" :class="`s${sideOf(board[at])}`" />
         <text v-if="rank[board[at]] !== UNKNOWN" :x="x(at)" :y="y(at) + 0.2" class="ch">{{ NAMES[rank[board[at]]] }}</text>
         <path v-else :d="`M ${x(at)} ${y(at) - 1.6} l 0.5 1.1 1.2 0.1 -0.9 0.8 0.3 1.2 -1.1 -0.6 -1.1 0.6 0.3 -1.2 -0.9 -0.8 1.2 -0.1 z`" class="star" />
-        <rect v-if="selected === at" :x="x(at) - TW / 2 - 1" :y="y(at) - TH / 2 - 1" :width="TW + 2" :height="TH + 2" rx="1.8" class="selring" />
+        <rect v-if="selected === at" v-bind="frame(at, 1)" rx="1.8" class="selring" />
       </g>
     </template>
     <!-- 碰子的火花 -->
@@ -185,7 +190,10 @@ const dragged = computed(() => (drag.value?.moved ? drag.value : null))
       <path :d="`M ${x(fx.to)} ${y(fx.to) - 6} l 1.4 3.6 3.8 -1 -2.4 3 3.2 2.2 -3.8 0.4 0.2 3.8 -2.4 -3 -2.4 3 0.2 -3.8 -3.8 -0.4 3.2 -2.2 -2.4 -3 3.8 1 z`" />
     </g>
     <!-- 能走到的點 -->
-    <circle v-for="at in targets ?? []" :key="`t${at}`" :cx="x(at)" :cy="y(at)" :r="board[at] >= 0 ? 4.6 : 1.7" class="tgt" :class="{ hit: board[at] >= 0 }" />
+    <template v-for="at in targets ?? []" :key="`t${at}`">
+      <rect v-if="board[at] >= 0" v-bind="frame(at, 1.1)" rx="1.8" class="tgt hit" />
+      <circle v-else :cx="x(at)" :cy="y(at)" r="1.7" class="tgt" />
+    </template>
     <!-- 點擊範圍 -->
     <template v-if="interactive">
       <rect v-for="at in all" :key="`c${at}`" :x="x(at) - STEP / 2" :y="y(at) - STEP / 2" :width="STEP" :height="STEP" class="hitbox" :class="{ on: tset.has(at) }" @click="pick(at)" @pointerdown="(e) => down(at, e)" />
