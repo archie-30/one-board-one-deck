@@ -467,6 +467,8 @@ export const S = {
   appSettings: {
     title: '設定',
     sound: '音效',
+    music: '背景音樂',
+    musicHelp: '輕鬆的咖啡廳風格，每一段都是當場即興出來的，不會一直重複同一首。',
     volume: '音效音量',
     mute: '靜音',
     low: '小',

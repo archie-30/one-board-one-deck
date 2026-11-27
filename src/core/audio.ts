@@ -26,6 +26,8 @@ function context(): AudioContext | null {
     return null
   }
 }
+/** 背景音樂跟音效共用同一個 AudioContext */
+export const audioContext = context
 function audio(): AudioContext | null {
   if (settings.volume <= 0) return null
   const ac = context()

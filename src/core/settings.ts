@@ -10,8 +10,10 @@ export interface GamePrefs {
 }
 
 interface Settings {
-  /** 0～1 */
+  /** 0～1（音效） */
   volume: number
+  /** 背景音樂（預設開；舊存檔沒有這個欄位也照預設開） */
+  music: boolean
   games: Record<string, GamePrefs>
   /** 每個分類上次選的遊戲 */
   lastGame: Record<string, string>
@@ -80,7 +82,7 @@ const veteran = (() => {
     return false
   }
 })()
-export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, hapticsLevel: 'mid', modeView: veteran ? 'deck' : 'list' }))
+export const settings = reactive(loadSave<Settings>('settings', { volume: 0.7, music: true, games: {}, lastGame: {}, reduceMotion: false, autoPause: true, fullscreen: true, avoidCutout: true, cardStarts: true, keepAwake: true, haptics: true, hapticsLevel: 'mid', modeView: veteran ? 'deck' : 'list' }))
 // 舊存檔只有震動開關：關掉的搬成「關」（只搬一次：之後 haptics 跟著 hapticsLevel 走）
 if (!settings.haptics && settings.hapticsLevel === 'mid') settings.hapticsLevel = 'off'
 

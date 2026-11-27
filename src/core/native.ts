@@ -80,7 +80,11 @@ export function setupNative() {
   window.addEventListener('resize', () => window.setTimeout(readCutout, 120))
   w.__obodBack = onBack
   // 對局畫面聽 blur 自動暫停、存進度
-  w.__obodPause = () => window.dispatchEvent(new Event('blur'))
+  w.__obodPause = () => {
+    window.dispatchEvent(new Event('blur'))
+    // 背景音樂停掉（切回來 __obodResume 會送 obod:resume）
+    window.dispatchEvent(new Event('obod:pause'))
+  }
   // 從背景回來：連線房間馬上重連（core/onlineWs.ts）
   w.__obodResume = () => window.dispatchEvent(new Event('obod:resume'))
 }
