@@ -10,6 +10,7 @@ import { seedRng } from '@/engine/common/rng'
 import { SPIDER_DEALS } from '@/data/spiderDeals'
 import { applySpider, dealFromBank, dealSpider, isStuck, RUN_SCORE, scoreOf, START_SCORE, UNDO_PENALTY, undoTo, type SpiderAction, type SpiderState, type SuitCount } from '@/engine/spider/rules'
 import type { GameDef } from '@/games/types'
+import StuckBtn from '@/games/solitaire/StuckBtn.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
@@ -215,7 +216,7 @@ const deals = computed(() => Math.ceil(state.value.stock.length / 10))
           </div>
           <Transition name="stuck">
             <div v-if="stuck" class="stuck">
-              <Btn tone="red" size="sm" block @click="settleStuck">{{ S.solitaire.stuckSettle }}</Btn>
+              <StuckBtn @settle="settleStuck" />
             </div>
           </Transition>
         </div>

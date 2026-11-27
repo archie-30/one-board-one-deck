@@ -1470,6 +1470,7 @@ export const S = {
     rowPenalty: '返回扣分',
     undoCost: (n: number) => `返回 −${n} 分`,
     stuckSettle: '卡關並結算',
+    stuckAgain: '再按一次結算',
     stuckResult: '卡關，結算',
     replay: '重玩這一局',
     rowTotal: '總分',
