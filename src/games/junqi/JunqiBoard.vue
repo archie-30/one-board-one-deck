@@ -3,7 +3,7 @@
 // 鐵路是粗黑線上一段段米白（像鐵軌），公路是細線；兵站是小方框、行營是圓圈、大本營是雙框。
 // 子是方塊：先手朱紅、後手鈷藍，上面一個字（司、軍、師…）；看不到的子只有底色＋一顆小星星。
 // 純畫面：點了哪一點往外丟，規則由外面決定。
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { S } from '@/data/strings'
 import { CAMPS, CELLS, colOf, HQS, RAIL, RAIL_ADJ, ROAD_ADJ, rowOf, UNKNOWN } from '@/engine/junqi/rules'
 
@@ -34,8 +34,10 @@ const props = defineProps<{
   hints?: readonly number[]
   /** 佈陣中：只有自己這半邊能點，對方那半邊淡一點 */
   deploying?: boolean
+  /** 這一點的子能不能拖（沒給就不能拖） */
+  canDrag?: ((at: number) => boolean) | null
 }>()
-const emit = defineEmits<{ pick: [at: number] }>()
+const emit = defineEmits<{ pick: [at: number]; grab: [at: number]; drop: [from: number, to: number] }>()
 const T = S.junqi
 const NAMES = T.short
 
@@ -74,12 +76,63 @@ const slide = (at: number) => {
 const fxFrom = computed(() => (props.fx ? { '--dx': `${x(props.fx.from) - x(props.fx.to)}px`, '--dy': `${y(props.fx.from) - y(props.fx.to)}px` } : undefined))
 
 function pick(at: number) {
-  if (props.interactive) emit('pick', at)
+  if (props.interactive && !swallow) emit('pick', at)
 }
+
+// ── 拖曳：按住自己的子拖到要去的地方放開（移動 6px 以上才算拖，不然照樣是點） ──
+const root = ref<SVGSVGElement>()
+const drag = ref<{ from: number; id: number; x0: number; y0: number; dx: number; dy: number; moved: boolean } | null>(null)
+/** 剛拖完放開：吃掉接著來的那一下 click */
+let swallow = false
+/** 螢幕上的 1px 是棋盤上的幾個單位 */
+const unit = () => {
+  const r = root.value?.getBoundingClientRect()
+  return r && r.width ? W / r.width : 1
+}
+function down(at: number, e: PointerEvent) {
+  if (!props.interactive || !props.canDrag?.(at) || (e.pointerType === 'mouse' && e.button !== 0)) return
+  drag.value = { from: at, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, moved: false }
+}
+function move(e: PointerEvent) {
+  const d = drag.value
+  if (!d || e.pointerId !== d.id) return
+  const dx = e.clientX - d.x0
+  const dy = e.clientY - d.y0
+  if (!d.moved && Math.hypot(dx, dy) < 6) return
+  if (!d.moved) {
+    root.value?.setPointerCapture(e.pointerId)
+    emit('grab', d.from)
+  }
+  const u = unit()
+  drag.value = { ...d, dx: dx * u, dy: dy * u, moved: true }
+}
+function up(e: PointerEvent) {
+  const d = drag.value
+  if (!d || e.pointerId !== d.id) return
+  drag.value = null
+  if (!d.moved) return
+  swallow = true
+  window.setTimeout(() => (swallow = false), 0)
+  // 放開的地方最近的那一點（太遠就不算）
+  const px = x(d.from) + d.dx
+  const py = y(d.from) + d.dy
+  let best = -1
+  let bestD = STEP * 0.6
+  for (const at of all) {
+    const dist = Math.hypot(x(at) - px, y(at) - py)
+    if (dist < bestD) {
+      bestD = dist
+      best = at
+    }
+  }
+  if (best >= 0 && best !== d.from) emit('drop', d.from, best)
+}
+/** 拖著的那顆子 */
+const dragged = computed(() => (drag.value?.moved ? drag.value : null))
 </script>
 
 <template>
-  <svg :viewBox="`0 0 ${W} ${H}`" class="jb" :class="{ live: interactive, deploying }">
+  <svg ref="root" :viewBox="`0 0 ${W} ${H}`" class="jb" :class="{ live: interactive, dragok: interactive && !!canDrag, deploying }" @pointermove="move" @pointerup="up" @pointercancel="drag = null">
     <rect x="0.9" y="1.1" :width="W" :height="H" fill="var(--color-ink)" />
     <rect x="0" y="0" :width="W" :height="H" fill="var(--color-card)" stroke="var(--color-ink)" stroke-width="0.6" />
     <!-- 中間的山界 -->
@@ -119,7 +172,7 @@ function pick(at: number) {
     </template>
     <!-- 子 -->
     <template v-for="at in all" :key="`s${at}-${board[at]}-${fx && fx.to === at ? fx.key : 0}`">
-      <g v-if="board[at] >= 0" class="pc" :class="{ slide: !!slide(at), sel: selected === at, away: deploying && !leftHalf(at) }" :style="slide(at)">
+      <g v-if="board[at] >= 0" class="pc" :class="{ slide: !!slide(at), sel: selected === at, away: deploying && !leftHalf(at), lifted: dragged?.from === at }" :style="slide(at)">
         <rect :x="x(at) - TW / 2 + 0.6" :y="y(at) - TH / 2 + 0.7" :width="TW" :height="TH" rx="1.2" fill="var(--color-ink)" />
         <rect :x="x(at) - TW / 2" :y="y(at) - TH / 2" :width="TW" :height="TH" rx="1.2" class="tile" :class="`s${sideOf(board[at])}`" />
         <text v-if="rank[board[at]] !== UNKNOWN" :x="x(at)" :y="y(at) + 0.2" class="ch">{{ NAMES[rank[board[at]]] }}</text>
@@ -135,8 +188,16 @@ function pick(at: number) {
     <circle v-for="at in targets ?? []" :key="`t${at}`" :cx="x(at)" :cy="y(at)" :r="board[at] >= 0 ? 4.6 : 1.7" class="tgt" :class="{ hit: board[at] >= 0 }" />
     <!-- 點擊範圍 -->
     <template v-if="interactive">
-      <rect v-for="at in all" :key="`c${at}`" :x="x(at) - STEP / 2" :y="y(at) - STEP / 2" :width="STEP" :height="STEP" class="hitbox" :class="{ on: tset.has(at) }" @click="pick(at)" />
+      <rect v-for="at in all" :key="`c${at}`" :x="x(at) - STEP / 2" :y="y(at) - STEP / 2" :width="STEP" :height="STEP" class="hitbox" :class="{ on: tset.has(at) }" @click="pick(at)" @pointerdown="(e) => down(at, e)" />
     </template>
+    <!-- 拖著的子：跟著手指、稍微放大、浮在最上面 -->
+    <g v-if="dragged && board[dragged.from] >= 0" class="pc floating" :style="{ transform: `translate(${dragged.dx}px, ${dragged.dy}px)` }">
+      <g :style="{ transformOrigin: `${x(dragged.from)}px ${y(dragged.from)}px`, transform: 'scale(1.18)' }">
+        <rect :x="x(dragged.from) - TW / 2 + 0.6" :y="y(dragged.from) - TH / 2 + 0.7" :width="TW" :height="TH" rx="1.2" fill="var(--color-ink)" />
+        <rect :x="x(dragged.from) - TW / 2" :y="y(dragged.from) - TH / 2" :width="TW" :height="TH" rx="1.2" class="tile" :class="`s${sideOf(board[dragged.from])}`" />
+        <text v-if="rank[board[dragged.from]] !== UNKNOWN" :x="x(dragged.from)" :y="y(dragged.from) + 0.2" class="ch">{{ NAMES[rank[board[dragged.from]]] }}</text>
+      </g>
+    </g>
   </svg>
 </template>
 
@@ -149,6 +210,17 @@ function pick(at: number) {
 }
 .jb.live {
   touch-action: manipulation;
+}
+/* 能拖的時候：手指在棋盤上的動作都交給遊戲（手機上 SVG 裡的元素不吃 touch-action，要放在整個 svg 上） */
+.jb.dragok {
+  touch-action: none;
+}
+/* 拖起來的子：原位留一個淡淡的影子 */
+.pc.lifted {
+  opacity: 0.3;
+}
+.pc.floating {
+  pointer-events: none;
 }
 .front {
   fill: color-mix(in srgb, var(--color-yellow) 26%, var(--color-card));

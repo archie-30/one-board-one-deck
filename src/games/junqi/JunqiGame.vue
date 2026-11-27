@@ -451,6 +451,35 @@ function pick(at: number) {
   if (selected.value >= 0 && targets.value.includes(at)) return mine({ type: 'move', from: selected.value, to: at })
 }
 
+/** 拖曳：佈陣時拖自己的子到另一顆上＝互換；對局中拖自己能動的子到要去的地方 */
+function canDrag(at: number): boolean {
+  if (deploying.value) return !myDeployed.value && !deployReady.value && homeOf(human.value).includes(at)
+  const id = state.value.board[at]
+  return myTurn.value && id >= 0 && (id < PER_SIDE ? 0 : 1) === human.value && targetsOf(state.value, at).length > 0
+}
+function grab(at: number) {
+  if (!canDrag(at)) return
+  if (deploying.value) {
+    deploySel.value = homeOf(human.value).indexOf(at)
+    return
+  }
+  if (selected.value !== at) {
+    selected.value = at
+    message.value = ''
+    playSound('piecePick')
+  }
+}
+function drop(from: number, to: number) {
+  if (!canDrag(from)) return
+  if (deploying.value) {
+    deploySel.value = homeOf(human.value).indexOf(from)
+    if (homeOf(human.value).includes(to)) deployPick(to)
+    else deploySel.value = -1
+    return
+  }
+  if (targetsOf(state.value, from).includes(to)) mine({ type: 'move', from, to })
+}
+
 // 認輸並結算：要按兩次
 const resignArmed = ref(false)
 const undoArmed = ref(false)
@@ -607,7 +636,10 @@ if (saved) {
           :targets="targets"
           :fx="deploying ? null : fx"
           :deploying="deploying && !myDeployed"
+          :can-drag="watching ? null : canDrag"
           @pick="pick"
+          @grab="grab"
+          @drop="drop"
         />
       </div>
     </div>
