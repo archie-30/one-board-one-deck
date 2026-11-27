@@ -29,6 +29,7 @@ import DotsCover from './covers/DotsCover.vue'
 import HexCover from './covers/HexCover.vue'
 import MorrisCover from './covers/MorrisCover.vue'
 import JunqiCover from './covers/JunqiCover.vue'
+import PegsCover from './covers/PegsCover.vue'
 import NinetyNineCover from './covers/NinetyNineCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
@@ -413,6 +414,22 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./junqi/JunqiTutorial.vue')),
     component: defineAsyncComponent(() => import('./junqi/JunqiGame.vue')),
     settings: [choice('difficulty', S.junqi.settings.difficulty, 'mid'), timer()],
+  },
+  {
+    id: 'pegs',
+    category: 'board',
+    seats: 1,
+    name: S.pegs.name,
+    summary: S.pegs.summary,
+    players: S.pegs.players,
+    cover: PegsCover,
+    tags: S.pegs.tags,
+    best: () => stats.pegs.fewest,
+    bestLabel: S.pegs.bestLabel,
+    rulesIntro: S.pegs.rules,
+    tutorial: defineAsyncComponent(() => import('./pegs/PegsTutorial.vue')),
+    component: defineAsyncComponent(() => import('./pegs/PegsGame.vue')),
+    settings: [],
   },
 
 ]
