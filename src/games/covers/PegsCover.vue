@@ -31,9 +31,11 @@ const CROSS = `M ${X0 + 2 * U} ${Y0} h ${3 * U} v ${2 * U} h ${2 * U} v ${3 * U}
       <circle :cx="x(over) + 0.9" :cy="y(over) + 1.1" :r="R" fill="var(--color-ink)" />
       <circle :cx="x(over)" :cy="y(over)" :r="R" class="peg" />
     </g>
-    <g class="mover" :style="{ '--dx': `${x(to) - x(from)}px`, transformOrigin: `${x(from)}px ${y(from)}px` }">
-      <circle :cx="x(from) + 0.9" :cy="y(from) + 1.1" :r="R" fill="var(--color-ink)" />
-      <circle :cx="x(from)" :cy="y(from)" :r="R" class="peg" />
+    <g class="mover" :style="{ '--dx': `${x(to) - x(from)}px` }">
+      <g class="lift" :style="{ transformOrigin: `${x(from)}px ${y(from)}px` }">
+        <circle :cx="x(from) + 0.9" :cy="y(from) + 1.1" :r="R" fill="var(--color-ink)" />
+        <circle :cx="x(from)" :cy="y(from)" :r="R" class="peg" />
+      </g>
     </g>
   </svg>
 </template>
@@ -59,6 +61,7 @@ const CROSS = `M ${X0 + 2 * U} ${Y0} h ${3 * U} v ${2 * U} h ${2 * U} v ${3 * U}
   stroke-width: 1;
 }
 .mover,
+.lift,
 .gone {
   transform-box: view-box;
 }
@@ -68,15 +71,27 @@ const CROSS = `M ${X0 + 2 * U} ${Y0} h ${3 * U} v ${2 * U} h ${2 * U} v ${3 * U}
 .active .gone {
   animation: gone 3.2s ease-in infinite;
 }
-/* 跳過旁邊那顆落到中間（拱起來放大一下），停一下，淡掉回原位 */
+/* 跳過旁邊那顆落到中間：外層一路滑過去（中間不停），裡層同時拱起來放大一下；停一下，淡掉回原位 */
+.active .lift {
+  animation: lift 3.2s linear infinite;
+}
+@keyframes lift {
+  0%,
+  14%,
+  34%,
+  100% {
+    transform: none;
+  }
+  24% {
+    transform: translateY(-6px) scale(1.3);
+  }
+}
 @keyframes hop {
   0%,
   14% {
     transform: none;
     opacity: 1;
-  }
-  24% {
-    transform: translateX(calc(var(--dx) * 0.5)) translateY(-6px) scale(1.3);
+    animation-timing-function: cubic-bezier(0.33, 0, 0.25, 1);
   }
   34%,
   84% {
