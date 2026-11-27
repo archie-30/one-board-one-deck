@@ -40,6 +40,7 @@ export const TOP_LEVEL: Record<string, string> = {
   dots: 'high',
   hex: 'master',
   morris: 'master',
+  junqi: 'high',
 }
 
 export type TitleRule =
@@ -75,12 +76,12 @@ export const TITLES: { id: string; rule: TitleRule }[] = [
   { id: 'lv100', rule: { kind: 'level', n: 100 } },
   { id: 'lv250', rule: { kind: 'level', n: 250 } },
   // 每個玩法 3 個稱號（暗棋、兩種跳棋、步步為營、點格棋、九九、蜘蛛接龍、新接龍是後來加的：有自己的稱號，但「十項全能」還是原本那十種）
-  ...[...ALL_GAMES, 'banqi', 'checkers', 'starcheckers', 'quoridor', 'dots', 'ninetynine', 'spider', 'freecell', 'bluff', 'pyramid', 'hex', 'morris'].flatMap((game) => [
+  ...[...ALL_GAMES, 'banqi', 'checkers', 'starcheckers', 'quoridor', 'dots', 'ninetynine', 'spider', 'freecell', 'bluff', 'pyramid', 'hex', 'morris', 'junqi'].flatMap((game) => [
     { id: `${game}A`, rule: { kind: 'wins', game, n: 5 } as TitleRule },
     { id: `${game}B`, rule: { kind: 'wins', game, n: 30 } as TitleRule },
     { id: `${game}Top`, rule: (game === 'redpoint' || game === 'freecell' ? { kind: 'wins', game, n: 80 } : { kind: 'top', game, n: 3 }) as TitleRule },
     // 後來加的玩法：再多一個「這個玩法玩滿 100 場」（輸贏都算）
-    ...(NEW_GAMES.includes(game) || game === 'bluff' || game === 'pyramid' || game === 'hex' || game === 'morris' ? [{ id: `${game}P`, rule: { kind: 'gamePlayed', game, n: 100 } as TitleRule }] : []),
+    ...(NEW_GAMES.includes(game) || game === 'bluff' || game === 'pyramid' || game === 'hex' || game === 'morris' || game === 'junqi' ? [{ id: `${game}P`, rule: { kind: 'gamePlayed', game, n: 100 } as TitleRule }] : []),
   ]),
   { id: 'played100', rule: { kind: 'played', n: 100 } },
   { id: 'lost50', rule: { kind: 'lost', n: 50 } },

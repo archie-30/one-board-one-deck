@@ -9,6 +9,7 @@ import type { NinetyNineState } from '../../../src/engine/ninetynine/rules'
 import type { DotsState } from '../../../src/engine/dots/rules'
 import type { HexState } from '../../../src/engine/hex/rules'
 import type { MorrisState } from '../../../src/engine/morris/rules'
+import { applyJunqi, createJunqi, DEFAULT_LAYOUT, type JunqiAction, type JunqiState, type MoveInfo } from '../../../src/engine/junqi/rules'
 import { legalMoves, type OthelloState } from '../../../src/engine/othello/rules'
 import { legalMoves as starMoves, type StarState } from '../../../src/engine/starcheckers/rules'
 
@@ -461,6 +462,42 @@ describe('連線對局（伺服器當裁判）', () => {
     runToEnd(room, t)
     expect(m.over).toBe(true)
   }, 60000)
+
+  it('軍棋：先手先佈陣、後手再佈；陣形只給自己；走子附碰子結果；照收到的套用跟伺服器一樣', () => {
+    const { room, ids, m } = started('junqi', 2)
+    let t = T0 + COUNTDOWN_MS + 1000
+    playerAct(room, ids[0], { type: 'rps', hand: 'paper' }, t)
+    playerAct(room, ids[1], { type: 'rps', hand: 'rock' }, t)
+    t += 3000
+    // A 贏了先佈；B 先送不收、亂擺的陣不收
+    expect(playerAct(room, ids[1], { type: 'deploy', layout: [...DEFAULT_LAYOUT] }, t)).toEqual([])
+    expect(playerAct(room, ids[0], { type: 'deploy', layout: [1, 2, 3] }, t)).toEqual([])
+    const e = playerAct(room, ids[0], { type: 'deploy', layout: [...DEFAULT_LAYOUT] }, t)
+    expect(e).toHaveLength(1)
+    expect(e[0].pub).toEqual({ type: 'deploy', player: 0 })
+    expect((e[0].own as { layout: number[] }).layout).toEqual(DEFAULT_LAYOUT)
+    playerAct(room, ids[1], { type: 'deploy', layout: [...DEFAULT_LAYOUT] }, t)
+    expect((m.s as JunqiState).phase).toBe('play')
+    runToEnd(room, t)
+    expect(m.over).toBe(true)
+    // B（座位 1、後手）照自己收到的紀錄套用，棋盤跟伺服器一樣
+    let view = createJunqi()
+    for (const x of m.log) {
+      if (x.end) continue
+      const ev = entryFor(x, 1) as { type: string; player: number; layout?: number[]; from?: number; to?: number; info?: MoveInfo }
+      let a: JunqiAction | null = null
+      if (ev.type === 'deploy') a = { type: 'deploy', side: ev.player as 0 | 1, ...(ev.layout ? { layout: ev.layout } : {}) }
+      else if (ev.type === 'move') a = { type: 'move', from: ev.from!, to: ev.to! }
+      else if (ev.type === 'timeout') a = { type: 'timeout' }
+      if (!a) continue
+      if (ev.type === 'deploy' && ev.player === 0) expect(ev.layout).toBeUndefined()
+      const r = applyJunqi(view, a, ev.info)
+      expect(r.ok).toBe(true)
+      if (r.ok) view = r.state
+    }
+    expect(view.board).toEqual((m.s as JunqiState).board)
+    expect(view.status).toBe((m.s as JunqiState).status)
+  }, 120000)
 
   it('西洋跳棋、星形跳棋：伺服器發局、電腦補位、時間到的真人由電腦代打，都下得完', () => {
     for (const [gameId, humans] of [['checkers', 2], ['starcheckers', 2], ['starcheckers', 3]] as const) {

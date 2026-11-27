@@ -28,6 +28,7 @@ import QuoridorCover from './covers/QuoridorCover.vue'
 import DotsCover from './covers/DotsCover.vue'
 import HexCover from './covers/HexCover.vue'
 import MorrisCover from './covers/MorrisCover.vue'
+import JunqiCover from './covers/JunqiCover.vue'
 import NinetyNineCover from './covers/NinetyNineCover.vue'
 import type { GameCategory, GameDef, RuleSection, SettingDef, SettingGroup } from './types'
 
@@ -399,6 +400,19 @@ export const GAMES: GameDef[] = [
     tutorial: defineAsyncComponent(() => import('./morris/MorrisTutorial.vue')),
     component: defineAsyncComponent(() => import('./morris/MorrisGame.vue')),
     settings: [level(), toggle('flying', S.morris.settings.flying, true), timer()],
+  },
+  {
+    id: 'junqi',
+    category: 'board',
+    name: S.junqi.name,
+    summary: S.junqi.summary,
+    players: S.junqi.players,
+    cover: JunqiCover,
+    tags: S.junqi.tags,
+    rulesIntro: withTimer(S.junqi.rules, [...TR.board, TR.junqi]),
+    tutorial: defineAsyncComponent(() => import('./junqi/JunqiTutorial.vue')),
+    component: defineAsyncComponent(() => import('./junqi/JunqiGame.vue')),
+    settings: [choice('difficulty', S.junqi.settings.difficulty, 'mid'), timer()],
   },
 
 ]
