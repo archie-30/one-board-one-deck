@@ -37,6 +37,7 @@ const all = Array.from({ length: POINTS }, (_, i) => i)
 const R = 3.7
 const tset = computed(() => new Set(props.targets ?? []))
 const rset = computed(() => new Set(props.removables ?? []))
+const hset = computed(() => new Set(props.hints ?? []))
 /** 走子：從原位滑過來（transform 的起點） */
 const slide = (p: number) => {
   const l = props.last
@@ -46,9 +47,6 @@ const slide = (p: number) => {
   const fromY = landing && landing.to === p && Date.now() - landing.t < 900 ? landing.py : y(l.from)
   return { '--dx': `${fromX - x(p)}px`, '--dy': `${fromY - y(p)}px` }
 }
-/** 子的陰影往右下偏 (0.8, 1)：框住一顆子的圈要往右下挪一半，連陰影一起框，看起來才正 */
-const CX = 0.4
-const CY = 0.5
 
 function pick(p: number) {
   if (props.interactive && !swallow) emit('pick', p)
@@ -119,7 +117,7 @@ function hover(p: number | null, e?: PointerEvent) {
     <!-- 剛成三的線 -->
     <line v-if="mill && mill.length === 3" :key="`mill${stamp}`" :x1="x(mill[0])" :y1="y(mill[0])" :x2="x(mill[2])" :y2="y(mill[2])" class="millln" />
     <!-- 教學提示 -->
-    <circle v-for="p in hints ?? []" :key="`h${p}`" :cx="x(p) + CX" :cy="y(p) + CY" :r="R + 1.6" class="hint" />
+    <circle v-for="p in (hints ?? []).filter((q) => board[q] < 0)" :key="`h${p}`" :cx="x(p)" :cy="y(p)" :r="R + 1.2" class="hint" />
     <!-- 點 -->
     <circle v-for="p in all" :key="`d${p}`" :cx="x(p)" :cy="y(p)" r="1.1" class="dot" />
     <!-- 能走到的點 -->
@@ -128,8 +126,6 @@ function hover(p: number | null, e?: PointerEvent) {
     <g v-if="last && last.removed >= 0" :key="`gone${stamp}`" class="gone" :style="{ transformOrigin: `${x(last.removed)}px ${y(last.removed)}px` }">
       <circle :cx="x(last.removed)" :cy="y(last.removed)" :r="R" class="disc" :class="last.victim === 0 ? 's0' : 's1'" />
     </g>
-    <!-- 上一步：從哪裡走來（淡淡的虛線圈） -->
-    <circle v-if="last && last.from >= 0 && last.to >= 0 && board[last.from] < 0" :cx="x(last.from)" :cy="y(last.from)" :r="R - 0.6" class="lastfrom" />
     <!-- 子 -->
     <g
       v-for="p in all"
@@ -140,11 +136,12 @@ function hover(p: number | null, e?: PointerEvent) {
       :style="{ transformOrigin: `${x(p)}px ${y(p)}px`, ...slide(p) }"
     >
       <circle :cx="x(p) + 0.8" :cy="y(p) + 1" :r="R" class="shadow" />
-      <circle :cx="x(p)" :cy="y(p)" :r="R" class="disc" :class="board[p] === 0 ? 's0' : 's1'" />
-      <circle v-if="selected === p" :cx="x(p) + CX" :cy="y(p) + CY" :r="R + 1.3" class="selring" />
-      <!-- 上一顆動的子：虛線圈（連陰影一起框） -->
-      <circle v-if="last && last.to === p && selected !== p" :cx="x(p) + CX" :cy="y(p) + CY" :r="R + 1.2" class="lastring" />
-      <circle v-if="rset.has(p)" :cx="x(p) + CX" :cy="y(p) + CY" :r="R + 1.3" class="rmring" />
+      <!-- 子本身包一層：選起來（或教學要你動的）就「拿起來」往左上浮、上下輕輕晃；能拿走的一閃一閃。不用圈圈框（使用者嫌怎麼圈都怪） -->
+      <g class="body" :class="{ up: selected === p || hset.has(p), blink: rset.has(p) }">
+        <circle :cx="x(p)" :cy="y(p)" :r="R" class="disc" :class="board[p] === 0 ? 's0' : 's1'" />
+        <!-- 上一顆動的子：正中間一個小方塊（跟五子棋一樣；黃色在紅、藍子上都看得到） -->
+        <rect v-if="last && last.to === p" :x="x(p) - 0.85" :y="y(p) - 0.85" width="1.7" height="1.7" class="lastmark" />
+      </g>
     </g>
     <!-- 預覽 -->
     <circle v-if="preview" :cx="x(preview.p)" :cy="y(preview.p)" :r="R" class="ghost" :class="preview.side === 0 ? 's0' : 's1'" />
@@ -236,31 +233,32 @@ function hover(p: number | null, e?: PointerEvent) {
 .s1 {
   fill: var(--color-blue);
 }
-.selring {
-  fill: none;
-  stroke: var(--color-red);
-  stroke-width: 0.9;
-  animation: breathe 1.2s ease-in-out infinite;
-}
-.lastring {
-  fill: none;
+.lastmark {
+  fill: var(--color-yellow);
   stroke: var(--color-ink);
-  stroke-width: 0.5;
-  stroke-dasharray: 1.2 0.9;
+  stroke-width: 0.3;
 }
-.lastfrom {
-  fill: none;
-  stroke: var(--color-ink);
-  stroke-width: 0.45;
-  stroke-dasharray: 1 0.9;
-  opacity: 0.55;
-  pointer-events: none;
+/* 拿起來：往左上浮（陰影露出來）、上下輕輕晃 */
+.body.up {
+  transform: translate(-0.6px, -1px);
+  animation: lift 1.1s ease-in-out infinite alternate;
 }
-.rmring {
-  fill: none;
-  stroke: var(--color-yellow);
-  stroke-width: 1.4;
-  animation: breathe 0.9s ease-in-out infinite;
+@keyframes lift {
+  from {
+    transform: translate(-0.5px, -0.7px);
+  }
+  to {
+    transform: translate(-0.7px, -1.3px);
+  }
+}
+/* 成三後能拿走的對方的子：一閃一閃 */
+.body.blink {
+  animation: blink 0.9s ease-in-out infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0.4;
+  }
 }
 /* 剛放下：從上面落下、壓一下 */
 .stone.drop {
@@ -314,8 +312,8 @@ function hover(p: number | null, e?: PointerEvent) {
   .millln,
   .tgt,
   .hint,
-  .selring,
-  .rmring {
+  .body.up,
+  .body.blink {
     animation: none;
   }
   .gone {

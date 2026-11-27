@@ -14,7 +14,7 @@ const BAR = BEAT * 4
 const SWING = 0.58
 const BARS_PER_SECTION = 8
 /** 音樂整體多大聲（比音效小聲） */
-const LEVEL = 0.42
+const LEVEL = 0.75
 
 const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12)
 const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)]
