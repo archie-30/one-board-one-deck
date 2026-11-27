@@ -34,6 +34,8 @@ const props = defineProps<{
   hints?: readonly number[]
   /** 佈陣中：只有自己這半邊能點，對方那半邊淡一點 */
   deploying?: boolean
+  /** 佈陣時兩顆子互換（兩顆各自滑到對方的位置） */
+  swap?: { a: number; b: number; key: number } | null
   /** 這一點的子能不能拖（沒給就不能拖） */
   canDrag?: ((at: number) => boolean) | null
 }>()
@@ -72,12 +74,24 @@ for (let a = 0; a < CELLS; a++) {
 const leftHalf = (at: number) => gx(at) < 6
 const tset = computed(() => new Set(props.targets ?? []))
 const hset = computed(() => new Set(props.hints ?? []))
-/** 走過來的子：從原位滑過來 */
+/** 剛拖完放開的地方：落到那一點的子從放開的地方滑過去（不先跳回原位） */
+let landing: { to: number; px: number; py: number; t: number } | null = null
+/** 走過來（或互換）的子：從原位（拖的話從放開的地方）滑過來 */
 const slide = (at: number) => {
+  let from: [number, number] | null = null
   const f = props.fx
-  if (!f || f.to !== at || f.out === 'lose' || f.out === 'tie') return undefined
-  return { '--dx': `${x(f.from) - x(at)}px`, '--dy': `${y(f.from) - y(at)}px` }
+  if (f && f.to === at && f.out !== 'lose' && f.out !== 'tie') from = [x(f.from), y(f.from)]
+  const sw = props.swap
+  if (sw && (at === sw.a || at === sw.b)) {
+    const o = at === sw.a ? sw.b : sw.a
+    from = [x(o), y(o)]
+  }
+  if (!from) return undefined
+  if (landing && landing.to === at && Date.now() - landing.t < 900) from = [landing.px, landing.py]
+  return { '--dx': `${from[0] - x(at)}px`, '--dy': `${from[1] - y(at)}px` }
 }
+/** 子的 key：換了位置、互換時換一個，動畫才會重播 */
+const pieceKey = (at: number) => `s${at}-${props.board[at]}-${props.fx && props.fx.to === at ? props.fx.key : 0}-${props.swap && (at === props.swap.a || at === props.swap.b) ? props.swap.key : 0}`
 const fxFrom = computed(() => (props.fx ? { '--dx': `${x(props.fx.from) - x(props.fx.to)}px`, '--dy': `${y(props.fx.from) - y(props.fx.to)}px` } : undefined))
 
 function pick(at: number) {
@@ -130,7 +144,10 @@ function up(e: PointerEvent) {
       best = at
     }
   }
-  if (best >= 0 && best !== d.from) emit('drop', d.from, best)
+  if (best >= 0 && best !== d.from) {
+    landing = { to: best, px, py, t: Date.now() }
+    emit('drop', d.from, best)
+  }
 }
 /** 拖著的那顆子 */
 const dragged = computed(() => (drag.value?.moved ? drag.value : null))
@@ -176,7 +193,7 @@ const dragged = computed(() => (drag.value?.moved ? drag.value : null))
       </g>
     </template>
     <!-- 子 -->
-    <template v-for="at in all" :key="`s${at}-${board[at]}-${fx && fx.to === at ? fx.key : 0}`">
+    <template v-for="at in all" :key="pieceKey(at)">
       <g v-if="board[at] >= 0" class="pc" :class="{ slide: !!slide(at), sel: selected === at, away: deploying && !leftHalf(at), lifted: dragged?.from === at }" :style="slide(at)">
         <rect :x="x(at) - TW / 2 + 0.6" :y="y(at) - TH / 2 + 0.7" :width="TW" :height="TH" rx="1.2" fill="var(--color-ink)" />
         <rect :x="x(at) - TW / 2" :y="y(at) - TH / 2" :width="TW" :height="TH" rx="1.2" class="tile" :class="`s${sideOf(board[at])}`" />
