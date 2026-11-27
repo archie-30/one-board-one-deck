@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { seedRng } from '@/engine/common/rng'
-import { ADJ, applyMorris, createMorris, inMill, legalActions, MILLS, removable, targetsOf, wouldMill, type MorrisAction, type MorrisState } from './rules'
+import { ADJ, applyMorris, createMorris, FLY_QUIET_LIMIT, inMill, legalActions, MILLS, removable, targetsOf, wouldMill, type MorrisAction, type MorrisState } from './rules'
 import { chooseMorrisAction, playOut } from './ai'
 
 const apply = (s: MorrisState, a: MorrisAction) => {
@@ -99,6 +99,24 @@ describe('九子棋：走子、飛子、輸贏', () => {
     expect(s.status).toBe('done')
     expect(s.winner).toBe(null)
     expect(s.reason).toBe('quiet')
+  })
+  it('有人在飛子時，連續 20 步沒人拿子就和棋（沒人飛時還沒到）', () => {
+    // 藍只剩 3 顆（可以飛）
+    let s = setup([0, 4, 6, 9], [14, 20, 22])
+    s.quiet = FLY_QUIET_LIMIT - 1
+    s = apply(s, { type: 'move', from: 0, to: 1 })
+    expect(s.status).toBe('done')
+    expect(s.reason).toBe('flyQuiet')
+    // 沒人飛（雙方都 4 顆）：還沒和
+    let t = setup([0, 4, 6, 9], [14, 20, 22, 23])
+    t.quiet = FLY_QUIET_LIMIT - 1
+    t = apply(t, { type: 'move', from: 0, to: 1 })
+    expect(t.status).toBe('playing')
+    // 飛子規則關掉：照 60 步
+    let u = setup([0, 4, 6, 9], [14, 20, 22], [0, 0], 0, false)
+    u.quiet = FLY_QUIET_LIMIT - 1
+    u = apply(u, { type: 'move', from: 0, to: 1 })
+    expect(u.status).toBe('playing')
   })
   it('時間到＝跳過換對方；認輸', () => {
     let s = createMorris()

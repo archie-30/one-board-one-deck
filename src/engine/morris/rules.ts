@@ -7,7 +7,7 @@
 //     對方在成三裡的子不能拿，除非對方所有的子都在成三裡。
 //   - 飛子（規則設定，預設開）：放完子之後只剩 3 顆的人，可以飛到任何空點。
 //   - 輸：放完子之後只剩 2 顆，或輪到自己卻完全沒有能走的步。
-//   - 和棋：雙方都放完子之後，連續 60 步沒有人拿子；或整局超過 400 步。
+//   - 和棋：雙方都放完子之後，連續 60 步沒有人拿子（有人在飛子時 20 步）；或整局超過 400 步。
 //   - 時間到＝這一步跳過、換對方。可以認輸。
 // 點的編號（x, y 是 7 × 7 的格子座標）：
 //    0 ─────── 1 ─────── 2
@@ -24,6 +24,8 @@ export const POINTS = 24
 export const PIECES = 9
 /** 雙方都放完子之後，連續幾步沒人拿子算和棋 */
 export const QUIET_LIMIT = 60
+/** 有人在飛子（剩 3 顆）時，連續幾步沒人拿子就和棋（飛的那一方很會擋，不然會僵持很久；使用者要的） */
+export const FLY_QUIET_LIMIT = 20
 export const MAX_PLIES = 400
 
 /** 每個點在 7 × 7 格子上的位置（畫面用） */
@@ -68,7 +70,7 @@ export interface MorrisState {
   /** 贏家；和棋是 null */
   winner: Side | null
   /** 怎麼結束的（畫面用）：pieces 只剩兩顆、blocked 沒步可走、quiet 太久沒拿子、long 下太久 */
-  reason: 'pieces' | 'blocked' | 'quiet' | 'long' | 'resign' | null
+  reason: 'pieces' | 'blocked' | 'quiet' | 'flyQuiet' | 'long' | 'resign' | null
   plies: number
   /** 雙方都放完子之後，連續幾步沒人拿子 */
   quiet: number
@@ -133,7 +135,11 @@ function judge(s: MorrisState): MorrisState {
   const loser = (reason: MorrisState['reason']): MorrisState => ({ ...s, status: 'done', winner: other(side), reason })
   if (s.hand[side] === 0 && countOf(s.board, side) < 3) return loser('pieces')
   if (!hasMove(s, side)) return loser('blocked')
-  if (s.hand[0] === 0 && s.hand[1] === 0 && s.quiet >= QUIET_LIMIT) return { ...s, status: 'done', winner: null, reason: 'quiet' }
+  if (s.hand[0] === 0 && s.hand[1] === 0) {
+    const flyingNow = canFly(s, 0) || canFly(s, 1)
+    if (flyingNow && s.quiet >= FLY_QUIET_LIMIT) return { ...s, status: 'done', winner: null, reason: 'flyQuiet' }
+    if (s.quiet >= QUIET_LIMIT) return { ...s, status: 'done', winner: null, reason: 'quiet' }
+  }
   if (s.plies >= MAX_PLIES) return { ...s, status: 'done', winner: null, reason: 'long' }
   return s
 }

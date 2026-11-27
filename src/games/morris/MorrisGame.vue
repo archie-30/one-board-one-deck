@@ -515,6 +515,7 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
       </div>
       <div class="status-box">
         <p class="status" :class="{ mine: myTurn && !message, warn: !!message }">{{ status }}</p>
+        <p v-if="myTurn && !placing && canFly(state, opSide)" class="tip">{{ T.flyTip }}</p>
       </div>
       <div class="act">
         <template v-if="phase === 'over'">
@@ -696,6 +697,12 @@ if (saved && state.value.turn !== human.value) scheduleCpu()
   margin-bottom: 0.3rem;
   font-size: 2rem;
   line-height: 1.1;
+}
+.tip {
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--color-ink-2);
 }
 .status-box {
   margin-top: auto;
