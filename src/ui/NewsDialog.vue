@@ -45,7 +45,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
       </header>
       <div class="rule wipe" style="--i: 2" />
       <p class="lead rise" style="--i: 2">{{ T.newsLead(games.length) }}</p>
-      <div class="tiles" :class="{ many: games.length >= 3 }">
+      <div class="tiles" :class="{ many: games.length >= 3, crowd: games.length >= 4 }">
         <button v-for="(g, i) in games" :key="g.id" class="tile rise" :class="g.category" :style="{ '--i': i + 3 }" @click="open(g.id)">
           <span class="cv halftone"><component :is="g.cover" active /></span>
           <span class="info">
@@ -198,6 +198,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
 @media (max-width: 720px) {
   .many .go {
     display: none;
+  }
+}
+/* 四個以上玩法：格子更窄，一般螢幕也收起「去看看」 */
+@media (max-width: 1100px) {
+  .crowd .go {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .crowd .nm {
+    font-size: 1rem;
+  }
+  .crowd .row {
+    gap: 0.3rem;
   }
 }
 .cat {
