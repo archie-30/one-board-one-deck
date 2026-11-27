@@ -7,6 +7,7 @@ import './assets/fonts/subset.css'
 import App from './App.vue'
 import { finishBoot, startFontLoads } from './core/boot'
 import { warmSounds } from './core/audio'
+import { initMusic } from './core/music'
 import { autoFullscreen } from './core/fullscreen'
 import { isApp, setupNative } from './core/native'
 import { checkForUpdate } from './core/appUpdate'
@@ -78,6 +79,7 @@ else {
 // 開機加載畫面：準備好後接到主畫面（見 core/boot.ts）
 // 音效在背景執行緒先算好（不佔主畫面）
 warmSounds()
+initMusic()
 // 因為網站更新而重新整理過：回到剛剛那個玩法的模式選單（那張卡片已經選好）
 const reopen = gallery ? null : takeReopen()
 void finishBoot().then(() => {

@@ -77,6 +77,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true))
             <div><p class="t-black lb">{{ T.sound }}</p></div>
             <Switch :on="settings.volume > 0" :label="T.sound" @change="setSound" />
           </div>
+          <div class="row rise" style="--i: 2">
+            <div>
+              <p class="t-black lb">{{ T.music }}</p>
+              <p class="help">{{ T.musicHelp }}</p>
+            </div>
+            <Switch :on="settings.music" :label="T.music" @change="(v) => (settings.music = v)" />
+          </div>
           <!-- App 本來就是全螢幕，不放這個開關 -->
           <div v-if="!isApp" class="row rise" style="--i: 3">
             <div>
