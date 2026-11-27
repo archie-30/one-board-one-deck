@@ -11,6 +11,7 @@ import { RANK_LABELS, rankOf } from '@/engine/bigtwo/cards'
 import { applyPyramid, CARD_SCORE, clearedRows, isStuck, PYRAMID, ROW_SCORE, scoreOf, timeBonus, UNDO_PENALTY, undoTo, type PyramidAction, type PyramidLevel, type PyramidState } from '@/engine/pyramid/rules'
 import { dealWinnable } from '@/engine/pyramid/solver'
 import type { GameDef } from '@/games/types'
+import StuckBtn from '@/games/solitaire/StuckBtn.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
@@ -220,7 +221,7 @@ const total = computed(() => scoreOf(state.value) + bonus.value)
           </div>
           <Transition name="stuck">
             <div v-if="stuck" class="stuck">
-              <Btn tone="red" size="sm" block @click="settleStuck">{{ S.solitaire.stuckSettle }}</Btn>
+              <StuckBtn @settle="settleStuck" />
             </div>
           </Transition>
         </div>

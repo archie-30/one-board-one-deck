@@ -410,21 +410,21 @@ function build(c: AudioContext) {
   for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1
 }
 
-let starting = false
-async function start() {
-  if (playing || starting || !settings.music || document.visibilityState === 'hidden') return
+/** 已經在聽「可以出聲了」的通知 */
+let watching = false
+function start() {
+  if (playing || !settings.music || document.visibilityState === 'hidden') return
   const c = audioContext()
   if (!c) return
   if (c.state !== 'running') {
-    starting = true
-    try {
-      await c.resume()
-    } catch {
-      // 還不能出聲（還沒點過畫面）：等下一次點
+    // 還不能出聲：請瀏覽器放行（不等它回覆：手機上手指按下去那一下請求會一直卡著，曾經因此後面怎麼點都沒有音樂），
+    // 等真的能出聲了（statechange）再開始；之後每點一下也會再請一次
+    void c.resume().catch(() => undefined)
+    if (!watching) {
+      watching = true
+      c.addEventListener('statechange', () => c.state === 'running' && start())
     }
-    starting = false
-    // 等待的時候狀態可能變了（TypeScript 看不出來，要轉一下型別）
-    if ((c.state as string) !== 'running' || playing || !settings.music || (document.visibilityState as string) === 'hidden') return
+    return
   }
   ctx = c
   build(c)
@@ -452,17 +452,18 @@ function stop() {
 
 /** 開機時呼叫一次：第一次點畫面（瀏覽器規定要先點一下才能出聲）就開始放；設定開關、切走回來跟著停／放 */
 export function initMusic() {
-  const unlock = () => void start()
-  window.addEventListener('pointerdown', unlock, true)
-  window.addEventListener('keydown', unlock, true)
+  // 瀏覽器規定「真的點了一下」才能出聲；手機上手指按下去（pointerdown）不算，要放開（pointerup／touchend／click）才算，
+  // 所以每一種都聽（曾經只聽 pointerdown，手機上一直沒聲音）。放成功之前每點一次都再試一次。
+  const unlock = () => start()
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(ev, unlock, true)
   watch(
     () => settings.music,
     (on) => {
-      if (on) void start()
+      if (on) start()
       else stop()
     },
   )
-  document.addEventListener('visibilitychange', () => (document.visibilityState === 'hidden' ? stop() : void start()))
+  document.addEventListener('visibilitychange', () => (document.visibilityState === 'hidden' ? stop() : start()))
   window.addEventListener('obod:pause', stop)
-  window.addEventListener('obod:resume', () => void start())
+  window.addEventListener('obod:resume', () => start())
 }

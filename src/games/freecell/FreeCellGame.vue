@@ -9,6 +9,7 @@ import { S } from '@/data/strings'
 import { seedRng } from '@/engine/common/rng'
 import { applyFreeCell, dealFreeCell, finishPlan, isStuck, undoTo, type FreeCellAction, type FreeCellError, type FreeCellState } from '@/engine/freecell/rules'
 import type { GameDef } from '@/games/types'
+import StuckBtn from '@/games/solitaire/StuckBtn.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
@@ -242,7 +243,7 @@ const collected = computed(() => state.value.foundations.flat().length)
           </div>
           <Transition name="stuck">
             <div v-if="stuck" class="stuck">
-              <Btn tone="red" size="sm" block @click="settleStuck">{{ S.solitaire.stuckSettle }}</Btn>
+              <StuckBtn @settle="settleStuck" />
             </div>
           </Transition>
         </div>

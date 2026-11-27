@@ -21,6 +21,7 @@ import {
 } from '@/engine/solitaire/rules'
 import type { GameDef } from '@/games/types'
 import { dealWinnable } from '@/engine/solitaire/solver'
+import StuckBtn from './StuckBtn.vue'
 import Btn from '@/ui/Btn.vue'
 import Dialog from '@/ui/Dialog.vue'
 import CursorGlow from '@/ui/CursorGlow.vue'
@@ -296,7 +297,7 @@ const bonus = computed(() => timeBonus(seconds.value))
           </div>
           <Transition name="stuck">
             <div v-if="stuck" class="stuck">
-              <Btn tone="red" size="sm" block @click="settleStuck">{{ T.stuckSettle }}</Btn>
+              <StuckBtn @settle="settleStuck" />
             </div>
           </Transition>
         </div>
@@ -385,30 +386,11 @@ const bonus = computed(() => timeBonus(seconds.value))
 .red {
   color: var(--color-red);
 }
-/* 卡關並結算：從返回下面滑出來，按鈕輕輕左右晃一下、停一會兒再晃（提醒但不吵） */
+/* 卡關並結算：從返回下面滑出來（不晃動；要按兩下才結算，見 StuckBtn） */
 .stuck {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-}
-.stuck :deep(.btn) {
-  animation: nudge-x 2.4s ease-in-out 0.5s infinite;
-}
-@keyframes nudge-x {
-  0%,
-  70%,
-  100% {
-    transform: none;
-  }
-  76% {
-    transform: translateX(-0.18rem) rotate(-1.5deg);
-  }
-  82% {
-    transform: translateX(0.18rem) rotate(1.5deg);
-  }
-  88% {
-    transform: translateX(-0.1rem);
-  }
 }
 .stuck-enter-active {
   transition:
