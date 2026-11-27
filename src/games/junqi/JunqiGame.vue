@@ -101,6 +101,15 @@ const deployReady = ref(false)
 const selected = ref(-1)
 const fx = ref<JunqiFx | null>(null)
 let fxKey = 0
+/** 佈陣時剛互換的兩顆（動畫） */
+const swapFx = ref<{ a: number; b: number; key: number } | null>(null)
+/** 近三步的動作（最新的在最上面）：狀態列的字一下就換掉，這裡留著讓人看清楚 */
+const log = ref<{ key: number; text: string; warn?: boolean }[]>([])
+let logKey = 0
+function note(text: string, warn = false) {
+  if (!text) return
+  log.value = [{ key: ++logKey, text, warn }, ...log.value].slice(0, 3)
+}
 /** 連線結束攤牌：每顆子是什麼 */
 const revealed = ref<number[] | null>(null)
 const hist: { state: JunqiState; side: number }[] = []
@@ -190,6 +199,7 @@ function startAfterRps(playerWins: boolean) {
   deployReady.value = false
   revealed.value = null
   fx.value = null
+  log.value = []
   phase.value = 'playing'
   if (bn) return bn.next()
   // 電腦先手：電腦先佈好陣
@@ -209,6 +219,8 @@ function restart() {
   selected.value = -1
   deploySel.value = -1
   fx.value = null
+  swapFx.value = null
+  log.value = []
   layout.value = freshLayout()
   moods.value = ['idle', 'idle']
   undoUsed.value = false
@@ -264,6 +276,8 @@ function deployPick(at: number) {
     return
   }
   layout.value = next
+  const home = homeOf(human.value)
+  swapFx.value = { a: home[k], b: home[deploySel.value], key: ++fxKey }
   deploySel.value = -1
   playSound('xqPiece')
 }
@@ -335,8 +349,9 @@ function commit(a: JunqiAction, who: 0 | 1, info?: MoveInfo): boolean {
   const last = r.state.last
   if (a.type === 'move' && last && attLook) {
     fx.value = { key: ++fxKey, from: a.from, to: a.to, out: last.out, att: attLook, def: defLook }
-    message.value = clashText(last.out, attLook, defLook, who)
-    if (r.state.flagShown.join() !== before.flagShown.join()) message.value = (message.value ? message.value + '・' : '') + T.flagShown
+    message.value = ''
+    note(last.out === 'move' ? moveText(attLook, who) : clashText(last.out, attLook, defLook, who), last.out !== 'move')
+    if (r.state.flagShown.join() !== before.flagShown.join()) note(T.flagShown, true)
     if (last.out === 'move') playSound('xqPiece')
     else {
       playSound('xqPiece')
@@ -352,6 +367,11 @@ function commit(a: JunqiAction, who: 0 | 1, info?: MoveInfo): boolean {
   if (state.value.status !== 'playing') finish()
   else if (!bn && state.value.turn !== human.value && state.value.phase === 'play') scheduleCpu()
   return true
+}
+/** 走到空點（紀錄用） */
+function moveText(att: { rank: number }, who: 0 | 1): string {
+  if (watching) return T.logMove(who === 0 ? meName : opponent.value.name, '')
+  return who === 0 ? T.logMove(S.common.you, T.full[att.rank] ?? '') : T.logMove(opponent.value.name, '')
 }
 /** 碰子的結果（自己的角度）；走到空點就不說 */
 function clashText(out: string, att: { side: number; rank: number }, def: { side: number; rank: number } | null, who: 0 | 1): string {
@@ -377,7 +397,7 @@ function scheduleCpu() {
       moods.value = [moods.value[0], 'idle']
       if (!commit(a, 1)) commit({ type: 'timeout' }, 1)
     },
-    700 + (level === 'high' ? 300 : level === 'mid' ? 150 : 0) + Math.random() * 600,
+    1500 + (level === 'high' ? 400 : level === 'mid' ? 200 : 0) + Math.random() * 900,
   )
 }
 
@@ -399,6 +419,7 @@ function onTimeout() {
   state.value = r.state
   playSound('error')
   message.value = S.common.timedOut
+  note(T.logTimeout(S.common.you))
   if (state.value.status !== 'playing') finish()
   else scheduleCpu()
 }
@@ -525,6 +546,7 @@ function revertTo(k: number) {
   message.value = ''
   selected.value = -1
   fx.value = null
+  log.value = []
   moods.value = ['idle', 'idle']
   playSound('piecePick')
 }
@@ -564,6 +586,7 @@ function netApply(ev: { type: string; player: number } & Record<string, unknown>
       if (state.value.phase === 'play') hist.push({ state: state.value, side: state.value.turn })
       state.value = r.state
       if (who === 0) ((message.value = S.common.timedOut), playSound('error'))
+      note(T.logTimeout(who === 0 ? meName : opponent.value.name))
       if (state.value.status !== 'playing') finish()
     }
   }
@@ -636,12 +659,19 @@ if (saved) {
           :targets="targets"
           :fx="deploying ? null : fx"
           :deploying="deploying && !myDeployed"
+          :swap="deploying ? swapFx : null"
           :can-drag="watching ? null : canDrag"
           @pick="pick"
           @grab="grab"
           @drop="drop"
         />
       </div>
+      <!-- 近三步（最新的在最上面） -->
+      <ol class="log">
+        <TransitionGroup name="logline">
+          <li v-for="(l, i) in deploying ? [] : log" :key="l.key" :class="[`k${i}`, { warn: l.warn }]">{{ l.text }}</li>
+        </TransitionGroup>
+      </ol>
     </div>
 
     <aside class="side right">
@@ -714,6 +744,7 @@ if (saved) {
   display: flex;
   min-width: 0;
   flex: 1;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   container-type: size;
@@ -721,7 +752,8 @@ if (saved) {
 }
 /* 棋盤寬高比 = viewBox（130 × 54） */
 .board-box {
-  width: min(100cqw, 100cqh * 130 / 54);
+  /* 下面留三行給「近三步」 */
+  width: min(100cqw, (100cqh - 3.6rem) * 130 / 54);
   aspect-ratio: 130 / 54;
 }
 .side {
@@ -830,6 +862,47 @@ if (saved) {
 }
 .status.warn {
   color: var(--color-red);
+}
+/* 近三步（棋盤下面）：最新的大字、越舊越淡 */
+.log {
+  display: flex;
+  height: 3.6rem;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding-top: 0.45rem;
+  text-align: center;
+}
+.log li {
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1.3;
+  color: var(--color-ink);
+}
+.log li.warn {
+  color: var(--color-red);
+}
+.log li.k1 {
+  font-size: 0.7rem;
+  opacity: 0.65;
+}
+.log li.k2 {
+  font-size: 0.66rem;
+  opacity: 0.45;
+}
+.logline-enter-active {
+  transition:
+    opacity 320ms,
+    transform 320ms var(--ease-out);
+}
+.logline-enter-from {
+  opacity: 0;
+  transform: translateY(-0.4rem);
+}
+.logline-leave-active {
+  display: none;
+}
+.logline-move {
+  transition: all 320ms var(--ease-out);
 }
 .act {
   width: min(9.6rem, 100%);

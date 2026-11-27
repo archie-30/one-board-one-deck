@@ -2492,6 +2492,9 @@ export const S = {
     /** 觀戰：誰碰誰、結果（看不到是什麼子） */
     watchClash: { win: '攻方吃掉一子', lose: '攻方陣亡', tie: '同歸於盡' } as Record<string, string>,
     flagShown: '司令陣亡，亮出軍旗！',
+    /** 近三步的紀錄：走到空點（name 是誰、piece 是自己的子的名字；對方的看不到就不寫） */
+    logMove: (who: string, piece: string) => (piece ? `${who}移動了${piece}` : `${who}移動了一子`),
+    logTimeout: (who: string) => `${who}時間到，跳過`,
     left: (n: number) => `剩 ${n} 子`,
     resign: '認輸並結算',
     resignAgain: '再按一次認輸',

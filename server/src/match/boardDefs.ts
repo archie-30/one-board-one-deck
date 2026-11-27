@@ -392,8 +392,9 @@ const junqi: MatchDef<JunqiState, JunqiAct> = {
   },
   think(s, _id, o, r) {
     if (s.phase === 'deploy') return 700 + r * 900
+    // 跟單人一樣想久一點（使用者嫌太快）
     const lv = asCardLevel(o.difficulty)
-    return 900 + (lv === 'high' ? 400 : lv === 'mid' ? 200 : 0) + r * 700
+    return 1500 + (lv === 'high' ? 400 : lv === 'mid' ? 200 : 0) + r * 900
   },
   timeout: (side) => ({ type: 'timeout', player: side }),
   render(before, after, a) {
